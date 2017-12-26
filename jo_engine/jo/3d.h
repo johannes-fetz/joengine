@@ -656,23 +656,37 @@ static  __jo_force_inline void      jo_3d_display_level(const unsigned short lev
 *                 TOOLS
 *******************************************************/
 
+/** @brief Draw billboard
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @param x X coordinate
+ *  @param y Y coordinate
+ *  @param z Z coordinate
+ */
+static  __jo_force_inline void      jo_3d_draw_billboard(const int sprite_id, const int x, const int y, const int z)
+{
+    __internal_jo_sprite_set_position3D(x, y, z);
+    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
+}
+
 /** @brief Draw billboard with a specific scale
  *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
  *  @param x X coordinate
  *  @param y Y coordinate
  *  @param z Z coordinate
- *  @param scale_x X scale
- *  @param scale_y Y scale
+ *  @param scale Scale
  */
-static  __jo_force_inline void      jo_3d_draw_billboard(const int sprite_id, const int x, const int y, const int z, const int scale_x, const int scale_y)
+static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite_id, const int x, const int y, const int z, const int scale)
 {
-    jo_3d_push_matrix();
+    if (scale == 1)
+        jo_3d_draw_billboard(sprite_id, x, y, z);
+    else
     {
-        jo_3d_translate_matrix(x, y, z);
-        jo_3d_set_scale(scale_x, scale_y, 1);
-        jo_3d_draw_sprite(sprite_id);
+        __internal_jo_sprite_set_position3D(x, y, z);
+        unsigned int previous_scale = __jo_sprite_attributes.fixed_scale;
+        __jo_sprite_attributes.fixed_scale = JO_MULT_BY_65536(scale);
+        jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
+        __jo_sprite_attributes.fixed_scale = previous_scale;
     }
-    jo_3d_pop_matrix();
 }
 
 #endif /* !JO_COMPILE_WITH_3D_SUPPORT */

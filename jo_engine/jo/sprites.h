@@ -60,10 +60,14 @@ extern jo_texture_definition        __jo_sprite_def[JO_MAX_SPRITE];
  *  @warning MC Hammer: don't touch this
  */
 extern jo_picture_definition        __jo_sprite_pic[JO_MAX_SPRITE];
-
-void    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates);
-
-void    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3D * const pos, const int angle, const bool centered_style_coordinates);
+/** @brief (internal engine usage)
+ *  @warning MC Hammer: don't touch this
+ */
+void    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates, const bool billboard);
+/** @brief (internal engine usage)
+ *  @warning MC Hammer: don't touch this
+ */
+void    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3D * const pos, const int angle, const bool centered_style_coordinates, const bool billboard);
 
 /*
 ** INTERNAL
@@ -290,7 +294,7 @@ static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
 static  __jo_force_inline void	jo_sprite_draw3D_and_rotate(const int sprite_id, const int x, const int y, const int z, const int angle)
 {
     __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, true);
+    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, true, false);
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -302,7 +306,7 @@ static  __jo_force_inline void	jo_sprite_draw3D_and_rotate(const int sprite_id, 
 static  __jo_force_inline void	jo_sprite_draw3D(const int sprite_id, const int x, const int y, const int z)
 {
     __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true);
+    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, false);
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -315,7 +319,7 @@ static  __jo_force_inline void	jo_sprite_draw3D(const int sprite_id, const int x
 static  __jo_force_inline void	jo_sprite_draw3D_and_rotate2(const int sprite_id, const int x, const int y, const int z, const int angle)
 {
     __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, false);
+    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, false, false);
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -327,7 +331,7 @@ static  __jo_force_inline void	jo_sprite_draw3D_and_rotate2(const int sprite_id,
 static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int x, const int y, const int z)
 {
     __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw(sprite_id, &__jo_sprite_pos, false);
+    jo_sprite_draw(sprite_id, &__jo_sprite_pos, false, false);
 }
 
 /*

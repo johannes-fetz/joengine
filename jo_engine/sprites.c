@@ -323,7 +323,7 @@ static  __jo_force_inline void __jo_set_sprite_attributes(jo_vdp1_command * cons
 }
 #endif
 
-void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates)
+void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates, const bool billboard)
 {
 #if JO_COMPILE_USING_SGL
     FIXED               sgl_pos[XYZS];
@@ -342,7 +342,10 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
         sgl_pos[1] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
-    slDispSprite(sgl_pos, &attr, 0);
+    if (billboard)
+        slPutSprite(sgl_pos, &attr, 0);
+    else
+        slDispSprite(sgl_pos, &attr, 0);
 #else
     jo_vdp1_command     *cmd;
     unsigned int        sprite_width;
@@ -379,7 +382,7 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
 #endif
 }
 
-void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3D * const pos, const int angle, const bool centered_style_coordinates)
+void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3D * const pos, const int angle, const bool centered_style_coordinates, const bool billboard)
 {
 #if JO_COMPILE_USING_SGL
     FIXED               sgl_pos[XYZS];
@@ -398,7 +401,10 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
         sgl_pos[1] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
-    slDispSprite(sgl_pos, &attr, DEGtoANG(angle));
+    if (billboard)
+        slPutSprite(sgl_pos, &attr, DEGtoANG(angle));
+    else
+        slDispSprite(sgl_pos, &attr, DEGtoANG(angle));
 #else
     jo_pos2D            rotation_origin;
     jo_pos2D            vertex;
@@ -409,7 +415,7 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
 
     if (!angle)
     {
-        jo_sprite_draw(sprite_id, pos, centered_style_coordinates);
+        jo_sprite_draw(sprite_id, pos, centered_style_coordinates, billboard);
         return ;
     }
     jo_vdp1_command *cmd = jo_vdp1_create_command();

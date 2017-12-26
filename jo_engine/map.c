@@ -249,9 +249,9 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
             current_tile->pos.x = current_tile->x - screen_x;
             current_tile->pos.y = current_tile->y - screen_y;
             if (current_tile->is_animated)
-                jo_sprite_draw(jo_get_anim_sprite(current_tile->sprite_or_anim_id), &current_tile->pos, true);
+                jo_sprite_draw(jo_get_anim_sprite(current_tile->sprite_or_anim_id), &current_tile->pos, true, false);
             else
-                jo_sprite_draw(current_tile->sprite_or_anim_id, &current_tile->pos, true);
+                jo_sprite_draw(current_tile->sprite_or_anim_id, &current_tile->pos, true, false);
         }
     }
 }
