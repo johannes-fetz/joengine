@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Jo Engine" />
+		<Option pch_mode="2" />
+		<Option compiler="null" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/Jo Engine" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-DJO_COMPILE_WITH_BACKUP_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_TGA_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_AUDIO_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_PRINTF_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_3D_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_VIDEO_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_DUAL_CPU_SUPPORT" />
+					<Add option="-DJO_NTSC_VERSION" />
+					<Add option="-DJO_DEBUG" />
+				</Compiler>
+			</Target>
+		</Build>
+		<Unit filename="../Compiler/COMMON/jo_engine_makefile" />
+		<Unit filename="3d.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="audio.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="background.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="backup.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="core.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="effects.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="font.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fs.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="image.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="input.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="jo/3d.h" />
+		<Unit filename="jo/audio.h" />
+		<Unit filename="jo/background.h" />
+		<Unit filename="jo/backup.h" />
+		<Unit filename="jo/colors.h" />
+		<Unit filename="jo/conf.h" />
+		<Unit filename="jo/core.h" />
+		<Unit filename="jo/effects.h" />
+		<Unit filename="jo/font.h" />
+		<Unit filename="jo/fs.h" />
+		<Unit filename="jo/hitbox.h" />
+		<Unit filename="jo/image.h" />
+		<Unit filename="jo/input.h" />
+		<Unit filename="jo/jo.h" />
+		<Unit filename="jo/list.h" />
+		<Unit filename="jo/malloc.h" />
+		<Unit filename="jo/map.h" />
+		<Unit filename="jo/math.h" />
+		<Unit filename="jo/mode7.h" />
+		<Unit filename="jo/physics.h" />
+		<Unit filename="jo/sega_saturn.h" />
+		<Unit filename="jo/sgl_prototypes.h" />
+		<Unit filename="jo/smpc.h" />
+		<Unit filename="jo/sprite_animator.h" />
+		<Unit filename="jo/sprites.h" />
+		<Unit filename="jo/tga.h" />
+		<Unit filename="jo/time.h" />
+		<Unit filename="jo/tools.h" />
+		<Unit filename="jo/types.h" />
+		<Unit filename="jo/vdp1_command_pipeline.h" />
+		<Unit filename="jo/video.h" />
+		<Unit filename="list.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="malloc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="map.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="math.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="mode7.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="sprite_animator.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="sprites.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="tga.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="time.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="tools.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="vdp1_command_pipeline.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="video.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

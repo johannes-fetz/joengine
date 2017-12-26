@@ -1,0 +1,262 @@
+#
+# Jo Engine Makefile
+#
+
+ifeq (${JO_FRAMERATE},)
+	CCFLAGS += -DJO_FRAMERATE=1
+else
+	CCFLAGS += -DJO_FRAMERATE=${JO_FRAMERATE}
+endif
+
+ifeq (${JO_COMPILE_USING_SGL},)
+	JO_COMPILE_USING_SGL = 1
+endif
+
+ifeq (1,${JO_PSEUDO_SATURN_KAI_SUPPORT})
+	JO_COMPILE_WITH_RAM_CARD_MODULE = 0
+endif
+
+ifeq (1,${JO_COMPILE_USING_SGL})
+	CCFLAGS += -DJO_COMPILE_USING_SGL
+endif
+
+ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
+
+	#TODO : uncomment when the SGL is completely removed
+	#ifeq (1,${JO_COMPILE_USING_SGL})
+		LIBS += $(SGLLDR)/libcpk.a $(SGLLDR)/LIBSND.a
+	#endif
+
+	CCFLAGS += -DJO_COMPILE_WITH_VIDEO_SUPPORT
+	SRCS += ../jo_engine/video.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_BACKUP_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_BACKUP_SUPPORT
+	SRCS += ../jo_engine/backup.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_TGA_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_TGA_SUPPORT
+	SRCS += ../jo_engine/tga.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_AUDIO_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_AUDIO_SUPPORT
+	SRCS += ../jo_engine/audio.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_3D_SUPPORT
+	SRCS += ../jo_engine/3d.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_PSEUDO_MODE7_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
+	SRCS += ../jo_engine/mode7.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_EFFECTS_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_EFFECTS_SUPPORT
+	SRCS += ../jo_engine/effects.c
+endif
+
+ifeq (${JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC},)
+	ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
+		CCFLAGS += -DJO_GLOBAL_MEMORY_SIZE_FOR_MALLOC=393216
+	else
+		CCFLAGS += -DJO_GLOBAL_MEMORY_SIZE_FOR_MALLOC=524288
+	endif
+else
+	CCFLAGS += -DJO_GLOBAL_MEMORY_SIZE_FOR_MALLOC=${JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC}
+endif
+
+ifeq (${JO_MAX_SPRITE},)
+	CCFLAGS += -DJO_MAX_SPRITE=255
+else
+	CCFLAGS += -DJO_MAX_SPRITE=${JO_MAX_SPRITE}
+endif
+
+ifeq (${JO_MAX_FILE_IN_IMAGE_PACK},)
+	CCFLAGS += -DJO_MAX_FILE_IN_IMAGE_PACK=32
+else
+	CCFLAGS += -DJO_MAX_FILE_IN_IMAGE_PACK=${JO_MAX_FILE_IN_IMAGE_PACK}
+endif
+
+ifeq (${JO_MAP_MAX_LAYER},)
+	CCFLAGS += -DJO_MAP_MAX_LAYER=8
+else
+	CCFLAGS += -DJO_MAP_MAX_LAYER=${JO_MAP_MAX_LAYER}
+endif
+
+ifeq (${JO_MAX_SPRITE_ANIM},)
+	CCFLAGS += -DJO_MAX_SPRITE_ANIM=16
+else
+	CCFLAGS += -DJO_MAX_SPRITE_ANIM=${JO_MAX_SPRITE_ANIM}
+endif
+
+ifeq (${JO_MAX_FS_BACKGROUND_JOBS},)
+	CCFLAGS += -DJO_MAX_FS_BACKGROUND_JOBS=4
+else
+	CCFLAGS += -DJO_MAX_FS_BACKGROUND_JOBS=${JO_MAX_FS_BACKGROUND_JOBS}
+endif
+
+ifeq (${JO_DEBUG},)
+	CCFLAGS += -DJO_DEBUG
+else
+	ifeq (1,${JO_DEBUG})
+		CCFLAGS += -DJO_DEBUG
+	endif
+endif
+
+ifeq (${JO_480p},)
+else
+	CCFLAGS += -DJO_480p
+endif
+
+ifeq (${JO_NTSC},)
+	CCFLAGS += -DJO_NTSC_VERSION
+else
+	ifeq (1,${JO_NTSC})
+		CCFLAGS += -DJO_NTSC_VERSION
+	else
+		CCFLAGS += -DJO_PAL_VERSION
+	endif
+endif
+
+ifeq (${JO_COMPILE_WITH_RAM_CARD_MODULE},)
+	CCFLAGS += -DJO_COMPILE_WITH_RAM_CARD_SUPPORT
+else
+	ifeq (1,${JO_COMPILE_WITH_RAM_CARD_MODULE})
+		CCFLAGS += -DJO_COMPILE_WITH_RAM_CARD_SUPPORT
+	endif
+endif
+
+ifeq (${JO_COMPILE_WITH_DUAL_CPU_MODULE},)
+	CCFLAGS += -DJO_COMPILE_WITH_DUAL_CPU_SUPPORT
+else
+	ifeq (1,${JO_COMPILE_WITH_DUAL_CPU_MODULE})
+		CCFLAGS += -DJO_COMPILE_WITH_DUAL_CPU_SUPPORT
+	endif
+endif
+
+SRCS += ../jo_engine/font.c ../jo_engine/input.c ../jo_engine/physics.c ../jo_engine/core.c \
+		../jo_engine/math.c ../jo_engine/malloc.c ../jo_engine/fs.c ../jo_engine/tools.c  \
+		../jo_engine/sprites.c ../jo_engine/map.c ../jo_engine/list.c ../jo_engine/sprite_animator.c \
+		../jo_engine/image.c ../jo_engine/background.c ../jo_engine/time.c ../jo_engine/vdp1_command_pipeline.c
+
+SYSOBJS = $(CMNDIR)/cinit.o
+
+#TODO : uncomment when the SGL is completely removed
+#ifeq (1,${JO_COMPILE_USING_SGL})
+SYSOBJS += $(SGLLDR)/sglarea.o
+#endif
+
+OBJS = $(SRCS:.c=.o)
+
+#TODO : uncomment when the SGL is completely removed
+#ifeq (1,${JO_COMPILE_USING_SGL})
+LIBS += $(SGLLDR)/LIBCD.A $(SGLLDR)/LIBSGL.A $(SGLLDR)/SEGA_SYS.A
+#endif
+
+CC = sh-coff-gcc
+CONV = sh-coff-objcopy
+RM = rm -f
+
+#TODO : uncomment when the SGL is completely removed
+#ifeq (1,${JO_COMPILE_USING_SGL})
+SGLDIR = ../Compiler/SGL_302j
+SGLIDR = $(SGLDIR)/inc
+SGLLDR = $(SGLDIR)/lib_coff
+#endif
+
+CMNDIR = ../Compiler/COMMON
+
+CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
+-Winline -Wlong-long -Wsign-compare -Wextra \
+--param max-inline-insns-single=50 \
+-fmerge-all-constants -fno-ident -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables \
+-fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -Os -nodefaultlibs -nostdlib -fno-builtin \
+-m2 -c -I../jo_engine
+
+#TODO : uncomment when the SGL is completely removed
+#ifeq (1,${JO_COMPILE_USING_SGL})
+CCFLAGS += -I$(SGLIDR)
+#endif
+
+LDFLAGS = -m2 -L$(SGLLDR) -Xlinker --format=coff-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
+          -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
+DFLAGS =
+
+TARGET   = sl_coff.coff
+TARGET1  = $(TARGET:.coff=.bin)
+TARGET2  = $(TARGET:.coff=.iso)
+MPFILE   = $(TARGET:.coff=.map)
+IPFILE   = $(CMNDIR)/IP.BIN
+LDFILE   = $(CMNDIR)/SL.LINKER
+MAKEFILE = makefile
+
+all: $(TARGET) $(TARGET1) $(TARGET2)
+
+$(TARGET) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE) #$(OBJECTS)
+	$(CC) $(LDFLAGS) $(SYSOBJS) $(OBJS) $(LIBS) -o $@
+
+$(TARGET1) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
+	$(CONV) -O binary $(TARGET) $(TARGET1)
+
+$(TARGET2): $(TARGET1)
+	$(CONV) -O binary $(TARGET) cd/0.bin
+	mkisofs -quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" -publisher "SEGA ENTERPRISES, LTD." -preparer "SEGA ENTERPRISES, LTD." -appid "SaturnApp" -abstract "ABS.TXT" -copyright "CPY.TXT" -biblio "BIB.TXT" -generic-boot $(IPFILE) -full-iso9660-filenames -o $(TARGET2) cd
+
+#$(LDFILE) : $(MAKEFILE)
+#	@echo Making $(LDFILE)
+#	@echo SECTIONS {		> $@
+#	@echo 	SLSTART 0x06004000 : {	>> $@
+#	@echo 		___Start = .;	>> $@
+#	@echo 		*(SLSTART)	>> $@
+#	@echo 	}			>> $@
+#	@echo 	.text ALIGN(0x20) :			>> $@
+#	@echo 	{			>> $@
+#	@echo 		* (.text)			>> $@
+#	@echo 		*(.strings)			>> $@
+#	@echo 		__etext = .;			>> $@
+#	@echo 	}			>> $@
+#	@echo 	SLPROG ALIGN(0x20): {	>> $@
+#	@echo 		__slprog_start = .;	>> $@
+#	@echo 		*(SLPROG)	>> $@
+#	@echo 		__slprog_end = .;	>> $@
+#	@echo 	}			>> $@
+#	@echo 	.tors  ALIGN(0x10) :			>> $@
+#	@echo 	{			>> $@
+#	@echo 		___ctors = . ;			>> $@
+#	@echo 		*(.ctors)			>> $@
+#	@echo 		___ctors_end = . ;			>> $@
+#	@echo 		___dtors = . ;			>> $@
+#	@echo 		*(.dtors)			>> $@
+#	@echo 		___dtors_end = . ;			>> $@
+#	@echo 	}			>> $@
+#	@echo 	.data ALIGN(0x10):			>> $@
+#	@echo 	{			>> $@
+#	@echo 		* (.data)			>> $@
+#	@echo 		_edata = . ;			>> $@
+#	@echo 	}			>> $@
+#	@echo 	.bss ALIGN(0x10) (NOLOAD):			>> $@
+#	@echo 	{			>> $@
+#	@echo 		__bstart = . ;			>> $@
+#	@echo 		*(.bss)			>> $@
+#	@echo 		* ( COMMON )			>> $@
+#	@echo 		__bend = . ;			>> $@
+#	@echo 	_end = .;			>> $@
+#	@echo 	}			>> $@
+#	@echo }				>> $@
+
+# suffix
+.SUFFIXES: .asm
+
+.c.o:
+	$(CC) $< $(DFLAGS) $(CCFLAGS) $(_CCFLAGS) -o $@
+
+clean:
+	$(RM) $(CMNDIR)/cinit.o $(OBJS) $(TARGET) $(TARGET1) $(TARGET2) $(MPFILE) cd/0.bin
+
+re: clean all

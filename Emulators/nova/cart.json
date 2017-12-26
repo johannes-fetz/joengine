@@ -1,0 +1,21 @@
+{
+    "DRAM1M": {
+        "T-3108G": "KOF '96",
+        "T-3121G": "KOF '97",
+        "T-3111G": "METAL SLUG",
+        "T-1515G": "WAKUWAKU7",
+        "T-3116G": "SAMURAI SPIRITS AMAKUSA KOURIN",
+        "T-3104G": "SAMURAI SPIRITS ZANKURO MUSOKEN",
+        "T-13391H": "DRAGON BALL Z LA GRANDE LEGENDE DES BOULES DE CRISTAL"
+    },
+
+    "DRAM4M": {
+        "T-14411G": "GROOVE ON FIGHT",
+        "T-1245G": "DUNGEONS AND DRAGONS COLLECTION",
+        "T-1248G": "FINAL FIGHT REVENGE"
+    },
+
+    "ROM": {
+        "T-3101G": "THE KING OF FIGHTERS'95"
+    }
+}

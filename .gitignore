@@ -1,0 +1,8 @@
+*/main.o
+*/sl_coff.bin
+*/cd/0.bin
+jo_engine/*.o
+*/sl_coff.coff
+*/sl_coff.iso
+*/sl_coff.map
+*/*.layout

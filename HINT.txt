@@ -1,0 +1,36 @@
+Hint #1
+
+Instead of loading all sprites in memory or load/free each sprite, the best way is to use jo_sprite_replace()
+
+void			jo_main(void)
+{
+	jo_img      img;
+	int			sprite_id;
+
+	...
+	jo_sprite_init(1);
+
+	img.data = NULL;
+	jo_tga_loader(&img, "TEX", "A.TGA", JO_COLOR_Transparent);
+	sprite_id = jo_sprite_add(&img);
+
+	/* NB: img.data is already allocated by the previous call of jo_tga_loader() */
+	jo_tga_loader(&img, "TEX", "B.TGA", JO_COLOR_Transparent);
+	/* here we replace the sprite by the new one, (very fast) */
+	jo_sprite_replace(&img, sprite_id);
+
+	jo_tga_loader(&img, "TEX", "C.TGA", JO_COLOR_Transparent);
+	jo_sprite_replace(&img, sprite_id);
+	...
+
+Hint #2
+
+Use the BIN image format instead of TGA when the game is finished (fast CD loading)
+
+Hint #3
+
+You can flip horizontally or vertically sprites like this:
+
+jo_sprite_enable_horizontal_flip();
+jo_sprite_draw3D(0, 0, 0, 500);
+jo_sprite_disable_horizontal_flip();

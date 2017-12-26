@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Advanced 3D Demo" />
+		<Option makefile="makefile" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option type="4" />
+				<Option compiler="gcc" />
+				<Option host_application="run_with_yabause.bat" />
+				<Option run_host_application_in_terminal="0" />
+				<ExtraCommands>
+					<Add before="compile.bat" />
+					<Mode after="always" />
+				</ExtraCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-DJO_COMPILE_WITH_BACKUP_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_TGA_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_AUDIO_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_PRINTF_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_3D_SUPPORT" />
+			<Add option="-DJO_NTSC_VERSION" />
+			<Add option="-DJO_DEBUG" />
+			<Add directory="../jo_engine/" />
+		</Compiler>
+		<Unit filename="main.c">
+			<Option compilerVar="CC" />
+			<Option link="0" />
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="makefile" />
+		<Unit filename="model.h" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
