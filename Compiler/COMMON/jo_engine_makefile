@@ -2,6 +2,14 @@
 # Jo Engine Makefile
 #
 
+ifeq (${JO_ENGINE_SRC_DIR},)
+	JO_ENGINE_SRC_DIR=../jo_engine
+endif
+
+ifeq (${COMPILER_DIR},)
+	COMPILER_DIR=../Compiler
+endif
+
 ifeq (${JO_FRAMERATE},)
 	CCFLAGS += -DJO_FRAMERATE=1
 else
@@ -28,37 +36,37 @@ ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
 	#endif
 
 	CCFLAGS += -DJO_COMPILE_WITH_VIDEO_SUPPORT
-	SRCS += ../jo_engine/video.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/video.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_BACKUP_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_BACKUP_SUPPORT
-	SRCS += ../jo_engine/backup.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/backup.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_TGA_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_TGA_SUPPORT
-	SRCS += ../jo_engine/tga.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/tga.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_AUDIO_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_AUDIO_SUPPORT
-	SRCS += ../jo_engine/audio.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/audio.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_3D_SUPPORT
-	SRCS += ../jo_engine/3d.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_PSEUDO_MODE7_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
-	SRCS += ../jo_engine/mode7.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/mode7.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_EFFECTS_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_EFFECTS_SUPPORT
-	SRCS += ../jo_engine/effects.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/effects.c
 endif
 
 ifeq (${JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC},)
@@ -140,10 +148,10 @@ else
 	endif
 endif
 
-SRCS += ../jo_engine/font.c ../jo_engine/input.c ../jo_engine/physics.c ../jo_engine/core.c \
-		../jo_engine/math.c ../jo_engine/malloc.c ../jo_engine/fs.c ../jo_engine/tools.c  \
-		../jo_engine/sprites.c ../jo_engine/map.c ../jo_engine/list.c ../jo_engine/sprite_animator.c \
-		../jo_engine/image.c ../jo_engine/background.c ../jo_engine/time.c ../jo_engine/vdp1_command_pipeline.c
+SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC_DIR)/physics.c $(JO_ENGINE_SRC_DIR)/core.c \
+		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/fs.c $(JO_ENGINE_SRC_DIR)/tools.c  \
+		$(JO_ENGINE_SRC_DIR)/sprites.c $(JO_ENGINE_SRC_DIR)/map.c $(JO_ENGINE_SRC_DIR)/list.c $(JO_ENGINE_SRC_DIR)/sprite_animator.c \
+		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/background.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c
 
 SYSOBJS = $(CMNDIR)/cinit.o
 
@@ -165,19 +173,19 @@ RM = rm -f
 
 #TODO : uncomment when the SGL is completely removed
 #ifeq (1,${JO_COMPILE_USING_SGL})
-SGLDIR = ../Compiler/SGL_302j
+SGLDIR = $(COMPILER_DIR)/SGL_302j
 SGLIDR = $(SGLDIR)/inc
 SGLLDR = $(SGLDIR)/lib_coff
 #endif
 
-CMNDIR = ../Compiler/COMMON
+CMNDIR = $(COMPILER_DIR)/COMMON
 
 CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
 -Winline -Wlong-long -Wsign-compare -Wextra \
 --param max-inline-insns-single=50 \
 -fmerge-all-constants -fno-ident -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables \
 -fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -Os -nodefaultlibs -nostdlib -fno-builtin \
--m2 -c -I../jo_engine
+-m2 -c -I$(JO_ENGINE_SRC_DIR)
 
 #TODO : uncomment when the SGL is completely removed
 #ifeq (1,${JO_COMPILE_USING_SGL})
