@@ -59,6 +59,8 @@ typedef struct
  */
 # define jo_font_printf_centered(F, X, Y, S, ...)		do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print_centered((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 /** @brief Load a font
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "FONT.TGA")
@@ -70,6 +72,8 @@ typedef struct
  *  @return Font object
  */
 jo_font         *jo_font_load(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const int letter_width, const int letter_height, const int letter_spacing, const char * const mapping);
+
+#endif
 
 /** @brief Print a string using a specific font (using top-left screen coordinates)
  *  @param font The font (returned by jo_font_load())

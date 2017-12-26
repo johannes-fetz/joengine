@@ -20,6 +20,10 @@ ifeq (${JO_COMPILE_USING_SGL},)
 	JO_COMPILE_USING_SGL = 1
 endif
 
+ifeq (${JO_COMPILE_WITH_FS_MODULE},)
+	JO_COMPILE_WITH_FS_MODULE = 1
+endif
+
 ifeq (1,${JO_PSEUDO_SATURN_KAI_SUPPORT})
 	JO_COMPILE_WITH_RAM_CARD_MODULE = 0
 endif
@@ -57,6 +61,12 @@ endif
 ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_3D_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c
+endif
+
+ifeq (1,${JO_COMPILE_WITH_FS_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_FS_SUPPORT
+	SRCS += $(JO_ENGINE_SRC_DIR)/fs.c
+
 endif
 
 ifeq (1,${JO_COMPILE_WITH_PSEUDO_MODE7_MODULE})
@@ -149,7 +159,7 @@ else
 endif
 
 SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC_DIR)/physics.c $(JO_ENGINE_SRC_DIR)/core.c \
-		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/fs.c $(JO_ENGINE_SRC_DIR)/tools.c  \
+		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/tools.c  \
 		$(JO_ENGINE_SRC_DIR)/sprites.c $(JO_ENGINE_SRC_DIR)/map.c $(JO_ENGINE_SRC_DIR)/list.c $(JO_ENGINE_SRC_DIR)/sprite_animator.c \
 		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/background.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c
 

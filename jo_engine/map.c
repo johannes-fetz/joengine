@@ -261,6 +261,8 @@ void					jo_map_free(const unsigned int layer)
     jo_free(gl_map[layer]);
 }
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 bool                    jo_map_load_from_file(const unsigned int layer, const short depth, const char *const sub_dir, const char *const filename)
 {
     char*				stream;
@@ -371,6 +373,8 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
     jo_free(stream_begin);
     return (true);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 void                        jo_map_move_tiles_by_attribute(const unsigned int layer, const unsigned char attribute_filter, const short incr_x, const short incr_y)
 {

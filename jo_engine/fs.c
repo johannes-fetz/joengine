@@ -66,6 +66,8 @@
  */
 # define JO_READ_SIZE                       (JO_MAXIMUM_SECTOR_FETCHED_ONCE * JO_SECTOR_SIZE)
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 typedef struct
 {
     bool                        active;
@@ -440,6 +442,8 @@ void                    jo_fs_close(jo_file * const file)
     jo_free(file->read_buffer);
     GFS_Close((GfsHn)file->handle);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 /*
 ** END OF FILE

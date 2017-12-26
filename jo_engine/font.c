@@ -44,6 +44,8 @@
 #include "jo/math.h"
 #include "jo/sprites.h"
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 jo_font             *jo_font_load(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const int letter_width, const int letter_height, const int letter_spacing, const char * const mapping)
 {
     int             char_count;
@@ -133,6 +135,8 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     jo_free(font_tileset);
     return (font);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 void            jo_font_print(const jo_font * const font, int x, int y, float scale, char *str)
 {

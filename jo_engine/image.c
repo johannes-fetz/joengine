@@ -46,6 +46,8 @@
 
 extern int      __jo_hash_table[JO_MAX_SPRITE];
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 unsigned short      *__jo_bin_load(jo_img *img, const char * const sub_dir, const char * const filename)
 {
     unsigned short  *stream;
@@ -67,6 +69,8 @@ unsigned short      *__jo_bin_load(jo_img *img, const char * const sub_dir, cons
     }
     return (stream);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 void	                jo_free_img(jo_img * const img)
 {
@@ -108,6 +112,8 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
     return (true);
 }
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 bool                    jo_bin_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color)
 {
     register int        i;
@@ -132,6 +138,8 @@ bool                    jo_bin_loader(jo_img *img, const char * const sub_dir, c
     return (true);
 }
 
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
+
 void	                jo_replace_color(const jo_img * const img, const jo_color src_color, const jo_color dest_color)
 {
     register int        i;
@@ -148,6 +156,8 @@ void	                jo_replace_color(const jo_img * const img, const jo_color s
         if (img->data[i] == src_color)
             img->data[i] = dest_color;
 }
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count)
 {
@@ -245,6 +255,8 @@ int						jo_sprite_add_bin(const char * const sub_dir, const char * const filena
     return (id);
 }
 
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
+
 int						jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_color)
 {
     jo_img				img;
@@ -272,6 +284,8 @@ int						jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_
     jo_free_img(&img);
     return (id);
 }
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 int							jo_sprite_add_image_pack(const char * const sub_dir, const char * const filename, const jo_color transparent_color)
 {
@@ -323,6 +337,8 @@ int							jo_sprite_add_image_pack(const char * const sub_dir, const char * cons
     jo_free(stream_begin);
     return (first_id);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 /*
 ** END OF FILE

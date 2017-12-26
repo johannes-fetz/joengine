@@ -64,7 +64,9 @@
 
 extern jo_texture_definition                __jo_sprite_def[];
 extern int                                  __jo_gouraud_shading_runtime_index;
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 extern unsigned int                         __jo_fs_background_job_count;
+#endif
 
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 bool                                        jo_video_init(void);
@@ -80,7 +82,9 @@ void                                        jo_vdp1_buffer_reset(void);
 void                                        jo_vdp1_flush(void);
 void                                        jo_input_update(void);
 void                                        jo_input_init(void);
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 int						                    jo_fs_init(void);
+#endif
 void                                        jo_fs_do_background_jobs(void);
 void                                        jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes);
 void                                        jo_sprite_init(void);
@@ -425,12 +429,14 @@ void			jo_core_init(const jo_color back_color)
     JO_VDP2_TVMD = 0x8120;
 #endif
 #endif
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (jo_fs_init() == 0)
     {
 #ifdef JO_DEBUG
         jo_core_error("Fail to initialize filesystem");
 #endif
     }
+#endif
 #if defined(JO_COMPILE_WITH_VIDEO_SUPPORT)
     if (!jo_video_init())
     {
@@ -606,8 +612,10 @@ void			        jo_core_run(void)
         if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
                 jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START))
             break;
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
         if (__jo_fs_background_job_count)
             jo_fs_do_background_jobs();
+#endif
         jo_list_foreach(&__callbacks, __jo_call_event);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)

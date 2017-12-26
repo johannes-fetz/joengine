@@ -68,6 +68,8 @@ int         jo_map_per_pixel_vertical_collision(const unsigned int layer, int x,
  */
 int         jo_map_hitbox_detection_custom_boundaries(const unsigned int layer, const int x, const int y, const int w, const int h);
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 /** @brief Load a sprite map on a specific layer using MAP file format
  *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
  *  @param depth Z-index
@@ -83,6 +85,8 @@ int         jo_map_hitbox_detection_custom_boundaries(const unsigned int layer, 
  *  @return true if successful otherwise false (use jo_get_last_error())
  */
 bool            jo_map_load_from_file(const unsigned int layer, const short depth, const char * const sub_dir, const char * const filename);
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 /** @brief Create a new sprite map
  *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)

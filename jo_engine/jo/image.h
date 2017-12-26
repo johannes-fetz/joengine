@@ -72,6 +72,8 @@ typedef struct
  */
 void	jo_replace_color(const jo_img * const img, const jo_color src_color, const jo_color dest_color);
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 /** @brief Load a BIN image
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
@@ -80,14 +82,6 @@ void	jo_replace_color(const jo_img * const img, const jo_color src_color, const 
  *  @return true if succeeded otherwise false
  */
 bool        jo_bin_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
-
-/** @brief Load a BIN image from stream
- *  @param img Image (set data to NULL for dynamic allocation)
- *  @param stream Raw bin file contents
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
- *  @return true if succeeded otherwise false
- */
-bool        jo_bin_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color);
 
 /** @brief Add tileset sprites from a BIN file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
@@ -107,13 +101,6 @@ int		jo_sprite_add_bin_tileset(const char * const sub_dir, const char * const fi
  */
 int		jo_sprite_add_bin(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
 
-/** @brief Add a sprite from a BIN file
- *  @param stream Raw bin file contents
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
- *  @return Sprite Id or -1 if failed
- */
-int     jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_color);
-
 /** @brief Add a set of image from a TEX file format
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TEX")
@@ -125,6 +112,23 @@ int     jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_c
  *  @return Sprite Id of the first image or -1 if failed
  */
 int		jo_sprite_add_image_pack(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
+
+/** @brief Load a BIN image from stream
+ *  @param img Image (set data to NULL for dynamic allocation)
+ *  @param stream Raw bin file contents
+ *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @return true if succeeded otherwise false
+ */
+bool        jo_bin_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color);
+
+/** @brief Add a sprite from a BIN file
+ *  @param stream Raw bin file contents
+ *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @return Sprite Id or -1 if failed
+ */
+int     jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_color);
 
 /** @brief Free an image loaded from CD
  *  @param img Pointer to an image struct

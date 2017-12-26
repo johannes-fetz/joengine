@@ -83,8 +83,14 @@ static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const s
 
 t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const char * const filename, char **stream, int *bits)
 {
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
         *stream = jo_fs_read_file_in_dir(filename, sub_dir, JO_NULL);
+#else
+    JO_UNUSED_ARG(sub_dir);
+    if (*stream == JO_NULL)
+        return (JO_TGA_FILE_NOT_FOUND);
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
     if (*stream == JO_NULL)
         return (JO_TGA_UNSUPPORTED_FORMAT);
     img->width = jo_swap_endian_ushort( *((unsigned short *)(*stream + 12)));
@@ -142,6 +148,8 @@ t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_
     jo_tga_read_contents(img, stream, transparent_color, bits);
     return (code);
 }
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, const char * const filename, const jo_color transparent_color)
 {
@@ -217,6 +225,8 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     return (first_id);
 }
 
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
+
 int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_color)
 {
     jo_img				img;
@@ -244,6 +254,8 @@ int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_
     jo_free_img(&img);
     return (id);
 }
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 int						jo_sprite_add_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color)
 {
@@ -274,6 +286,8 @@ int						jo_sprite_add_tga(const char * const sub_dir, const char * const filena
         __jo_hash_table[id] = jo_4_char_hash(filename);
     return (id);
 }
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 #endif /* !JO_COMPILE_WITH_TGA_SUPPORT */
 

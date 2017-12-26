@@ -35,6 +35,8 @@
 #ifndef __JO_FS_H__
 # define __JO_FS_H__
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 /*
 ** MACROS
 */
@@ -105,6 +107,8 @@ int             jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsign
  *  @return true if succeed
  */
 bool            jo_fs_seek_forward(jo_file * const file, unsigned int nbytes);
+
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 #endif /* !__JO_FS_H__ */
 
