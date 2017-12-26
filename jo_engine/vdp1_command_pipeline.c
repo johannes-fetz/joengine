@@ -117,7 +117,7 @@ void                            jo_vdp1_buffer_reset(void)
     JO_ZERO(command_table->yc);
 }
 
-static void                     __jo_vdp1_sort_commands(void)
+/*static void                     __jo_vdp1_sort_commands(void)
 {
     bool                        done;
     jo_node                     *n;
@@ -145,7 +145,7 @@ static void                     __jo_vdp1_sort_commands(void)
         }
     }
     while (!done);
-}
+}*/
 
 void                            jo_vdp1_flush(void)
 {

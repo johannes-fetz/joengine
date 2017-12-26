@@ -327,7 +327,7 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
 {
 #if JO_COMPILE_USING_SGL
     FIXED               sgl_pos[XYZS];
-    SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, CL32KRGB | ECdis, sprNoflip | FUNC_Sprite);
+    SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
 
     sgl_pos[2] = JO_MULT_BY_65536(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale;
@@ -347,6 +347,7 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
     else
         slDispSprite(sgl_pos, &attr, 0);
 #else
+    JO_UNUSED_ARG(billboard);
     jo_vdp1_command     *cmd;
     unsigned int        sprite_width;
     unsigned int        sprite_height;
@@ -386,7 +387,7 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
 {
 #if JO_COMPILE_USING_SGL
     FIXED               sgl_pos[XYZS];
-    SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, CL32KRGB | ECdis, sprNoflip | FUNC_Sprite);
+    SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
 
     sgl_pos[2] = JO_MULT_BY_65536(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale;
@@ -406,6 +407,7 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     else
         slDispSprite(sgl_pos, &attr, DEGtoANG(angle));
 #else
+    JO_UNUSED_ARG(billboard);
     jo_pos2D            rotation_origin;
     jo_pos2D            vertex;
     register int        cos_theta;

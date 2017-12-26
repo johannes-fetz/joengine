@@ -189,6 +189,7 @@ void                        jo_getdate(jo_datetime *now)
 
 jo_language     jo_get_current_language(void)
 {
+#if JO_COMPILE_USING_SGL
     switch (slGetLanguage())
     {
     case SMPC_ITALIANO:
@@ -204,6 +205,9 @@ jo_language     jo_get_current_language(void)
     default:
         return English;
     }
+#else
+    return English;
+#endif
 }
 
 void                    jo_clear_screen(void)
