@@ -49,10 +49,6 @@ void    __jo_core_error(char *message, const char *function);
 /** @brief Jo Engine Version */
 # define JO_ENGINE_VERSION  (8.2)
 
-/** @brief Abstracted name of the entry point */
-void			ss_main(void);
-# define jo_main	ss_main
-
 /*
 ** TYPEDEFS
 */

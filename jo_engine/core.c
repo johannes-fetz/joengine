@@ -67,6 +67,9 @@ extern int                                  __jo_gouraud_shading_runtime_index;
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 extern unsigned int                         __jo_fs_background_job_count;
 #endif
+extern unsigned int                         _bstart;
+extern unsigned int                         _bend;
+extern void                                 jo_main(void);
 
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 bool                                        jo_video_init(void);
@@ -180,16 +183,17 @@ static	void	jo_core_init_vdp(const jo_color back_color)
     slZoomNbg1(JO_FIXED_1, JO_FIXED_1);
     slScrAutoDisp(NBG0ON | NBG1ON);
 #else
-    jo_memset((void *)JO_VDP1_REG, 0, 0x16);
-    JO_VDP1_EWRR = (((JO_TV_WIDTH >> 3) << 9) | JO_TV_HEIGHT);
-    JO_VDP1_EDSR = 0x3;
-    JO_VDP1_PTMR = 0x2;
-    JO_VDP1_MODR = 0x1100;
+    slInitSystem(0, 0, 0); // TODO fix nosgl.linker script
 
+    jo_memset((void *)JO_VDP1_REG, 0, 0x16);
     jo_memset((void *)JO_VDP2_REG, 0, 0x11E);
     jo_memset((void *)JO_VDP2_VRAM, 0, 0x40000);
     jo_memset((void *)JO_VDP2_CRAM, 0, 0x0800);
 
+    JO_VDP1_EWRR = (((JO_TV_WIDTH >> 3) << 9) | JO_TV_HEIGHT);
+    JO_VDP1_EDSR = 0x3;
+    JO_VDP1_PTMR = 0x2;
+    JO_VDP1_MODR = 0x1100;
 #if defined(JO_NTSC_VERSION)
     JO_VDP2_HCNT = 0x275;
 #else
@@ -509,7 +513,9 @@ inline void    jo_core_remove_slave_callback(const int event_id)
 
 void            jo_goto_boot_menu(void)
 {
+#if JO_COMPILE_USING_SGL
     SYS_Exit(0);
+#endif
 }
 
 #ifdef JO_DEBUG
@@ -654,6 +660,17 @@ void                jo_dump_vdp2_registers(void)
 }
 
 #endif
+
+int     main(void)
+{
+	jo_memset(&_bstart, 0, &_bend - &_bstart);
+#if JO_COMPILE_USING_SGL
+    jo_memset((void *)0x060ffc00, 0, 0x400);
+#endif
+	jo_main();
+	return (0);
+}
+
 
 /*
 ** END OF FILE
