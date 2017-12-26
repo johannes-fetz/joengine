@@ -1,0 +1,30 @@
+# Dear translators:
+# Thank you for translating Nova! :)
+# 
+# Instructions:
+#
+# 1. Use "en_US.ini" as a template and create your "xx_XX.ini" file with your language code
+#    as the file name. Here to find a list of language codes:
+#    http://stackoverflow.com/questions/3191664/list-of-all-locales-and-their-short-codes
+#
+# 2. Sharp (#) in a .ini file means a comment, which is not the actual translation contents,
+#    it's just as its literal meaning.
+#
+# 3. The LEFT side of an equal sign is a key that Nova uses to identify a string.
+#
+# 4. Ampersand (&) on the RIGHT side of an equal sign means it's a keyboard hotkey, when you
+#    press ALT, the letter after (&) will be underlined. And when you press ALT + (the letter underlined),
+#    the corresponding menu item will be selected. i.e when you presse ALT + F, the File menu will be
+#    opened. Take an example (French translation): Help = &Help  >>>  Help = &Aide
+#
+# 5. Please make sure your file is saved in UTF-8 without BOM.
+#    Recommended text editor: https://notepad-plus-plus.org/
+#    How to make settings on UTF-8 wihtout BOM:
+#    https://stackoverflow.com/questions/7256049/how-do-i-convert-an-ansi-encoded-file-to-utf-8-with-notepad
+#
+# 6. This instruction doesn't need to be included in your language file.
+#
+# 7. Finally, happy translating! :)
+#
+# Best regards,
+# Steve

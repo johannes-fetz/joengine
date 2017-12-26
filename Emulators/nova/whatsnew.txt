@@ -1,0 +1,82 @@
+============================================
+Nova - A Sega Saturn emulator
+Copyright (C) 2017 Steve Kwok
+Twitter: https://twitter.com/realSteveKwok
+Discord: https://discord.gg/yAQBa5C
+Patreon: https://www.patreon.com/nova_emu
+============================================
+
+
+What's new
+===============
+
+
+v0.1.7
+---------------
+VDP2: Added byte access of cycle pattern registers(Sengoku Blade).
+SCSP: Implemented a new algorithm for MIBUF and MOBUF of MIDI.
+SCSP: Implemented cancellation of MIDI input/output interrupts.
+MISC: Added command FLAGS for the CUE parser.
+
+SCSP: Refactored INTC.
+
+VDP2: Fixed VRESO bits of TVMD register when its value is 2 or 3.
+VDP2: Fixed a bug of sprite shadow(Suiko Enbu).
+CDB: Fixed the pickup reset of CdPlay command, Steam-Heart's plays BGM properly now.
+MISC: Fixed the wrong file offset of the CUE parser(single BIN).
+
+
+v0.1.6
+---------------
+SYSTEM: Completed PAL mode support.
+
+MISC: Added command REM for the CUE parser.
+MISC: Refined the INI parser.
+
+SCSP: Fixed the random crash caused by CA(call address is out of range).
+MISC: Fixed the crash when dragging and dropping files directly to the executable.
+MISC: Fixed the crash of homebrews without a Product ID.
+MISC: Fixed the crash caused by incorrect use of std::getline.
+
+
+v0.1.5
+---------------
+MISC: Added configuration file.
+MISC: Implemented I18N.
+MISC: Rewrote the CUE parser.
+MISC: Implemented startup from command line.
+MISC: Implemented dragging and dropping files.
+
+SH2: Improved address mapping and mirroring.
+UI: Improved the user interface.
+
+VDP1: Fixed Jump Call/Return.
+M68K: Fixed TAS instruction, 3D Baseball is in-game (Not playable due to graphic issues).
+
+
+v0.1.3
+---------------
+SCU: Added byte access of registers, Burning Rangers is playable now.
+VDP2: Added MSB color calculation.
+SCSP: Added read access of sound stack.
+SYSTEM: Preliminary support for PAL mode, Tomb Raider (Europe) is playable now.
+
+VDP1: Fixed MSBON.
+VDP2: Fixed issues of MSB shadow, resolved the shadow disappearance of Asuka 120% Burning Fest.
+
+
+v0.1.2
+---------------
+Fixed a mirroring bug of SH2 division unit, many games are playable now, sprites disappearance of some games is resolved too.
+
+
+v0.1.1
+---------------
+Disabled thousands of warnings of illegal memory access of m68k, make Lunar Silver Star Story playable.
+Fixed 4 instructions of m68k, CMP, CMPA, CMPI, CMPM, CD player and many games play sound properly now.
+Fixed the issue of always formatting backup RAM when startup.
+
+
+v0.1.0 (17.10.2017)
+---------------
+Initial release.

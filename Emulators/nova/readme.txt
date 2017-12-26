@@ -1,34 +1,25 @@
-==============================
-Nova - a Sega Saturn emulator
+============================================
+Nova - A Sega Saturn emulator
 Copyright (C) 2017 Steve Kwok
-==============================
+Twitter: https://twitter.com/realSteveKwok
+Discord: https://discord.gg/yAQBa5C
+Patreon: https://www.patreon.com/nova_emu
+============================================
 
 
-
-What's new
-===============
-
-
-v0.1.2
----------------
-Fixed a mirroring bug of SH2 division unit, many games are playable now, sprites disappearance of some games is resolved too.
-
-
-v0.1.1
----------------
-Disabled thousands of warnings of illegal memory access of m68k, make Lunar Silver Star Story playable.
-Fixed 4 instructions of m68k, CMP, CMPA, CMPI, CMPM, CD player and many games play sound properly now.
-Fixed the issue of always formatting backup RAM when startup.
-
-
-v0.1.0
----------------
-Initial release.
-
+Requirements
+=================
+CPU: 2.0GHz
+Memory: 1GB
+Display card: Support DirectX9
+OS: Win7/8/8.1/10
+In addition, you may need to install the following components:
+1.VS2017 redistributable
+2.DirectX redistributable (June 2010)
 
 
 Current status
-===============
+=================
 Nova is capable to run several commercial games, but it's still in its early stage. 
 
 
@@ -41,11 +32,11 @@ Nova doesn't support:
 1.save/load states
 2.run games via CD drive
 
-Nova supports the following CD image formats: .cue, .mds, .ccd, .bin.
+Nova supports the following CD image formats: CUE/MDS/CCD/BIN/ISO.
 
 
 How to use
-===============
+=================
 Put bios.bin in bios folder. (Nova DOESN't provide bios, please don't ask for that.)
 
 Key mapping:
@@ -73,18 +64,45 @@ R: p
 
 Nova only supports one player currently.
 
+Nova can start from command line. The syntax is very simple:
+> nova "path"
 
-Special thanks!
-===============
+
+Special thanks
+=================
 antime, TyRaNiD for documents.
+Charles MacDonald, I got lots of helps from his research on undocumented stuff.
+Yabause team, for undocumented CDBLOCK commands E0, E1.
 Karl Stenerud, I referenced the source code of Musashi when I wrote my m68k emulator.
 flamewing, BCD instructions emulation of m68k based on his research.
-Charles MacDonald for VDP2 color RAM mirroring.
-Yabause team, for undocumented CD Block commands E0, E1.
-MITSUNARI Shigeo, for his great x86/x64 JIT assembler xbyak.
-Niels Lohmann, for his great json parser.
+MITSUNARI Shigeo, for his great x86/x64 JIT assembler Xbyak.
+Niels Lohmann, for his great JSON parser.
+Benjamin Siskoo, for his kindness and various helps.
+Zet-sensei, for his kindness and the completed cart.json file.
+Dwayne, the first patron of Nova.
 
 
-Contact
-===============
-https://twitter.com/realSteveKwok/
+Testing
+=================
+Benjamin Siskoo
+Zet-sensei
+bosshunter
+Strelok
+InsertMoreCoins
+Nocturne
+caesarkof
+
+
+Translation
+=================
+Benjamin Siskoo
+Hector (Literalmente Game)
+InsertMoreCoins
+theheroGAC
+Deni
+cia
+
+
+Patreon Supporter
+=================
+Johannes Fetz

@@ -1,7 +1,14 @@
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ./cd/0.bin
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f *.o
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ../jo_engine/*.o
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ./sl_coff.bin
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ./sl_coff.coff
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ./sl_coff.map
-"..\Compiler\SH_COFF\Other Utilities\rm.exe" -f ./sl_coff.iso
+@ECHO Off
+SET COMPILER_DIR=..\..\Compiler
+SET JO_ENGINE_SRC_DIR=../../jo_engine
+SET PATH=%COMPILER_DIR%\SH_COFF\Other Utilities;%PATH%
+
+rm -f ./cd/0.bin
+rm -f *.o
+rm -f %JO_ENGINE_SRC_DIR%/*.o
+rm -f ./sl_coff.bin
+rm -f ./sl_coff.coff
+rm -f ./sl_coff.map
+rm -f ./sl_coff.iso
+
+ECHO Done.

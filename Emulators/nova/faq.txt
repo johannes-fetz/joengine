@@ -1,0 +1,50 @@
+============================================
+Nova - A Sega Saturn emulator
+Copyright (C) 2017 Steve Kwok
+Twitter: https://twitter.com/realSteveKwok
+Discord: https://discord.gg/yAQBa5C
+Patreon: https://www.patreon.com/nova_emu
+============================================
+
+
+FAQ
+===============
+
+1) What is Nova?
+Nova is an emulator which emulates the hardware of Sega Saturn.
+
+2) What's the specs to run Nova?
+CPU: 2.0GHz
+Memory: 1GB
+Display card: Support DirectX9
+OS: Win7/8/8.1/10
+In addition, you may need to install the following components:
+1.VS2017 redistributable
+2.DirectX redistributable (June 2010)
+
+3) Where can I get a bios file?
+Nova DOESN'T provide bios file, please don't ask for that.
+And Nova will support running without the bios file in the future release.
+
+4) Is Nova designed just for Windows?
+I designed Nova with considerations of portabilities in the very beginning, but currenly
+there's only Windows version available. Please be patient:)
+
+5) When do you plan to release the next version?
+That depends on how much time I can spend on the project.
+You can support Nova by becoming a patron to shorten the time.
+https://www.patreon.com/nova_emu
+
+6) What's your goal about Nova?
+
+My goal is to make Nova:
+
+1. Fast
+2. Compatible
+3. As accurate as possible
+4. Runs smoothly
+5. User friendly
+6. Support rich functions like cheat, states save/load, debugging, recording, texture upscaling etc.
+
+7) Is Nova an open source project?
+Nova is a closed source project currently. Maybe it will be open-sourced at some point in the future.
