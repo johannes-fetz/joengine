@@ -5,3 +5,4 @@ sl_coff.iso
 sl_coff.map
 *.o
 *.layout
+bios.bin
