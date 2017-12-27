@@ -489,6 +489,16 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
     slRotZ(toFIXED(z));
 }
 
+/** @brief Translate 3D matrix (using floating numbers)
+ *  @param x X Position
+ *  @param y Y Position
+ *  @param z Z Position
+ */
+static  __jo_force_inline void      jo_3d_translate_matrixf(float x, float y, float z)
+{
+    slTranslate(toFIXED(x), toFIXED(y), toFIXED(z));
+}
+
 /** @brief Translate 3D matrix
  *  @param x X Position
  *  @param y Y Position
