@@ -6,3 +6,5 @@ sl_coff.map
 *.o
 *.layout
 bios.bin
+logs.txt
+JoMapEditor/JoMapEditor.ini
