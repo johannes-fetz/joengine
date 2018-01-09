@@ -98,7 +98,7 @@ jo_storyboard                               *jo_storyboard_create(const bool aut
   * @param storyboard Storyboard to destroy
   * @see jo_storyboard_create()
   */
-void                                        jo_storyboard_destroy(jo_storyboard *storyboard);
+void                                        jo_storyboard_destroy(jo_storyboard *const storyboard);
 
 /** @brief Create an empty animation
   * @param storyboard Storyboard
@@ -108,14 +108,14 @@ void                                        jo_storyboard_destroy(jo_storyboard 
   * @see jo_storyboard_destroy_animation()
   * @see jo_storyboard_create()
   */
-jo_animation                                *jo_storyboard_create_animation(jo_storyboard *storyboard, const unsigned char frame_skip, const unsigned int duration);
+jo_animation                                *jo_storyboard_create_animation(jo_storyboard * const storyboard, const unsigned char frame_skip, const unsigned int duration);
 
 /** @brief Destroy animation
   * @param storyboard Storyboard which contains the animation
   * @param animation Animation to destroy
   * @see jo_storyboard_create_animation()
   */
-static  __jo_force_inline void              jo_storyboard_destroy_animation(jo_storyboard *storyboard, jo_animation *animation)
+static  __jo_force_inline void              jo_storyboard_destroy_animation(jo_storyboard * const storyboard, const jo_animation * const animation)
 {
     jo_list_remove_first_value(&storyboard->animations, (jo_list_data)(void *)animation);
 }
@@ -128,7 +128,7 @@ static  __jo_force_inline void              jo_storyboard_destroy_animation(jo_s
   * @param storyboard Storyboard
   * @param repeat Repeat
   */
-static  __jo_force_inline void      jo_storyboard_repeat(const jo_storyboard *storyboard, bool repeat)
+static  __jo_force_inline void      jo_storyboard_repeat(jo_storyboard * const storyboard, bool repeat)
 {
     storyboard->repeat = repeat;
 }
@@ -136,7 +136,7 @@ static  __jo_force_inline void      jo_storyboard_repeat(const jo_storyboard *st
 /** @brief Suspend all storyboard animation
   * @param storyboard Storyboard
   */
-static  __jo_force_inline void      jo_storyboard_suspend(const jo_storyboard *storyboard)
+static  __jo_force_inline void      jo_storyboard_suspend(jo_storyboard * const storyboard)
 {
     storyboard->pause = true;
 }
@@ -144,7 +144,7 @@ static  __jo_force_inline void      jo_storyboard_suspend(const jo_storyboard *s
 /** @brief Resume all suspended storyboard animation
   * @param storyboard Storyboard
   */
-static  __jo_force_inline void      jo_storyboard_resume(const jo_storyboard *storyboard)
+static  __jo_force_inline void      jo_storyboard_resume(jo_storyboard * const storyboard)
 {
     storyboard->pause = false;
 }
@@ -152,7 +152,7 @@ static  __jo_force_inline void      jo_storyboard_resume(const jo_storyboard *st
 /** @brief Play storyboard animation
   * @param storyboard Storyboard
   */
-static  __jo_force_inline void      jo_storyboard_play(const jo_storyboard *storyboard)
+static  __jo_force_inline void      jo_storyboard_play(jo_storyboard * const storyboard)
 {
     storyboard->pause = false;
 }
@@ -160,7 +160,7 @@ static  __jo_force_inline void      jo_storyboard_play(const jo_storyboard *stor
 /** @brief Switch between resume and suspend
   * @param storyboard Storyboard
   */
-static  __jo_force_inline void      jo_storyboard_toggle(const jo_storyboard *storyboard)
+static  __jo_force_inline void      jo_storyboard_toggle(jo_storyboard * const storyboard)
 {
     storyboard->pause ^= true;
 }
@@ -174,7 +174,7 @@ static  __jo_force_inline void      jo_storyboard_toggle(const jo_storyboard *st
   * @param object Pointer to an object (jo_pos2D, jo_pos3D, jo_2d_object_attributes or jo_3d_object_attributes)
   * @remarks You can pass any structure (even an array) if you respect the order of attributes
   */
-static  __jo_force_inline void              jo_storyboard_add_object(jo_storyboard *storyboard, const void *object)
+static  __jo_force_inline void              jo_storyboard_add_object(jo_storyboard *const storyboard, const void * const object)
 {
     jo_storyboard_object_cache              *tmp = (jo_storyboard_object_cache *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
 
@@ -190,7 +190,7 @@ static  __jo_force_inline void              jo_storyboard_add_object(jo_storyboa
   * @param storyboard Storyboard
   * @param object Pointer to an object (should be the same passed in jo_storyboard_add_object())
   */
-static  __jo_force_inline void                  jo_storyboard_remove_object(jo_storyboard *storyboard, const void * const object)
+static  __jo_force_inline void                  jo_storyboard_remove_object(jo_storyboard *const storyboard, const void * const object)
 {
     jo_node *tmp;
     for (tmp = storyboard->objects.first; tmp != JO_NULL; tmp = tmp->next)
@@ -210,7 +210,7 @@ static  __jo_force_inline void                  jo_storyboard_remove_object(jo_s
   * @param object Pointer to an object (should be the same passed in jo_storyboard_add_object())
   * @return Object storyboard cache
   */
-static  __jo_force_inline jo_storyboard_object_cache        *jo_storyboard_get_object_cache(jo_storyboard *storyboard, const void *object)
+static  __jo_force_inline jo_storyboard_object_cache        *jo_storyboard_get_object_cache(jo_storyboard *const storyboard, const void * const object)
 {
     jo_node *tmp;
     for (tmp = storyboard->objects.first; tmp != JO_NULL; tmp = tmp->next)
@@ -224,7 +224,7 @@ static  __jo_force_inline jo_storyboard_object_cache        *jo_storyboard_get_o
   * @param object Pointer to an object (should be the same passed in jo_storyboard_add_object())
   * @remarks Must be called if you move the object manually (x, y, z)
   */
-static  __jo_force_inline void                  jo_storyboard_reset_object_position(jo_storyboard *storyboard, const void *object)
+static  __jo_force_inline void                  jo_storyboard_reset_object_position(jo_storyboard * const storyboard, const void * const object)
 {
     jo_storyboard_object_cache                  *cache = jo_storyboard_get_object_cache(storyboard, object);
 
@@ -241,7 +241,7 @@ static  __jo_force_inline void                  jo_storyboard_reset_object_posit
   * @remarks You can pass any structure (even an array) if you respect the order of attributes
   * @return The storyboard
   */
-static  __jo_force_inline jo_storyboard         *jo_storyboard_create_for_object(const bool autoplay, const bool repeat, const void *object)
+static  __jo_force_inline jo_storyboard         *jo_storyboard_create_for_object(const bool autoplay, const bool repeat, const void * const object)
 {
     jo_storyboard                               *storyboard = jo_storyboard_create(autoplay, repeat);
 
@@ -261,7 +261,7 @@ static  __jo_force_inline jo_storyboard         *jo_storyboard_create_for_object
   * @remarks If speed is positive, the rotation is clockwise otherwise counterclockwise
   * @return The animation
   */
-static  __jo_force_inline jo_animation          *jo_storyboard_create_rotation_animation(jo_storyboard *storyboard, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_animation          *jo_storyboard_create_rotation_animation(jo_storyboard * const storyboard, const char speed, const unsigned int duration)
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
@@ -276,7 +276,7 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_rotation_a
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The animation
   */
-static  __jo_force_inline jo_animation          *jo_storyboard_create_translation_animation(jo_storyboard *storyboard, const short angle, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_animation          *jo_storyboard_create_translation_animation(jo_storyboard *const storyboard, const short angle, const char speed, const unsigned int duration)
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
@@ -293,7 +293,7 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_translatio
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The animation
   */
-static  __jo_force_inline jo_animation          *jo_storyboard_create_translation_animation_using_direction(jo_storyboard *storyboard, const jo_8_directions direction, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_animation          *jo_storyboard_create_translation_animation_using_direction(jo_storyboard * const storyboard, const jo_8_directions direction, const char speed, const unsigned int duration)
 {
     return (jo_storyboard_create_translation_animation(storyboard, jo_direction_to_angle(direction), speed, duration));
 }
@@ -305,7 +305,7 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_translatio
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The animation
   */
-static  __jo_force_inline jo_animation          *jo_storyboard_create_circle_animation(jo_storyboard *storyboard, const short radius, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_animation          *jo_storyboard_create_circle_animation(jo_storyboard * const storyboard, const short radius, const char speed, const unsigned int duration)
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
@@ -328,7 +328,7 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_circle_ani
   * @remarks If speed is positive, the rotation is clockwise otherwise counterclockwise
   * @return The storyboard
   */
-static  __jo_force_inline jo_storyboard         *jo_storyboard_rotate_object(const void *object, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_storyboard         *jo_storyboard_rotate_object(const void * const object, const char speed, const unsigned int duration)
 {
     jo_storyboard                               *storyboard = jo_storyboard_create_for_object(true, false, object);
 
@@ -343,7 +343,7 @@ static  __jo_force_inline jo_storyboard         *jo_storyboard_rotate_object(con
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The storyboard
   */
-static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object(const void *object, const short angle, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object(const void * const object, const short angle, const char speed, const unsigned int duration)
 {
     jo_storyboard                               *storyboard = jo_storyboard_create_for_object(true, false, object);
 
@@ -358,7 +358,7 @@ static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object(const
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The storyboard
   */
-static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object_in_direction(const void *object, const jo_8_directions direction, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object_in_direction(const void * const object, const jo_8_directions direction, const char speed, const unsigned int duration)
 {
     jo_storyboard                               *storyboard = jo_storyboard_create_for_object(true, false, object);
 
@@ -373,7 +373,7 @@ static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object_in_di
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @return The storyboard
   */
-static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object_in_circle(const void *object, const short radius, const char speed, const unsigned int duration)
+static  __jo_force_inline jo_storyboard         *jo_storyboard_move_object_in_circle(const void * const object, const short radius, const char speed, const unsigned int duration)
 {
     jo_storyboard                               *storyboard = jo_storyboard_create_for_object(true, false, object);
 

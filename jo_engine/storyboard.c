@@ -64,14 +64,14 @@ jo_storyboard                       *jo_storyboard_create(const bool autoplay, c
     return storyboard;
 }
 
-void                                jo_storyboard_destroy(jo_storyboard *storyboard)
+void                                jo_storyboard_destroy(jo_storyboard * const storyboard)
 {
     jo_list_free_and_clear(&storyboard->objects);
     jo_list_free_and_clear(&storyboard->animations);
     jo_list_remove_first_value(&__storyboards, (jo_list_data)(void *)storyboard);
 }
 
-static void                         animate_object(jo_animation *animation, jo_storyboard_object_cache *object)
+static void                         animate_object(jo_animation * const animation, jo_storyboard_object_cache * const object)
 {
     if (animation->rotation_speed)
         object->user->rz += animation->rotation_speed;
@@ -115,7 +115,7 @@ static void                         animate_object(jo_animation *animation, jo_s
     }
 }
 
-static void                         jo_reset_storyboard(jo_storyboard *storyboard)
+static void                         jo_reset_storyboard(jo_storyboard * const storyboard)
 {
     jo_node                         *tmp;
 
@@ -123,7 +123,7 @@ static void                         jo_reset_storyboard(jo_storyboard *storyboar
         ((jo_animation *)tmp->data.ptr)->disabled = false;
 }
 
-static void                         do_storyboard(jo_storyboard *storyboard)
+static void                         do_storyboard(jo_storyboard * const storyboard)
 {
     jo_node                         *animation_node;
     jo_node                         *object_node;
@@ -171,7 +171,7 @@ void                                jo_execute_storyboards(void)
     }
 }
 
-jo_animation                        *jo_storyboard_create_animation(jo_storyboard *storyboard,
+jo_animation                        *jo_storyboard_create_animation(jo_storyboard *const storyboard,
                                                                     const unsigned char frame_skip,
                                                                     const unsigned int duration)
 {
