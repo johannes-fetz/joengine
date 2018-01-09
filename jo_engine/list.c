@@ -46,7 +46,7 @@ void	jo_list_init(jo_list * const list)
     JO_ZERO(list->count);
     list->last = JO_NULL;
     list->first = JO_NULL;
-    list->allocation_behaviour = JO_MALLOC_TRY_REUSE_BLOCK;
+    list->allocation_behaviour = JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE;
 }
 
 jo_node             *jo_list_add(jo_list * const list, const jo_list_data data)

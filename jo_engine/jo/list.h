@@ -44,7 +44,7 @@ typedef void (*jo_node_callback)(jo_node *node);
 /** @brief Callback for jo_list_any() */
 typedef bool (*jo_node_any_callback)(jo_node *node, void *extra);
 
-/** @brief Node data */
+/** @brief Node data (4 bytes) */
 typedef union
 {
     struct
@@ -53,6 +53,7 @@ typedef union
         short       y;
     }               coord;
     char            str[4];
+    bool            booleans[4];
     void            *ptr;
     int             integer;
 }                   jo_list_data;
@@ -201,6 +202,41 @@ static  __jo_force_inline bool	    jo_list_any(jo_list * const list, jo_node_any
     jo_node *tmp;
     for (tmp = list->first; tmp != JO_NULL; tmp = tmp->next) if (callback(tmp, extra)) return true;
     return false;
+}
+
+/** @brief Set list memory allocation behaviour
+ *  @param list List pointer
+ *  @param behaviour Allocation behaviour
+ */
+static  __jo_force_inline void      jo_list_set_allocation_behaviour(jo_list * const list, jo_malloc_behaviour behaviour)
+{
+    list->allocation_behaviour = behaviour;
+}
+
+/** @brief Remove the first item on the list that match DATA
+ *  @param list List
+ *  @param data Node DATA
+ */
+static  __jo_force_inline bool	    jo_list_remove_first_value(jo_list * const list, jo_list_data data)
+{
+    jo_node *tmp;
+    for (tmp = list->first; tmp != JO_NULL; tmp = tmp->next)
+        if (tmp->data.integer == data.integer)
+        {
+            jo_list_remove(list, tmp);
+            return (true);
+        }
+    return false;
+}
+
+/** @brief Remove all items on the list that match DATA
+ *  @param list List
+ *  @param data Node DATA
+ */
+static  __jo_force_inline void	    jo_list_remove_all_value(jo_list * const list, jo_list_data data)
+{
+    while (jo_list_remove_first_value(list, data))
+        ;
 }
 
 #endif /* !__JO_LIST_H__ */
