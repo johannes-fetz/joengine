@@ -22,6 +22,7 @@
 					<Add option="-DJO_COMPILE_WITH_DUAL_CPU_SUPPORT" />
 					<Add option="-DJO_NTSC_VERSION" />
 					<Add option="-DJO_DEBUG" />
+					<Add option="-DJO_COMPILE_WITH_STORYBOARD_SUPPORT" />
 				</Compiler>
 			</Target>
 		</Build>
@@ -81,6 +82,7 @@
 		<Unit filename="jo/smpc.h" />
 		<Unit filename="jo/sprite_animator.h" />
 		<Unit filename="jo/sprites.h" />
+		<Unit filename="jo/storyboard.h" />
 		<Unit filename="jo/tga.h" />
 		<Unit filename="jo/time.h" />
 		<Unit filename="jo/tools.h" />
@@ -106,6 +108,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="sprites.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="storyboard.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="tga.c">

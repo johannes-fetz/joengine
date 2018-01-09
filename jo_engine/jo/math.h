@@ -1042,6 +1042,33 @@ int     jo_gcd(int a, int b);
  */
 void            jo_planar_rotate(const jo_pos2D * const point, const jo_pos2D * const origin, const int angle, jo_pos2D * const result);
 
+/** @brief Convert jo_8_directions to angle in degree
+ *  @param direction Direction
+ *  @return Angle in degree
+ */
+static __jo_force_inline short jo_direction_to_angle(const jo_8_directions direction)
+{
+    switch (direction)
+    {
+    case LEFT:
+        return (180);
+    case UP:
+        return (270);
+    case DOWN:
+        return (90);
+    case UP_LEFT:
+        return (225);
+    case UP_RIGHT:
+        return (315);
+    case DOWN_LEFT:
+        return (135);
+    case DOWN_RIGHT:
+        return (45);
+    default:
+        return (0);
+    }
+}
+
 #endif /* !__JO_MATH_H__ */
 
 /*

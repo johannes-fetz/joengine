@@ -48,6 +48,7 @@
 #include "jo/video.h"
 #include "jo/list.h"
 #include "jo/background.h"
+#include "jo/storyboard.h"
 
 /*
 ** INTERNAL MACROS
@@ -71,6 +72,11 @@ extern unsigned int                         _bstart;
 extern unsigned int                         _bend;
 extern void                                 jo_main(void);
 
+#ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
+extern jo_list                              __storyboards;
+void                                        jo_execute_storyboards(void);
+void                                        jo_init_storyboards(void);
+#endif
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 bool                                        jo_video_init(void);
 #endif
@@ -423,6 +429,9 @@ void			jo_core_init(const jo_color back_color)
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     jo_3d_init();
 #endif
+#ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
+    jo_init_storyboards();
+#endif
 #if JO_COMPILE_USING_SGL
     slTVOn();
 #else
@@ -603,12 +612,18 @@ void			        jo_core_run(void)
 #endif
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
-#if JO_COMPILE_USING_SGL
+    #if JO_COMPILE_USING_SGL
         slUnitMatrix(0);
-#else
+    #else
         /* TODO slUnitMatrix replacement */
+    #endif
 #endif
-#endif /* !JO_COMPILE_WITH_3D_SUPPORT */
+
+#ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
+        if (__storyboards.count)
+            jo_execute_storyboards();
+#endif
+
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)
             jo_core_exec_on_slave(jo_slave_callbacks);

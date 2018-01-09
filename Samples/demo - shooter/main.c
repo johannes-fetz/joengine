@@ -54,14 +54,6 @@ void                next_level(void)
     ++level;
 }
 
-void         draw_ship_shield(void)
-{
-    ship.shield_pos_x = ship.x + jo_cos_mult(30, ship.shield_angle);
-    ship.shield_pos_y = ship.y + jo_sin_mult(30, ship.shield_angle);
-    jo_sprite_draw3D(shield_sprite_id, ship.shield_pos_x, ship.shield_pos_y, 520);
-    ship.shield_angle += 4;
-}
-
 inline void         draw_ship(void)
 {
     /* Instead of loading the same animation when we move the ship to the right, we just flip the sprite horizontally */
@@ -100,7 +92,7 @@ inline void         draw_enemy(jo_node *node)
 {
     jo_sprite_draw3D(enemy_sprite_id, node->data.coord.x, node->data.coord.y, 520);
     node->data.coord.y += 2;
-    if (having_shield && jo_hitbox_detection(enemy_sprite_id, node->data.coord.x, node->data.coord.y, shield_sprite_id, ship.shield_pos_x, ship.shield_pos_y))
+    if (having_shield && jo_hitbox_detection(enemy_sprite_id, node->data.coord.x, node->data.coord.y, shield_sprite_id, ship.shield_pos.x, ship.shield_pos.y))
     {
         jo_list_remove(&enemies_list, node);
         having_shield = 0;
@@ -136,7 +128,7 @@ void                my_draw(void)
     {
         draw_ship();
         if (having_shield)
-            draw_ship_shield();
+            jo_sprite_draw3D(shield_sprite_id, ship.x + ship.shield_pos.x, ship.y + ship.shield_pos.y, 520);
     }
     else
     {
@@ -230,10 +222,10 @@ void            init_game(void)
     ship.anim_id = jo_create_sprite_anim(first_ship_sprite_id, SHIP_TILE_COUNT, 3);
     ship.speed = 3;
     ship.score = 0;
-    ship.shield_pos_x = 0;
-    ship.shield_pos_y = 0;
-    ship.shield_angle = 0;
+    ship.shield_pos.x = 0;
+    ship.shield_pos.y = 0;
     ship.move = NONE;
+    jo_storyboard_move_object_in_circle(&ship.shield_pos, 30, 4);
     jo_list_init(&laser_blast_list);
     jo_list_init(&enemies_list);
 }

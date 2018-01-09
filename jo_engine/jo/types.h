@@ -45,13 +45,34 @@ typedef struct
     int                 y;
 }                       jo_pos2D;
 
-/** @brief 3D position */
+/** @brief 3D position
+  * @remarks Inherits from jo_pos2D (cast friendly)
+  */
 typedef struct
 {
     int                 x;
     int                 y;
     int                 z;
 }                       jo_pos3D;
+
+/** @brief Object for 2D manipulation (storyboard) using fixed number
+  * @remarks Inherits from jo_pos3D (cast friendly)
+  */
+typedef struct
+{
+    jo_pos3D;
+    short               rz;
+}                       jo_2d_object_attributes;
+
+/** @brief Object for 3D manipulation (storyboard) using fixed number
+  * @remarks Inherits from jo_2d_object_attributes (cast friendly)
+  */
+typedef struct
+{
+    jo_2d_object_attributes;
+    short               rx;
+    short               ry;
+}                       jo_3d_object_attributes;
 
 /** @brief Vector for 3D computation using floating numbers */
 typedef struct
@@ -61,12 +82,12 @@ typedef struct
     float               z;
 }                       jo_vectorf;
 
-/** @brief Vector for 3D computation using fixed number */
+/** @brief Vector for 3D computation using fixed number
+  * @remarks Inherits from jo_pos3D (cast friendly)
+  */
 typedef struct
 {
-    int                 x;
-    int                 y;
-    int                 z;
+    jo_pos3D;
 }                       jo_vector;
 
 /** @brief 4x4 MATRIX for 3D computation using floating numbers */
@@ -97,11 +118,19 @@ typedef union
 	};
 }                       jo_matrix;
 
-/** @brief Texture definition */
+/** @brief Size struct */
+typedef struct      __jo_size
+{
+    unsigned short	width;
+    unsigned short	height;
+}					jo_size;
+
+/** @brief Texture definition
+  * @remarks Inherits from jo_size (cast friendly)
+  */
 typedef struct
 {
-    unsigned short      width;
-    unsigned short      height;
+    jo_size;
     unsigned short      adr;
     unsigned short      size;
 }                       jo_texture_definition;
@@ -147,6 +176,19 @@ typedef struct
     char        *read_buffer;
     int         read_index;
 }               jo_file;
+
+/** @brief 8 directions definition */
+typedef enum
+{
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN,
+    UP_LEFT,
+    UP_RIGHT,
+    DOWN_LEFT,
+    DOWN_RIGHT
+}               jo_8_directions;
 
 #endif /* !__JO_TYPES_H__ */
 

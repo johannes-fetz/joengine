@@ -19,9 +19,7 @@ typedef struct
     t_ship_horiz_move   move;
     char                is_moving_horizontaly;
     char                reverse_animation;
-    int                 shield_pos_x;
-    int                 shield_pos_y;
-    int                 shield_angle;
+    jo_pos2D            shield_pos;
     int                 score;
 }                       t_ship;
 

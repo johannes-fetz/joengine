@@ -69,6 +69,7 @@
 #include "video.h"
 #include "effects.h"
 #include "font.h"
+#include "storyboard.h"
 
 #endif /* !__JO_H__ */
 

@@ -60,7 +60,7 @@ static jo_vdp1_command          *__jo_create_new_command_table(void)
 {
     jo_vdp1_command             *command_table;
 
-    if ((command_table = jo_malloc_with_behaviour(JO_COMMAND_TABLE_SIZE, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    if ((command_table = jo_malloc_with_behaviour(JO_COMMAND_TABLE_SIZE, JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("Out of memory");
