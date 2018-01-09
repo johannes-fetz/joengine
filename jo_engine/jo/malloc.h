@@ -47,7 +47,12 @@ typedef enum
 }               jo_extended_ram_cartridge_type;
 
 /** @brief Malloc behaviour
- *
+ * JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE
+ *     |          ^
+ *     |          |
+ *   Speed    efficiency
+ *     |          |
+ *     V          |
  * JO_MALLOC_TRY_REUSE_BLOCK
  *     |          ^
  *     |          |
@@ -62,6 +67,8 @@ typedef enum
     JO_FAST_ALLOCATION,
     /** @brief A little bit slower but reduce memory fragmentation */
     JO_MALLOC_TRY_REUSE_BLOCK,
+    /** @brief A little bit slower than JO_MALLOC_TRY_REUSE_BLOCK but reduce memory usage */
+    JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE
 }       jo_malloc_behaviour;
 
 /** @brief dynamic memory allocator with specific behaviour

@@ -116,7 +116,15 @@ malloc_new_segment:
                     goto malloc_new_block;
                 }
 #endif
-                if (block->size >= n)
+                if (behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)
+                {
+                    if (block->size == n)
+                    {
+                        block->zone = zone;
+                        return (block + 1);
+                    }
+                }
+                else if (block->size >= n)
                 {
                     block->zone = zone;
                     return (block + 1);
@@ -124,7 +132,7 @@ malloc_new_segment:
             }
             block = (jo_memory_block *)(((unsigned char *)block) + block->size);
         }
-        if (behaviour == JO_MALLOC_TRY_REUSE_BLOCK)
+        if (behaviour != JO_FAST_ALLOCATION)
             goto malloc_new_segment;
     }
     return JO_NULL;
