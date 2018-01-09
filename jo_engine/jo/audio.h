@@ -98,9 +98,9 @@ void	jo_audio_stop_sound(const jo_sound * const sound);
  *  @param filename Pcm filename (example: A.PCM)
  *  @param mode PCM audio mode (JoSoundMono16Bit, etc)
  *  @param sound Sound definition (output)
- *  @details To convert any audio file to PCM under Linux or Windows => http://ffmpeg.org
- *  @details ffmpeg -i A.WAV -f s8 -ar 44100 A.PCM
- *  @details ffmpeg -i A.MP3 -f s8 -ac 1 -ar 8000 A.PCM
+ *  @remarks To convert any audio file to PCM under Linux or Windows => http://ffmpeg.org
+ *  @remarks ffmpeg -i A.WAV -f s8 -ar 44100 A.PCM
+ *  @remarks ffmpeg -i A.MP3 -f s8 -ac 1 -ar 8000 A.PCM
  *  @return true if succeed otherwise false
  */
 bool     jo_audio_load_pcm(const char * const filename, const jo_sound_mode mode, jo_sound *sound);
@@ -112,7 +112,7 @@ void     jo_audio_free_pcm(jo_sound *sound);
 
 /** @brief Get audio channel usage
  *  @return Audio channel usage percent
- *  @details jo_printf(0, 0, "Audio channel usage: %d%%  ", jo_audio_usage_percent());
+ *  @remarks jo_printf(0, 0, "Audio channel usage: %d%%  ", jo_audio_usage_percent());
  */
 int                         jo_audio_usage_percent(void);
 

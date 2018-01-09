@@ -105,10 +105,10 @@ int		jo_sprite_add_bin(const char * const sub_dir, const char * const filename, 
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TEX")
  *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
- *  @details  Sample file with 3 Textures (it's very similar to the MAP file format):
- *  @details  1.TGA
- *  @details  2.BIN
- *  @details  3.TGA
+ *  @remarks  Sample file with 3 Textures (it's very similar to the MAP file format):
+ *  @remarks  1.TGA
+ *  @remarks  2.BIN
+ *  @remarks  3.TGA
  *  @return Sprite Id of the first image or -1 if failed
  */
 int		jo_sprite_add_image_pack(const char * const sub_dir, const char * const filename, const jo_color transparent_color);

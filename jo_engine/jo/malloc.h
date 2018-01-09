@@ -107,13 +107,13 @@ static  __jo_force_inline jo_extended_ram_cartridge_type      jo_get_extended_ra
 
 /** @brief Get memory usage percent
  *  @return memory usage percent
- *  @details jo_printf(0, 0, "Dynamic memory usage: %d%%  ", jo_memory_usage_percent());
+ *  @remarks jo_printf(0, 0, "Dynamic memory usage: %d%%  ", jo_memory_usage_percent());
  */
 int             jo_memory_usage_percent(void);
 
 /** @brief Get memory fragmentation (Number of fragment in memory)
  *  @return Memory fragmentation
- *  @details jo_printf(0, 0, "Dynamic memory fragmentation: %d%%  ", jo_memory_fragmentation());
+ *  @remarks jo_printf(0, 0, "Dynamic memory fragmentation: %d%%  ", jo_memory_fragmentation());
  */
 int             jo_memory_fragmentation(void);
 

@@ -388,7 +388,7 @@ static  __jo_force_inline int         jo_sprite_count(void)
 
 /** @brief Get sprite memory usage
  *  @return Sprite memory usage percent
- *  @details jo_printf(0, 0, "Sprite memory usage: %d%%  ", jo_sprite_usage_percent());
+ *  @remarks jo_printf(0, 0, "Sprite memory usage: %d%%  ", jo_sprite_usage_percent());
  */
 int                                   jo_sprite_usage_percent(void);
 

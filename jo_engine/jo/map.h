@@ -45,12 +45,12 @@
  *  @param x Horizontal position of the point (based on the screen !, so 0 is the left the screen)
  *  @param y Vertical position of the point (based on the screen !, so 0 is the top the screen)
  *  @param attribute Tile attribute
- *  @details        (x,y)
- *  @details    #     |      #
- *  @details    ###   |     ##
- *  @details    ##### v     ##
- *  @details    #######   ####
- *  @details    ##############
+ *  @remarks        (x,y)
+ *  @remarks    #     |      #
+ *  @remarks    ###   |     ##
+ *  @remarks    ##### v     ##
+ *  @remarks    #######   ####
+ *  @remarks    ##############
  *  @return distance from the surface of the map otherwise JO_MAP_NO_COLLISION
  *  @warning if distance > 0 then you don't touch the ground but your are on the sprite
  *  @warning if distance <= 0 then you are under the surface of the sprite
@@ -75,12 +75,12 @@ int         jo_map_hitbox_detection_custom_boundaries(const unsigned int layer, 
  *  @param depth Z-index
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.MAP")
- *  @details  Sample file with 4 blocks. Each tile has his own texture:
- *  @details  IMAGE_FILENAME	X	Y   ATTRIBUTE(optional)
- *  @details  1.TGA	0	0
- *  @details  2.TGA	160	0
- *  @details  3.TGA	0	120
- *  @details  4.TGA	160	120
+ *  @remarks  Sample file with 4 blocks. Each tile has his own texture:
+ *  @remarks  IMAGE_FILENAME	X	Y   ATTRIBUTE(optional)
+ *  @remarks  1.TGA	0	0
+ *  @remarks  2.TGA	160	0
+ *  @remarks  3.TGA	0	120
+ *  @remarks  4.TGA	160	120
  *  @remarks use JoMapEditor to create map file
  *  @return true if successful otherwise false (use jo_get_last_error())
  */
