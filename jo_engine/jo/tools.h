@@ -224,20 +224,20 @@ void            jo_getdate(jo_datetime *now);
  *  @param str This is the string representation of an integral number
  *  @return This function returns the converted integral number as an int value. If no valid conversion could be performed, it returns zero
  */
-int			    jo_tools_atoi(const char * str);
+int			    jo_tools_atoi(const char * restrict str);
 
 /** @brief strlen implementation
  *  @param str This is the string
  *  @return This function returns the length of str
  */
-int				jo_strlen(const char * str);
+int				jo_strlen(const char * restrict str);
 
 /** @brief determine if str end with a specific string
  *  @param str This is the string
  *  @param end The ending string
  *  @return This function returns true if str end with "end" param otherwise false
  */
-bool            jo_endwith(const char *str, const char *end);
+bool            jo_endwith(const char * restrict str, const char * restrict end);
 
 /** @brief Sets the first num bytes of the block of memory pointed by ptr to the specified value (interpreted as an unsigned char)
  *  @param ptr Pointer to the block of memory to fill.
@@ -245,7 +245,7 @@ bool            jo_endwith(const char *str, const char *end);
  *  @param num Number of bytes to be set to the value.
  *  @remarks No return value in this implementation
  */
-void            jo_memset(const void * const ptr, const int value, unsigned int num);
+void            jo_memset(const void * const restrict ptr, const int value, unsigned int num);
 
 /** @brief Little pause possible
  */
@@ -270,14 +270,15 @@ static  __jo_force_inline void        jo_spin_wait(int iterations)
  *  @param palnum Palette number
  *  @param mapoff MapOff
  */
-void    jo_map_to_vram(unsigned short *data, unsigned short *vram_addr, unsigned short suuj, unsigned short suui, unsigned short palnum, unsigned int mapoff);
+void    jo_map_to_vram(unsigned short * restrict data, unsigned short * restrict vram_addr,
+                        unsigned short suuj, unsigned short suui, unsigned short palnum, unsigned int mapoff);
 
 /** @brief Copies the image palette data to CRAM
  *  @param data Data source
  *  @param cram_addr Color RAM address
  *  @param size Data size
  */
-static  __jo_force_inline void    jo_palette_to_cram(unsigned short *data, unsigned short *cram_addr, unsigned int size)
+static  __jo_force_inline void    jo_palette_to_cram(unsigned short * restrict data, unsigned short * restrict cram_addr, unsigned int size)
 {
     while (size-- > 0) *(cram_addr++) = *(data++);
 }
@@ -287,7 +288,7 @@ static  __jo_force_inline void    jo_palette_to_cram(unsigned short *data, unsig
  *  @param vram_addr VRAM address
  *  @param size Data size
  */
-static  __jo_force_inline void    jo_cell_to_vram(unsigned char *data, unsigned char *vram_addr, unsigned int size)
+static  __jo_force_inline void    jo_cell_to_vram(unsigned char * restrict data, unsigned char * restrict vram_addr, unsigned int size)
 {
     while (size-- > 0) *(vram_addr++) = *(data++);
 }

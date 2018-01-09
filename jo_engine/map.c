@@ -80,7 +80,7 @@ static jo_map_tile                      *gl_map[JO_MAP_MAX_LAYER];
 static unsigned short                   gl_map_tile_count[JO_MAP_MAX_LAYER];
 static int                              gl_map_depth_fixed[JO_MAP_MAX_LAYER];
 
-int                                     jo_map_per_pixel_vertical_collision(const unsigned int layer, int x, int y, unsigned char *attribute)
+int                                     jo_map_per_pixel_vertical_collision(const unsigned int layer, int x, int y, unsigned char * restrict attribute)
 {
     register jo_map_tile                *current_tile;
     register int                        i;

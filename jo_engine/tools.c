@@ -229,7 +229,7 @@ void                    jo_clear_screen(void)
 /*
 ** This is a fast unsafe(doesn't check JO_NULL param, etc.) implementation of atoi
 */
-inline int				jo_tools_atoi(const char * str)
+inline int				jo_tools_atoi(const char * restrict str)
 {
     int					val;
     bool		        is_negative;
@@ -255,7 +255,7 @@ inline int				jo_tools_atoi(const char * str)
     return (val);
 }
 
-inline int				jo_strlen(const char * str)
+inline int				jo_strlen(const char * restrict str)
 {
     char                *begin;
 
@@ -271,7 +271,7 @@ inline int				jo_strlen(const char * str)
     return (str - begin);
 }
 
-inline bool             jo_endwith(const char *str, const char *end)
+inline bool             jo_endwith(const char * restrict str, const char * restrict end)
 {
     int                 str_len;
     int                 end_len;
@@ -302,10 +302,10 @@ inline bool             jo_endwith(const char *str, const char *end)
     return (true);
 }
 
-void                        jo_memset(const void * const ptr, const int value, unsigned int num)
+void                        jo_memset(const void * const restrict ptr, const int value, unsigned int num)
 {
-    register unsigned int   *p;
-    register unsigned char  *pp;
+    register unsigned int   * restrict p;
+    register unsigned char  * restrict pp;
     unsigned int            tail;
     unsigned int            x;
     unsigned char           xx;
@@ -327,7 +327,8 @@ void                        jo_memset(const void * const ptr, const int value, u
         *pp++ = xx;
 }
 
-void                    jo_map_to_vram(unsigned short *data, unsigned short *vram_addr, unsigned short suuj, unsigned short suui, unsigned short palnum, unsigned int mapoff)
+void                    jo_map_to_vram(unsigned short * restrict data, unsigned short * restrict vram_addr,
+                                       unsigned short suuj, unsigned short suui, unsigned short palnum, unsigned int mapoff)
 {
     unsigned short      j;
     unsigned short      paloff;

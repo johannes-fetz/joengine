@@ -101,7 +101,7 @@ void                    jo_sprite_init(void)
         JO_ZERO(__jo_hash_table[i]);
 }
 
-int				jo_sprite_name2id(const char * const filename)
+int				jo_sprite_name2id(const char * const restrict filename)
 {
     register int		i;
     int					hash;

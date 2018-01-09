@@ -68,7 +68,7 @@
 
 extern int      __jo_hash_table[JO_MAX_SPRITE];
 
-static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const stream, const int x, const int y, const int width, const int bits)
+static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
 {
     switch (bits)
     {
@@ -81,7 +81,7 @@ static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const s
     }
 }
 
-t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const char * const filename, char **stream, int *bits)
+t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
 {
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
@@ -119,7 +119,7 @@ t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const ch
     return (JO_TGA_OK);
 }
 
-static void             jo_tga_read_contents(jo_img *img, char * stream, const jo_color transparent_color, const int bits)
+static void             jo_tga_read_contents(jo_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
 {
     register int		idx;
     register int		x;
