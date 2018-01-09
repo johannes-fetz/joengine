@@ -81,7 +81,7 @@ int         jo_map_hitbox_detection_custom_boundaries(const unsigned int layer, 
  *  @details  2.TGA	160	0
  *  @details  3.TGA	0	120
  *  @details  4.TGA	160	120
- *  @remark use JoMapEditor to create map file
+ *  @remarks use JoMapEditor to create map file
  *  @return true if successful otherwise false (use jo_get_last_error())
  */
 bool            jo_map_load_from_file(const unsigned int layer, const short depth, const char * const sub_dir, const char * const filename);

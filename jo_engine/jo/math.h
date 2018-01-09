@@ -50,7 +50,7 @@ extern int JoSinLookupTable[360];
 extern int JoCosLookupTable[360];
 
 /** @brief Set a variable to zero
- *  @remark faster than X = 0
+ *  @remarks faster than X = 0
  *  @param X Variable name
  */
 # define JO_ZERO(X)					X ^= X
@@ -73,94 +73,94 @@ extern int JoCosLookupTable[360];
 # define JO_PI_2                    (1.5707963)
 
 /** @brief Multiply a variable by 2
- *  @remark faster than X * 2
+ *  @remarks faster than X * 2
  *  @param X Variable name
  */
 # define JO_MULT_BY_2(X)			((X) << 1)
 /** @brief Multiply a variable by 4
- *  @remark faster than X * 4
+ *  @remarks faster than X * 4
  *  @param X Variable name
  */
 # define JO_MULT_BY_4(X)			((X) << 2)
 /** @brief Multiply a variable by 8
- *  @remark faster than X * 8
+ *  @remarks faster than X * 8
  *  @param X Variable name
  */
 # define JO_MULT_BY_8(X)			((X) << 3)
 /** @brief Multiply a variable by 16
- *  @remark faster than X * 16
+ *  @remarks faster than X * 16
  *  @param X Variable name
  */
 # define JO_MULT_BY_16(X)			((X) << 4)
 /** @brief Multiply a variable by 32
- *  @remark faster than X * 32
+ *  @remarks faster than X * 32
  *  @param X Variable name
  */
 # define JO_MULT_BY_32(X)			((X) << 5)
 
 /** @brief Multiply a variable by 256
- *  @remark faster than X * 256
+ *  @remarks faster than X * 256
  *  @param X Variable name
  */
 # define JO_MULT_BY_256(X)			((X) << 8)
 
 /** @brief Multiply a variable by 1024
- *  @remark faster than X * 1024
+ *  @remarks faster than X * 1024
  *  @param X Variable name
  */
 # define JO_MULT_BY_1024(X)			((X) << 10)
 
 /** @brief Multiply a variable by 32768
- *  @remark faster than X * 32768
+ *  @remarks faster than X * 32768
  *  @param X Variable name
  */
 # define JO_MULT_BY_32768(X)			((X) << 15)
 
 /** @brief Multiply a variable by 65536
- *  @remark faster than X * 65536
+ *  @remarks faster than X * 65536
  *  @param X Variable name
  */
 # define JO_MULT_BY_65536(X)			((X) << 16)
 
 /** @brief Devide a variable by 2
- *  @remark faster than X / 2
+ *  @remarks faster than X / 2
  *  @param X Variable name
  */
 # define JO_DIV_BY_2(X)				((X) >> 1)
 /** @brief Devide a variable by 4
- *  @remark faster than X / 4
+ *  @remarks faster than X / 4
  *  @param X Variable name
  */
 # define JO_DIV_BY_4(X)				((X) >> 2)
 /** @brief Devide a variable by 8
- *  @remark faster than X / 8
+ *  @remarks faster than X / 8
  *  @param X Variable name
  */
 # define JO_DIV_BY_8(X)				((X) >> 3)
 /** @brief Devide a variable by 16
- *  @remark faster than X / 16
+ *  @remarks faster than X / 16
  *  @param X Variable name
  */
 # define JO_DIV_BY_16(X)			((X) >> 4)
 /** @brief Devide a variable by 32
- *  @remark faster than X / 32
+ *  @remarks faster than X / 32
  *  @param X Variable name
  */
 # define JO_DIV_BY_32(X)			((X) >> 5)
 /** @brief Devide a variable by 1024
- *  @remark faster than X / 1024
+ *  @remarks faster than X / 1024
  *  @param X Variable name
  */
 # define JO_DIV_BY_1024(X)			((X) >> 10)
 
 /** @brief Devide a variable by 32768
- *  @remark faster than X / 32768
+ *  @remarks faster than X / 32768
  *  @param X Variable name
  */
 # define JO_DIV_BY_32768(X)			((X) >> 15)
 
 /** @brief Devide a variable by 65536
- *  @remark faster than X / 65536
+ *  @remarks faster than X / 65536
  *  @param X Variable name
  */
 # define JO_DIV_BY_65536(X)			((X) >> 16)
