@@ -47,7 +47,7 @@ void    __jo_core_error(char *message, const char *function);
 #endif
 
 /** @brief Jo Engine Version */
-# define JO_ENGINE_VERSION  (8.2)
+# define JO_ENGINE_VERSION  (9.0)
 
 /*
 ** TYPEDEFS

@@ -42,7 +42,7 @@
 #include "jo/list.h"
 #include "jo/storyboard.h"
 
-//#ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
+#ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
 
 jo_list                             __storyboards;
 
@@ -184,7 +184,7 @@ jo_animation                        *jo_storyboard_create_animation(jo_storyboar
     return tmp;
 }
 
-//#endif /* !JO_COMPILE_WITH_STORYBOARD_SUPPORT */
+#endif /* !JO_COMPILE_WITH_STORYBOARD_SUPPORT */
 
 /*
 ** END OF FILE
