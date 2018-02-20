@@ -49,6 +49,10 @@
  */
 # define JO_READ_SPIN_WAIT                  (16)
 
+/** @brief Sector size
+ */
+# define JO_SECTOR_SIZE                     (2048)
+
 /** @brief Max file opened at the same time
  *  @warning NEVER CHANGE THIS VALUE
  */
@@ -56,15 +60,11 @@
 
 /** @brief Maximum sector fetched once (for jo_fs_read_file_async())
  */
-# define JO_MAXIMUM_SECTOR_FETCHED_ONCE     (1)
+# define JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC     (1)
 
-/** @brief Maximum sector fetched once (for jo_fs_read_file_async())
+/** @brief Size of each read jo(for jo_fs_do_background_jobs())
  */
-# define JO_SECTOR_SIZE                     (2048)
-
-/** @brief Size of each read (for jo_fs_do_background_jobs())
- */
-# define JO_READ_SIZE                       (JO_MAXIMUM_SECTOR_FETCHED_ONCE * JO_SECTOR_SIZE)
+# define JO_READ_SIZE_ASYNC                       (JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC * JO_SECTOR_SIZE)
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
@@ -87,6 +87,7 @@ static GfsDirTbl				__jo_fs_dirtbl;
 static GfsDirName				__jo_fs_dirname[JO_FS_MAX_FILES];
 static __jo_fs_background_job   __jo_fs_background_jobs[JO_MAX_FS_BACKGROUND_JOBS];
 unsigned int                    __jo_fs_background_job_count;
+static int                      __jo_fs_read_buffer_size = JO_SECTOR_SIZE;
 
 int								jo_fs_init()
 {
@@ -118,13 +119,13 @@ void                    jo_fs_do_background_jobs(void)
     {
         if (!__jo_fs_background_jobs[i].active)
             continue;
-        GFS_NwFread(__jo_fs_background_jobs[i].gfs, JO_MAXIMUM_SECTOR_FETCHED_ONCE, __jo_fs_background_jobs[i].ptr, JO_READ_SIZE);
+        GFS_NwFread(__jo_fs_background_jobs[i].gfs, JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC, __jo_fs_background_jobs[i].ptr, JO_READ_SIZE_ASYNC);
         do
         {
             GFS_NwExecOne(__jo_fs_background_jobs[i].gfs);
             GFS_NwGetStat(__jo_fs_background_jobs[i].gfs, &stat, &nbyte);
         }
-        while (nbyte < JO_READ_SIZE && stat != GFS_SVR_COMPLETED);
+        while (nbyte < JO_READ_SIZE_ASYNC && stat != GFS_SVR_COMPLETED);
         if (stat == GFS_SVR_COMPLETED)
         {
             GFS_Close(__jo_fs_background_jobs[i].gfs);
@@ -186,7 +187,7 @@ bool                    jo_fs_read_file_async(const char *const filename, jo_fs_
         __jo_fs_background_jobs[i].callback = callback;
         __jo_fs_background_jobs[i].ptr = __jo_fs_background_jobs[i].contents;
         GFS_NwCdRead(__jo_fs_background_jobs[i].gfs, sctsize * nsct);
-        GFS_SetTransPara(__jo_fs_background_jobs[i].gfs, JO_MAXIMUM_SECTOR_FETCHED_ONCE);
+        GFS_SetTransPara(__jo_fs_background_jobs[i].gfs, JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC);
         __jo_fs_background_jobs[i].active = true;
         ++__jo_fs_background_job_count;
         return (true);
@@ -332,9 +333,9 @@ bool                    jo_fs_open(jo_file * const file, const char *const filen
     }
     GFS_GetFileSize((GfsHn)file->handle, &sctsize, &nsct, &lastsize);
     file->size = sctsize * (nsct - 1) + lastsize;
-    file->read_index = JO_SECTOR_SIZE;
+    file->read_index = __jo_fs_read_buffer_size;
     JO_ZERO(file->read);
-    if ((file->read_buffer = (char *)jo_malloc_with_behaviour(JO_SECTOR_SIZE * sizeof(*file->read_buffer),
+    if ((file->read_buffer = (char *)jo_malloc_with_behaviour(__jo_fs_read_buffer_size * sizeof(*file->read_buffer),
                              JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -352,14 +353,14 @@ bool                    jo_fs_seek_forward(jo_file * const file, unsigned int nb
     int                 retry;
 
     file->read += nbytes;
-    buffer_remaining = (JO_SECTOR_SIZE - 1) - file->read_index;
+    buffer_remaining = (__jo_fs_read_buffer_size - 1) - file->read_index;
     if (buffer_remaining >= (int)nbytes)
     {
         file->read_index += nbytes;
         return (true);
     }
     nbytes -= buffer_remaining;
-    sectors = nbytes / JO_SECTOR_SIZE;
+    sectors = nbytes / __jo_fs_read_buffer_size;
     for (retry = JO_READ_RETRY_COUNT; GFS_Seek((GfsHn)file->handle, sectors, GFS_SEEK_CUR) < 0; --retry)
     {
         if (!retry)
@@ -371,10 +372,10 @@ bool                    jo_fs_seek_forward(jo_file * const file, unsigned int nb
         }
         jo_spin_wait(JO_READ_SPIN_WAIT);
     }
-    nbytes = nbytes % JO_SECTOR_SIZE;
+    nbytes = nbytes % __jo_fs_read_buffer_size;
     if (!nbytes)
         return (true);
-    for (retry = JO_READ_RETRY_COUNT; GFS_Fread((GfsHn)file->handle, 1, file->read_buffer, JO_SECTOR_SIZE) < 0; --retry)
+    for (retry = JO_READ_RETRY_COUNT; GFS_Fread((GfsHn)file->handle, 1, file->read_buffer, __jo_fs_read_buffer_size) < 0; --retry)
     {
         if (!retry)
         {
@@ -409,7 +410,7 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
 #endif
     JO_ZERO(readed);
 fs_read_from_buffer:
-    while (file->read_index < JO_SECTOR_SIZE && nbytes > 0)
+    while (file->read_index < __jo_fs_read_buffer_size && nbytes > 0)
     {
         *buffer++ = file->read_buffer[file->read_index++];
         --nbytes;
@@ -418,7 +419,7 @@ fs_read_from_buffer:
     if (nbytes <= 0 || file->read >= file->size)
         return (readed);
     JO_ZERO(file->read_index);
-    for (retry = JO_READ_RETRY_COUNT; (len = GFS_Fread((GfsHn)file->handle, 1, file->read_buffer, JO_SECTOR_SIZE)) < 0; --retry)
+    for (retry = JO_READ_RETRY_COUNT; (len = GFS_Fread((GfsHn)file->handle, 1, file->read_buffer, __jo_fs_read_buffer_size)) < 0; --retry)
     {
         if (!retry)
             return (readed);
@@ -441,6 +442,18 @@ void                    jo_fs_close(jo_file * const file)
 #endif
     jo_free(file->read_buffer);
     GFS_Close((GfsHn)file->handle);
+}
+
+void            jo_fs_set_read_sector_count(const int count)
+{
+#ifdef JO_DEBUG
+    if (count < 1)
+    {
+        jo_core_error("count < 1");
+        return ;
+    }
+#endif
+    __jo_fs_read_buffer_size = count * JO_SECTOR_SIZE;
 }
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
