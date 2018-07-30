@@ -23,7 +23,7 @@
 /*
  * C VIRTUAL TYPES DEFINITIONS
  */
-#include "sega_sys.h"
+#include "SEGA_SYS.H"
 
 /*
  * GLOBAL DEFINES/MACROS DEFINES

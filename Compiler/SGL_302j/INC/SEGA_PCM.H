@@ -18,9 +18,9 @@
 #define ADPCM_FUNCTION
 
 /*-------------------- 《インクルードファイル》 --------------------*/
-#include "sega_xpt.h"
-#include "sega_gfs.h"
-#include "sega_stm.h"
+#include "SEGA_XPT.H"
+#include "SEGA_GFS.H"
+#include "SEGA_STM.H"
 
 /*------------------------- 《マクロ定数》 -------------------------*/
 

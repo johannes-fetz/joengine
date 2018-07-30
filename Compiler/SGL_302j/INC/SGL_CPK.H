@@ -26,12 +26,12 @@
 
 
 /*-------------------- 《インクルードファイル》 --------------------*/
-#include <sega_xpt.h>
+#include <SEGA_XPT.H>
 #if 0
 #include <sega_gfs.h>
 #include <sega_stm.h>
 #else
-#include <sgl_cd.h>
+#include <SGL_CD.H>
 #endif
 
 

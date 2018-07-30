@@ -186,8 +186,8 @@ RM = rm -f
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
 	SGLDIR = $(COMPILER_DIR)/SGL_302j
-	SGLIDR = $(SGLDIR)/inc
-	SGLLDR = $(SGLDIR)/lib_coff
+	SGLIDR = $(SGLDIR)/INC
+	SGLLDR = $(SGLDIR)/LIB_COFF
 #endif
 
 CMNDIR = $(COMPILER_DIR)/COMMON

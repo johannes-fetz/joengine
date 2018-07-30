@@ -20,7 +20,7 @@
 #ifndef	SEGA_BUP_H
 #define SEGA_BUP_H
 
-#include	<sega_xpt.h>
+#include	<SEGA_XPT.H>
 
 #define	BUP_LIB_ADDRESS		(*(volatile Uint32 *)(0x6000350+8))
 #define	BUP_VECTOR_ADDRESS	(*(volatile Uint32 *)(0x6000350+4))
