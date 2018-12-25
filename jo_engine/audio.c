@@ -30,7 +30,7 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include <sddrvs.dat>
+#include <SDDRVS.DAT>
 #include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
