@@ -57,11 +57,11 @@ void                next_level(void)
 inline void         draw_ship(void)
 {
     /* Instead of loading the same animation when we move the ship to the right, we just flip the sprite horizontally */
-    if (ship.move == RIGHT)
+    if (ship.move == SHIP_MOVE_RIGHT)
         jo_sprite_enable_horizontal_flip();
     /* We reverse the animation when the ship doesn't move horizontally (see line 74) */
     jo_sprite_draw3D(ship.reverse_animation ? jo_get_anim_sprite_reverse(ship.anim_id) : jo_get_anim_sprite(ship.anim_id), ship.x, ship.y, 500);
-    if (ship.move == RIGHT)
+    if (ship.move == SHIP_MOVE_RIGHT)
         jo_sprite_disable_horizontal_flip();
 
 }
@@ -181,14 +181,14 @@ void			my_gamepad(void)
 	if (jo_is_pad1_key_pressed(JO_KEY_LEFT) && ship.x > -(JO_TV_WIDTH_2 - 16))
     {
         /* If the ship doesn't move or on the opposite side */
-        if ((!ship.is_moving_horizontaly && jo_is_sprite_anim_stopped(ship.anim_id)) || (ship.is_moving_horizontaly && ship.move == RIGHT))
-            start_ship_animation(LEFT, 1, 0);
+        if ((!ship.is_moving_horizontaly && jo_is_sprite_anim_stopped(ship.anim_id)) || (ship.is_moving_horizontaly && ship.move == SHIP_MOVE_RIGHT))
+            start_ship_animation(SHIP_MOVE_LEFT, 1, 0);
         ship.x -= ship.speed;
     }
 	else if (jo_is_pad1_key_pressed(JO_KEY_RIGHT) && ship.x < (JO_TV_WIDTH_2 - 16))
     {
-        if ((!ship.is_moving_horizontaly && jo_is_sprite_anim_stopped(ship.anim_id)) || (ship.is_moving_horizontaly && ship.move == LEFT))
-            start_ship_animation(RIGHT, 1, 0);
+        if ((!ship.is_moving_horizontaly && jo_is_sprite_anim_stopped(ship.anim_id)) || (ship.is_moving_horizontaly && ship.move == SHIP_MOVE_LEFT))
+            start_ship_animation(SHIP_MOVE_RIGHT, 1, 0);
         ship.x += ship.speed;
     }
     else
@@ -224,7 +224,7 @@ void            init_game(void)
     ship.score = 0;
     ship.shield_pos.x = 0;
     ship.shield_pos.y = 0;
-    ship.move = NONE;
+    ship.move = SHIP_MOVE_NONE;
     jo_storyboard_move_object_in_circle(&ship.shield_pos, 30, 4);
     jo_list_init(&laser_blast_list);
     jo_list_init(&enemies_list);
