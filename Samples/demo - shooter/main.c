@@ -54,7 +54,7 @@ void                next_level(void)
     ++level;
 }
 
-inline void         draw_ship(void)
+static inline void         draw_ship(void)
 {
     /* Instead of loading the same animation when we move the ship to the right, we just flip the sprite horizontally */
     if (ship.move == SHIP_MOVE_RIGHT)
@@ -66,7 +66,7 @@ inline void         draw_ship(void)
 
 }
 
-inline bool         check_if_laser_hit_enemy(jo_node *enemy, void *extra)
+static inline bool         check_if_laser_hit_enemy(jo_node *enemy, void *extra)
 {
     jo_node         *blast;
 
@@ -78,7 +78,7 @@ inline bool         check_if_laser_hit_enemy(jo_node *enemy, void *extra)
     return true;
 }
 
-inline void         draw_laser_blast(jo_node *node)
+static inline void         draw_laser_blast(jo_node *node)
 {
     jo_sprite_draw3D(blast_sprite_id, node->data.coord.x, node->data.coord.y, 520);
     node->data.coord.y -= 4;
@@ -88,7 +88,7 @@ inline void         draw_laser_blast(jo_node *node)
         jo_list_remove(&laser_blast_list, node);
 }
 
-inline void         draw_enemy(jo_node *node)
+static inline void         draw_enemy(jo_node *node)
 {
     jo_sprite_draw3D(enemy_sprite_id, node->data.coord.x, node->data.coord.y, 520);
     node->data.coord.y += 2;
@@ -106,7 +106,7 @@ inline void         draw_enemy(jo_node *node)
         jo_list_remove(&enemies_list, node);
 }
 
-inline void         move_background(void)
+static inline void         move_background(void)
 {
     static int      background_vertical_scrolling = 0;
 
@@ -140,7 +140,7 @@ void                my_draw(void)
     move_background();
 }
 
-inline void         start_ship_animation(t_ship_horiz_move move, char is_moving_horizontaly, char reverse_animation)
+static inline void         start_ship_animation(t_ship_horiz_move move, char is_moving_horizontaly, char reverse_animation)
 {
     jo_restart_sprite_anim(ship.anim_id);
     ship.is_moving_horizontaly = is_moving_horizontaly;
@@ -159,7 +159,7 @@ void                restart_game(void)
     jo_clear_screen();
 }
 
-inline void         shoot(void)
+static inline void         shoot(void)
 {
     jo_list_data    blast;
 

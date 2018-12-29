@@ -72,7 +72,7 @@ bool          has_vertical_collision(void)
 	return true;
 }
 
-inline bool      has_horizontal_collision(void)
+static inline bool      has_horizontal_collision(void)
 {
     int         next_pixel;
 
@@ -104,7 +104,7 @@ void     sonic_collision_handling(void)
         map_pos_x += physics.speed > -1.0f ? -1.0f : physics.speed;
 }
 
-inline void     camera_handling(int prev_y)
+static inline void     camera_handling(int prev_y)
 {
     int         delta;
 
@@ -121,7 +121,7 @@ inline void     camera_handling(int prev_y)
     }
 }
 
-inline void     my_draw(void)
+static inline void     my_draw(void)
 {
     int         prev_y;
 
@@ -134,14 +134,14 @@ inline void     my_draw(void)
     display_sonic();
 }
 
-inline void     make_sonic_jump(void)
+static inline void     make_sonic_jump(void)
 {
     player.can_jump = false;
     player.spin = true;
     jo_physics_jump(&physics);
 }
 
-inline void     my_input(void)
+static inline void     my_input(void)
 {
     if (physics.is_in_air)
     {
