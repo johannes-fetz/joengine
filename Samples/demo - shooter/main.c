@@ -225,7 +225,7 @@ void            init_game(void)
     ship.shield_pos.x = 0;
     ship.shield_pos.y = 0;
     ship.move = SHIP_MOVE_NONE;
-    jo_storyboard_move_object_in_circle(&ship.shield_pos, 30, 4);
+    jo_storyboard_move_object_in_circle(&ship.shield_pos, 30, 4, JO_STORYBOARD_INFINITE_DURATION);
     jo_list_init(&laser_blast_list);
     jo_list_init(&enemies_list);
 }
