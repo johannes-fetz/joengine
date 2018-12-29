@@ -5,9 +5,9 @@
 
 typedef enum
 {
-    NONE,
-    LEFT,
-    RIGHT
+    SHIP_MOVE_NONE,
+    SHIP_MOVE_LEFT,
+    SHIP_MOVE_RIGHT
 }                       t_ship_horiz_move;
 
 typedef struct
