@@ -34,7 +34,7 @@ endif
 
 ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
 	ifeq (1,${JO_COMPILE_USING_SGL})
-		LIBS += $(SGLLDR)/libcpk.a $(SGLLDR)/LIBSND.a
+		LIBS += $(SGLLDR)/LIBCPK.A $(SGLLDR)/LIBSND.A
 	endif
 
 	CCFLAGS += -DJO_COMPILE_WITH_VIDEO_SUPPORT
@@ -169,7 +169,7 @@ SYSOBJS =
 
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
-	SYSOBJS += $(SGLLDR)/sglarea.o
+	SYSOBJS += $(SGLLDR)/SGLAREA.O
 #endif
 
 OBJS = $(SRCS:.c=.o)
@@ -186,8 +186,8 @@ RM = rm -f
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
 	SGLDIR = $(COMPILER_DIR)/SGL_302j
-	SGLIDR = $(SGLDIR)/inc
-	SGLLDR = $(SGLDIR)/lib_coff
+	SGLIDR = $(SGLDIR)/INC
+	SGLLDR = $(SGLDIR)/LIB_COFF
 #endif
 
 CMNDIR = $(COMPILER_DIR)/COMMON

@@ -1,15 +1,15 @@
 #ifndef	_SGL_H_   /* SGL.H */
 #define	_SGL_H_
 
-#include <machine.h>
-#include "sl_def.h"
+#include <MACHINE.H>
+#include "SL_DEF.H"
 
 #ifdef	SATURN
-#include "sega_int.h"
+#include "SEGA_INT.H"
 #endif
 
 #ifdef	ST_V
-#include "syscall.h"
+#include "SYSCALL.H"
 #endif
 
 /********************************/

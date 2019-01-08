@@ -945,8 +945,8 @@ extern	SmpcStatus*	Smpc_Status;
 
 #else /* JO_COMPILE_USING_SGL */
 
-#include <sgl.h>
-#include <sl_def.h>
+#include <SGL.H>
+#include <SL_DEF.H>
 #include <SEGA_CDC.H>
 #include <SEGA_GFS.H>
 

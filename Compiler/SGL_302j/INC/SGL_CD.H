@@ -5,8 +5,8 @@
 /* sgl_cd.h */
 #if	!defined(SGL_CD_H)
 #define	SGL_CD_H
-#include	"sl_def.h"
-#include        <sega_stm.h>
+#include	"SL_DEF.H"
+#include        <SEGA_STM.H>
 
 /*--- 一般的なデータ型 -------------------------------------------------*/
 /* ファイルハンドル			*/

@@ -30,8 +30,8 @@
 /*
  * C VIRTUAL TYPES DEFINITIONS
  */
-#include <machine.h>
-#include "sega_xpt.h"
+#include <MACHINE.H>
+#include "SEGA_XPT.H"
 
 /*
  * USER SUPPLIED INCLUDE FILES

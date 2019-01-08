@@ -2,6 +2,7 @@
 sl_coff.bin
 sl_coff.coff
 sl_coff.iso
+sl_coff.cue
 sl_coff.map
 *.o
 *.layout

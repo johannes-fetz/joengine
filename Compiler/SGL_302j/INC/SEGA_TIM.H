@@ -25,13 +25,13 @@
 /*
  * C VIRTUAL TYPES DEFINITIONS
  */
-#include "sega_xpt.h"
+#include "SEGA_XPT.H"
 
 /*
  * USER SUPPLIED INCLUDE FILES
  */
-#include "sega_int.h"
-#include "sega_sys.h"
+#include "SEGA_INT.H"
+#include "SEGA_SYS.H"
 
 #ifndef SEGA_TIM_H
 #define SEGA_TIM_H
