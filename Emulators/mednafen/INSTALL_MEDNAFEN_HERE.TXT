@@ -1,0 +1,1 @@
+Or edit run_with_mednafen.bat
