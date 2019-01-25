@@ -179,9 +179,14 @@ OBJS = $(SRCS:.c=.o)
 	LIBS +=  $(SGLLDR)/SEGA_SYS.A $(SGLLDR)/LIBCD.A $(SGLLDR)/LIBSGL.A
 #endif
 
-CC = sh-coff-gcc
-CONV = sh-coff-objcopy
-RM = rm -f
+ifeq ($(OS), Windows_NT)
+	SH_COFF_BIN=$(COMPILER_DIR)/SH_COFF/sh-coff/bin
+	CC=$(SH_COFF_BIN)/sh-coff-gcc.exe
+	CONV=$(SH_COFF_BIN)/sh-coff-objcopy.exe
+	CUE_MAKER=$(COMPILER_DIR)/TOOLS/JoEngineCueMaker.exe
+endif
+
+RM = rm -rf
 
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
@@ -216,6 +221,7 @@ DFLAGS =
 TARGET   = sl_coff.coff
 TARGET1  = $(TARGET:.coff=.bin)
 TARGET2  = $(TARGET:.coff=.iso)
+TARGET3  = $(TARGET:.coff=.cue)
 MPFILE   = $(TARGET:.coff=.map)
 IPFILE   = $(CMNDIR)/IP.BIN
 ifeq (1,${JO_COMPILE_USING_SGL})
@@ -225,7 +231,7 @@ else
 endif
 MAKEFILE = makefile
 
-all: $(TARGET) $(TARGET1) $(TARGET2)
+all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3)
 
 $(TARGET) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 	$(CC) $(LDFLAGS) $(SYSOBJS) $(OBJS) $(LIBS) -o $@
@@ -236,6 +242,9 @@ $(TARGET1) : $(TARGET) $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 $(TARGET2): $(TARGET1)
 	$(CONV) -O binary $(TARGET) cd/0.bin
 	mkisofs -quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" -publisher "SEGA ENTERPRISES, LTD." -preparer "SEGA ENTERPRISES, LTD." -appid "SaturnApp" -abstract "ABS.TXT" -copyright "CPY.TXT" -biblio "BIB.TXT" -generic-boot $(IPFILE) -full-iso9660-filenames -o $(TARGET2) cd
+
+$(TARGET3): $(TARGET1) $(TARGET2)
+	$(CUE_MAKER)
 
 .c.o:
 	$(CC) $< $(DFLAGS) $(CCFLAGS) $(_CCFLAGS) -o $@
