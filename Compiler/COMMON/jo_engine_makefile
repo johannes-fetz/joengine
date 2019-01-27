@@ -184,6 +184,11 @@ ifeq ($(OS), Windows_NT)
 	CC=$(SH_COFF_BIN)/sh-coff-gcc.exe
 	CONV=$(SH_COFF_BIN)/sh-coff-objcopy.exe
 	CUE_MAKER=$(COMPILER_DIR)/TOOLS/JoEngineCueMaker.exe
+else
+	SH_COFF_BIN=$(COMPILER_DIR)/SH_NONE_ELF/bin
+	CC=$(SH_COFF_BIN)/sh-none-elf-gcc-8.2.0
+	CONV=$(SH_COFF_BIN)/sh-none-elf-objcopy
+	CUE_MAKER=$(COMPILER_DIR)/TOOLS/CueMaker
 endif
 
 ASSETS_DIR=./cd
@@ -218,6 +223,9 @@ LDFLAGS = -m2
 #endif
 LDFLAGS +=-Xlinker --format=coff-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
+#ifneq ($(OS), Windows_NT)
+LIBS += -L.$(COMPILER_DIR)/SH_COFF/sh-coff/sh-coff/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
+#endif
 DFLAGS =
 
 TARGET   = sl_coff.coff
