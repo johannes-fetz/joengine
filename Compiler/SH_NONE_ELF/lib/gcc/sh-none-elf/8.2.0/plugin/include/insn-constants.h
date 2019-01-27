@@ -1,0 +1,104 @@
+/* Generated automatically by the program `genconstants'
+   from the machine description file `md'.  */
+
+#ifndef GCC_INSN_CONSTANTS_H
+#define GCC_INSN_CONSTANTS_H
+
+#define PR_REG 146
+#define MACL_REG 149
+#define DR2_REG 66
+#define MACH_REG 148
+#define R21_REG 21
+#define FPSCR_PR 524288
+#define R3_REG 3
+#define RAP_REG 152
+#define PIC_REG 12
+#define R22_REG 22
+#define R10_REG 10
+#define FP_REG 14
+#define R8_REG 8
+#define R23_REG 23
+#define FPUL_REG 150
+#define DR0_REG 64
+#define R7_REG 7
+#define SP_REG 15
+#define DR4_REG 68
+#define FPSCR_STAT_REG 155
+#define R5_REG 5
+#define R1_REG 1
+#define XD0_REG 136
+#define FPSCR_SZ 1048576
+#define R4_REG 4
+#define FPSCR_MODES_REG 154
+#define AP_REG 145
+#define FPSCR_FR 2097152
+#define R9_REG 9
+#define R20_REG 20
+#define R6_REG 6
+#define R2_REG 2
+#define T_REG 147
+#define R0_REG 0
+#define FPSCR_REG 151
+#define GBR_REG 144
+
+enum unspec {
+  UNSPEC_MOVA = 0,
+  UNSPEC_CASESI = 1,
+  UNSPEC_BBR = 2,
+  UNSPEC_SFUNC = 3,
+  UNSPEC_PIC = 4,
+  UNSPEC_GOT = 5,
+  UNSPEC_GOTOFF = 6,
+  UNSPEC_PLT = 7,
+  UNSPEC_CALLER = 8,
+  UNSPEC_GOTPLT = 9,
+  UNSPEC_PCREL = 10,
+  UNSPEC_ICACHE = 11,
+  UNSPEC_FCOSA = 12,
+  UNSPEC_FSRRA = 13,
+  UNSPEC_FSINA = 14,
+  UNSPEC_ALLOCO = 15,
+  UNSPEC_TLSGD = 16,
+  UNSPEC_TLSLDM = 17,
+  UNSPEC_TLSIE = 18,
+  UNSPEC_DTPOFF = 19,
+  UNSPEC_GOTTPOFF = 20,
+  UNSPEC_TPOFF = 21,
+  UNSPEC_RA = 22,
+  UNSPEC_THUNK = 23,
+  UNSPEC_CHKADD = 24,
+  UNSPEC_SP_SET = 25,
+  UNSPEC_SP_TEST = 26,
+  UNSPEC_MOVUA = 27,
+  UNSPEC_SYMOFF = 28,
+  UNSPEC_PCREL_SYMOFF = 29,
+  UNSPEC_GOTFUNCDESC = 30,
+  UNSPEC_GOTOFFFUNCDESC = 31,
+  UNSPEC_BUILTIN_STRLEN = 32,
+  UNSPEC_ATOMIC = 33
+};
+#define NUM_UNSPEC_VALUES 34
+extern const char *const unspec_strings[];
+
+enum unspecv {
+  UNSPECV_BLOCKAGE = 0,
+  UNSPECV_ALIGN = 1,
+  UNSPECV_CONST2 = 2,
+  UNSPECV_CONST4 = 3,
+  UNSPECV_CONST8 = 4,
+  UNSPECV_WINDOW_END = 5,
+  UNSPECV_CONST_END = 6,
+  UNSPECV_EH_RETURN = 7,
+  UNSPECV_GBR = 8,
+  UNSPECV_SP_SWITCH_B = 9,
+  UNSPECV_SP_SWITCH_E = 10,
+  UNSPECV_FPSCR_MODES = 11,
+  UNSPECV_FPSCR_STAT = 12,
+  UNSPECV_CMPXCHG_1 = 13,
+  UNSPECV_CMPXCHG_2 = 14,
+  UNSPECV_CMPXCHG_3 = 15
+};
+#define NUM_UNSPECV_VALUES 16
+extern const char *const unspecv_strings[];
+
+#endif /* GCC_INSN_CONSTANTS_H */
