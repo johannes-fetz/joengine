@@ -1,0 +1,40 @@
+/* Script for ld -r: link without relocation */
+/* Copyright (C) 2014-2018 Free Software Foundation, Inc.
+   Copying and distribution of this script, with or without modification,
+   are permitted in any medium without royalty provided the copyright
+   notice and this notice are preserved.  */
+OUTPUT_FORMAT("coff-shl")
+OUTPUT_ARCH(sh)
+MEMORY
+{
+  ram : o = 0x1000, l = 512k
+}
+SECTIONS
+{
+  .text :
+  {
+    *(.text)
+    *(.strings)
+  }
+  .data :
+  {
+    *(.data)
+  }
+  .bss :
+  {
+    *(.bss)
+    *(COMMON)
+  }
+  .stack   :
+  {
+    *(.stack)
+  }
+  .stab 0  :
+  {
+    *(.stab)
+  }
+  .stabstr 0  :
+  {
+    *(.stabstr)
+  }
+}
