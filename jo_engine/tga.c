@@ -93,9 +93,9 @@ t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const ch
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
     if (*stream == JO_NULL)
         return (JO_TGA_UNSUPPORTED_FORMAT);
-    img->width = jo_swap_endian_ushort( *((unsigned short *)(*stream + 12)));
-    img->height = jo_swap_endian_ushort( *((unsigned short *)(*stream + 14)));
-    *bits = (int)(*stream)[16];
+    img->width = jo_swap_endian_ushort( *((unsigned short *)(*stream + TGA_HEADER_INDEX_WIDTH)));
+    img->height = jo_swap_endian_ushort( *((unsigned short *)(*stream + TGA_HEADER_INDEX_HEIGHT)));
+    *bits = (int)(*stream)[TGA_HEADER_INDEX_BITSPERPIXEL];
     if (!JO_TGA_SUPPORTED_FORMAT(*bits))
     {
 #ifdef JO_DEBUG
@@ -124,13 +124,20 @@ static void             jo_tga_read_contents(jo_img *img, char * restrict stream
     register int		idx;
     register int		x;
     register int		y;
+    register int        delta;
+    register bool       row_top;
 
-    stream += 18; /* Jump header */
+    char image_descriptor = (stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
+    row_top = (image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
+
+    stream += TGA_HEADER_SIZE; /* Jump header */
+
     for (JO_ZERO(y); y < img->height; ++y)
     {
         for (JO_ZERO(x); x < img->width; ++x)
         {
-            idx = x + (img->height - y - 1) * img->width;
+            delta = row_top ? y : (img->height - 1 - y);
+            idx = x + delta * img->width;
             img->data[idx] = jo_tga_get_pixel(stream, x, y, img->width, bits);
             if (transparent_color != JO_COLOR_Transparent && img->data[idx] == transparent_color)
                 img->data[idx] = JO_COLOR_Transparent;
@@ -183,7 +190,7 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     if (__jo_tga_load(&full_image, sub_dir, filename, &stream, &bits) != JO_TGA_OK)
         return (-1);
     stream_begin = stream;
-    stream += 18; /* Jump header */
+    stream += TGA_HEADER_SIZE; /* Jump header */
     first_id = -1;
     for (JO_ZERO(i); i < tile_count; ++i)
     {
