@@ -184,12 +184,17 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     register unsigned int   i;
     int						first_id;
     int                     bits;
+    int                     delta;
 
     stream = JO_NULL;
     full_image.data = (unsigned short *)-1;/* Disable allocation in __jo_tga_load() */
     if (__jo_tga_load(&full_image, sub_dir, filename, &stream, &bits) != JO_TGA_OK)
         return (-1);
     stream_begin = stream;
+
+    char image_descriptor = *(stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
+    bool row_top = (image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
+
     stream += TGA_HEADER_SIZE; /* Jump header */
     first_id = -1;
     for (JO_ZERO(i); i < tile_count; ++i)
@@ -217,7 +222,8 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
         {
             for (JO_ZERO(x); x < tile_image.width; ++x)
             {
-                idx = x + y * tile_image.width;
+                delta = row_top ? (tile_image.height - 1 - y) : y;
+                idx = x + delta * tile_image.width;
                 tile_image.data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (full_image.height - (y + tileset[i].y) - 1), full_image.width, bits);
                 if (transparent_color != JO_COLOR_Transparent && tile_image.data[idx] == transparent_color)
                     tile_image.data[idx] = JO_COLOR_Transparent;
