@@ -127,7 +127,7 @@ static void             jo_tga_read_contents(jo_img *img, char * restrict stream
     register int        delta;
     register bool       row_top;
 
-    char image_descriptor = (stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
+    char image_descriptor = *(stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
     row_top = (image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
 
     stream += TGA_HEADER_SIZE; /* Jump header */
