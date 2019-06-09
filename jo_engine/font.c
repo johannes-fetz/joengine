@@ -55,6 +55,9 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     int             x;
     int             y;
     int             i;
+    int             c;
+    int             newlines;
+    int             end;
 
 #ifdef JO_DEBUG
     if (filename == JO_NULL)
@@ -90,25 +93,41 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     font->start_ascii = 127;
     JO_ZERO(font->end_ascii);
     font->z_index = 100;
-    JO_ZERO(i);
-    for (JO_ZERO(y); i < char_count; y += letter_height)
-    {
-        for (JO_ZERO(x); i < char_count; ++i, x += letter_width)
-        {
-            if (mapping[i] == '\n')
-            {
-                --char_count;
-                break;
-            }
-            if (mapping[i] < font->start_ascii)
-                font->start_ascii = mapping[i];
-            if (mapping[i] > font->end_ascii)
-                font->end_ascii = mapping[i];
-            font_tileset[i].width = letter_width;
-            font_tileset[i].height = letter_height;
-            font_tileset[i].y = y;
-            font_tileset[i].x = x;
+
+    // track number of newline characters
+    JO_ZERO(newlines);
+
+    // we need to iterate every character of the input
+    // regardless of changes to char_count
+    end = char_count;
+
+    // actual map of characters without newlines
+    // that will correspond to the updated char_count
+    char charmap[char_count];
+
+    for (JO_ZERO(i); i < end; i++) {
+        // the index in the tileset of the current character
+        c = i - newlines;
+
+        y = newlines * letter_height;
+        x = letter_width * ((i - newlines) % letter_width);
+
+        if (mapping[i] == '\n') {
+            --char_count;
+            ++newlines;
+            continue;
         }
+
+        font->start_ascii = JO_MIN(mapping[i], font->start_ascii);
+        font->end_ascii   = JO_MAX(mapping[i], font->end_ascii);
+
+        font_tileset[c].width  = letter_width;
+        font_tileset[c].height = letter_height;
+        font_tileset[c].x      = x;
+        font_tileset[c].y      = y;
+
+        // used later for the lookup table
+        charmap[c] = mapping[i];
     }
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
     if (jo_endwith(filename, ".BIN"))
@@ -131,7 +150,7 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     for (JO_ZERO(i); i < char_count; ++i)
         font->lookup_table[i] = first_sprite_id;
     for (JO_ZERO(i); i < char_count; ++i)
-        font->lookup_table[(mapping[i] -  font->start_ascii)] = first_sprite_id + i;
+        font->lookup_table[(charmap[i] -  font->start_ascii)] = first_sprite_id + i;
     jo_free(font_tileset);
     return (font);
 }
