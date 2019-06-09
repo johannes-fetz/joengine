@@ -92,6 +92,8 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     font->spacing = letter_width + letter_spacing;
     font->start_ascii = 127;
     JO_ZERO(font->end_ascii);
+    JO_ZERO(x);
+    JO_ZERO(y);
     font->z_index = 100;
 
     // track number of newline characters
@@ -109,12 +111,11 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
         // the index in the tileset of the current character
         c = i - newlines;
 
-        y = newlines * letter_height;
-        x = letter_width * ((i - newlines) % letter_width);
-
         if (mapping[i] == '\n') {
             --char_count;
             ++newlines;
+            x = 0;
+            y = newlines * letter_height;
             continue;
         }
 
@@ -128,6 +129,7 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
 
         // used later for the lookup table
         charmap[c] = mapping[i];
+        x += letter_width;
     }
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
     if (jo_endwith(filename, ".BIN"))
