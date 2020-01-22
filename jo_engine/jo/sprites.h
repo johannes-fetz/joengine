@@ -126,6 +126,31 @@ static  __jo_force_inline void	jo_sprite_free_all(void)
 int		jo_sprite_name2id(const char *const filename);
 
 /*
+** Sprite clipping
+*/
+/** @brief Activate sprite clipping for every sprite displayed after this call
+ * @param outside Clip everything inside clipping area
+ */
+static  __jo_force_inline void	jo_sprite_enable_clipping(bool outside)
+{
+    if (outside)
+    {
+        __jo_sprite_attributes.clipping = Window_Out;
+    }
+    else
+    {
+        __jo_sprite_attributes.clipping = Window_In;
+    }
+}
+
+/** @brief Disable sprite clipping for every sprite displayed after this call
+ */
+static  __jo_force_inline void	jo_sprite_disable_clipping(void)
+{
+    __jo_sprite_attributes.clipping = No_Window;
+}
+
+/*
 ** Screen doors filter (old school transparency)
 */
 /** @brief Activate screen doors filter for every sprite displayed after this call
@@ -283,6 +308,15 @@ static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
 {
     __jo_sprite_attributes.fixed_scale = JO_FIXED_1;
 }
+
+/** @brief Set user clipping area
+ * @param x Horizontal coord from top left corner
+ * @param y Vertical coord from top left corner
+ * @param width Width of the clipping rectangle
+ * @param height Height of the clipping rectangle
+ * @param depth Specifies depth up to which sprites get clipped
+ */
+void jo_sprite_set_clipping_area(const unsigned int x, const unsigned int y, const unsigned int width, const unsigned int height, const int depth);
 
 /** @brief Display a sprite in 3 dimensional space
  *  @param sprite_id Sprite Id

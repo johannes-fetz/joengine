@@ -55,17 +55,17 @@
 
 #define		COL_TYPE_256		0x10
 
-#define	    KTBL0_RAM		VDP2_VRAM_A1		/* ‰ñ“]ƒXƒNƒ[ƒ‹—pŒW”ƒe[ƒuƒ‹ */
+#define	    KTBL0_RAM		VDP2_VRAM_A1		/* ï¿½ï¿½]ï¿½Xï¿½Nï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½pï¿½Wï¿½ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½ */
 #define	    BACK_CRAM		(KTBL0_RAM + 0x1fffe)	/* Back color */
 
-#define	    CL_Half		2		/* ”¼‹P“xƒ‚[ƒh */
-#define	    CL_Trans		3		/* ”¼“§–¾ƒ‚[ƒh */
-#define	    CL_Gouraud		4		/* ƒO[ƒ[ƒVƒF[ƒfƒBƒ“ƒOƒ‚[ƒh */
+#define	    CL_Half		2		/* ï¿½ï¿½ï¿½Pï¿½xï¿½ï¿½ï¿½[ï¿½h */
+#define	    CL_Trans		3		/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h */
+#define	    CL_Gouraud		4		/* ï¿½Oï¿½[ï¿½ï¿½ï¿½[ï¿½Vï¿½Fï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½[ï¿½h */
 
-#define	PER_ID_NotConnect	0xff	/* –¢Ú‘±				*/
-#define	PER_ID_StnPad		0x02	/* ƒTƒ^[ƒ“•W€ƒpƒbƒh			*/
-#define	PER_ID_StnMouse		0x23	/* ƒTƒ^[ƒ“ƒ}ƒEƒX			*/
-#define	PER_ID_ShuttleMouse	0xe3	/* ƒVƒƒƒgƒ‹ƒ}ƒEƒX			*/
+#define	PER_ID_NotConnect	0xff	/* ï¿½ï¿½ï¿½Ú‘ï¿½				*/
+#define	PER_ID_StnPad		0x02	/* ï¿½Tï¿½^ï¿½[ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½pï¿½bï¿½h			*/
+#define	PER_ID_StnMouse		0x23	/* ï¿½Tï¿½^ï¿½[ï¿½ï¿½ï¿½}ï¿½Eï¿½X			*/
+#define	PER_ID_ShuttleMouse	0xe3	/* ï¿½Vï¿½ï¿½ï¿½gï¿½ï¿½ï¿½}ï¿½Eï¿½X			*/
 
 #define	    toFIXED(a)		((FIXED)(65536.0 * (a)))
 #define	    POStoFIXED(x,y,z)	{toFIXED(x),toFIXED(y),toFIXED(z)}
@@ -74,9 +74,12 @@
 #define	VERTICES(v0,v1,v2,v3)	{v0 , v1 , v2 , v3}}
 #define	C_RGB(r,g,b)		(((b)&0x1f)<<10|((g)&0x1f)<<5|((r)&0x1f)|0x8000)
 
-#define	    ECdis		(1 << 7)	/* ƒGƒ“ƒhƒR[ƒh‚ğƒpƒŒƒbƒg‚Ì‚Ğ‚Æ‚Â‚Æ‚µ‚Äg—p */
+#define     No_Window   (0 << 9)   /* No sprite clipping */
+#define     Window_In   (2 << 9)   /* Clip everything outside bounds */
+#define     Window_Out  (3 << 9)  /* Clip everything inside bounds */
+#define	    ECdis		(1 << 7)	/* ï¿½Gï¿½ï¿½ï¿½hï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½pï¿½ï¿½ï¿½bï¿½gï¿½Ì‚Ğ‚Æ‚Â‚Æ‚ï¿½ï¿½Ägï¿½p */
 
-#define	    SPdis		(1 << 6)	/* ƒXƒy[ƒXƒR[ƒh‚ğƒpƒŒƒbƒg‚Ì‚Ğ‚Æ‚Â‚Æ‚µ‚Äg—p */
+#define	    SPdis		(1 << 6)	/* ï¿½Xï¿½yï¿½[ï¿½Xï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½pï¿½ï¿½ï¿½bï¿½gï¿½Ì‚Ğ‚Æ‚Â‚Æ‚ï¿½ï¿½Ägï¿½p */
 
 #define	    sprPolygon		(FUNC_Polygon | ((ECdis | SPdis) << 24))
 
@@ -84,49 +87,49 @@
 #define	    FUNC_Polygon	4
 #define	    FUNC_PolyLine	5
 
-#define	    MESHon		(1 << 8)	/* ƒƒbƒVƒ…‚Å•\¦ */
-#define	    CL32KRGB		(5 << 3)	/* ‚q‚f‚a‚R‚Q‚jFƒ‚[ƒh */
+#define	    MESHon		(1 << 8)	/* ï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½Å•\ï¿½ï¿½ */
+#define	    CL32KRGB		(5 << 3)	/* ï¿½qï¿½fï¿½aï¿½Rï¿½Qï¿½jï¿½Fï¿½ï¿½ï¿½[ï¿½h */
 
-#define	    UseTexture		(1 << 2)	/* ƒeƒNƒXƒ`ƒƒ‚ğ“\‚éƒ|ƒŠƒSƒ“ */
-#define	    UseLight		(1 << 3)	/* ŒõŒ¹‚Ì‰e‹¿‚ğó‚¯‚éƒ|ƒŠƒSƒ“ */
-#define	    UsePalette		(1 << 5)	/* ƒ|ƒŠƒSƒ“‚ÌƒJƒ‰[ */
+#define	    UseTexture		(1 << 2)	/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ */
+#define	    UseLight		(1 << 3)	/* ï¿½ï¿½ï¿½ï¿½ï¿½Ì‰eï¿½ï¿½ï¿½ï¿½ï¿½ó‚¯‚ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ */
+#define	    UsePalette		(1 << 5)	/* ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½ÌƒJï¿½ï¿½ï¿½[ */
 
-#define	    No_Texture		0		/* ƒeƒNƒXƒ`ƒƒ‚ğg—p‚µ‚È‚¢ */
-#define	    No_Option		0		/* ƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚È‚¢ */
-#define	    No_Gouraud		0		/* ƒO[ƒ[ƒVƒF[ƒfƒBƒ“ƒO‚ğg—p‚µ‚È‚¢ */
-#define	    No_Palet	        0		/* ƒJƒ‰[ƒpƒŒƒbƒg‚Ìw’è‚ª‚¢‚ç‚È‚¢ */
+#define	    No_Texture		0		/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ */
+#define	    No_Option		0		/* ï¿½Iï¿½vï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ */
+#define	    No_Gouraud		0		/* ï¿½Oï¿½[ï¿½ï¿½ï¿½[ï¿½Vï¿½Fï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ */
+#define	    No_Palet	        0		/* ï¿½Jï¿½ï¿½ï¿½[ï¿½pï¿½ï¿½ï¿½bï¿½gï¿½Ìwï¿½è‚ªï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ */
 
 #define	    sprNoflip		((0) | FUNC_Texture | (UseTexture << 16))
 
-typedef unsigned char	Uint8 ;		/* •„†‚È‚µ‚PƒoƒCƒg®” */
-typedef signed   char	Sint8 ;		/* •„†‚Â‚«‚PƒoƒCƒg®” */
-typedef unsigned short	Uint16 ;	/* •„†‚È‚µ‚QƒoƒCƒg®” */
-typedef signed   short	Sint16 ;	/* •„†‚Â‚«‚QƒoƒCƒg®” */
-typedef unsigned long	Uint32 ;	/* •„†‚È‚µ‚SƒoƒCƒg®” */
-typedef signed   long	Sint32 ;	/* •„†‚Â‚«‚SƒoƒCƒg®” */
-typedef int		Bool ;		/* ˜_—Œ^i˜_—’è”‚ğ’l‚É‚Æ‚éj	*/
-typedef float		Float32 ;	/* ‚SƒoƒCƒgÀ” */
+typedef unsigned char	Uint8 ;		/* ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Pï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef signed   char	Sint8 ;		/* ï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½Pï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef unsigned short	Uint16 ;	/* ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Qï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef signed   short	Sint16 ;	/* ï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½Qï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef unsigned long	Uint32 ;	/* ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Sï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef signed   long	Sint32 ;	/* ï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½Sï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
+typedef int		Bool ;		/* ï¿½_ï¿½ï¿½ï¿½^ï¿½iï¿½_ï¿½ï¿½ï¿½è”ï¿½ï¿½lï¿½É‚Æ‚ï¿½j	*/
+typedef float		Float32 ;	/* ï¿½Sï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ */
 
 enum ps {X, Y, Z, XYZ, XYZS, XYZSS, XY = Z, S = XYZ, Sh = S, Sv = XYZS} ;
 enum base
 {
-    SORT_BFR,			/* ’¼‘O‚É•\¦‚µ‚½ƒ|ƒŠƒSƒ“‚ÌˆÊ’u‚ğg‚¤ */
-    SORT_MIN,			/* ‚S“_‚Ì“àAˆê”Ôè‘O‚Ì“_‚ğg‚¤ */
-    SORT_MAX,			/* ‚S“_‚Ì“àˆê”Ô‰“‚¢“_‚ğg‚¤ */
-    SORT_CEN			/* ‚S“_‚Ì•½‹ÏˆÊ’u‚ğg‚¤ */
+    SORT_BFR,			/* ï¿½ï¿½ï¿½Oï¿½É•\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½ÌˆÊ’uï¿½ï¿½ï¿½gï¿½ï¿½ */
+    SORT_MIN,			/* ï¿½Sï¿½_ï¿½Ì“ï¿½ï¿½Aï¿½ï¿½Ôï¿½Oï¿½Ì“_ï¿½ï¿½ï¿½gï¿½ï¿½ */
+    SORT_MAX,			/* ï¿½Sï¿½_ï¿½Ì“ï¿½ï¿½ï¿½Ô‰ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½gï¿½ï¿½ */
+    SORT_CEN			/* ï¿½Sï¿½_ï¿½Ì•ï¿½ï¿½ÏˆÊ’uï¿½ï¿½ï¿½gï¿½ï¿½ */
 } ;
 
 enum pln
 {
-    Single_Plane,			/* •Ğ–Êƒ|ƒŠƒSƒ“ */
-    Dual_Plane			/* —¼–Êƒ|ƒŠƒSƒ“(•\— ”»’è‚ÌŒ‹‰Ê‚ğŒ©‚È‚¢) */
+    Single_Plane,			/* ï¿½Ğ–Êƒ|ï¿½ï¿½ï¿½Sï¿½ï¿½ */
+    Dual_Plane			/* ï¿½ï¿½ï¿½Êƒ|ï¿½ï¿½ï¿½Sï¿½ï¿½(ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌŒï¿½ï¿½Ê‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½) */
 } ;
 
 typedef	    Sint16	ANGLE ;
 typedef	    Sint32	FIXED ;
-typedef     FIXED	MATRIX[4][3] ;		/* ƒ}ƒgƒŠƒNƒXƒf[ƒ^ */
-typedef     FIXED	VECTOR[XYZ] ;		/* ƒxƒNƒgƒ‹ƒf[ƒ^ */
-typedef     FIXED	POINT[XYZ] ;		/* ’¸“_‚ÌˆÊ’uƒf[ƒ^ */
+typedef     FIXED	MATRIX[4][3] ;		/* ï¿½}ï¿½gï¿½ï¿½ï¿½Nï¿½Xï¿½fï¿½[ï¿½^ */
+typedef     FIXED	VECTOR[XYZ] ;		/* ï¿½xï¿½Nï¿½gï¿½ï¿½ï¿½fï¿½[ï¿½^ */
+typedef     FIXED	POINT[XYZ] ;		/* ï¿½ï¿½ï¿½_ï¿½ÌˆÊ’uï¿½fï¿½[ï¿½^ */
 
 #define		_Stereo		0x80
 #define		_Mono		0x00
@@ -147,36 +150,36 @@ typedef struct
     Uint8	efselectL ;	/* Effect select for Left 0 ~ 15 */
 } PCM ;
 
-enum SmpcCommand  			/* ‚r‚l‚o‚bƒRƒ}ƒ“ƒh”Ô†			*/
+enum SmpcCommand  			/* ï¿½rï¿½lï¿½oï¿½bï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Ôï¿½			*/
 {
-    SMPC_MSHON,			/* (00) ƒ}ƒXƒ^@‚r‚g‚Q@‚n‚m		*/
-    SMPC_SSHON,			/* (01) ƒXƒŒ[ƒu@‚r‚g‚Q@‚n‚m		*/
-    SMPC_SSHOFF,			/* (02) ƒXƒŒ[ƒu@‚r‚g‚Q@‚n‚e‚e	*/
-    SMPC_SNDON,			/* (03) ƒTƒEƒ“ƒh@‚n‚m			*/
-    SMPC_SNDOFF,			/* (04) ƒTƒEƒ“ƒh@‚n‚e‚e		*/
-    SMPC_CDON,			/* (05) ‚b‚c@‚n‚m			*/
-    SMPC_CDOFF,			/* (06) ‚b‚c@‚n‚e‚e			*/
-    SMPC_SYSRES,			/* (07) ƒVƒXƒeƒ€‘S‘ÌƒŠƒZƒbƒg		*/
-    SMPC_CKC352,			/* (08) ƒNƒƒbƒNƒ`ƒFƒ“ƒW‚R‚T‚Qƒ‚[ƒh	*/
-    SMPC_CKC320,			/* (09) ƒNƒƒbƒNƒ`ƒFƒ“ƒW‚R‚Q‚Oƒ‚[ƒh	*/
-    SMPC_NMIREQ,			/* (0a) ‚m‚l‚hƒŠƒNƒGƒXƒg		*/
-    SMPC_RESENA,			/* (0b) ƒŠƒZƒbƒgƒCƒl[ƒuƒ‹		*/
-    SMPC_RESDIS,			/* (0c) ƒŠƒZƒbƒgƒfƒBƒXƒG[ƒuƒ‹		*/
-    SMPC_GETSTS,			/* (0d) ƒXƒe[ƒ^ƒXæ“¾			*/
-    SMPC_GETPER,			/* (0e) ƒyƒŠƒtƒFƒ‰ƒ‹æ“¾		*/
-    SMPC_SETMEM,			/* (0f) ‚r‚l‚o‚bƒƒ‚ƒŠİ’è		*/
-    SMPC_SETTIM,			/* (10) İ’è			*/
-    SMPC_CMDMAX			/* (11) ƒRƒ}ƒ“ƒh”Ô†Å‘å’l		*/
+    SMPC_MSHON,			/* (00) ï¿½}ï¿½Xï¿½^ï¿½@ï¿½rï¿½gï¿½Qï¿½@ï¿½nï¿½m		*/
+    SMPC_SSHON,			/* (01) ï¿½Xï¿½ï¿½ï¿½[ï¿½uï¿½@ï¿½rï¿½gï¿½Qï¿½@ï¿½nï¿½m		*/
+    SMPC_SSHOFF,			/* (02) ï¿½Xï¿½ï¿½ï¿½[ï¿½uï¿½@ï¿½rï¿½gï¿½Qï¿½@ï¿½nï¿½eï¿½e	*/
+    SMPC_SNDON,			/* (03) ï¿½Tï¿½Eï¿½ï¿½ï¿½hï¿½@ï¿½nï¿½m			*/
+    SMPC_SNDOFF,			/* (04) ï¿½Tï¿½Eï¿½ï¿½ï¿½hï¿½@ï¿½nï¿½eï¿½e		*/
+    SMPC_CDON,			/* (05) ï¿½bï¿½cï¿½@ï¿½nï¿½m			*/
+    SMPC_CDOFF,			/* (06) ï¿½bï¿½cï¿½@ï¿½nï¿½eï¿½e			*/
+    SMPC_SYSRES,			/* (07) ï¿½Vï¿½Xï¿½eï¿½ï¿½ï¿½Sï¿½Ìƒï¿½ï¿½Zï¿½bï¿½g		*/
+    SMPC_CKC352,			/* (08) ï¿½Nï¿½ï¿½ï¿½bï¿½Nï¿½`ï¿½Fï¿½ï¿½ï¿½Wï¿½Rï¿½Tï¿½Qï¿½ï¿½ï¿½[ï¿½h	*/
+    SMPC_CKC320,			/* (09) ï¿½Nï¿½ï¿½ï¿½bï¿½Nï¿½`ï¿½Fï¿½ï¿½ï¿½Wï¿½Rï¿½Qï¿½Oï¿½ï¿½ï¿½[ï¿½h	*/
+    SMPC_NMIREQ,			/* (0a) ï¿½mï¿½lï¿½hï¿½ï¿½ï¿½Nï¿½Gï¿½Xï¿½g		*/
+    SMPC_RESENA,			/* (0b) ï¿½ï¿½ï¿½Zï¿½bï¿½gï¿½Cï¿½lï¿½[ï¿½uï¿½ï¿½		*/
+    SMPC_RESDIS,			/* (0c) ï¿½ï¿½ï¿½Zï¿½bï¿½gï¿½fï¿½Bï¿½Xï¿½Gï¿½[ï¿½uï¿½ï¿½		*/
+    SMPC_GETSTS,			/* (0d) ï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½æ“¾			*/
+    SMPC_GETPER,			/* (0e) ï¿½yï¿½ï¿½ï¿½tï¿½Fï¿½ï¿½ï¿½ï¿½ï¿½æ“¾		*/
+    SMPC_SETMEM,			/* (0f) ï¿½rï¿½lï¿½oï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İ’ï¿½		*/
+    SMPC_SETTIM,			/* (10) ï¿½ï¿½ï¿½ï¿½ï¿½İ’ï¿½			*/
+    SMPC_CMDMAX			/* (11) ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Ôï¿½ï¿½Å‘ï¿½l		*/
 };
 
-enum SmpcWaitMode  			/* ‚r‚l‚o‚bƒRƒ}ƒ“ƒhÀsƒ‚[ƒh		*/
+enum SmpcWaitMode  			/* ï¿½rï¿½lï¿½oï¿½bï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½sï¿½ï¿½ï¿½[ï¿½h		*/
 {
-    SMPC_NO_WAIT,			/* (00) ƒRƒ}ƒ“ƒhÀsI—¹‘Ò‚¿–³‚µ	*/
-    SMPC_WAIT			/* (01) ƒRƒ}ƒ“ƒhÀsI—¹‘Ò‚¿—L‚è	*/
+    SMPC_NO_WAIT,			/* (00) ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½sï¿½Iï¿½ï¿½ï¿½Ò‚ï¿½ï¿½ï¿½ï¿½ï¿½	*/
+    SMPC_WAIT			/* (01) ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½sï¿½Iï¿½ï¿½ï¿½Ò‚ï¿½ï¿½Lï¿½ï¿½	*/
 };
 
 
-enum BooleanSwitch  			/* ˜_—’è”‚QiƒXƒCƒbƒ`j */
+enum BooleanSwitch  			/* ï¿½_ï¿½ï¿½ï¿½è”ï¿½Qï¿½iï¿½Xï¿½Cï¿½bï¿½`ï¿½j */
 {
     OFF = 0,
     ON  = 1
@@ -184,65 +187,65 @@ enum BooleanSwitch  			/* ˜_—’è”‚QiƒXƒCƒbƒ`j */
 
 typedef struct
 {
-    Uint16	 texno ;		/* ƒeƒNƒXƒ`ƒƒ”Ô† */
-    Uint16	 atrb ;			/* ƒAƒgƒŠƒrƒ…[ƒgƒf[ƒ^(•\¦ƒ‚[ƒh) */
-    Uint16	 colno ;		/* ƒJƒ‰[ƒiƒ“ƒo[ */
-    Uint16	 gstb ;			/* ƒO[ƒ[ƒVƒF[ƒfƒBƒ“ƒOƒe[ƒuƒ‹ */
-    Uint16	 dir ;			/* ƒeƒNƒXƒ`ƒƒ‚Ì”½“]‚Æƒtƒ@ƒ“ƒNƒVƒ‡ƒ“ƒiƒ“ƒo[ */
+    Uint16	 texno ;		/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ôï¿½ */
+    Uint16	 atrb ;			/* ï¿½Aï¿½gï¿½ï¿½ï¿½rï¿½ï¿½ï¿½[ï¿½gï¿½fï¿½[ï¿½^(ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h) */
+    Uint16	 colno ;		/* ï¿½Jï¿½ï¿½ï¿½[ï¿½iï¿½ï¿½ï¿½oï¿½[ */
+    Uint16	 gstb ;			/* ï¿½Oï¿½[ï¿½ï¿½ï¿½[ï¿½Vï¿½Fï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½eï¿½[ï¿½uï¿½ï¿½ */
+    Uint16	 dir ;			/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ì”ï¿½ï¿½]ï¿½Æƒtï¿½@ï¿½ï¿½ï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½oï¿½[ */
 } SPR_ATTR ;
 
 typedef struct
 {
-    Uint8	 flag ;			/* •Ğ–Ê‚©—¼–Ê‚©‚Ìƒtƒ‰ƒO */
-    Uint8	 sort ;			/* ƒ\[ƒg‚ÌŠî€ˆÊ’u‚ÆƒIƒvƒVƒ‡ƒ“İ’è */
-    Uint16	 texno ;		/* ƒeƒNƒXƒ`ƒƒ”Ô† */
-    Uint16	 atrb ;			/* ƒAƒgƒŠƒrƒ…[ƒgƒf[ƒ^(•\¦ƒ‚[ƒh) */
-    Uint16	 colno ;		/* ƒJƒ‰[ƒiƒ“ƒo[ */
-    Uint16	 gstb ;			/* ƒO[ƒ[ƒVƒF[ƒfƒBƒ“ƒOƒe[ƒuƒ‹ */
-    Uint16	 dir ;			/* ƒeƒNƒXƒ`ƒƒ‚Ì”½“]‚Æƒtƒ@ƒ“ƒNƒVƒ‡ƒ“ƒiƒ“ƒo[ */
+    Uint8	 flag ;			/* ï¿½Ğ–Ê‚ï¿½ï¿½ï¿½ï¿½Ê‚ï¿½ï¿½Ìƒtï¿½ï¿½ï¿½O */
+    Uint8	 sort ;			/* ï¿½\ï¿½[ï¿½gï¿½ÌŠî€ï¿½Ê’uï¿½ÆƒIï¿½vï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½İ’ï¿½ */
+    Uint16	 texno ;		/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ôï¿½ */
+    Uint16	 atrb ;			/* ï¿½Aï¿½gï¿½ï¿½ï¿½rï¿½ï¿½ï¿½[ï¿½gï¿½fï¿½[ï¿½^(ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h) */
+    Uint16	 colno ;		/* ï¿½Jï¿½ï¿½ï¿½[ï¿½iï¿½ï¿½ï¿½oï¿½[ */
+    Uint16	 gstb ;			/* ï¿½Oï¿½[ï¿½ï¿½ï¿½[ï¿½Vï¿½Fï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½eï¿½[ï¿½uï¿½ï¿½ */
+    Uint16	 dir ;			/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ì”ï¿½ï¿½]ï¿½Æƒtï¿½@ï¿½ï¿½ï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½oï¿½[ */
 } ATTR ;
 
 typedef struct
 {
-    VECTOR	 norm ;			/* –@üƒxƒNƒgƒ‹ */
-    Uint16	 Vertices[4] ;		/* ƒ|ƒŠƒSƒ“‚ğ\¬‚·‚é’¸“_”Ô† */
+    VECTOR	 norm ;			/* ï¿½@ï¿½ï¿½ï¿½xï¿½Nï¿½gï¿½ï¿½ */
+    Uint16	 Vertices[4] ;		/* ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½é’¸ï¿½_ï¿½Ôï¿½ */
 } POLYGON ;
 
 typedef struct
 {
-    POINT	*pntbl ;		/* ’¸“_‚ÌˆÊ’uƒf[ƒ^ƒe[ƒuƒ‹ */
-    Uint32	 nbPoint ;		/* ’¸“_‚Ì” */
-    POLYGON	*pltbl ;		/* ƒ|ƒŠƒSƒ“’è‹`ƒe[ƒuƒ‹ */
-    Uint32	 nbPolygon ;		/* ƒ|ƒŠƒSƒ“‚Ì” */
-    ATTR	*attbl ;		/* ƒ|ƒŠƒSƒ“‚ÌƒAƒgƒŠƒrƒ…[ƒgƒe[ƒuƒ‹ */
+    POINT	*pntbl ;		/* ï¿½ï¿½ï¿½_ï¿½ÌˆÊ’uï¿½fï¿½[ï¿½^ï¿½eï¿½[ï¿½uï¿½ï¿½ */
+    Uint32	 nbPoint ;		/* ï¿½ï¿½ï¿½_ï¿½Ìï¿½ */
+    POLYGON	*pltbl ;		/* ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½ï¿½`ï¿½eï¿½[ï¿½uï¿½ï¿½ */
+    Uint32	 nbPolygon ;		/* ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½Ìï¿½ */
+    ATTR	*attbl ;		/* ï¿½|ï¿½ï¿½ï¿½Sï¿½ï¿½ï¿½ÌƒAï¿½gï¿½ï¿½ï¿½rï¿½ï¿½ï¿½[ï¿½gï¿½eï¿½[ï¿½uï¿½ï¿½ */
 } PDATA ;
 
 typedef struct
 {
-    Uint16	 Hsize ;		/* ƒXƒvƒ‰ƒCƒg‚Ì‚gƒTƒCƒY */
-    Uint16	 Vsize ;		/* ƒXƒvƒ‰ƒCƒg‚Ì‚uƒTƒCƒY */
-    Uint16	 CGadr ;		/* ƒXƒvƒ‰ƒCƒg‚b‚fƒAƒhƒŒƒX / ‚W */
-    Uint16	 HVsize ;		/* ‚gƒTƒCƒY/‚WA‚uƒTƒCƒY(ƒn[ƒh—p) */
+    Uint16	 Hsize ;		/* ï¿½Xï¿½vï¿½ï¿½ï¿½Cï¿½gï¿½Ì‚gï¿½Tï¿½Cï¿½Y */
+    Uint16	 Vsize ;		/* ï¿½Xï¿½vï¿½ï¿½ï¿½Cï¿½gï¿½Ì‚uï¿½Tï¿½Cï¿½Y */
+    Uint16	 CGadr ;		/* ï¿½Xï¿½vï¿½ï¿½ï¿½Cï¿½gï¿½bï¿½fï¿½Aï¿½hï¿½ï¿½ï¿½X / ï¿½W */
+    Uint16	 HVsize ;		/* ï¿½gï¿½Tï¿½Cï¿½Y/ï¿½Wï¿½Aï¿½uï¿½Tï¿½Cï¿½Y(ï¿½nï¿½[ï¿½hï¿½p) */
 } TEXTURE ;
 
 typedef struct
 {
-    Uint16	 texno ;		/* ƒeƒNƒXƒ`ƒƒ”Ô† */
-    Uint16	 cmode ;		/* ƒJƒ‰[ƒ‚[ƒh */
-    void	*pcsrc ;		/* Œ³ƒf[ƒ^‚ÌŠİ */
+    Uint16	 texno ;		/* ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ôï¿½ */
+    Uint16	 cmode ;		/* ï¿½Jï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½[ï¿½h */
+    void	*pcsrc ;		/* ï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½Ìï¿½ï¿½ï¿½ */
 } PICTURE ;
 
-typedef struct  			/* ƒfƒWƒ^ƒ‹ƒfƒoƒCƒX			*/
+typedef struct  			/* ï¿½fï¿½Wï¿½^ï¿½ï¿½ï¿½fï¿½oï¿½Cï¿½X			*/
 {
-    Uint8	id;			/* ƒyƒŠƒtƒFƒ‰ƒ‹‚h‚c			*/
-    Uint8	ext;			/* Šg’£ƒf[ƒ^ƒTƒCƒY			*/
-    Uint16	data;			/* ƒ{ƒ^ƒ“Œ»İƒf[ƒ^			*/
-    Uint16	push;			/* ƒ{ƒ^ƒ“‰Ÿ‰ºƒf[ƒ^			*/
-    Uint16	pull;			/* ƒ{ƒ^ƒ“ˆøãƒf[ƒ^			*/
-    Uint32	dummy2[4];		/* ƒ_ƒ~[‚Q				*/
+    Uint8	id;			/* ï¿½yï¿½ï¿½ï¿½tï¿½Fï¿½ï¿½ï¿½ï¿½ï¿½hï¿½c			*/
+    Uint8	ext;			/* ï¿½gï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½Tï¿½Cï¿½Y			*/
+    Uint16	data;			/* ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½İƒfï¿½[ï¿½^			*/
+    Uint16	push;			/* ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^			*/
+    Uint16	pull;			/* ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^			*/
+    Uint32	dummy2[4];		/* ï¿½_ï¿½~ï¿½[ï¿½Q				*/
 } PerDigital;
 
-enum BooleanLogic  			/* ˜_—’è”‚Pi‹UA^j */
+enum BooleanLogic  			/* ï¿½_ï¿½ï¿½ï¿½è”ï¿½Pï¿½iï¿½Uï¿½Aï¿½^ï¿½j */
 {
     FALSE = 0,
     TRUE  = 1
@@ -340,114 +343,114 @@ extern	Bool	slRequestCommand(Uint8, Uint8);
 #define CDC_PLY_ETNO(ply)           CDC_POS_TNO(&CDC_PLY_END(ply))
 #define CDC_PLY_EIDX(ply)           CDC_POS_IDX(&CDC_PLY_END(ply))
 
-#define CDC_SM_EOR      0x01    /* ƒŒƒR[ƒhÅŒã‚ÌƒZƒNƒ^ */
-#define CDC_SM_VIDEO    0x02    /* ƒrƒfƒIƒZƒNƒ^ */
-#define CDC_SM_AUDIO    0x04    /* ƒI[ƒfƒBƒIƒZƒNƒ^ */
-#define CDC_SM_DATA     0x08    /* ƒf[ƒ^ƒZƒNƒ^ */
-#define CDC_SM_TRIG     0x10    /* ƒgƒŠƒK‚n‚m */
-#define CDC_SM_FORM     0x20    /* ƒtƒH[ƒ€ƒrƒbƒgi1:Form2,  0:Form1j*/
-#define CDC_SM_RT       0x40    /* ƒŠƒAƒ‹ƒ^ƒCƒ€ƒZƒNƒ^ */
-#define CDC_SM_EOF      0x80    /* ƒtƒ@ƒCƒ‹ÅŒã‚ÌƒZƒNƒ^ */
+#define CDC_SM_EOR      0x01    /* ï¿½ï¿½ï¿½Rï¿½[ï¿½hï¿½ÅŒï¿½ÌƒZï¿½Nï¿½^ */
+#define CDC_SM_VIDEO    0x02    /* ï¿½rï¿½fï¿½Iï¿½Zï¿½Nï¿½^ */
+#define CDC_SM_AUDIO    0x04    /* ï¿½Iï¿½[ï¿½fï¿½Bï¿½Iï¿½Zï¿½Nï¿½^ */
+#define CDC_SM_DATA     0x08    /* ï¿½fï¿½[ï¿½^ï¿½Zï¿½Nï¿½^ */
+#define CDC_SM_TRIG     0x10    /* ï¿½gï¿½ï¿½ï¿½Kï¿½nï¿½m */
+#define CDC_SM_FORM     0x20    /* ï¿½tï¿½Hï¿½[ï¿½ï¿½ï¿½rï¿½bï¿½gï¿½i1:Form2,  0:Form1ï¿½j*/
+#define CDC_SM_RT       0x40    /* ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½^ï¿½Cï¿½ï¿½ï¿½Zï¿½Nï¿½^ */
+#define CDC_SM_EOF      0x80    /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÅŒï¿½ÌƒZï¿½Nï¿½^ */
 
-#define CDC_PM_DFL          0x00    /* Ä¶ƒ‚[ƒh‚ÌÈ—ª’l */
+#define CDC_PM_DFL          0x00    /* ï¿½Äï¿½ï¿½ï¿½ï¿½[ï¿½hï¿½ÌÈ—ï¿½ï¿½l */
 
-/* ƒGƒ‰[ƒR[ƒh */
-#define GFS_ERR_OK              0       /* ³íI—¹                         */
-#define GFS_ERR_CDRD            (-1)    /* CDƒŠ[ƒhƒGƒ‰[                   */
-#define GFS_ERR_CDNODISC        (-2)    /* CD‚ªƒZƒbƒg‚³‚ê‚Ä‚¢‚È‚¢           */
-#define GFS_ERR_CDROM           (-3)    /* ƒfƒBƒXƒN‚ªCD-ROM‚Å‚È‚¢           */
-#define GFS_ERR_DIRTBL          (-4)    /* ƒfƒBƒŒƒNƒgƒŠŠÇ—ƒe[ƒuƒ‹‚ª•s³   */
-#define GFS_ERR_OPENMAX         (-5)    /* Å‘åƒI[ƒvƒ“”‚Ì’l‚ª•s³         */
-#define GFS_ERR_DIR             (-6)    /* w’èƒtƒ@ƒCƒ‹‚ÍƒfƒBƒŒƒNƒgƒŠ‚Å‚È‚¢ */
-#define GFS_ERR_CDBFS           (-7)    /* CDƒuƒƒbƒNƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€‚Ì     */
+/* ï¿½Gï¿½ï¿½ï¿½[ï¿½Rï¿½[ï¿½h */
+#define GFS_ERR_OK              0       /* ï¿½ï¿½ï¿½ï¿½Iï¿½ï¿½                         */
+#define GFS_ERR_CDRD            (-1)    /* CDï¿½ï¿½ï¿½[ï¿½hï¿½Gï¿½ï¿½ï¿½[                   */
+#define GFS_ERR_CDNODISC        (-2)    /* CDï¿½ï¿½ï¿½Zï¿½bï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½           */
+#define GFS_ERR_CDROM           (-3)    /* ï¿½fï¿½Bï¿½Xï¿½Nï¿½ï¿½CD-ROMï¿½Å‚È‚ï¿½           */
+#define GFS_ERR_DIRTBL          (-4)    /* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½   */
+#define GFS_ERR_OPENMAX         (-5)    /* ï¿½Å‘ï¿½Iï¿½[ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½Ì’lï¿½ï¿½ï¿½sï¿½ï¿½         */
+#define GFS_ERR_DIR             (-6)    /* ï¿½wï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Íƒfï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½Å‚È‚ï¿½ */
+#define GFS_ERR_CDBFS           (-7)    /* CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Vï¿½Xï¿½eï¿½ï¿½ï¿½ï¿½     */
 
-#define GFS_ERR_NONAME          (-8)    /* ƒtƒ@ƒCƒ‹–¼‚ğˆµ‚¦‚È‚¢             */
-#define GFS_ERR_NEXIST          (-9)    /* w’è‚³‚ê‚½ƒtƒ@ƒCƒ‹‚Í‘¶İ‚µ‚È‚¢   */
-#define GFS_ERR_FID             (-10)   /* •s³‚Èƒtƒ@ƒCƒ‹¯•Êq             */
-#define GFS_ERR_HNDL            (-11)   /* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹‚ª•s³           */
-#define GFS_ERR_SEEK            (-12)   /* ƒV[ƒNˆÊ’u‚ª•s³                 */
-#define GFS_ERR_ORG             (-13)   /* Šî€ˆÊ’l‚ª•s³                   */
-#define GFS_ERR_NUM             (-14)   /* ƒoƒCƒg”‚ª•‰                     */
-#define GFS_ERR_OFS             (-15)   /* ƒIƒtƒZƒbƒg‚ª•s³                 */
-#define GFS_ERR_FBUSY           (-16)   /* w’èƒtƒ@ƒCƒ‹‚Ìˆ—‚ªc‚Á‚Ä‚¢‚é   */
-#define GFS_ERR_PARA            (-17)   /* ƒpƒ‰ƒ[ƒ^‚ª•s³                 */
-#define GFS_ERR_BUSY            (-18)   /* ƒ‰ƒCƒuƒ‰ƒŠŠÖ”Às’†             */
-#define GFS_ERR_NOHNDL          (-19)   /* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹‚É‹ó‚«‚ª‚È‚¢     */
-#define GFS_ERR_PUINUSE         (-20)   /* ƒsƒbƒNƒAƒbƒv“®ì’†               */
-#define GFS_ERR_ALIGN           (-21)   /* ì‹Æ—Ìˆæ‚ª4byte‹«ŠE‚É‚È‚¢        */
-#define GFS_ERR_TMOUT           (-22)   /* ƒ^ƒCƒ€ƒAƒEƒg                     */
-#define GFS_ERR_CDOPEN          (-23)   /* ƒgƒŒƒC‚ªŠJ‚¢‚Ä‚¢‚é               */
-#define GFS_ERR_BFUL            (-24)   /* ƒoƒbƒtƒ@ƒtƒ‹‚Å“Ç‚İ‚İ’†~       */
-#define GFS_ERR_FATAL           (-25)   /* CD‚ªFATALó‘Ô                    */
+#define GFS_ERR_NONAME          (-8)    /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½             */
+#define GFS_ERR_NEXIST          (-9)    /* ï¿½wï¿½è‚³ï¿½ê‚½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Í‘ï¿½ï¿½İ‚ï¿½ï¿½È‚ï¿½   */
+#define GFS_ERR_FID             (-10)   /* ï¿½sï¿½ï¿½ï¿½Èƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Êq             */
+#define GFS_ERR_HNDL            (-11)   /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½           */
+#define GFS_ERR_SEEK            (-12)   /* ï¿½Vï¿½[ï¿½Nï¿½Ê’uï¿½ï¿½ï¿½sï¿½ï¿½                 */
+#define GFS_ERR_ORG             (-13)   /* ï¿½î€ï¿½Ê’lï¿½ï¿½ï¿½sï¿½ï¿½                   */
+#define GFS_ERR_NUM             (-14)   /* ï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½                     */
+#define GFS_ERR_OFS             (-15)   /* ï¿½Iï¿½tï¿½Zï¿½bï¿½gï¿½ï¿½ï¿½sï¿½ï¿½                 */
+#define GFS_ERR_FBUSY           (-16)   /* ï¿½wï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½cï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½   */
+#define GFS_ERR_PARA            (-17)   /* ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ï¿½sï¿½ï¿½                 */
+#define GFS_ERR_BUSY            (-18)   /* ï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½sï¿½ï¿½             */
+#define GFS_ERR_NOHNDL          (-19)   /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½É‹ó‚«‚ï¿½ï¿½È‚ï¿½     */
+#define GFS_ERR_PUINUSE         (-20)   /* ï¿½sï¿½bï¿½Nï¿½Aï¿½bï¿½vï¿½ï¿½ï¿½ì’†               */
+#define GFS_ERR_ALIGN           (-21)   /* ï¿½ï¿½Æ—Ìˆæ‚ª4byteï¿½ï¿½ï¿½Eï¿½É‚È‚ï¿½        */
+#define GFS_ERR_TMOUT           (-22)   /* ï¿½^ï¿½Cï¿½ï¿½ï¿½Aï¿½Eï¿½g                     */
+#define GFS_ERR_CDOPEN          (-23)   /* ï¿½gï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½               */
+#define GFS_ERR_BFUL            (-24)   /* ï¿½oï¿½bï¿½tï¿½@ï¿½tï¿½ï¿½ï¿½Å“Ç‚İï¿½ï¿½İ’ï¿½ï¿½~       */
+#define GFS_ERR_FATAL           (-25)   /* CDï¿½ï¿½FATALï¿½ï¿½ï¿½                    */
 
 
-/* ƒXƒe[ƒ^ƒX */
+/* ï¿½Xï¿½eï¿½[ï¿½^ï¿½X */
 enum CdcStatus
 {
-    /* ƒXƒe[ƒ^ƒXƒR[ƒhi‚b‚cƒhƒ‰ƒCƒuó‘Ôj */
-    CDC_ST_BUSY     = 0x00,     /* ó‘Ô‘JˆÚ’† */
-    CDC_ST_PAUSE    = 0x01,     /* ƒ|[ƒY’†iˆê’â~j */
-    CDC_ST_STANDBY  = 0x02,     /* ƒXƒ^ƒ“ƒoƒCiƒhƒ‰ƒCƒu’â~ó‘Ôj */
-    CDC_ST_PLAY     = 0x03,     /* ‚b‚cÄ¶’† */
-    CDC_ST_SEEK     = 0x04,     /* ƒV[ƒN’† */
-    CDC_ST_SCAN     = 0x05,     /* ƒXƒLƒƒƒ“Ä¶’† */
-    CDC_ST_OPEN     = 0x06,     /* ƒgƒŒƒC‚ªŠJ‚¢‚Ä‚¢‚é */
-    CDC_ST_NODISC   = 0x07,     /* ƒfƒBƒXƒN‚ª‚È‚¢ */
-    CDC_ST_RETRY    = 0x08,     /* ƒŠ[ƒhƒŠƒgƒ‰ƒCˆ—’† */
-    CDC_ST_ERROR    = 0x09,     /* ƒŠ[ƒhƒf[ƒ^ƒGƒ‰[‚ª”­¶‚µ‚½ */
-    CDC_ST_FATAL    = 0x0a,     /* ’v–½“IƒGƒ‰[‚ª”­¶‚µ‚½ */
+    /* ï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½Rï¿½[ï¿½hï¿½iï¿½bï¿½cï¿½hï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½Ôj */
+    CDC_ST_BUSY     = 0x00,     /* ï¿½ï¿½Ô‘Jï¿½Ú’ï¿½ */
+    CDC_ST_PAUSE    = 0x01,     /* ï¿½|ï¿½[ï¿½Yï¿½ï¿½ï¿½iï¿½êï¿½ï¿½~ï¿½j */
+    CDC_ST_STANDBY  = 0x02,     /* ï¿½Xï¿½^ï¿½ï¿½ï¿½oï¿½Cï¿½iï¿½hï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½~ï¿½ï¿½Ôj */
+    CDC_ST_PLAY     = 0x03,     /* ï¿½bï¿½cï¿½Äï¿½ï¿½ï¿½ */
+    CDC_ST_SEEK     = 0x04,     /* ï¿½Vï¿½[ï¿½Nï¿½ï¿½ */
+    CDC_ST_SCAN     = 0x05,     /* ï¿½Xï¿½Lï¿½ï¿½ï¿½ï¿½ï¿½Äï¿½ï¿½ï¿½ */
+    CDC_ST_OPEN     = 0x06,     /* ï¿½gï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ */
+    CDC_ST_NODISC   = 0x07,     /* ï¿½fï¿½Bï¿½Xï¿½Nï¿½ï¿½ï¿½È‚ï¿½ */
+    CDC_ST_RETRY    = 0x08,     /* ï¿½ï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    CDC_ST_ERROR    = 0x09,     /* ï¿½ï¿½ï¿½[ï¿½hï¿½fï¿½[ï¿½^ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    CDC_ST_FATAL    = 0x0a,     /* ï¿½vï¿½ï¿½ï¿½Iï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 
-    /* ‚»‚Ì‘¼ */
-    CDC_ST_PERI     = 0x20,     /* ’èŠúƒŒƒXƒ|ƒ“ƒX */
-    CDC_ST_TRNS     = 0x40,     /* ƒf[ƒ^“]‘——v‹‚ ‚è */
+    /* ï¿½ï¿½ï¿½Ì‘ï¿½ */
+    CDC_ST_PERI     = 0x20,     /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½|ï¿½ï¿½ï¿½X */
+    CDC_ST_TRNS     = 0x40,     /* ï¿½fï¿½[ï¿½^ï¿½]ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     CDC_ST_WAIT     = 0x80,     /* WAIT */
     CDC_ST_REJECT   = 0xff      /* REJECT */
 };
 
-/* “]‘—ƒ‚[ƒh(GFS_SetTmode) */
+/* ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h(GFS_SetTmode) */
 enum GfsTransMode
 {
-    GFS_TMODE_SCU = 0,                  /* ‚r‚b‚t‚É‚æ‚è‚c‚l‚`“]‘—    */
-    GFS_TMODE_SDMA0,                    /* ‚c‚l‚`ƒTƒCƒNƒ‹ƒXƒ`[ƒ‹“]‘—   cn=0 */
+    GFS_TMODE_SCU = 0,                  /* ï¿½rï¿½bï¿½tï¿½É‚ï¿½ï¿½cï¿½lï¿½`ï¿½]ï¿½ï¿½    */
+    GFS_TMODE_SDMA0,                    /* ï¿½cï¿½lï¿½`ï¿½Tï¿½Cï¿½Nï¿½ï¿½ï¿½Xï¿½`ï¿½[ï¿½ï¿½ï¿½]ï¿½ï¿½   cn=0 */
     GFS_TMODE_SDMA1,                    /*                              cn=1 */
-    GFS_TMODE_CPU,                      /* ƒ\ƒtƒgƒEƒFƒA“]‘— */
-    GFS_TMODE_STM,                      /* ƒXƒgƒŠ[ƒ€—p“]‘— */
+    GFS_TMODE_CPU,                      /* ï¿½\ï¿½tï¿½gï¿½Eï¿½Fï¿½Aï¿½]ï¿½ï¿½ */
+    GFS_TMODE_STM,                      /* ï¿½Xï¿½gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½pï¿½]ï¿½ï¿½ */
     GFS_TMODE_END
 };
 
 
 enum CdcPosType
 {
-    CDC_PTYPE_DFL,          /* È—ª’l‚Ìw’è */
-    CDC_PTYPE_FAD,          /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒXw’è */
-    CDC_PTYPE_TNO,          /* ƒgƒ‰ƒbƒN^ƒCƒ“ƒfƒbƒNƒXw’è */
-    CDC_PTYPE_NOCHG,        /* –¢•ÏX‚Ìw’èiİ’è’l‚ğ•ÏX‚µ‚È‚¢j */
+    CDC_PTYPE_DFL,          /* ï¿½È—ï¿½ï¿½lï¿½Ìwï¿½ï¿½ */
+    CDC_PTYPE_FAD,          /* ï¿½tï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½Xï¿½wï¿½ï¿½ */
+    CDC_PTYPE_TNO,          /* ï¿½gï¿½ï¿½ï¿½bï¿½Nï¿½^ï¿½Cï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½Xï¿½wï¿½ï¿½ */
+    CDC_PTYPE_NOCHG,        /* ï¿½ï¿½ï¿½ÏXï¿½Ìwï¿½ï¿½iï¿½İ’ï¿½lï¿½ï¿½ÏXï¿½ï¿½ï¿½È‚ï¿½ï¿½j */
 
     CDC_PTYPE_END
 };
 
-/* ‚b‚cˆÊ’uƒpƒ‰ƒ[ƒ^ */
+/* ï¿½bï¿½cï¿½Ê’uï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ */
 typedef struct
 {
-    Sint32 ptype;           /* ˆÊ’uƒ^ƒCƒviˆÊ’uƒpƒ‰ƒ[ƒ^‚Ìí—Ş‚Ìw’èj*/
+    Sint32 ptype;           /* ï¿½Ê’uï¿½^ï¿½Cï¿½vï¿½iï¿½Ê’uï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½Ìï¿½Ş‚Ìwï¿½ï¿½j*/
     union
     {
-        Sint32 fad;         /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒXAƒZƒNƒ^” */
+        Sint32 fad;         /* ï¿½tï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½Xï¿½Aï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
         struct
         {
-            Uint8 tno;      /* ƒgƒ‰ƒbƒN”Ô† */
-            Uint8 idx;      /* ƒCƒ“ƒfƒbƒNƒX”Ô† */
+            Uint8 tno;      /* ï¿½gï¿½ï¿½ï¿½bï¿½Nï¿½Ôï¿½ */
+            Uint8 idx;      /* ï¿½Cï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½Xï¿½Ôï¿½ */
         } trkidx;
     } pbody;
 } CdcPos;
 
 
-/* ‚b‚cÄ¶ƒpƒ‰ƒ[ƒ^ */
+/* ï¿½bï¿½cï¿½Äï¿½ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ */
 typedef struct
 {
-    CdcPos  start;          /* ŠJnˆÊ’u */
-    CdcPos  end;            /* I—¹ˆÊ’u */
-    Uint8   pmode;          /* Ä¶ƒ‚[ƒhiËß¯¸±¯ÌßˆÚ“®AŒJ‚è•Ô‚µ‰ñ”j*/
+    CdcPos  start;          /* ï¿½Jï¿½nï¿½Ê’u */
+    CdcPos  end;            /* ï¿½Iï¿½ï¿½ï¿½Ê’u */
+    Uint8   pmode;          /* ï¿½Äï¿½ï¿½ï¿½ï¿½[ï¿½hï¿½iï¿½ß¯ï¿½ï¿½ï¿½ï¿½ßˆÚ“ï¿½ï¿½Aï¿½Jï¿½ï¿½Ô‚ï¿½ï¿½ñ”j*/
 } CdcPly;
 
 
@@ -464,394 +467,394 @@ Sint32  CDC_CdPlay(CdcPly *ply);
 Sint32  CDC_CdSeek(CdcPos *pos);
 Sint32  CDC_CdInit(Sint32 iflag, Sint32 stnby, Sint32 ecc, Sint32 retry);
 
-/* ƒtƒ@ƒCƒ‹î•ñ */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    Sint32  fad;            /* ƒtƒ@ƒCƒ‹æ“ªƒtƒŒ[ƒ€ƒAƒhƒŒƒX */
-    Sint32  size;           /* ƒtƒ@ƒCƒ‹ƒTƒCƒYiƒoƒCƒg”j */
-    Uint8   unit;           /* ƒtƒ@ƒCƒ‹ƒ†ƒjƒbƒgƒTƒCƒY */
-    Uint8   gap;            /* ƒMƒƒƒbƒvƒTƒCƒY */
-    Uint8   fn;             /* ƒtƒ@ƒCƒ‹”Ô† */
-    Uint8   atr;            /* ƒtƒ@ƒCƒ‹ƒAƒgƒŠƒrƒ…[ƒg */
+    Sint32  fad;            /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½æ“ªï¿½tï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½X */
+    Sint32  size;           /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Tï¿½Cï¿½Yï¿½iï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½j */
+    Uint8   unit;           /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½jï¿½bï¿½gï¿½Tï¿½Cï¿½Y */
+    Uint8   gap;            /* ï¿½Mï¿½ï¿½ï¿½bï¿½vï¿½Tï¿½Cï¿½Y */
+    Uint8   fn;             /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ôï¿½ */
+    Uint8   atr;            /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Aï¿½gï¿½ï¿½ï¿½rï¿½ï¿½ï¿½[ï¿½g */
 } CdcFile;
 
-/* ƒTƒuƒwƒbƒ_ğŒ */
+/* ï¿½Tï¿½uï¿½wï¿½bï¿½_ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    Uint8   fn;             /* ƒtƒ@ƒCƒ‹”Ô† */
-    Uint8   cn;             /* ƒ`ƒƒƒlƒ‹”Ô† */
-    Uint8   smmsk;          /* ƒTƒuƒ‚[ƒh‚Ìƒ}ƒXƒNƒpƒ^[ƒ“ */
-    Uint8   smval;          /* ƒTƒuƒ‚[ƒh‚Ì”äŠr’l */
-    Uint8   cimsk;          /* ƒR[ƒfƒBƒ“ƒOî•ñ‚Ìƒ}ƒXƒNƒpƒ^[ƒ“ */
-    Uint8   cival;          /* ƒR[ƒfƒBƒ“ƒOî•ñ‚Ì”äŠr’l */
+    Uint8   fn;             /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ôï¿½ */
+    Uint8   cn;             /* ï¿½`ï¿½ï¿½ï¿½lï¿½ï¿½ï¿½Ôï¿½ */
+    Uint8   smmsk;          /* ï¿½Tï¿½uï¿½ï¿½ï¿½[ï¿½hï¿½Ìƒ}ï¿½Xï¿½Nï¿½pï¿½^ï¿½[ï¿½ï¿½ */
+    Uint8   smval;          /* ï¿½Tï¿½uï¿½ï¿½ï¿½[ï¿½hï¿½Ì”ï¿½rï¿½l */
+    Uint8   cimsk;          /* ï¿½Rï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½Ìƒ}ï¿½Xï¿½Nï¿½pï¿½^ï¿½[ï¿½ï¿½ */
+    Uint8   cival;          /* ï¿½Rï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½Ì”ï¿½rï¿½l */
 } CdcSubh;
 
 
 enum GfsSeekMode {
-    GFS_SEEK_SET = 0,                   /* æ“ª‚©‚çƒV[ƒN               */
-    GFS_SEEK_CUR,                       /* Œ»İ‚ÌˆÊ’u‚©‚çƒV[ƒN         */
-    GFS_SEEK_END                        /* I’[‚©‚çƒV[ƒN               */
+    GFS_SEEK_SET = 0,                   /* ï¿½æ“ªï¿½ï¿½ï¿½ï¿½Vï¿½[ï¿½N               */
+    GFS_SEEK_CUR,                       /* ï¿½ï¿½ï¿½İ‚ÌˆÊ’uï¿½ï¿½ï¿½ï¿½Vï¿½[ï¿½N         */
+    GFS_SEEK_END                        /* ï¿½Iï¿½[ï¿½ï¿½ï¿½ï¿½Vï¿½[ï¿½N               */
 };
 
 typedef Sint32 (*GfsTransFunc)(void *obj, Sint32 nsct);
 
 
 
-/* ƒtƒ@ƒCƒ‹î•ñ */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    Sint32      fid;                    /* ƒtƒ@ƒCƒ‹¯•Êq */
+    Sint32      fid;                    /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Êq */
     CdcFile     finfo;
-    Sint32      sctsz;                  /* ƒZƒNƒ^’· */
-    Sint32      nsct;                   /* ƒZƒNƒ^” */
-    Sint32      lstrm;                  /* ÅIƒZƒNƒ^’†‚Ì–³Œøƒf[ƒ^”   */
+    Sint32      sctsz;                  /* ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+    Sint32      nsct;                   /* ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+    Sint32      lstrm;                  /* ï¿½ÅIï¿½Zï¿½Nï¿½^ï¿½ï¿½ï¿½Ì–ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½ï¿½   */
 } GfsFinfo;
 
 
-/* CDƒoƒbƒtƒ@‚Ì‘Œ¹ŠÇ— */
+/* CDï¿½oï¿½bï¿½tï¿½@ï¿½Ìï¿½ï¿½ï¿½ï¿½Ç—ï¿½ */
 typedef struct
 {
-    Sint32      bufno;                  /* ƒoƒbƒtƒ@‹æ‰æ”Ô† */
-    Sint32      sctsz;                  /* ‚b‚cƒoƒbƒtƒ@‚ÌƒZƒNƒ^ƒTƒCƒY   */
-    Sint32      flt;                    /* i‚è”Ô† */
-    CdcSubh     subh;                   /* ƒTƒuƒwƒbƒ_ */
-    Sint32      fmode;                  /* i‚èƒ‚[ƒh */
-    Sint32      puid;                   /* æ“¾ƒsƒbƒNƒAƒbƒv‚Ìƒ†[ƒUID */
-    Sint32      filepos;                /* æ“ªƒf[ƒ^‚Ìƒtƒ@ƒCƒ‹ã‚ÌˆÊ’u */
-    Sint32      sctpos;                 /* “]‘—ˆÊ’u */
-    /* Ä¶”ÍˆÍ */
-    Sint32      sfad;                   /* ŠJnFAD */
-    Sint32      efad;                   /* I—¹FAD */
+    Sint32      bufno;                  /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½Ôï¿½ */
+    Sint32      sctsz;                  /* ï¿½bï¿½cï¿½oï¿½bï¿½tï¿½@ï¿½ÌƒZï¿½Nï¿½^ï¿½Tï¿½Cï¿½Y   */
+    Sint32      flt;                    /* ï¿½iï¿½ï¿½Ôï¿½ */
+    CdcSubh     subh;                   /* ï¿½Tï¿½uï¿½wï¿½bï¿½_ */
+    Sint32      fmode;                  /* ï¿½iï¿½èƒ‚ï¿½[ï¿½h */
+    Sint32      puid;                   /* ï¿½æ“¾ï¿½sï¿½bï¿½Nï¿½Aï¿½bï¿½vï¿½Ìƒï¿½ï¿½[ï¿½UID */
+    Sint32      filepos;                /* ï¿½æ“ªï¿½fï¿½[ï¿½^ï¿½Ìƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ÌˆÊ’u */
+    Sint32      sctpos;                 /* ï¿½]ï¿½ï¿½ï¿½Ê’u */
+    /* ï¿½Äï¿½ï¿½Íˆï¿½ */
+    Sint32      sfad;                   /* ï¿½Jï¿½nFAD */
+    Sint32      efad;                   /* ï¿½Iï¿½ï¿½FAD */
 } GfsCdRsrc;
 
 
-/* SCSIƒtƒ@ƒCƒ‹‚Ì‰¼‘zCDƒoƒbƒtƒ@ŠÇ— */
+/* SCSIï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ì‰ï¿½ï¿½zCDï¿½oï¿½bï¿½tï¿½@ï¿½Ç—ï¿½ */
 typedef struct
 {
-    Sint32      fid;                    /* SCSIƒtƒ@ƒCƒ‹¯•Êq   */
-    Sint32      filepos;                /* æ“ªƒf[ƒ^‚Ìƒtƒ@ƒCƒ‹ã‚ÌˆÊ’u */
-    Sint32      sctpos;                 /* ƒoƒbƒtƒ@ã‚ÌƒZƒNƒ^ˆÊ’u */
-    Sint32      sctnum;                 /* ƒoƒbƒtƒ@“à‚ÌƒZƒNƒ^” */
+    Sint32      fid;                    /* SCSIï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Êq   */
+    Sint32      filepos;                /* ï¿½æ“ªï¿½fï¿½[ï¿½^ï¿½Ìƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ÌˆÊ’u */
+    Sint32      sctpos;                 /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ÌƒZï¿½Nï¿½^ï¿½Ê’u */
+    Sint32      sctnum;                 /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½ÌƒZï¿½Nï¿½^ï¿½ï¿½ */
 } GfsScsiRsrc;
 
 
-/* ƒƒ‚ƒŠƒtƒ@ƒCƒ‹‚Ì‰¼‘zCDƒoƒbƒtƒ@ŠÇ— */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ì‰ï¿½ï¿½zCDï¿½oï¿½bï¿½tï¿½@ï¿½Ç—ï¿½ */
 typedef struct
 {
-    void        *data;                  /* ƒf[ƒ^—Ìˆæ           */
-    Sint32      filepos;                /* æ“ªƒf[ƒ^‚Ìƒtƒ@ƒCƒ‹ã‚ÌˆÊ’u */
-    Sint32      sctpos;                 /* ƒoƒbƒtƒ@ã‚ÌƒZƒNƒ^ˆÊ’u */
-    Sint32      sctnum;                 /* ƒoƒbƒtƒ@“à‚ÌƒZƒNƒ^” */
+    void        *data;                  /* ï¿½fï¿½[ï¿½^ï¿½Ìˆï¿½           */
+    Sint32      filepos;                /* ï¿½æ“ªï¿½fï¿½[ï¿½^ï¿½Ìƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ÌˆÊ’u */
+    Sint32      sctpos;                 /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ÌƒZï¿½Nï¿½^ï¿½Ê’u */
+    Sint32      sctnum;                 /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½ÌƒZï¿½Nï¿½^ï¿½ï¿½ */
 } GfsMemRsrc;
 
 
-/* “Ç‚İ‚İŒ³ŠÇ— */
+/* ï¿½Ç‚İï¿½ï¿½İŒï¿½ï¿½Ç—ï¿½ */
 typedef struct
 {
-    /* “Ç‚İ‚İŒ³ŠÇ— */
-    Sint32      ftype;                  /* ƒtƒ@ƒCƒ‹í•Ê         */
+    /* ï¿½Ç‚İï¿½ï¿½İŒï¿½ï¿½Ç—ï¿½ */
+    Sint32      ftype;                  /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½         */
     union
     {
-        GfsCdRsrc       cd;             /* CD‚Ì‘Œ¹             */
-        GfsScsiRsrc     scsi;           /* SCSIƒtƒ@ƒCƒ‹‚Ì‘Œ¹   */
-        GfsMemRsrc      mem;            /* ƒƒ‚ƒŠƒtƒ@ƒCƒ‹‚Ì‘Œ¹ */
+        GfsCdRsrc       cd;             /* CDï¿½Ìï¿½ï¿½ï¿½             */
+        GfsScsiRsrc     scsi;           /* SCSIï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½   */
+        GfsMemRsrc      mem;            /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ */
     } rsrc;
 } GfsDtsrc;
 
 
-/* CD‚©‚ç‚Ì“Ç‚İ‚İ‚ğŠÇ—‚·‚é */
+/* CDï¿½ï¿½ï¿½ï¿½Ì“Ç‚İï¿½ï¿½İ‚ï¿½ï¿½Ç—ï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    GfsFinfo    finfo;                  /* ƒtƒ@ƒCƒ‹î•ñ         */
-    GfsDtsrc    dtsrc;                  /* “Ç‚İ‚İŒ³           */
-    Sint32      gmode;                  /* æ‚èo‚µƒ‚[ƒh       */
-    Sint32      stat;                   /* Àsó‘Ô             */
-    /* flow inŠÇ— */
-    Sint32      sct;                    /* “Ç‚İ‚İƒZƒNƒ^”     */
-    Sint32      sctcnt;                 /* “Ç‚İ‚İƒJƒEƒ“ƒ^     */
-    Sint32      sctmax;                 /* “Ç‚İ‚İÅ‘åƒZƒNƒ^” */
+    GfsFinfo    finfo;                  /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½         */
+    GfsDtsrc    dtsrc;                  /* ï¿½Ç‚İï¿½ï¿½İŒï¿½           */
+    Sint32      gmode;                  /* ï¿½ï¿½ï¿½oï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h       */
+    Sint32      stat;                   /* ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½             */
+    /* flow inï¿½Ç—ï¿½ */
+    Sint32      sct;                    /* ï¿½Ç‚İï¿½ï¿½İƒZï¿½Nï¿½^ï¿½ï¿½     */
+    Sint32      sctcnt;                 /* ï¿½Ç‚İï¿½ï¿½İƒJï¿½Eï¿½ï¿½ï¿½^     */
+    Sint32      sctmax;                 /* ï¿½Ç‚İï¿½ï¿½İÅ‘ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
 } GfsFlow;
 
 
-/* ƒf[ƒ^ƒpƒbƒN\‘¢‘Ì */
+/* ï¿½fï¿½[ï¿½^ï¿½pï¿½bï¿½Nï¿½\ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    void        *data;                  /* ƒf[ƒ^—Ìˆæ           */
-    Sint32      adlt;                   /* ƒAƒhƒŒƒX‚Ì‘‰Á•ª     */
-    Sint32      len;                    /* “]‘—ƒoƒCƒg”         */
-    Sint32      nsct;                   /* “]‘—ƒZƒNƒ^”         */
-    Bool        use;                    /* g—pƒtƒ‰ƒO           */
+    void        *data;                  /* ï¿½fï¿½[ï¿½^ï¿½Ìˆï¿½           */
+    Sint32      adlt;                   /* ï¿½Aï¿½hï¿½ï¿½ï¿½Xï¿½Ì‘ï¿½ï¿½ï¿½ï¿½ï¿½     */
+    Sint32      len;                    /* ï¿½]ï¿½ï¿½ï¿½oï¿½Cï¿½gï¿½ï¿½         */
+    Sint32      nsct;                   /* ï¿½]ï¿½ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½         */
+    Bool        use;                    /* ï¿½gï¿½pï¿½tï¿½ï¿½ï¿½O           */
 } GfsDataPack;
 
 
 typedef GfsDataPack *GfdpHn;
 
-/* “]‘—ŠÇ— */
-/* CDƒoƒbƒtƒ@‚©‚ç‚Ì“]‘—‚ğŠÇ—‚·‚é */
+/* ï¿½]ï¿½ï¿½ï¿½Ç—ï¿½ */
+/* CDï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½ï¿½Ì“]ï¿½ï¿½ï¿½ï¿½ï¿½Ç—ï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    void        *buf;                   /* “]‘—æƒAƒhƒŒƒX */
-    Sint32      size;                   /* ƒf[ƒ^—Ìˆæ‚ÌƒTƒCƒY */
-    Sint32      wp;                     /* ‘‚«‚İƒIƒtƒZƒbƒg */
-    /* “]‘—ŠÇ— */
-    GfdpHn      dps;                    /* “]‘—Œ³‚Ìƒf[ƒ^ƒpƒbƒN */
-    GfdpHn      dpd;                    /* “]‘—æ‚©‚ç‚Ìƒf[ƒ^ƒpƒbƒN */
-    Sint32      tsctmax;                /* ‚P‰ñ‚Ì“]‘—‚ÌÅ‘åƒZƒNƒ^” */
-    Sint32      tsct;                   /* “]‘—–Ú•WƒZƒNƒ^” */
-    Sint32      tsctcnt;                /* Œ»İ‚Ü‚Å“]‘—ƒZƒNƒ^” */
-    Sint32      tbytcnt;                /* ƒZƒNƒ^“à‚Ì“]‘—ƒoƒCƒg” */
-    /* “]‘—ŠÖ” */
-    void        *obj;                   /* “]‘—ŠÖ”‚Ö‚Ì‘æ‚Pˆø” */
-    GfsTransFunc tfunc;                 /* “]‘—ŠÖ” */
-    Sint32      unit;                   /* “]‘—’PˆÊ */
-    Bool        active;                 /* “®ì’†ƒtƒ‰ƒO */
-    Sint32      stat;                   /* ó‘Ô */
-    Sint32      mode;                   /* “]‘—ƒ‚[ƒh */
+    void        *buf;                   /* ï¿½]ï¿½ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½X */
+    Sint32      size;                   /* ï¿½fï¿½[ï¿½^ï¿½Ìˆï¿½ÌƒTï¿½Cï¿½Y */
+    Sint32      wp;                     /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İƒIï¿½tï¿½Zï¿½bï¿½g */
+    /* ï¿½]ï¿½ï¿½ï¿½Ç—ï¿½ */
+    GfdpHn      dps;                    /* ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½Ìƒfï¿½[ï¿½^ï¿½pï¿½bï¿½N */
+    GfdpHn      dpd;                    /* ï¿½]ï¿½ï¿½ï¿½æ‚©ï¿½ï¿½Ìƒfï¿½[ï¿½^ï¿½pï¿½bï¿½N */
+    Sint32      tsctmax;                /* ï¿½Pï¿½ï¿½Ì“]ï¿½ï¿½ï¿½ÌÅ‘ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+    Sint32      tsct;                   /* ï¿½]ï¿½ï¿½ï¿½Ú•Wï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+    Sint32      tsctcnt;                /* ï¿½ï¿½ï¿½İ‚Ü‚Å“]ï¿½ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+    Sint32      tbytcnt;                /* ï¿½Zï¿½Nï¿½^ï¿½ï¿½ï¿½Ì“]ï¿½ï¿½ï¿½oï¿½Cï¿½gï¿½ï¿½ */
+    /* ï¿½]ï¿½ï¿½ï¿½Öï¿½ */
+    void        *obj;                   /* ï¿½]ï¿½ï¿½ï¿½Öï¿½ï¿½Ö‚Ì‘ï¿½Pï¿½ï¿½ï¿½ï¿½ */
+    GfsTransFunc tfunc;                 /* ï¿½]ï¿½ï¿½ï¿½Öï¿½ */
+    Sint32      unit;                   /* ï¿½]ï¿½ï¿½ï¿½Pï¿½ï¿½ */
+    Bool        active;                 /* ï¿½ï¿½ï¿½ì’†ï¿½tï¿½ï¿½ï¿½O */
+    Sint32      stat;                   /* ï¿½ï¿½ï¿½ */
+    Sint32      mode;                   /* ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h */
 } GfsTrans;
 
 
 typedef GfsTrans *GftrHn;
 
 
-/* ƒI[ƒvƒ“‚µ‚½ƒtƒ@ƒCƒ‹‚ğŠÇ—‚·‚é */
+/* ï¿½Iï¿½[ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ç—ï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    Bool        used;                   /* ‚±‚Ì\‘¢‘Ì‚ªg—p’†‚©‚Ç‚¤‚© */
-    Sint32      amode;                  /* ƒAƒNƒZƒXƒ‚[ƒh */
-    Sint32      astat;                  /* ƒAƒNƒZƒXó‘Ô */
+    Bool        used;                   /* ï¿½ï¿½ï¿½Ì\ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ */
+    Sint32      amode;                  /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½ï¿½[ï¿½h */
+    Sint32      astat;                  /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½ï¿½ */
     GfsFlow     flow;
     GfsTrans    trans;
 } GfsFile;
 
-#define GFS_FNAME_LEN   12              /* ƒtƒ@ƒCƒ‹–¼‚Ì’·‚³                 */
+#define GFS_FNAME_LEN   12              /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ì’ï¿½ï¿½ï¿½                 */
 
 
 
-/* ƒfƒBƒŒƒNƒgƒŠƒŒƒR[ƒh\‘¢‘Ì(ƒtƒ@ƒCƒ‹–¼‚È‚µ)   */
+/* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Rï¿½[ï¿½hï¿½\ï¿½ï¿½ï¿½ï¿½(ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½)   */
 typedef struct
 {
     CdcFile     dirrec;
 } GfsDirId;
 
 
-/* ƒfƒBƒŒƒNƒgƒŠƒŒƒR[ƒh\‘¢‘Ì(ƒtƒ@ƒCƒ‹–¼‚ ‚è)   */
+/* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Rï¿½[ï¿½hï¿½\ï¿½ï¿½ï¿½ï¿½(ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)   */
 typedef struct
 {
     CdcFile     dirrec;
-    Sint8       fname[GFS_FNAME_LEN];   /* ƒtƒ@ƒCƒ‹–¼ */
+    Sint8       fname[GFS_FNAME_LEN];   /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ */
 } GfsDirName;
 
 
-/* ƒfƒBƒŒƒNƒgƒŠî•ñŠÇ—\‘¢‘Ì */
+/* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    Sint32      type;                   /* í•Ê */
-    Sint32      ndir;                   /* Å‘å—v‘f” */
+    Sint32      type;                   /* ï¿½ï¿½ï¿½ */
+    Sint32      ndir;                   /* ï¿½Å‘ï¿½vï¿½fï¿½ï¿½ */
     union
     {
-        GfsDirId *dir_i;                /* ƒtƒ@ƒCƒ‹–¼‚È‚µƒfƒBƒŒƒNƒgƒŠî•ñ */
-        GfsDirName *dir_n;              /* ƒtƒ@ƒCƒ‹–¼‚Â‚«ƒfƒBƒŒƒNƒgƒŠî•ñ */
+        GfsDirId *dir_i;                /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ */
+        GfsDirName *dir_n;              /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ */
     } dir;
 } GfsDirTbl;
 
 
-/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹ */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ */
 typedef GfsFile *GfsHn;
 
-#define GFS_FTYPE_NR    3               /* ƒtƒ@ƒCƒ‹í•Ê” */
-#define GFS_SCTBUF_SIZ  2048            /* ƒZƒNƒ^ƒoƒbƒtƒ@‚Ì‘å‚«‚³ */
-#define GFS_OPEN_MAX    24              /* Å‘åƒI[ƒvƒ“ƒtƒ@ƒCƒ‹” */
-#define GFS_FCONQ_MAX   24              /* Ú‘±ƒRƒ}ƒ“ƒhƒLƒ…[‚ÌÅ‘å’· */
+#define GFS_FTYPE_NR    3               /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½Êï¿½ */
+#define GFS_SCTBUF_SIZ  2048            /* ï¿½Zï¿½Nï¿½^ï¿½oï¿½bï¿½tï¿½@ï¿½Ì‘å‚«ï¿½ï¿½ */
+#define GFS_OPEN_MAX    24              /* ï¿½Å‘ï¿½Iï¿½[ï¿½vï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ */
+#define GFS_FCONQ_MAX   24              /* ï¿½Ú‘ï¿½ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½ÌÅ‘å’· */
 
-/* ƒGƒ‰[ˆ—ŠÖ” */
+/* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ */
 typedef void (*GfsErrFunc)(void *obj, Sint32 ec);
 
-/* ƒGƒ‰[ó‘Ô */
+/* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ */
 typedef struct
 {
-    GfsErrFunc  func;                   /* ƒGƒ‰[”­¶‚ÌŒÄ‚Ño‚µŠÖ”   */
-    void        *obj;                   /* ŒÄ‚Ño‚µŠÖ”‚É“n‚·‘æˆêˆø”   */
-    Sint32      code;                   /* ƒGƒ‰[ƒR[ƒh                 */
+    GfsErrFunc  func;                   /* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌŒÄ‚Ñoï¿½ï¿½ï¿½Öï¿½   */
+    void        *obj;                   /* ï¿½Ä‚Ñoï¿½ï¿½ï¿½Öï¿½ï¿½É“nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½   */
+    Sint32      code;                   /* ï¿½Gï¿½ï¿½ï¿½[ï¿½Rï¿½[ï¿½h                 */
 } GfsErrStat;
 
-#define GFS_CDBBUF_NR   24              /* CDƒuƒƒbƒN‚Ì‹æ‰æ” */
-#define GFS_SELQ_MAX    24              /* i‚èİ’èƒRƒ}ƒ“ƒhƒLƒ…[‚ÌÅ‘å’· */
+#define GFS_CDBBUF_NR   24              /* CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ì‹ï¿½æ” */
+#define GFS_SELQ_MAX    24              /* ï¿½iï¿½ï¿½İ’ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½ÌÅ‘å’· */
 
-/* ƒfƒBƒŒƒNƒgƒŠí•Ê(GFS_LoadDir, GFS_SetDir)     */
+/* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½(GFS_LoadDir, GFS_SetDir)     */
 enum GfsDirType
 {
-    GFS_DIR_ID          = 0,            /* ƒtƒ@ƒCƒ‹–¼‚É‚æ‚éƒAƒNƒZƒX•s‰Â */
-    GFS_DIR_NAME                        /* ƒtƒ@ƒCƒ‹–¼‚É‚æ‚éƒAƒNƒZƒX‰Â   */
+    GFS_DIR_ID          = 0,            /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½Aï¿½Nï¿½Zï¿½Xï¿½sï¿½ï¿½ */
+    GFS_DIR_NAME                        /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½   */
 };
 
 enum GfsServerStatus
 {
-    GFS_SVR_COMPLETED = 0,              /* ‘Sƒtƒ@ƒCƒ‹‚ÌƒAƒNƒZƒXI—¹     */
-    GFS_SVR_BUSY,                       /* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒX’†           */
-    GFS_SVR_CDPAUSE,                    /* ‚b‚cƒoƒbƒtƒ@ƒtƒ‹‚Ìˆ×ˆê’â~ */
-    GFS_SVR_ERROR                       /* ƒGƒ‰[”­¶ */
+    GFS_SVR_COMPLETED = 0,              /* ï¿½Sï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÌƒAï¿½Nï¿½Zï¿½Xï¿½Iï¿½ï¿½     */
+    GFS_SVR_BUSY,                       /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½           */
+    GFS_SVR_CDPAUSE,                    /* ï¿½bï¿½cï¿½oï¿½bï¿½tï¿½@ï¿½tï¿½ï¿½ï¿½Ìˆ×ˆêï¿½ï¿½~ */
+    GFS_SVR_ERROR                       /* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ */
 };
 
 
 
-/* Ú‘±ƒRƒ}ƒ“ƒhƒLƒ…[‚Ì—v‘f(CDƒuƒƒbƒNŠÇ—\‘¢‘Ì, GfsCdbMng‚Ìƒƒ“ƒo) */
+/* ï¿½Ú‘ï¿½ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½Ì—vï¿½f(CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½, GfsCdbMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    Sint32 flt;                         /* İ’èi‚è */
-    Sint32 buf;                         /* ^o—ÍÚ‘±ƒoƒbƒtƒ@ */
-    Sint32 flnout;                      /* ‹Uo—ÍÚ‘±i‚è(•‰‚Ì’l‚ğg—p) */
+    Sint32 flt;                         /* ï¿½İ’ï¿½iï¿½ï¿½ */
+    Sint32 buf;                         /* ï¿½^ï¿½oï¿½ÍÚ‘ï¿½ï¿½oï¿½bï¿½tï¿½@ */
+    Sint32 flnout;                      /* ï¿½Uï¿½oï¿½ÍÚ‘ï¿½ï¿½iï¿½ï¿½(ï¿½ï¿½ï¿½Ì’lï¿½ï¿½ï¿½gï¿½p) */
 } GfcdFconQu;
 
 
-/* ‚b‚cƒXƒe[ƒ^ƒXî•ñiƒXƒe[ƒ^ƒX{‚b‚cƒŒƒ|[ƒgj */
+/* ï¿½bï¿½cï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½ï¿½ï¿½iï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½{ï¿½bï¿½cï¿½ï¿½ï¿½|ï¿½[ï¿½gï¿½j */
 typedef struct
 {
-    Uint8   status;         /* ƒXƒe[ƒ^ƒX */
-    struct                  /* ‚b‚cƒŒƒ|[ƒg */
+    Uint8   status;         /* ï¿½Xï¿½eï¿½[ï¿½^ï¿½X */
+    struct                  /* ï¿½bï¿½cï¿½ï¿½ï¿½|ï¿½[ï¿½g */
     {
-        Uint8   flgrep;     /* ‚b‚cƒtƒ‰ƒO‚ÆƒŠƒs[ƒg‰ñ” */
-        Uint8   ctladr;     /* CONTROL/ADRƒoƒCƒg */
-        Uint8   tno;        /* ƒgƒ‰ƒbƒN”Ô† */
-        Uint8   idx;        /* ƒCƒ“ƒfƒbƒNƒX”Ô† */
-        Sint32  fad;        /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒX */
+        Uint8   flgrep;     /* ï¿½bï¿½cï¿½tï¿½ï¿½ï¿½Oï¿½Æƒï¿½ï¿½sï¿½[ï¿½gï¿½ï¿½ */
+        Uint8   ctladr;     /* CONTROL/ADRï¿½oï¿½Cï¿½g */
+        Uint8   tno;        /* ï¿½gï¿½ï¿½ï¿½bï¿½Nï¿½Ôï¿½ */
+        Uint8   idx;        /* ï¿½Cï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½Xï¿½Ôï¿½ */
+        Sint32  fad;        /* ï¿½tï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½X */
     } report;
 } CdcStat;
 
-/* i‚èİ’èƒRƒ}ƒ“ƒhƒLƒ…[‚Ì—v‘f(CDƒuƒƒbƒNŠÇ—\‘¢‘Ì, GfsCdbMng‚Ìƒƒ“ƒo) */
+/* ï¿½iï¿½ï¿½İ’ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½Ì—vï¿½f(CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½, GfsCdbMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    Uint8 flt;                          /* İ’èæi‚è”Ô† */
-    Uint8 fmode;                        /* i‚èƒ‚[ƒh */
-    CdcSubh subh;                       /* ƒTƒuƒwƒbƒ_ */
-    Sint32 fad;                         /* ŠJnFAD */
-    Sint32 snum;                        /* FADƒZƒNƒ^” */
+    Uint8 flt;                          /* ï¿½İ’ï¿½ï¿½iï¿½ï¿½Ôï¿½ */
+    Uint8 fmode;                        /* ï¿½iï¿½èƒ‚ï¿½[ï¿½h */
+    CdcSubh subh;                       /* ï¿½Tï¿½uï¿½wï¿½bï¿½_ */
+    Sint32 fad;                         /* ï¿½Jï¿½nFAD */
+    Sint32 snum;                        /* FADï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
 } GfcdSelQu;
 
 
-/* CDƒuƒƒbƒNŠÇ—\‘¢‘Ì(ŠÇ—ƒe[ƒuƒ‹, GfsMng‚Ìƒƒ“ƒo) */
+/* CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½(ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½, GfsMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    /* ‘Œ¹ŠÇ— */
-    Sint8 use_buf[GFS_CDBBUF_NR];       /* ƒoƒbƒtƒ@‹æ‰æg—pó‘Ô */
-    Sint8 use_filt[GFS_CDBBUF_NR];      /* i‚èg—pó‘Ô */
-    Bool use_pu;                        /* ƒsƒbƒNƒAƒbƒvg—pó‘Ô */
-    Sint32 tr_bufno;                    /* ƒf[ƒ^“]‘—’†‚Ìƒoƒbƒtƒ@‹æ‰æ   */
-    Sint32 puid;                        /* ƒsƒbƒNƒAƒbƒv‚ÌŠ—LÒID */
-    Sint32 timer;                       /* ƒ^ƒCƒ€ƒAƒEƒgƒJƒEƒ“ƒ^ */
-    CdcStat stat;                       /* CDƒuƒƒbƒN‚Ìó‘Ô */
-    void (*func)(void *);               /* CSCTƒnƒ“ƒhƒ‰ */
-    void *obj;                          /* CSCTƒnƒ“ƒhƒ‰‚Ìˆø” */
-    /* GFCD_SetFiltƒ^ƒXƒN */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½Ç—ï¿½ */
+    Sint8 use_buf[GFS_CDBBUF_NR];       /* ï¿½oï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ */
+    Sint8 use_filt[GFS_CDBBUF_NR];      /* ï¿½iï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ */
+    Bool use_pu;                        /* ï¿½sï¿½bï¿½Nï¿½Aï¿½bï¿½vï¿½gï¿½pï¿½ï¿½ï¿½ */
+    Sint32 tr_bufno;                    /* ï¿½fï¿½[ï¿½^ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½Ìƒoï¿½bï¿½tï¿½@ï¿½ï¿½ï¿½   */
+    Sint32 puid;                        /* ï¿½sï¿½bï¿½Nï¿½Aï¿½bï¿½vï¿½Ìï¿½ï¿½Lï¿½ï¿½ID */
+    Sint32 timer;                       /* ï¿½^ï¿½Cï¿½ï¿½ï¿½Aï¿½Eï¿½gï¿½Jï¿½Eï¿½ï¿½ï¿½^ */
+    CdcStat stat;                       /* CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ìï¿½ï¿½ */
+    void (*func)(void *);               /* CSCTï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ */
+    void *obj;                          /* CSCTï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½Ìˆï¿½ï¿½ï¿½ */
+    /* GFCD_SetFiltï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 len;                     /* i‚èİ’èƒRƒ}ƒ“ƒhƒLƒ…[‚Ì’·‚³ */
-        Sint32 stat;                    /* ƒRƒ}ƒ“ƒhƒLƒ…[æ“ª‚Ìó‘Ô */
-        GfcdSelQu selq[GFS_SELQ_MAX];   /* i‚èİ’èƒRƒ}ƒ“ƒhƒLƒ…[ */
+        Sint32 len;                     /* ï¿½iï¿½ï¿½İ’ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½Ì’ï¿½ï¿½ï¿½ */
+        Sint32 stat;                    /* ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½æ“ªï¿½Ìï¿½ï¿½ */
+        GfcdSelQu selq[GFS_SELQ_MAX];   /* ï¿½iï¿½ï¿½İ’ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ */
     } tsk_setflt;
-    /* GFCD_SetFiltConƒ^ƒXƒN */
+    /* GFCD_SetFiltConï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 len;                     /* Ú‘±ƒRƒ}ƒ“ƒhƒLƒ…[‚Ì’·‚³ */
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        GfcdFconQu fconq[GFS_FCONQ_MAX]; /* Ú‘±ƒRƒ}ƒ“ƒhƒLƒ…[ */
+        Sint32 len;                     /* ï¿½Ú‘ï¿½ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ï¿½Ì’ï¿½ï¿½ï¿½ */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        GfcdFconQu fconq[GFS_FCONQ_MAX]; /* ï¿½Ú‘ï¿½ï¿½Rï¿½}ï¿½ï¿½ï¿½hï¿½Lï¿½ï¿½ï¿½[ */
     } tsk_fltcon;
-    /* GFCD_SetConƒ^ƒXƒN */
+    /* GFCD_SetConï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint32 flt;                     /* CDÚ‘±æi‚è */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint32 flt;                     /* CDï¿½Ú‘ï¿½ï¿½ï¿½iï¿½ï¿½ */
     } tsk_setcon;
-    /* GFCD_GetLenDataƒ^ƒXƒN */
+    /* GFCD_GetLenDataï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint32 bufno;                   /* ‘ÎÛ‹æ‰æ */
-        Sint32 spos;                    /* æ“ªƒZƒNƒ^ˆÊ’u */
-        Sint32 usct;                    /* —v‹ƒZƒNƒ^” */
-        Sint32 cnt;                     /* ƒ^ƒXƒN‚ÌÀs‰ñ” */
-        Sint32 *nsct;                   /* ‹æ‰æ“àƒZƒNƒ^”Ši”[æ */
-        Sint32 *nbyte;                  /* ‹æ‰æ“àƒoƒCƒg”Ši”[æ */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint32 bufno;                   /* ï¿½ÎÛ‹ï¿½ï¿½ */
+        Sint32 spos;                    /* ï¿½æ“ªï¿½Zï¿½Nï¿½^ï¿½Ê’u */
+        Sint32 usct;                    /* ï¿½vï¿½ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+        Sint32 cnt;                     /* ï¿½^ï¿½Xï¿½Nï¿½Ìï¿½ï¿½sï¿½ï¿½ */
+        Sint32 *nsct;                   /* ï¿½ï¿½ï¿½ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½ï¿½iï¿½[ï¿½ï¿½ */
+        Sint32 *nbyte;                  /* ï¿½ï¿½ï¿½ï¿½ï¿½oï¿½Cï¿½gï¿½ï¿½ï¿½iï¿½[ï¿½ï¿½ */
     } tsk_getlen;
-    /* GFCD_ReqDataƒ^ƒXƒN */
+    /* GFCD_ReqDataï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint32 bufno;                   /* ‘ÎÛ‹æ‰æ */
-        Sint32 sctpos;                  /* ƒZƒNƒ^ˆÊ’u */
-        Sint32 nsct;                    /* —v‹ƒZƒNƒ^” */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint32 bufno;                   /* ï¿½ÎÛ‹ï¿½ï¿½ */
+        Sint32 sctpos;                  /* ï¿½Zï¿½Nï¿½^ï¿½Ê’u */
+        Sint32 nsct;                    /* ï¿½vï¿½ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
     } tsk_reqdat;
-    /* GFCD_DelSctDataƒ^ƒXƒN */
+    /* GFCD_DelSctDataï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint32 bufno;                   /* ‘ÎÛ‹æ‰æ */
-        Sint32 sctpos;                  /* íœŠJnƒZƒNƒ^ˆÊ’u */
-        Sint32 nsct;                    /* íœƒZƒNƒ^” */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint32 bufno;                   /* ï¿½ÎÛ‹ï¿½ï¿½ */
+        Sint32 sctpos;                  /* ï¿½íœï¿½Jï¿½nï¿½Zï¿½Nï¿½^ï¿½Ê’u */
+        Sint32 nsct;                    /* ï¿½íœï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
     } tsk_delsct;
-    /* GFCD_MoveSctDataƒ^ƒXƒN */
+    /* GFCD_MoveSctDataï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint32 dst;                     /* ˆÚ“®æ‹æ‰æ */
-        Sint32 src;                     /* ˆÚ“®Œ³‹æ‰æ */
-        Sint32 spos;                    /* ˆÚ“®ŠJnƒZƒNƒ^ˆÊ’u */
-        Sint32 snum;                    /* ˆÚ“®ƒZƒNƒ^” */
-        Sint32 fmode;                   /* ˆÚ“®æƒZƒŒƒNƒ^‚Ìi‚èƒ‚[ƒh•Û‘¶ */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint32 dst;                     /* ï¿½Ú“ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        Sint32 src;                     /* ï¿½Ú“ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        Sint32 spos;                    /* ï¿½Ú“ï¿½ï¿½Jï¿½nï¿½Zï¿½Nï¿½^ï¿½Ê’u */
+        Sint32 snum;                    /* ï¿½Ú“ï¿½ï¿½Zï¿½Nï¿½^ï¿½ï¿½ */
+        Sint32 fmode;                   /* ï¿½Ú“ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½Nï¿½^ï¿½Ìiï¿½èƒ‚ï¿½[ï¿½hï¿½Û‘ï¿½ */
     } tsk_movsct;
-    /* GFCD_ChgDirƒ^ƒXƒN */
+    /* GFCD_ChgDirï¿½^ï¿½Xï¿½N */
     struct
     {
-        Sint32 stat;                    /* ƒ^ƒXƒNI—¹ƒtƒ‰ƒO */
-        Sint16 fid;                     /* İ’èƒtƒ@ƒCƒ‹¯•Êq */
-        Sint16 work;                    /* ì‹Æƒoƒbƒtƒ@ */
-        Sint32 *ndir;                   /* •ÛƒfƒBƒŒƒNƒgƒŠî•ñŒÂ” */
+        Sint32 stat;                    /* ï¿½^ï¿½Xï¿½Nï¿½Iï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+        Sint16 fid;                     /* ï¿½İ’ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Êq */
+        Sint16 work;                    /* ï¿½ï¿½Æƒoï¿½bï¿½tï¿½@ */
+        Sint32 *ndir;                   /* ï¿½Ûï¿½ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Âï¿½ */
     } tsk_chgdir;
 } GfsCdbMng;
 
 
-/* ƒAƒNƒZƒXƒT[ƒoŠÇ—\‘¢‘Ì(ŠÇ—ƒe[ƒuƒ‹, GfsMng‚Ìƒƒ“ƒo) */
+/* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½Tï¿½[ï¿½oï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½(ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½, GfsMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    GfsHn   access_file[GFS_OPEN_MAX];  /* ƒAƒNƒZƒXƒ‚[ƒhw’èÏƒtƒ@ƒCƒ‹ */
-    Sint32  nfile;                      /* “o˜^ƒtƒ@ƒCƒ‹”               */
+    GfsHn   access_file[GFS_OPEN_MAX];  /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½ï¿½[ï¿½hï¿½wï¿½ï¿½Ïƒtï¿½@ï¿½Cï¿½ï¿½ */
+    Sint32  nfile;                      /* ï¿½oï¿½^ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½               */
 } GfsSvr;
 
-/* ƒfƒBƒŒƒNƒgƒŠŠÇ—\‘¢‘Ì(ŠÇ—ƒe[ƒuƒ‹, GfsMng‚Ìƒƒ“ƒo) */
+/* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½(ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½, GfsMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    GfsDirTbl   dirtbl;                 /* ƒfƒBƒŒƒNƒgƒŠî•ñŠÇ— */
-    Sint32      nfile;                  /* ƒtƒ@ƒCƒ‹” */
+    GfsDirTbl   dirtbl;                 /* ï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Ç—ï¿½ */
+    Sint32      nfile;                  /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ */
 } GfsDirMng;
 
-/* ƒtƒ@ƒCƒ‹‘€ì—pŠÖ”(ŠÇ—ƒe[ƒuƒ‹, GfsMng‚Ìƒƒ“ƒo) */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½pï¿½Öï¿½(ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½, GfsMngï¿½Ìƒï¿½ï¿½ï¿½ï¿½o) */
 typedef struct
 {
-    Sint32 (*flowin)(GfsFlow *);        /* ƒ\[ƒXƒoƒbƒtƒ@“Ç‚İ‚İŠÖ”   */
-    void (*stopin)(GfsFlow *, Bool);    /* “Ç‚İ‚İ’†~ŠÖ”             */
-    Sint32 (*seek)(GfsFlow *, Sint32);  /* ƒAƒNƒZƒXƒ|ƒCƒ“ƒ^İ’èŠÖ”     */
-    Sint32 (*tell)(GfsFlow *);          /* ƒAƒNƒZƒXƒ|ƒCƒ“ƒ^æ“¾ŠÖ”     */
+    Sint32 (*flowin)(GfsFlow *);        /* ï¿½\ï¿½[ï¿½Xï¿½oï¿½bï¿½tï¿½@ï¿½Ç‚İï¿½ï¿½İŠÖï¿½   */
+    void (*stopin)(GfsFlow *, Bool);    /* ï¿½Ç‚İï¿½ï¿½İ’ï¿½ï¿½~ï¿½Öï¿½             */
+    Sint32 (*seek)(GfsFlow *, Sint32);  /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½İ’ï¿½Öï¿½     */
+    Sint32 (*tell)(GfsFlow *);          /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½æ“¾ï¿½Öï¿½     */
 } GfsFileFunc;
 
 
-/* ŠÇ—ƒe[ƒuƒ‹ */
+/* ï¿½Ç—ï¿½ï¿½eï¿½[ï¿½uï¿½ï¿½ */
 typedef struct
 {
-    Sint32      openmax;                /* ƒI[ƒvƒ“ƒtƒ@ƒCƒ‹‚ÌÅ‘å” */
-    GfsFileFunc functbl[GFS_FTYPE_NR];  /* ƒtƒ@ƒCƒ‹‘€ì—pŠÖ” */
-    GfsSvr      svr;                    /* ƒAƒNƒZƒXƒT[ƒo */
-    GfsDirMng   curdir;                 /* ƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ */
-    GfsHn       pickup;                 /* ƒsƒbƒNƒAƒbƒv§Œä’†ƒtƒ@ƒCƒ‹ */
-    Sint32      sfad;                   /* Ä¶”ÍˆÍ:ŠJnFAD */
-    Sint32      efad;                   /* Ä¶”ÍˆÍ:I—¹FAD+1 */
-    GfsHn       trans;                  /* ƒf[ƒ^“]‘—’†ƒtƒ@ƒCƒ‹ */
-    GfsErrStat  error;                  /* ƒGƒ‰[ó‘Ô */
-    Uint32      flags;                  /* ƒfƒoƒCƒXÚ‘±î•ñ‚È‚Ç */
-    Sint32      timer;                  /* ƒ^ƒCƒ€ƒAƒEƒgƒJƒEƒ“ƒ^ */
-    GfsCdbMng   cdb;                    /* CDƒuƒƒbƒNŠÇ—\‘¢‘Ì */
-    GfsDataPack srcpk;                  /* “]‘—Œ³ƒf[ƒ^ƒpƒbƒN */
-    GfsDataPack dstpk;                  /* “]‘—æƒf[ƒ^ƒpƒbƒN */
-    Uint8       sect_buf[GFS_SCTBUF_SIZ]; /* ‚PƒZƒNƒ^‚Ì“Ç‚İ‚İ—pƒoƒbƒtƒ@ */
-    GfsFile     file[1];                /* ‘Sƒnƒ“ƒhƒ‹‚Ì”z—ñi‰Â•Ï’·j */
+    Sint32      openmax;                /* ï¿½Iï¿½[ï¿½vï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÌÅ‘å” */
+    GfsFileFunc functbl[GFS_FTYPE_NR];  /* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½pï¿½Öï¿½ */
+    GfsSvr      svr;                    /* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½Tï¿½[ï¿½o */
+    GfsDirMng   curdir;                 /* ï¿½Jï¿½ï¿½ï¿½ï¿½ï¿½gï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ */
+    GfsHn       pickup;                 /* ï¿½sï¿½bï¿½Nï¿½Aï¿½bï¿½vï¿½ï¿½ï¿½ä’†ï¿½tï¿½@ï¿½Cï¿½ï¿½ */
+    Sint32      sfad;                   /* ï¿½Äï¿½ï¿½Íˆï¿½:ï¿½Jï¿½nFAD */
+    Sint32      efad;                   /* ï¿½Äï¿½ï¿½Íˆï¿½:ï¿½Iï¿½ï¿½FAD+1 */
+    GfsHn       trans;                  /* ï¿½fï¿½[ï¿½^ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ */
+    GfsErrStat  error;                  /* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ */
+    Uint32      flags;                  /* ï¿½fï¿½oï¿½Cï¿½Xï¿½Ú‘ï¿½ï¿½ï¿½ï¿½È‚ï¿½ */
+    Sint32      timer;                  /* ï¿½^ï¿½Cï¿½ï¿½ï¿½Aï¿½Eï¿½gï¿½Jï¿½Eï¿½ï¿½ï¿½^ */
+    GfsCdbMng   cdb;                    /* CDï¿½uï¿½ï¿½ï¿½bï¿½Nï¿½Ç—ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½ */
+    GfsDataPack srcpk;                  /* ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½pï¿½bï¿½N */
+    GfsDataPack dstpk;                  /* ï¿½]ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½pï¿½bï¿½N */
+    Uint8       sect_buf[GFS_SCTBUF_SIZ]; /* ï¿½Pï¿½Zï¿½Nï¿½^ï¿½Ì“Ç‚İï¿½ï¿½İ—pï¿½oï¿½bï¿½tï¿½@ */
+    GfsFile     file[1];                /* ï¿½Sï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½Ì”zï¿½ï¿½iï¿½Â•Ï’ï¿½ï¿½j */
 } GfsMng;
 
 #define GFS_WORK_SIZE(open_max) \
@@ -860,19 +863,19 @@ typedef struct
 #define GFS_DIRTBL_DIRNAME(dirtbl)      ((dirtbl)->dir.dir_n)
 #define GFS_DIRTBL_NDIR(dirtbl)         ((dirtbl)->ndir)
 
-/* ƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€‚Ì‰Šú‰» */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Vï¿½Xï¿½eï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ */
 Sint32 GFS_Init(Sint32 open_max, void *work, GfsDirTbl *dirtbl);
-/* ‘¦•œ‹AŒ^“Ç‚İ‚İ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½^ï¿½Ç‚İï¿½ï¿½ï¿½ */
 Sint32 GFS_NwFread(GfsHn gfs, Sint32 nsct, void *buf, Sint32 bsize);
-/* ƒtƒ@ƒCƒ‹’PˆÊ‚Å‚ÌƒAƒNƒZƒX“®ì‚ÌÀs */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Pï¿½Ê‚Å‚ÌƒAï¿½Nï¿½Zï¿½Xï¿½ï¿½ï¿½ï¿½Ìï¿½ï¿½s */
 Sint32 GFS_NwExecOne(GfsHn gfs);
-/* Š®—¹•œ‹AŒ^“Ç‚İ‚İ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½^ï¿½Ç‚İï¿½ï¿½ï¿½ */
 Sint32 GFS_Fread(GfsHn gfs, Sint32 nsct, void *buf, Sint32 bsize);
-/* ƒAƒNƒZƒXó‘Ô‚Ìæ“¾ */
+/* ï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½Ô‚Ìæ“¾ */
 void GFS_NwGetStat(GfsHn gfs, Sint32 *amode, Sint32 *ndata);
-/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹‚ÌŠ„“–‚Ä */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ÌŠï¿½ï¿½ï¿½ï¿½ï¿½ */
 GfsHn GFS_Open(Sint32 fid);
-/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹‚ÌŠ„“–‚Ä‰ğœ */
+/* ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½nï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ÌŠï¿½ï¿½ï¿½ï¿½Ä‰ï¿½ï¿½ï¿½ */
 void GFS_Close(GfsHn gfs);
 void GFS_GetFileSize(GfsHn gfs, Sint32 *sctsz, Sint32 *nsct, Sint32 *lstsz);
 Sint32 GFS_NwCdRead(GfsHn gfs, Sint32 nsct);
@@ -884,38 +887,38 @@ Sint32 GFS_NameToId(Sint8 *fname);
 Sint32 GFS_Load(Sint32 fid, Sint32 ofs, void *buf, Sint32 bsize);
 Sint32 GFS_Seek(GfsHn gfs, Sint32 ofs, Sint32 org);
 
-typedef struct  			/* ‚q‚s‚b				*/
+typedef struct  			/* ï¿½qï¿½sï¿½bï¿½ï¿½ï¿½ï¿½				*/
 {
-    Uint16	year;			/* ¼—ï”N†				*/
-    Uint8	month;			/* —j“úEŒ				*/
-    Uint8	date;			/* “ú					*/
-    Uint8	hour;			/* 					*/
-    Uint8	minute;			/* •ª					*/
-    Uint8	second;			/* •b					*/
-    Uint8	dummy;			/* ƒ_ƒ~[				*/
+    Uint16	year;			/* ï¿½ï¿½ï¿½ï¿½Nï¿½ï¿½				*/
+    Uint8	month;			/* ï¿½jï¿½ï¿½ï¿½Eï¿½ï¿½				*/
+    Uint8	date;			/* ï¿½ï¿½					*/
+    Uint8	hour;			/* ï¿½ï¿½					*/
+    Uint8	minute;			/* ï¿½ï¿½					*/
+    Uint8	second;			/* ï¿½b					*/
+    Uint8	dummy;			/* ï¿½_ï¿½~ï¿½[				*/
 } SmpcDateTime;
 
 
-typedef struct  			/* ‚r‚l‚o‚bƒXƒe[ƒ^ƒX			*/
+typedef struct  			/* ï¿½rï¿½lï¿½oï¿½bï¿½Xï¿½eï¿½[ï¿½^ï¿½X			*/
 {
-    Uint8	cond;			/* ó‘ÔƒXƒe[ƒ^ƒX			*/
-    Uint8	dummy1;			/* ƒ_ƒ~[‚P				*/
-    Uint16	dummy2;			/* ƒ_ƒ~[‚Q				*/
-    SmpcDateTime	rtc;		/* ‚q‚s‚b				*/
-    Uint8	ctg;			/* ƒJ[ƒgƒŠƒbƒWƒR[ƒh			*/
-    Uint8	area;			/* ƒGƒŠƒAƒR[ƒh				*/
-    Uint16	system;			/* ƒVƒXƒeƒ€ƒXƒe[ƒ^ƒX			*/
-    Uint32	smem;			/* ‚r‚l‚o‚bƒƒ‚ƒŠ•Ûƒf[ƒ^		*/
+    Uint8	cond;			/* ï¿½ï¿½ÔƒXï¿½eï¿½[ï¿½^ï¿½X			*/
+    Uint8	dummy1;			/* ï¿½_ï¿½~ï¿½[ï¿½P				*/
+    Uint16	dummy2;			/* ï¿½_ï¿½~ï¿½[ï¿½Q				*/
+    SmpcDateTime	rtc;		/* ï¿½qï¿½sï¿½bï¿½ï¿½ï¿½ï¿½				*/
+    Uint8	ctg;			/* ï¿½Jï¿½[ï¿½gï¿½ï¿½ï¿½bï¿½Wï¿½Rï¿½[ï¿½h			*/
+    Uint8	area;			/* ï¿½Gï¿½ï¿½ï¿½Aï¿½Rï¿½[ï¿½h				*/
+    Uint16	system;			/* ï¿½Vï¿½Xï¿½eï¿½ï¿½ï¿½Xï¿½eï¿½[ï¿½^ï¿½X			*/
+    Uint32	smem;			/* ï¿½rï¿½lï¿½oï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ûï¿½ï¿½fï¿½[ï¿½^		*/
 } SmpcStatus;
 
-enum SmpcLanguage  			/* ‚r‚l‚o‚bƒƒ‚ƒŠŒ¾Œê”Ô†		*/
+enum SmpcLanguage  			/* ï¿½rï¿½lï¿½oï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ôï¿½		*/
 {
-    SMPC_ENGLISH,			/* (00) ‰pŒê				*/
-    SMPC_DEUTSCH,			/* (01) ƒhƒCƒcŒê			*/
-    SMPC_FRANCAIS,			/* (02) ƒtƒ‰ƒ“ƒXŒê			*/
-    SMPC_ESPANOL,			/* (03) ƒXƒyƒCƒ“Œê			*/
-    SMPC_ITALIANO,			/* (04) ƒCƒ^ƒŠƒAŒê			*/
-    SMPC_JAPAN			/* (05) “ú–{Œê				*/
+    SMPC_ENGLISH,			/* (00) ï¿½pï¿½ï¿½				*/
+    SMPC_DEUTSCH,			/* (01) ï¿½hï¿½Cï¿½cï¿½ï¿½			*/
+    SMPC_FRANCAIS,			/* (02) ï¿½tï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½ï¿½			*/
+    SMPC_ESPANOL,			/* (03) ï¿½Xï¿½yï¿½Cï¿½ï¿½ï¿½ï¿½			*/
+    SMPC_ITALIANO,			/* (04) ï¿½Cï¿½^ï¿½ï¿½ï¿½Aï¿½ï¿½			*/
+    SMPC_JAPAN			/* (05) ï¿½ï¿½ï¿½{ï¿½ï¿½				*/
 };
 
 extern  void   slIntFunction(void (*func)()) ;
@@ -925,12 +928,12 @@ extern	SmpcStatus*	Smpc_Status;
 #define	slGetStatus()			slRequestCommand(SMPC_GETSTS, SMPC_NO_WAIT)
 
 
-#define	    COL_256	(2+0)		/* ƒJƒ‰[ƒoƒ“ƒN‚Q‚T‚UFƒ‚[ƒh */
-#define	    COL_32K	(2-1)		/* ‚q‚f‚a‚R‚Q‚jFƒ‚[ƒh */
+#define	    COL_256	(2+0)		/* ï¿½Jï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Nï¿½Qï¿½Tï¿½Uï¿½Fï¿½ï¿½ï¿½[ï¿½h */
+#define	    COL_32K	(2-1)		/* ï¿½qï¿½fï¿½aï¿½Rï¿½Qï¿½jï¿½Fï¿½ï¿½ï¿½[ï¿½h */
 
 #define	    SPR_ATTRIBUTE(t,c,g,a,d)	{t,(a)|(((d)>>24)&0xc0),c,g,(d)&0x0f3f}
 #define	    FUNC_Sprite		1
-#define	    CL256Bnk		(4 << 3)	/* ƒJƒ‰[ƒoƒ“ƒN‚Q‚T‚UFƒ‚[ƒh */
+#define	    CL256Bnk		(4 << 3)	/* ï¿½Jï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Nï¿½Qï¿½Tï¿½Uï¿½Fï¿½ï¿½ï¿½[ï¿½h */
 
 #define	    SpriteVRAM		0x25c00000
 
