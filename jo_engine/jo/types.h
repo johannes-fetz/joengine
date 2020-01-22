@@ -151,6 +151,7 @@ typedef struct
     unsigned int        color_table_index;
     unsigned int        gouraud_shading_index;
     unsigned int        fixed_scale;
+    unsigned int        clipping;
 }                       jo_sprite_attributes;
 
 /** @brief Float IEEE 754 format */
