@@ -74,6 +74,9 @@
 #define	VERTICES(v0,v1,v2,v3)	{v0 , v1 , v2 , v3}}
 #define	C_RGB(r,g,b)		(((b)&0x1f)<<10|((g)&0x1f)<<5|((r)&0x1f)|0x8000)
 
+#define     No_Window   (0 << 9)   /* No sprite clipping */
+#define     Window_In   (2 << 9)   /* Clip everything outside bounds */
+#define     Window_Out  (3 << 9)  /* Clip everything inside bounds */
 #define	    ECdis		(1 << 7)	/* エンドコードをパレットのひとつとして使用 */
 
 #define	    SPdis		(1 << 6)	/* スペースコードをパレットのひとつとして使用 */

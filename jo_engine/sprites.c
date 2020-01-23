@@ -57,7 +57,7 @@
 ** GLOBALS
 */
 
-jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_FIXED_1};
+jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_FIXED_1, No_Window};
 jo_pos3D                __jo_sprite_pos = {0, 0, 120};
 jo_texture_definition   __jo_sprite_def[JO_MAX_SPRITE];
 jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
@@ -285,7 +285,7 @@ void     jo_set_gouraud_shading_brightness(const unsigned char brightness)
 static  __jo_force_inline void __jo_set_sprite_attributes(SPR_ATTR *attr, const int sprite_id)
 {
     attr->dir |= __jo_sprite_attributes.direction;
-    attr->atrb |= __jo_sprite_attributes.effect;
+    attr->atrb |= __jo_sprite_attributes.effect | __jo_sprite_attributes.clipping;
     if (__jo_sprite_pic[sprite_id].color_mode == COL_32K)
     {
         attr->atrb |= ((COLMODE_RGB & 7) << 3);
@@ -304,7 +304,7 @@ static  __jo_force_inline void __jo_set_sprite_attributes(SPR_ATTR *attr, const 
 static  __jo_force_inline void __jo_set_sprite_attributes(jo_vdp1_command * const cmd, const int sprite_id)
 {
     cmd->ctrl |= __jo_sprite_attributes.direction;
-    cmd->pmod = 0x0080 | __jo_sprite_attributes.effect;
+    cmd->pmod = 0x0080 | __jo_sprite_attributes.effect | __jo_sprite_attributes.clipping;
     if (__jo_sprite_pic[sprite_id].color_mode == COL_32K)
     {
         cmd->pmod |= ((COLMODE_RGB & 7) << 3);
@@ -472,6 +472,27 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
         cmd->xd += JO_TV_WIDTH_2 - JO_DIV_BY_2(sprite_width);
         cmd->yd += JO_TV_HEIGHT_2 - JO_DIV_BY_2(sprite_height);
     }
+#endif
+}
+
+void jo_sprite_set_clipping_area(const unsigned int x, const unsigned int y, const unsigned int width, const unsigned int height, const int depth)
+{
+#if JO_COMPILE_USING_SGL
+    SPRITE sprite;
+    sprite.CTRL = FUNC_UserClip;
+    sprite.XA = x;
+    sprite.YA = y;
+    sprite.XC = x + width;
+    sprite.YC = y + height;
+    slSetSprite(&sprite, JO_MULT_BY_65536(depth));
+#else
+    jo_vdp1_command *cmd = jo_vdp1_create_command();
+    cmd->ctrl = SetUserClipping;
+    cmd->xa = x;
+    cmd->ya = y;
+    cmd->xc = x + width;
+    cmd->yc = y + height;
+    cmd->jo_engine_reserved = depth;
 #endif
 }
 
