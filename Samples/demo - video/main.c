@@ -40,6 +40,17 @@ void                my_video_stopped(void)
     jo_printf(0, 1, "Done.");
 }
 
+/*
+** HOW TO CREATE CPK FILE (Work In Progress)
+**
+** 1) Install ffmpeg: https://www.ffmpeg.org
+** 2) Use the following command line:
+**    ffmpeg -i SOURCE.AVI -c:a libavformat -f film_cpk -s 320x224 -pix_fmt rgb24 SAMPLE.CPK
+**
+** Note: The video glitch on SSF and crash Yabause.
+**       There must still be values ​​to set on ffmpeg to show the video properly (like tbn and tbc).
+*/
+
 void			    jo_main(void)
 {
 	jo_core_init(JO_COLOR_Black);
