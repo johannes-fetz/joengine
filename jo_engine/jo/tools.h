@@ -215,6 +215,12 @@ jo_language     jo_get_current_language(void);
  */
 void            jo_clear_screen(void);
 
+/** @brief Clear single screen line (usefull for printf)
+ *  @param y Vertical line index
+ *  @warning Try to not use it by adding some whitespace at the end of jo_printf
+ */
+void            jo_clear_screen_line(const int y);
+
 /** @brief get current date and time
  *  @param now result
  */
@@ -231,6 +237,23 @@ int			    jo_tools_atoi(const char * restrict str);
  *  @return This function returns the length of str
  */
 int				jo_strlen(const char * restrict str);
+
+/** @brief strcmp implementation
+ *  @param p1 First string
+ *  @param p2 Second string
+ *  @return Compare p1 and p2, returning less than, equal to or greater than zero if p1 is lexicographically less than, equal to or greater than p2.
+ */
+int             jo_strcmp(const char * restrict p1, const char * restrict p2);
+
+/** @brief Determine if two string equals
+ *  @param p1 First string
+ *  @param p2 Second string
+ *  @return True if p1 and p2 is the same
+ */
+static  __jo_force_inline bool        jo_string_equals(const char * restrict p1, const char * restrict p2)
+{
+    return (jo_strcmp(p1, p2) == 0);
+}
 
 /** @brief determine if str end with a specific string
  *  @param str This is the string

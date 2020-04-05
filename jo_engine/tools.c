@@ -210,20 +210,26 @@ jo_language     jo_get_current_language(void)
 #endif
 }
 
-void                    jo_clear_screen(void)
+void                    jo_clear_screen_line(const int y)
 {
     register int        x;
+
+    for (JO_ZERO(x); x < 40; ++x)
+    {
+#if JO_COMPILE_USING_SGL
+        slPrint(" ", slLocate(x, y));
+#else
+        jo_putchar(x, y, ' ', JO_COLOR_Transparent);
+#endif
+    }
+}
+
+void                    jo_clear_screen(void)
+{
     register int        y;
 
     for (JO_ZERO(y); y < 30; ++y)
-        for (JO_ZERO(x); x < 40; ++x)
-        {
-#if JO_COMPILE_USING_SGL
-            slPrint(" ", slLocate(x, y));
-#else
-            jo_putchar(x, y, ' ', JO_COLOR_Transparent);
-#endif
-        }
+        jo_clear_screen_line(y);
 }
 
 /*
@@ -300,6 +306,24 @@ inline bool             jo_endwith(const char * restrict str, const char * restr
             return (false);
     }
     return (true);
+}
+
+int                                 jo_strcmp(const char * restrict p1, const char * restrict p2)
+{
+    register const unsigned char    *s1 = (const unsigned char *)p1;
+    register const unsigned char    *s2 = (const unsigned char *)p2;
+    unsigned char                   c1;
+    unsigned char                   c2;
+
+    do
+    {
+        c1 = (unsigned char)*s1++;
+        c2 = (unsigned char)*s2++;
+        if (!c1)
+            return (c1 - c2);
+    }
+    while (c1 == c2);
+    return (c1 - c2);
 }
 
 void                        jo_memset(const void * const restrict ptr, const int value, unsigned int num)
