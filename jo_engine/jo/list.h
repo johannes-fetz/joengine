@@ -47,6 +47,8 @@ typedef bool (*jo_node_any_callback)(jo_node *node, void *extra);
 /** @brief Node data (4 bytes) */
 typedef union
 {
+    char            c;
+    unsigned char   uc;
     struct
     {
         short       x;
@@ -80,6 +82,14 @@ typedef struct
  */
 void	                            jo_list_init(jo_list * const list);
 
+/** @brief Insert an item on the list at specific index
+ *  @param list List
+ *  @param data Item to insert
+ *  @param index Node index
+ *  @return Created node on the list
+ */
+jo_node                             *jo_list_insert_at(jo_list * const list, const jo_list_data data, const int index);
+
 /** @brief Add an item on the list
  *  @param list List
  *  @param data item to add
@@ -102,6 +112,28 @@ static  __jo_force_inline jo_node   *jo_list_add_ptr(jo_list * const list, void 
  *  @param node_to_delete Node to remove
  */
 void                                jo_list_remove(jo_list * const list, const jo_node * const node_to_delete);
+
+/** @brief Get node at index
+ *  @remarks Returns first or last node if out of bounds
+ *  @param list List
+ *  @param index Node index
+ */
+static  __jo_force_inline jo_node   *jo_list_at(jo_list * const list, int index)
+{
+    jo_node *tmp;
+    for (tmp = list->first; tmp != JO_NULL && index > 0; tmp = tmp->next)
+        --index;
+    return tmp;
+}
+
+/** @brief Remove an item on the list from index
+ *  @param list List
+ *  @param index Node index
+ */
+static  __jo_force_inline void      jo_list_remove_at(jo_list * const list, const int index)
+{
+    jo_list_remove(list, jo_list_at(list, index));
+}
 
 /** @brief Free node pointer and remove the item from the list
  *  @param list List
@@ -237,6 +269,17 @@ static  __jo_force_inline void	    jo_list_remove_all_value(jo_list * const list
 {
     while (jo_list_remove_first_value(list, data))
         ;
+}
+
+/** @brief Append all items on the list to output list
+ *  @param list List
+ *  @param output Output list
+ */
+static  __jo_force_inline void	    jo_list_append(const jo_list * const list, jo_list * const output)
+{
+    jo_node *tmp;
+    for (tmp = list->first; tmp != JO_NULL; tmp = tmp->next)
+        jo_list_add(output, tmp->data);
 }
 
 #endif /* !__JO_LIST_H__ */

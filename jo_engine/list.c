@@ -49,6 +49,41 @@ void	jo_list_init(jo_list * const list)
     list->allocation_behaviour = JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE;
 }
 
+jo_node             *jo_list_insert_at(jo_list * const list, const jo_list_data data, const int index)
+{
+    jo_node         *next_node;
+    jo_node         *node;
+
+    if (index >= list->count)
+        return jo_list_add(list, data);
+    next_node = jo_list_at(list, index);
+    if (next_node == JO_NULL)
+        return jo_list_add(list, data);
+    node = (jo_node *)jo_malloc_with_behaviour(sizeof(jo_node), list->allocation_behaviour);
+    if (node == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        return node;
+    }
+    ++list->count;
+    node->data = data;
+    if (next_node->prev != JO_NULL)
+    {
+        next_node->prev->next = node;
+        node->prev = next_node->prev;
+    }
+    else
+    {
+        node->prev = JO_NULL;
+        list->first = node;
+    }
+    node->next = next_node;
+    next_node->prev = node;
+    return node;
+}
+
 jo_node             *jo_list_add(jo_list * const list, const jo_list_data data)
 {
     jo_node         *node;
