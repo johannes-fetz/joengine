@@ -44,6 +44,9 @@
 		<Unit filename="console.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="console_builtins.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="core.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -69,6 +72,7 @@
 		<Unit filename="jo/colors.h" />
 		<Unit filename="jo/conf.h" />
 		<Unit filename="jo/console.h" />
+		<Unit filename="jo/console_builtins.h" />
 		<Unit filename="jo/core.h" />
 		<Unit filename="jo/effects.h" />
 		<Unit filename="jo/font.h" />

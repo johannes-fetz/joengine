@@ -25,22 +25,20 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+/** @file console_builtins.h
+ *  @author Johannes Fetz
+ *
+ *  @brief Jo Engine Internal Console commands
+ *  @bug No known bugs.
+ */
 
-#include <jo/jo.h>
+#ifndef __JO_CONSOLE_BUILTINS_H__
+# define __JO_CONSOLE_BUILTINS_H__
+
+#ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
+#ifndef JO_COMPILE_NO_CONSOLE_BUILTINS
 
 /*
-** HOW TO USE YOUR KEYBOARD WITH MEDNAFEN
-**
-** 1) Edit \Emulators\mednafen\mednafen.cfg and search "ss.input.port1" and set the value to "keyboard" instead of "gamepad"
-** 2) When the emulator is running press [Ctrl]+[Shift]+[Menu] to toggle keyboard emulation in Mednafen.
-**    Note: If it works, a message "Input Grabbing: On" appears.
-** 3) When your game runs press [Esc]+[Down] with your keyboard or [Start]+[Down] with your gamepad to display the console.
-**
-** Full documentation here: https://mednafen.github.io/documentation/ss.html
-**
-** ▲ Debug console is in work in progress ▲
-** Soon you will be able to load / replace sprite at runtime and many other things with native commands.
-**
 ** Available builtins commands:
 **
 ** bkg <colorname>
@@ -64,44 +62,12 @@
 ** exit
 */
 
-/*
-** Here you can handle your own commands on the console to help you to develop your game easily.
-** The signature is similar to the well-known main(int argc, char **argv) function.
-*/
-bool            my_command_handler(int argc, char **argv, int vertical_output, bool *exit)
-{
-    JO_UNUSED_ARG(argc);
-    if (jo_string_equals(argv[0], "test"))
-    {
-        jo_printf(0, vertical_output, "It works !!!");
-        return (true);
-    }
-    if (jo_string_equals(argv[0], "hide"))
-    {
-        *exit = true; // You can hide the console at anytime by set this boolean to true;
-        return (true);
-    }
-    return (false);
-}
+bool    __jo_console_builtins_command_handler(int argc, char **argv, int vertical_output, bool *exit);
 
-void			my_draw(void)
-{
-    jo_printf(0, 0, "Press [Ctrl]+[Shift]+[Menu]");
-    jo_printf(0, 1, "to toggle keyboard emulation in Mednafen");
-    jo_printf(0, 3, "Then press [Esc]+[Down]");
-    jo_printf(0, 4, "to display the console");
-	jo_sprite_draw3D(0, 0, 0, 500);
-}
+#endif /* JO_COMPILE_NO_CONSOLE_BUILTINS */
+#endif /* !JO_COMPILE_WITH_CONSOLE_SUPPORT */
 
-void			jo_main(void)
-{
-	jo_core_init(JO_COLOR_Black);
-	jo_sprite_add_tga("TEX", "SONIC.TGA", JO_COLOR_Transparent);
-	jo_core_add_callback(my_draw);
-	// Note: JO_COMPILE_WITH_CONSOLE_SUPPORT = 1 must be set on your project Makefile
-	jo_console_register_command_handling(my_command_handler);
-	jo_core_run();
-}
+#endif /* !__JO_CONSOLE_BUILTINS_H__ */
 
 /*
 ** END OF FILE

@@ -50,6 +50,7 @@
 #include "jo/list.h"
 #include "jo/background.h"
 #include "jo/storyboard.h"
+#include "jo/keyboard.h"
 
 /*
 ** INTERNAL MACROS
@@ -595,7 +596,11 @@ void            jo_core_suspend(void)
         jo_wait_vblank_out();
         jo_wait_vblank_in();
 #endif
-        if ((jo_is_pad1_available() && jo_is_pad1_key_down(JO_KEY_START)) || (jo_is_pad2_available() && jo_is_pad2_key_down(JO_KEY_START)))
+        if (jo_is_pad1_available() && (jo_is_pad1_key_down(JO_KEY_START)
+#ifdef JO_COMPILE_WITH_KEYBOARD_SUPPORT
+            || (jo_keyboard_get_special_key() == JO_KEYBOARD_ENTER)
+#endif // JO_COMPILE_WITH_KEYBOARD_SUPPORT
+                                       ))
         {
             jo_printf(0, 27, " ");
             return ;

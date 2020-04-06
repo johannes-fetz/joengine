@@ -287,7 +287,7 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     'L',
     ';',
     'P',
-    '-',
+    '_',
     0,
     0,/*80*/
     0,

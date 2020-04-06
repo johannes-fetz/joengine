@@ -323,9 +323,7 @@ int							jo_sprite_add_image_pack(const char * const sub_dir, const char * cons
     }
     for (JO_ZERO(i); i < count; ++i)
     {
-#ifdef JO_COMPILE_WITH_TGA_SUPPORT
         if (jo_endwith(filenames[i], ".BIN"))
-#endif
             res = jo_sprite_add_bin(sub_dir, filenames[i], transparent_color);
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
         else
