@@ -23,6 +23,8 @@
 					<Add option="-DJO_NTSC_VERSION" />
 					<Add option="-DJO_DEBUG" />
 					<Add option="-DJO_COMPILE_WITH_STORYBOARD_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_KEYBOARD_SUPPORT" />
+					<Add option="-DJO_COMPILE_WITH_CONSOLE_SUPPORT" />
 				</Compiler>
 			</Target>
 		</Build>
@@ -37,6 +39,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="backup.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="console.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="core.c">
@@ -63,6 +68,7 @@
 		<Unit filename="jo/backup.h" />
 		<Unit filename="jo/colors.h" />
 		<Unit filename="jo/conf.h" />
+		<Unit filename="jo/console.h" />
 		<Unit filename="jo/core.h" />
 		<Unit filename="jo/effects.h" />
 		<Unit filename="jo/font.h" />
@@ -71,6 +77,7 @@
 		<Unit filename="jo/image.h" />
 		<Unit filename="jo/input.h" />
 		<Unit filename="jo/jo.h" />
+		<Unit filename="jo/keyboard.h" />
 		<Unit filename="jo/list.h" />
 		<Unit filename="jo/malloc.h" />
 		<Unit filename="jo/map.h" />
@@ -89,6 +96,9 @@
 		<Unit filename="jo/types.h" />
 		<Unit filename="jo/vdp1_command_pipeline.h" />
 		<Unit filename="jo/video.h" />
+		<Unit filename="keyboard.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="list.c">
 			<Option compilerVar="CC" />
 		</Unit>
