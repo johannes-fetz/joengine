@@ -42,7 +42,7 @@
 **
 ** 1) Edit \Emulators\mednafen\mednafen.cfg and search "ss.input.port1" and set the value to "keyboard" instead of "gamepad"
 ** 2) When the emulator is running press [Ctrl]+[Shift]+[Menu] to toggle keyboard emulation in Mednafen.
-** 3) In your game runs press [Esc]+[Down] with your keyboard or [Start]+[Down] with your gamepad to display the console.
+** 3) When your game runs press [Esc]+[Down] with your keyboard or [Start]+[Down] with your gamepad to display the console.
 **
 ** Full documentation here: https://mednafen.github.io/documentation/ss.html
 */

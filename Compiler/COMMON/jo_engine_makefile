@@ -267,7 +267,7 @@ MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp"
 
 MAKEFILE = makefile
 
-.PHONY : all clean
+.PHONY : all clean re
 
 all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3)
 

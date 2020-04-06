@@ -25,17 +25,8 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/** @file keyboard.h
- *  @author Johannes Fetz
- *
- *  @brief Jo Engine Keyboard function prototypes
- *  @bug No known bugs.
- */
 
-#ifndef __JO_KEYBOARD_H__
-# define __JO_KEYBOARD_H__
-
-#ifdef JO_COMPILE_WITH_KEYBOARD_SUPPORT
+#include <jo/jo.h>
 
 /*
 ** HOW TO USE YOUR KEYBOARD WITH MEDNAFEN
@@ -45,65 +36,43 @@
 ** 3) When your game runs press [Esc]+[Down] with your keyboard or [Start]+[Down] with your gamepad to display the console.
 **
 ** Full documentation here: https://mednafen.github.io/documentation/ss.html
+**
+** ▲ Debug console is in work in progress ▲
+** Soon you will be able to load / replace sprite at runtime and many other things with native commands.
 */
 
 /*
-** Internals
+ * Here you can handle your own commands on the console to help you to develop your game easily.
 */
-
-/** @brief Keyboard mapping (internal engine usage)
- *  @warning MC Hammer: don't touch this
- */
-extern char __internal_keyboard_normal_mapping[];
-
-/** @brief Keyboard mapping (internal engine usage)
- *  @warning MC Hammer: don't touch this
- */
-extern char __internal_keyboard_caps_lock_mapping[];
-
-/** @brief Keyboard mapping size (internal engine usage)
- *  @warning MC Hammer: don't touch this
- */
-# define __JO_KEYBOARD_MAPPING_SIZE     (128)
-
-/*
-** Special Keys
-*/
-/** @brief Keyboard special keys
- */
-typedef enum
+bool            my_command_handler(int argc, char **argv, int vertical_output, bool *exit)
 {
-    JO_KEYBOARD_NO_SPECIAL_KEY = 0,
-    JO_KEYBOARD_RIGHT,
-    JO_KEYBOARD_LEFT,
-    JO_KEYBOARD_DOWN,
-    JO_KEYBOARD_UP,
-    JO_KEYBOARD_ESCAPE,
-    JO_KEYBOARD_ENTER,
-    JO_KEYBOARD_BACKSPACE,
-    JO_KEYBOARD_TAB,
-    JO_KEYBOARD_DELETE,
-    JO_KEYBOARD_HOME,
-    JO_KEYBOARD_END
-}           jo_keyboard_special_key;
-
-jo_keyboard_special_key   jo_keyboard_get_special_key(void);
-
-static  __jo_force_inline unsigned char             jo_keyboard_get_char(void)
-{
-    PerKeyBoard                                     *keyboard;
-
-	keyboard = (PerKeyBoard *)&Smpc_Peripheral[0];
-	if ((keyboard->cond & PER_KBD_MK) == 0 || keyboard->code >= __JO_KEYBOARD_MAPPING_SIZE)
-        return (0);
-	if (keyboard->cond & PER_KBD_CL)
-        return (__internal_keyboard_caps_lock_mapping[keyboard->code]);
-    return (__internal_keyboard_normal_mapping[keyboard->code]);
+    if (jo_string_equals(argv[0], "test"))
+    {
+        jo_printf(0, vertical_output, "It works !!!");
+        return (true);
+    }
+    if (jo_string_equals(argv[0], "quit"))
+    {
+        *exit = true; // You can hide the console at anytime by set this boolean to true;
+        return (true);
+    }
+    return (false);
 }
 
-#endif /* !JO_COMPILE_WITH_KEYBOARD_SUPPORT */
+void			my_draw(void)
+{
+	jo_sprite_draw3D(0, 0, 0, 500);
+}
 
-#endif /* !__JO_KEYBOARD_H__ */
+void			jo_main(void)
+{
+	jo_core_init(JO_COLOR_Black);
+	jo_sprite_add_tga("TEX", "SONIC.TGA", JO_COLOR_Transparent);
+	jo_core_add_callback(my_draw);
+	// Note: JO_COMPILE_WITH_CONSOLE_SUPPORT = 1 must be set on your project Makefile
+	jo_console_register_command_handling(my_command_handler);
+	jo_core_run();
+}
 
 /*
 ** END OF FILE

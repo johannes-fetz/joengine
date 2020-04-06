@@ -71,6 +71,7 @@ static void             __jo_console_display_help(const int vertical_output)
 
 static void             __jo_console_handle_command(int argc, char **argv, const int vertical_output, bool *exit)
 {
+    jo_set_printf_color_index(0);
     if (jo_string_equals(argv[0], "exit"))
     {
         *exit = true;
@@ -273,6 +274,7 @@ void                    jo_console_show_dialog(void)
         jo_wait_vblank_in();
 #endif
     }
+    jo_set_printf_color_index(0);
     jo_list_clear(&prompt);
     jo_clear_screen();
 }
