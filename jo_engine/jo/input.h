@@ -30,7 +30,7 @@
  *
  *  @brief Jo Engine Gamepad functions
  *  @bug No known bugs.
- *  @todo analog gamepad, wheel, gun
+ *  @todo analog gamepad, wheel, gun and keyboard
  */
 
 #ifndef __JO_INPUT_H__
@@ -114,7 +114,8 @@ typedef enum
     JoUnsupportedGamepad = 0,
     JoRegularGamepad = 1,
     JoRegularMouse = 2,
-    JoShuttleMouse = 3
+    JoShuttleMouse = 3,
+    JoRegularKeyboard = 4
 }           jo_gamepad_type;
 
 /** @brief Get input type for the given port
@@ -147,6 +148,19 @@ static  __jo_force_inline bool	jo_is_input_key_pressed(const int port, const jo_
     return ((Smpc_Peripheral[port].data & key) == 0);
 #else
     return ((jo_inputs[port].pressed & key) == key);
+#endif
+}
+
+/** @brief Get raw input data for the given port
+ *  @param port Gamepad port
+ *  @return Raw input data
+ */
+static  __jo_force_inline unsigned short	jo_get_raw_input_key_pressed(const int port)
+{
+#if JO_COMPILE_USING_SGL
+    return ((unsigned short)Smpc_Peripheral[port].data);
+#else
+    return ((unsigned short)jo_inputs[port].pressed);
 #endif
 }
 

@@ -32,6 +32,11 @@ ifeq (1,${JO_COMPILE_USING_SGL})
 	CCFLAGS += -DJO_COMPILE_USING_SGL
 endif
 
+ifeq (1,${JO_COMPILE_WITH_KEYBOARD_SUPPORT})
+	CCFLAGS += -DJO_COMPILE_WITH_KEYBOARD_SUPPORT
+	SRCS += $(JO_ENGINE_SRC_DIR)/keyboard.c
+endif
+
 ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
 	ifeq (1,${JO_COMPILE_USING_SGL})
 		LIBS += $(SGLLDR)/LIBCPK.A $(SGLLDR)/LIBSND.A
@@ -161,7 +166,7 @@ else
 endif
 
 SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC_DIR)/physics.c $(JO_ENGINE_SRC_DIR)/core.c \
-		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/tools.c  \
+		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/tools.c \
 		$(JO_ENGINE_SRC_DIR)/sprites.c $(JO_ENGINE_SRC_DIR)/map.c $(JO_ENGINE_SRC_DIR)/list.c $(JO_ENGINE_SRC_DIR)/sprite_animator.c \
 		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/background.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c
 

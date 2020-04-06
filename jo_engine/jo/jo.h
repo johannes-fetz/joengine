@@ -53,6 +53,7 @@
 #include "colors.h"
 #include "list.h"
 #include "input.h"
+#include "keyboard.h"
 #include "fs.h"
 #include "audio.h"
 #include "image.h"

@@ -113,6 +113,8 @@ jo_gamepad_type                 jo_get_input_type(const int port)
         return (JoRegularMouse);
     case PER_ID_ShuttleMouse:
         return (JoShuttleMouse);
+    case PER_ID_StnKeyBoard:
+        return (JoRegularKeyboard);
     default:
         return (JoUnsupportedGamepad);
     }
