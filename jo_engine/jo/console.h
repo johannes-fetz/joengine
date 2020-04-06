@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2017, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -25,55 +25,46 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/** @file jo.h
+/** @file console.h
  *  @author Johannes Fetz
  *
- *  @brief Jo Engine Main Header
+ *  @brief Jo Engine Console function prototypes
  *  @bug No known bugs.
  */
 
-#ifndef __JO_H__
-# define __JO_H__
+#ifndef __JO_CONSOLE_H__
+# define __JO_CONSOLE_H__
+
+#ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
 
 /*
-** INCLUDES
+** HOW TO USE YOUR KEYBOARD WITH MEDNAFEN
+**
+** 1) Edit \Emulators\mednafen\mednafen.cfg and search "ss.input.port1" and set the value to "keyboard" instead of "gamepad"
+** 2) When the emulator is running press [Ctrl]+[Shift]+[Menu] to toggle keyboard emulation in Mednafen.
+** 3) In your game runs press [Esc]+[Down] with your keyboard or [Start]+[Down] with your gamepad to display the console.
+**
+** Full documentation here: https://mednafen.github.io/documentation/ss.html
 */
-#include <stdbool.h>
-#include "sgl_prototypes.h"
-#include "conf.h"
-#include "types.h"
-#include "sega_saturn.h"
-#include "time.h"
-#include "smpc.h"
-#include "core.h"
-#include "math.h"
-#include "tools.h"
-#include "vdp1_command_pipeline.h"
-#include "malloc.h"
-#include "colors.h"
-#include "list.h"
-#include "input.h"
-#include "keyboard.h"
-#include "console.h"
-#include "fs.h"
-#include "audio.h"
-#include "image.h"
-#include "tga.h"
-#include "sprites.h"
-#include "background.h"
-#include "hitbox.h"
-#include "sprite_animator.h"
-#include "map.h"
-#include "mode7.h"
-#include "physics.h"
-#include "3d.h"
-#include "backup.h"
-#include "video.h"
-#include "effects.h"
-#include "font.h"
-#include "storyboard.h"
 
-#endif /* !__JO_H__ */
+/*
+** TYPEDEFS
+*/
+/** @brief Function prototype for jo_console_register_command_handling()
+ *  @return true if the command is known
+ *  @param argc Argument count
+ *  @param argv Arguments
+ *  @param vertical_output Indicate where you can start writing to the console using jo_printf(0, vertical_output, "my output")
+ *  @param exit Set the value behind the pointer to true to exit console
+*/
+typedef bool	(*jo_console_command_callback)(int argc, char **argv, int vertical_output, bool *exit);
+
+void        jo_console_register_command_handling(const jo_console_command_callback callback);
+void        jo_console_show_dialog(void);
+
+#endif /* !JO_COMPILE_WITH_CONSOLE_SUPPORT */
+
+#endif /* !__JO_CONSOLE_H__ */
 
 /*
 ** END OF FILE

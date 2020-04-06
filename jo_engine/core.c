@@ -44,6 +44,7 @@
 #include "jo/colors.h"
 #include "jo/sprites.h"
 #include "jo/input.h"
+#include "jo/console.h"
 #include "jo/malloc.h"
 #include "jo/video.h"
 #include "jo/list.h"
@@ -543,7 +544,6 @@ void            __jo_core_error(char *message, const char *function)
         jo_printf_with_color(0, 17, JO_COLOR_INDEX_Yellow, "Dynamic memory usage: %d%%  ", usage);
     else
         jo_printf_with_color(0, 17, JO_COLOR_INDEX_Green, "Dynamic memory usage: %d%%  ", usage);
-
     usage = jo_sprite_usage_percent();
     if (usage > 75)
         jo_printf_with_color(0, 18, JO_COLOR_INDEX_Red, "Sprite memory usage:  %d%%  ", usage);
@@ -617,6 +617,11 @@ void			        jo_core_run(void)
     #else
         /* TODO slUnitMatrix replacement */
     #endif
+#endif
+
+#ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
+    if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_DOWN) && jo_is_pad1_key_pressed(JO_KEY_START))
+        jo_console_show_dialog();
 #endif
 
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT

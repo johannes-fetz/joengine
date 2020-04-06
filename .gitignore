@@ -10,3 +10,4 @@ bios.bin
 logs.txt
 JoMapEditor/JoMapEditor.ini
 Doxygen/output
+Emulators/mednafen/*
