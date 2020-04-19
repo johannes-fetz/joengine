@@ -90,10 +90,18 @@ typedef jo_pos3D    jo_vertice;
 /** @brief Camera structure */
 typedef struct
 {
-    FIXED       viewpoint[XYZ];
-    FIXED       target[XYZ];
-    ANGLE       z_angle;
-}               jo_camera;
+    union
+    {
+        FIXED       viewpoint[XYZ];
+        jo_pos3D    viewpoint_pos;
+    };
+    union
+    {
+        FIXED       target[XYZ];
+        jo_pos3D    target_pos;
+    };
+    ANGLE           z_angle;
+}                   jo_camera;
 
 /** @brief Quadrilateral shape structure */
 typedef struct
@@ -126,9 +134,9 @@ bool    jo_3d_create_sprite_quad(const int sprite_id);
  */
 static  __jo_force_inline void      jo_3d_camera_set_viewpoint(jo_camera * const cam, const int x, const int y, const int z)
 {
-    cam->viewpoint[X] = x * 65536;
-    cam->viewpoint[Y] = y * 65536;
-    cam->viewpoint[Z] = z * 65536;
+    cam->viewpoint_pos.x = JO_MULT_BY_65536(x);
+    cam->viewpoint_pos.y = JO_MULT_BY_65536(y);
+    cam->viewpoint_pos.z = JO_MULT_BY_65536(z);
 }
 
 /** @brief Set the target of the camera (where the scene is located)
@@ -137,11 +145,11 @@ static  __jo_force_inline void      jo_3d_camera_set_viewpoint(jo_camera * const
  *  @param y Y coord
  *  @param z Z coord
  */
-static  __jo_force_inline void      jo_3d_camera_set_target(jo_camera * const cam, const int  x, const int  y, const int  z)
+static  __jo_force_inline void      jo_3d_camera_set_target(jo_camera * const cam, const int x, const int y, const int z)
 {
-    cam->target[X] = JO_MULT_BY_65536(x);
-    cam->target[Y] = JO_MULT_BY_65536(y);
-    cam->target[Z] = JO_MULT_BY_65536(z);
+    cam->target_pos.x = JO_MULT_BY_65536(x);
+    cam->target_pos.y = JO_MULT_BY_65536(y);
+    cam->target_pos.z = JO_MULT_BY_65536(z);
 }
 
 /** @brief Set the angle of the camera
@@ -292,9 +300,9 @@ static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, c
 static  __jo_force_inline void      jo_3d_light(const int x, const int y, const int z)
 {
     FIXED p[XYZ];
-    p[0] = JO_MULT_BY_65536(x);
-    p[1] = JO_MULT_BY_65536(y);
-    p[2] = JO_MULT_BY_65536(z);
+    p[X] = JO_MULT_BY_65536(x);
+    p[Y] = JO_MULT_BY_65536(y);
+    p[Z] = JO_MULT_BY_65536(z);
     slLight(p);
 }
 
