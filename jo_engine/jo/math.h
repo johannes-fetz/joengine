@@ -35,6 +35,11 @@
 #ifndef __JO_MATH_H__
 # define __JO_MATH_H__
 
+/*
+** ▲ NOTE ABOUT FIXED NUMBER ▲
+** Only values between -32768‬.0 and 32767.0 can be converted to fixed number.
+*/
+
 #ifdef JO_COMPILE_WITH_SINUS_TABLE
 
 /** @brief Sinus lookup table (internal engine usage) use jo_sin() instead
@@ -58,6 +63,16 @@ extern int JoCosLookupTable[360];
 # define JO_FIXED_0					(0)
 /** @brief Fixed floating point value for 1 */
 # define JO_FIXED_1					(65536)
+/** @brief Fixed floating point value for 2 */
+# define JO_FIXED_2                 (‭131072‬)
+/** @brief Fixed floating point value for 4 */
+# define JO_FIXED_4                 (‭262144‬)
+/** @brief Fixed floating point value for 8 */
+# define JO_FIXED_8                 (‭524288‬)
+/** @brief Fixed floating point value for 16 */
+# define JO_FIXED_16                (‭1048576‬)
+/** @brief Fixed floating point value for 32 */
+# define JO_FIXED_32                (2097152)
 /** @brief Fixed floating point value for 120 */
 # define JO_FIXED_120				(7864320)
 /** @brief Fixed floating point value for 150 */
@@ -230,7 +245,7 @@ extern int JoCosLookupTable[360];
  */
 # define JO_PERCENT_USED(TOTAL, FREE)       (int)(100.0f / (float)(TOTAL) * (float)((TOTAL) - (FREE)))
 
-/** @brief Square computation (x�)
+/** @brief Square computation (x²)
  *  @param A operand
  */
 # define JO_SQUARE(A)                       ((A) * (A))
@@ -1052,6 +1067,8 @@ static __jo_force_inline short jo_direction_to_angle(const jo_8_directions direc
     {
     case LEFT:
         return (180);
+    case RIGHT:
+        return (0);
     case UP:
         return (270);
     case DOWN:
