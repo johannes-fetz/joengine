@@ -38,6 +38,12 @@
 
 # define JO_INPUT_MAX_DEVICE        (8)
 
+#if JO_COMPILE_USING_SGL
+# define __JO_KEY_PRESSED(PORT, KEY)    ((Smpc_Peripheral[PORT].data & KEY) == 0)
+#else
+# define __JO_KEY_PRESSED(PORT, KEY)    ((jo_inputs[PORT].pressed & KEY) == KEY)
+#endif
+
 #if !JO_COMPILE_USING_SGL
 
 /** @brief Input structure (internal engine usage)
@@ -144,11 +150,36 @@ static  __jo_force_inline bool	jo_is_input_available(const int port)
  */
 static  __jo_force_inline bool	jo_is_input_key_pressed(const int port, const jo_gamepad_keys key)
 {
-#if JO_COMPILE_USING_SGL
-    return ((Smpc_Peripheral[port].data & key) == 0);
-#else
-    return ((jo_inputs[port].pressed & key) == key);
-#endif
+    return __JO_KEY_PRESSED(port, key);
+}
+
+/** @brief Get the direction pressed for the given port
+ *  @param port Gamepad port
+ *  @return jo_8_directions
+ */
+static  __jo_force_inline jo_8_directions	jo_get_input_direction_pressed(const int port)
+{
+    if (__JO_KEY_PRESSED(port, JO_KEY_UP))
+    {
+        if (__JO_KEY_PRESSED(port, JO_KEY_LEFT))
+            return (UP_LEFT);
+        if (__JO_KEY_PRESSED(port, JO_KEY_RIGHT))
+            return (UP_RIGHT);
+        return (UP);
+    }
+    if (__JO_KEY_PRESSED(port, JO_KEY_DOWN))
+    {
+        if (__JO_KEY_PRESSED(port, JO_KEY_LEFT))
+            return (DOWN_LEFT);
+        if (__JO_KEY_PRESSED(port, JO_KEY_RIGHT))
+            return (DOWN_RIGHT);
+        return (DOWN);
+    }
+    if (__JO_KEY_PRESSED(port, JO_KEY_LEFT))
+        return (LEFT);
+    if (__JO_KEY_PRESSED(port, JO_KEY_RIGHT))
+        return (RIGHT);
+    return (NONE);
 }
 
 /** @brief Get raw input data for the given port
