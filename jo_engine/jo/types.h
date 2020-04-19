@@ -181,6 +181,7 @@ typedef struct
 /** @brief 8 directions definition */
 typedef enum
 {
+    NONE,
     LEFT,
     RIGHT,
     UP,

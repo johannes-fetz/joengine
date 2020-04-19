@@ -84,7 +84,19 @@ typedef enum
     JO_KEYBOARD_TAB,
     JO_KEYBOARD_DELETE,
     JO_KEYBOARD_HOME,
-    JO_KEYBOARD_END
+    JO_KEYBOARD_END,
+    JO_KEYBOARD_F1,
+    JO_KEYBOARD_F2,
+    JO_KEYBOARD_F3,
+    JO_KEYBOARD_F4,
+    JO_KEYBOARD_F5,
+    JO_KEYBOARD_F6,
+    JO_KEYBOARD_F7,
+    JO_KEYBOARD_F8,
+    JO_KEYBOARD_F9,
+    JO_KEYBOARD_F10,
+    JO_KEYBOARD_F11,
+    JO_KEYBOARD_F12
 }           jo_keyboard_special_key;
 
 jo_keyboard_special_key   jo_keyboard_get_special_key(void);

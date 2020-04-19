@@ -70,6 +70,30 @@ jo_keyboard_special_key   jo_keyboard_get_special_key(void)
             return (JO_KEYBOARD_HOME);
         case 136:
             return (JO_KEYBOARD_END);
+        case 5:
+            return (JO_KEYBOARD_F1);
+        case 6:
+            return (JO_KEYBOARD_F2);
+        case 4:
+            return (JO_KEYBOARD_F3);
+        case 12:
+            return (JO_KEYBOARD_F4);
+        case 3:
+            return (JO_KEYBOARD_F5);
+        case 11:
+            return (JO_KEYBOARD_F6);
+        case 131:
+            return (JO_KEYBOARD_F7);
+        case 10:
+            return (JO_KEYBOARD_F8);
+        case 1:
+            return (JO_KEYBOARD_F9);
+        case 9:
+            return (JO_KEYBOARD_F10);
+        case 120:
+            return (JO_KEYBOARD_F11);
+        case 7:
+            return (JO_KEYBOARD_F12);
         default:
             return (JO_KEYBOARD_NO_SPECIAL_KEY);
     }
@@ -150,8 +174,8 @@ char __internal_keyboard_normal_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     '9',/*70*/
     0,
     0,
-    0,
-    0,
+    '.',
+    '/',
     'l',
     ';',
     'p',
@@ -159,18 +183,18 @@ char __internal_keyboard_normal_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     0,
     0,/*80*/
     0,
+    '\'',
     0,
-    0,
-    0,
+    '[',
     '=',
     0,
     0,
     0,
     0,
     0,/*90*/
+    ']',
     0,
-    0,
-    0,
+    '\\',
     0,
     0,
     0,
@@ -223,7 +247,7 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     0,
     0,
     0,
-    '`',
+    '~',
     0,
     0,
     0,
@@ -231,7 +255,7 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     0,
     0,/*20*/
     'Q',
-    '1',
+    '!',
     0,
     0,
     0,
@@ -239,15 +263,15 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     'S',
     'A',
     'W',
-    '2',/*30*/
+    '@',/*30*/
     0,
     0,
     'C',
     'X',
     'D',
     'E',
-    '4',
-    '3',
+    '$',
+    '#',
     0,
     0,/*40*/
     ' ',
@@ -255,7 +279,7 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     'F',
     'T',
     'R',
-    '5',
+    '%',
     0,
     0,
     'N',
@@ -263,46 +287,46 @@ char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     'H',
     'G',
     'Y',
-    '6',
+    '^',
     0,
     0,
     0,
     'M',
     'J',
     'U',/*60*/
-    '7',
-    '8',
+    '&',
+    '*',
     0,
     0,
-    ',',
+    '<',
     'K',
     'I',
     'O',
-    '0',
-    '9',/*70*/
+    ')',
+    '(',/*70*/
     0,
     0,
-    0,
-    0,
+    '>',
+    '?',
     'L',
-    ';',
+    ':',
     'P',
     '_',
     0,
     0,/*80*/
     0,
+    '"',
     0,
-    0,
-    0,
-    '=',
+    '{',
+    '+',
     0,
     0,
     0,
     0,
     0,/*90*/
+    '}',
     0,
-    0,
-    0,
+    '|',
     0,
     0,
     0,
