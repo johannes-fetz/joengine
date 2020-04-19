@@ -4,7 +4,7 @@ command -v yabause >/dev/null 2>&1 || { echo "yabause is not installed.\
 
 if [ -f sl_coff.iso ];
 then
-   yabause -a -i sl_coff.cue
+   yabause -a -i sl_coff.iso
 else
    echo "Please compile first !" >&2
 fi
