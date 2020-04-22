@@ -54,15 +54,13 @@
 #define         JO_TGA_32_BITS                              (32)
 #define			JO_TGA_SUPPORTED_FORMAT(M)			        ((M) == JO_TGA_24_BITS || (M) == JO_TGA_32_BITS)
 
-#define			JO_TGA_CONVERT_COLOR(TGA, IDX)		        (JO_DIV_BY_8((*((unsigned char *)(TGA + IDX)))) & 0x1f)
+#define			JO_TGA_CONVERT_COLOR(TGA, IDX)		        JO_COLOR_SATURN(*((unsigned char *)(TGA + IDX)))
 
-#define         JO_TGA_RGB(R, G, B)		                    (0x8000 | ((B)<<10) | ((G)<<5) | (R))
-
-#define			JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_TGA_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
+#define			JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 1) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3)) + ((Y) * (WIDTH * 3))))
 
-#define			JO_TGA_32BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_TGA_RGB(JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 2) + ((Y) * JO_MULT_BY_4(WIDTH))), \
+#define			JO_TGA_32BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 2) + ((Y) * JO_MULT_BY_4(WIDTH))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 1) + ((Y) * JO_MULT_BY_4(WIDTH))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 0) + ((Y) * JO_MULT_BY_4(WIDTH))))
 

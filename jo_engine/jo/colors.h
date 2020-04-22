@@ -82,7 +82,11 @@
 
 # define JO_COLOR_Transparent	(0)
 
-# define JO_COLOR_RGB(R,G,B)	(0x8000 | ((B) << 10) | ((G) << 5) | (R))
+# define JO_COLOR_SATURN(C)         (JO_DIV_BY_8(C) & 0x1f)
+
+# define JO_COLOR_SATURN_RGB(R,G,B)	((jo_color)(0x8000 | ((B) << 10) | ((G) << 5) | (R)))
+
+# define JO_COLOR_RGB(R,G,B)	    JO_COLOR_SAT_RGB(JO_COLOR_SATURN(R), JO_COLOR_SATURN(G), JO_COLOR_SATURN(B))
 
 #endif /* !__JO_COLORS_H__ */
 

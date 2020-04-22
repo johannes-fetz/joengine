@@ -259,25 +259,26 @@ void                        jo_sprite_free_from(const int sprite_id)
     __jo_sprite_id = sprite_id - 1;
 }
 
-void	    jo_set_gouraud_shading_colors(const jo_color topleft_color,
-        const jo_color topright_color,
-        const jo_color bottomright_color,
-        const jo_color bottomleft_color)
+void	            jo_set_gouraud_shading_colors(const jo_color topleft_color,
+                                            const jo_color topright_color,
+                                            const jo_color bottomright_color,
+                                            const jo_color bottomleft_color)
 {
-    unsigned short *ptr;
+    jo_color        *ptr;
+
     ++__jo_gouraud_shading_runtime_index;
-    ptr = (unsigned short *)(void *)(JO_VDP1_VRAM + 0x70000 + JO_MULT_BY_8(__jo_gouraud_shading_runtime_index));
+    ptr = (jo_color *)(JO_VDP1_VRAM + 0x70000 + JO_MULT_BY_8(__jo_gouraud_shading_runtime_index));
     *ptr = topleft_color;
     *(ptr + 1) = topright_color;
     *(ptr + 2) = bottomright_color;
     *(ptr + 3) = bottomleft_color;
 }
 
-void     jo_set_gouraud_shading_brightness(const unsigned char brightness)
+void                jo_set_gouraud_shading_brightness(const unsigned char brightness)
 {
-    jo_color    color;
+    jo_color        color;
 
-    color = JO_COLOR_RGB(brightness, brightness, brightness);
+    color = JO_COLOR_SATURN_RGB(brightness, brightness, brightness);
     jo_set_gouraud_shading_colors(color, color, color, color);
 }
 
