@@ -659,6 +659,10 @@ static  __jo_force_inline bool      jo_3d_window(const int left, const int top, 
  */
 static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
 {
+#if JO_DEBUG
+    if (angle < 10 || angle > 160)
+        jo_core_error("Valid angle range is 10 to 160");
+#endif
     slPerspective(DEGtoANG(angle));
 }
 

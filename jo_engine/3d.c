@@ -52,6 +52,7 @@ void                                jo_3d_init(void)
 {
     register int		i;
 
+    jo_3d_display_level(3);
     for (JO_ZERO(i); i < JO_MAX_SPRITE; ++i)
         __jo_sprite_quad[i] = JO_NULL;
 }

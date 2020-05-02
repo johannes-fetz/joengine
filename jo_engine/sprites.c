@@ -199,12 +199,10 @@ static int                  __internal_jo_sprite_add(void * const data, const un
     picture = &__jo_sprite_pic[__jo_sprite_id];
     picture->color_mode = cmode;
     picture->index = __jo_sprite_id;
-    picture->data = data;
-
-    jo_dma_copy(data,
-                (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr)),
-                (unsigned int)((JO_MULT_BY_4(texture->width * texture->height)) >> (cmode)));
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
+
+    jo_dma_copy(data, picture->data, (unsigned int)((JO_MULT_BY_4(width * height)) >> cmode));
+
     return (__jo_sprite_id);
 }
 
