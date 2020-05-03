@@ -57,7 +57,7 @@
 ** GLOBALS
 */
 
-jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_FIXED_1, No_Window};
+jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_NO_ZOOM, No_Window};
 jo_pos3D                __jo_sprite_pos = {0, 0, 120};
 jo_texture_definition   __jo_sprite_def[JO_MAX_SPRITE];
 jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
@@ -328,17 +328,17 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
     FIXED               sgl_pos[XYZS];
     SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
 
-    sgl_pos[2] = JO_MULT_BY_65536(pos->z);
-    sgl_pos[3] = __jo_sprite_attributes.fixed_scale;
+    sgl_pos[Z] = JO_MULT_BY_65536(pos->z);
+    sgl_pos[S] = __jo_sprite_attributes.fixed_scale;
     if (centered_style_coordinates)
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x);
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y);
+        sgl_pos[X] = JO_MULT_BY_65536(pos->x);
+        sgl_pos[Y] = JO_MULT_BY_65536(pos->y);
     }
     else
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+        sgl_pos[X] = JO_MULT_BY_65536(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+        sgl_pos[Y] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)
@@ -351,7 +351,7 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
     unsigned int        sprite_width;
     unsigned int        sprite_height;
 
-    if (__jo_sprite_attributes.fixed_scale != JO_FIXED_1)
+    if (__jo_sprite_attributes.fixed_scale != JO_NO_ZOOM)
     {
         cmd = jo_vdp1_create_command();
         cmd->ctrl = DrawScaledSprite;
@@ -427,7 +427,7 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     cos_theta = jo_cos(angle);
     sin_theta = jo_sin(angle);
 
-    if (__jo_sprite_attributes.fixed_scale != JO_FIXED_1)
+    if (__jo_sprite_attributes.fixed_scale != JO_NO_ZOOM)
     {
         sprite_width = JO_DIV_BY_65536(__jo_sprite_def[sprite_id].width * __jo_sprite_attributes.fixed_scale);
         sprite_height = JO_DIV_BY_65536(__jo_sprite_def[sprite_id].height * __jo_sprite_attributes.fixed_scale);

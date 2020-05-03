@@ -44,6 +44,9 @@
 #include "math.h"
 #include "colors.h"
 
+/** @brief Value used to keep the original scale */
+# define JO_NO_ZOOM             (65535)
+
 /** @brief Current displayed sprite attribute (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
@@ -306,7 +309,7 @@ static  __jo_force_inline void	jo_sprite_change_sprite_scale(const float scale)
  */
 static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
 {
-    __jo_sprite_attributes.fixed_scale = JO_FIXED_1;
+    __jo_sprite_attributes.fixed_scale = JO_NO_ZOOM;
 }
 
 /** @brief Set user clipping area
