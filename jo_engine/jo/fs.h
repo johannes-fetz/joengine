@@ -51,12 +51,12 @@
 ** TYPEDEFS
 */
 /** @brief Function prototype for () */
-typedef void	(*jo_fs_async_read_callback)(char *contents, int length, int optional_token);
+typedef void                                (*jo_fs_async_read_callback)(char *contents, int length, int optional_token);
 
 /** @brief Change the current directory (equivalent of Unix cd command)
  *  @param sub_dir Sub directory name (use JO_PARENT_DIR for parent directory)
  */
-void            jo_fs_cd(const char *const sub_dir);
+void                                        jo_fs_cd(const char *const sub_dir);
 
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
@@ -64,23 +64,34 @@ void            jo_fs_cd(const char *const sub_dir);
  *  @param len return the file length
  *  @return The stream
  */
-char*			jo_fs_read_file_in_dir(const char *const filename, const char *const sub_dir, int *len);
+char*                                       jo_fs_read_file_in_dir(const char *const filename, const char *const sub_dir, int *len);
+
+/** @brief Read a file on the CD and put the contents to "buf"
+ *  @param filename Filename (upper case and shorter as possible like "A.TXT")
+ *  @param buf Output buffer
+ *  @param len return the file length
+ *  @return The stream
+ */
+char                                        *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len);
 
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param len return the file length
  *  @return The stream
  */
-char*			jo_fs_read_file(const char *const filename, int *len);
+static  __jo_force_inline char*             jo_fs_read_file(const char *const filename, int *len)
+{
+    return (jo_fs_read_file_ptr(filename, 0, len));
+}
 
-/** @brief Read a file on the CD asynchronously and put the contents to "dest"
+/** @brief Read a file on the CD asynchronously and put the contents to "buf"
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param callback Callback called when the file is loaded
  *  @param optional_token User value to identify the file
- *  @param dest Output
+ *  @param buf Output buffer
  *  @return true if succeed
  */
-bool            jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *dest);
+bool                                        jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf);
 
 /** @brief Read a file on the CD asynchronously
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
@@ -88,7 +99,7 @@ bool            jo_fs_read_file_async_ptr(const char *const filename, jo_fs_asyn
  *  @param optional_token User value to identify the file
  *  @return true if succeed
  */
-static  __jo_force_inline bool            jo_fs_read_file_async(const char *const filename, jo_fs_async_read_callback callback, int optional_token)
+static  __jo_force_inline bool              jo_fs_read_file_async(const char *const filename, jo_fs_async_read_callback callback, int optional_token)
 {
     return (jo_fs_read_file_async_ptr(filename, callback, optional_token, 0));
 }
@@ -98,12 +109,12 @@ static  __jo_force_inline bool            jo_fs_read_file_async(const char *cons
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @return true if succeed
  */
-bool            jo_fs_open(jo_file * const file, const char *const filename);
+bool                                        jo_fs_open(jo_file * const file, const char *const filename);
 
 /** @brief Close a file
  *  @param file Pointer to an allocated and valid jo_file struct
  */
-void            jo_fs_close(jo_file * const file);
+void                                        jo_fs_close(jo_file * const file);
 
 /** @brief Read bytes from a file
  *  @param file Pointer to an allocated and valid jo_file struct
@@ -111,14 +122,14 @@ void            jo_fs_close(jo_file * const file);
  *  @param nbytes number of bytes to read
  *  @return Number of bytes read (<= 0 means EOF)
  */
-int             jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes);
+int                                         jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes);
 
 /** @brief Seek forward from current position of a file
  *  @param file Pointer to an allocated and valid jo_file struct
  *  @param nbytes number of bytes to skip
  *  @return true if succeed
  */
-bool            jo_fs_seek_forward(jo_file * const file, unsigned int nbytes);
+bool                                        jo_fs_seek_forward(jo_file * const file, unsigned int nbytes);
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 

@@ -94,6 +94,8 @@ void	jo_audio_play_sound(jo_sound * const sound);
  */
 void	jo_audio_stop_sound(const jo_sound * const sound);
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
 /** @brief Load PCM file from CD
  *  @param filename Pcm filename (example: A.PCM)
  *  @param mode PCM audio mode (JoSoundMono16Bit, etc)
@@ -104,6 +106,19 @@ void	jo_audio_stop_sound(const jo_sound * const sound);
  *  @return true if succeed otherwise false
  */
 bool     jo_audio_load_pcm(const char * const filename, const jo_sound_mode mode, jo_sound *sound);
+
+/** @brief Load PCM file from CD asynchronously
+ *  @param filename Pcm filename (example: A.PCM)
+ *  @param mode PCM audio mode (JoSoundMono16Bit, etc)
+ *  @param sound Sound definition (output)
+ *  @remarks To convert any audio file to PCM under Linux or Windows => http://ffmpeg.org
+ *  @remarks ffmpeg -i A.WAV -f s8 -ar 44100 A.PCM
+ *  @remarks ffmpeg -i A.MP3 -f s8 -ac 1 -ar 8000 A.PCM
+ *  @return true if succeed otherwise false
+ */
+bool     jo_audio_load_pcm_async(const char * const filename, const jo_sound_mode mode, jo_sound *sound);
+
+#endif
 
 /** @brief Free pcm sound loaded with jo_audio_load_pcm()
  *  @param sound Sound definition

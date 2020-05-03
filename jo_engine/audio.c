@@ -200,6 +200,32 @@ void	            jo_audio_stop_sound(const jo_sound * const sound)
     slPCMOff(&__jo_internal_pcm[(int)sound->current_playing_channel]);
 }
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
+static void         __jo_audio_load_pcm_async_callback(char *contents, int length, int optional_token)
+{
+    jo_sound        *sound;
+
+    sound = (jo_sound *)optional_token;
+    sound->data_length = length;
+    sound->data = contents;
+}
+
+bool                jo_audio_load_pcm_async(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
+{
+#ifdef JO_DEBUG
+    if (sound == JO_NULL)
+    {
+        jo_core_error("sound is null");
+        return (false);
+    }
+#endif
+    sound->mode = mode;
+    if (!jo_fs_read_file_async(filename, __jo_audio_load_pcm_async_callback, (int)sound))
+        return (false);
+    return true;
+}
+
 bool                jo_audio_load_pcm(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
 {
     char            *pcm;
@@ -219,6 +245,8 @@ bool                jo_audio_load_pcm(const char * const filename, const jo_soun
     sound->data = pcm;
     return (true);
 }
+
+#endif
 
 #endif /* !JO_COMPILE_WITH_AUDIO_SUPPORT */
 

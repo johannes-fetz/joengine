@@ -144,7 +144,7 @@ void                    jo_fs_do_background_jobs(void)
     }
 }
 
-bool                    jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *dest)
+bool                    jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf)
 {
     register int        i;
     int			        fid;
@@ -180,8 +180,8 @@ bool                    jo_fs_read_file_async_ptr(const char *const filename, jo
         }
         GFS_GetFileSize(__jo_fs_background_jobs[i].gfs, &sctsize, &nsct, &lastsize);
         __jo_fs_background_jobs[i].file_length = (sctsize * (nsct - 1) + lastsize);
-        if (dest != JO_NULL)
-            __jo_fs_background_jobs[i].contents = dest;
+        if (buf != JO_NULL)
+            __jo_fs_background_jobs[i].contents = buf;
         else if ((__jo_fs_background_jobs[i].contents = jo_malloc(sctsize * nsct + 1)) == JO_NULL)
         {
 #ifdef JO_DEBUG
@@ -245,7 +245,7 @@ static int		        jo_fs_get_file_size(int file_id)
     return (sctsize * (nsct - 1) + lastsize);
 }
 
-char*					jo_fs_read_file(const char *const filename, int *len)
+char                    *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len)
 {
     int			        fid;
     int			        fsize;
@@ -270,7 +270,9 @@ char*					jo_fs_read_file(const char *const filename, int *len)
     fsize = jo_fs_get_file_size(fid);
     if (fsize < 0)
         return (JO_NULL);
-    if ((stream = (char *)jo_malloc_with_behaviour((fsize + 1) * sizeof(*stream), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    if (buf != JO_NULL)
+        stream = (char *)buf;
+    else if ((stream = (char *)jo_malloc_with_behaviour((fsize + 1) * sizeof(*stream), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: Out of memory", filename);
@@ -281,7 +283,8 @@ char*					jo_fs_read_file(const char *const filename, int *len)
     {
         if (!retry)
         {
-            jo_free(stream);
+            if (buf == JO_NULL)
+                jo_free(stream);
 #ifdef JO_DEBUG
             jo_core_error("%s: Read failed", filename);
 #endif
