@@ -1,10 +1,10 @@
 /*
- *     ƒ\ƒtƒgƒEƒFƒAƒ‰ƒCƒuƒ‰ƒŠ
+ *     Software library
  *
  *     Copyright (c) 1994 SEGA
  *
- *  Library: ‚b‚c’ÊMƒCƒ“ƒ^ƒtƒF[ƒXiCDCj
- *  Module : CDCƒ‰ƒCƒuƒ‰ƒŠ—pƒwƒbƒ_ƒtƒ@ƒCƒ‹
+ *  Library: CD communication interface (CDC)
+ *  Module : Header file for CDC library
  *  File   : sega_cdc.h
  *  Date   : 1995-03-31
  *  Version: 1.20
@@ -12,183 +12,183 @@
  *
  */
 
-/* ‘½dƒCƒ“ƒNƒ‹[ƒh‚Ö‚Ì‘Î‰ */
+/* Support for multiple includes */
 #ifndef SEGA_CDC_H
 #define SEGA_CDC_H
 
 /*******************************************************************
-*       ƒCƒ“ƒNƒ‹[ƒhƒtƒ@ƒCƒ‹
+*       Include files
 *******************************************************************/
 #include    "SEGA_XPT.H"
 
 /*******************************************************************
-*       ’è”ƒ}ƒNƒ
+*       Constant macros
 *******************************************************************/
 
-/* Š„‚è‚İ—vˆöƒŒƒWƒXƒ^ŠÖŒWiHIRQREQ, HIRQMSKj‚Ìƒrƒbƒg–¼ */
-#define CDC_HIRQ_CMOK   0x0001  /* bit0 FƒRƒ}ƒ“ƒh”­s‰Â”\ */
-#define CDC_HIRQ_DRDY   0x0002  /* bit1 Fƒf[ƒ^“]‘—€”õŠ®—¹ */
-#define CDC_HIRQ_CSCT   0x0004  /* bit2 F‚PƒZƒNƒ^“Ç‚İ‚İŠ®—¹ */
-#define CDC_HIRQ_BFUL   0x0008  /* bit3 F‚b‚cƒoƒbƒtƒ@ƒtƒ‹ */
-#define CDC_HIRQ_PEND   0x0010  /* bit4 F‚b‚cÄ¶‚ÌI—¹ */
-#define CDC_HIRQ_DCHG   0x0020  /* bit5 FƒfƒBƒXƒNŒğŠ·‚Ì”­¶ */
-#define CDC_HIRQ_ESEL   0x0040  /* bit6 FƒZƒŒƒNƒ^İ’èˆ—‚ÌI—¹ */
-#define CDC_HIRQ_EHST   0x0080  /* bit7 FƒzƒXƒg“üo—Íˆ—‚ÌI—¹ */
-#define CDC_HIRQ_ECPY   0x0100  /* bit8 F•¡Ê^ˆÚ“®ˆ—‚ÌI—¹ */
-#define CDC_HIRQ_EFLS   0x0200  /* bit9 Fƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€ˆ—‚ÌI—¹ */
-#define CDC_HIRQ_SCDQ   0x0400  /* bit10FƒTƒuƒR[ƒh‚p‚ÌvXVŠ®—¹ */
-#define CDC_HIRQ_MPED   0x0800  /* bit11FMPEGŠÖ˜Aˆ—‚ÌI—¹ */
-#define CDC_HIRQ_MPCM   0x1000  /* bit12FMPEG“®ì•s’è‹æŠÔ‚ÌI—¹ */
-#define CDC_HIRQ_MPST   0x2000  /* bit13FMPEGŠ„‚è‚İƒXƒe[ƒ^ƒX‚Ì’Ê’m */
+/* Bit name of the interrupt factor register relationship (HIRQREQ, HIRQMSK) */
+#define CDC_HIRQ_CMOK   0x0001  /* Bit0â€”command-issue capable */
+#define CDC_HIRQ_DRDY   0x0002  /* Bit1â€”Data transfer ready */
+#define CDC_HIRQ_CSCT   0x0004  /* Bit2: 1 sector read complete */
+#define CDC_HIRQ_BFUL   0x0008  /* Bit3: CD buffer full */
+#define CDC_HIRQ_PEND   0x0010  /* Bit4: End of CD play */
+#define CDC_HIRQ_DCHG   0x0020  /* Bit5: Disk replacement occurred */
+#define CDC_HIRQ_ESEL   0x0040  /* Bit6: End of selector configuration process */
+#define CDC_HIRQ_EHST   0x0080  /* Bit7: End of host I/O processing */
+#define CDC_HIRQ_ECPY   0x0100  /* Bit8: End of copy/move process */
+#define CDC_HIRQ_EFLS   0x0200  /* Bit9: End of file system processing */
+#define CDC_HIRQ_SCDQ   0x0400  /* Bit 10: Update of subcode Q complete */
+#define CDC_HIRQ_MPED   0x0800  /* Bit11: MPEG-related processing is finished */
+#define CDC_HIRQ_MPCM   0x1000  /* Bit12: End of MPEG motion indefinite interval */
+#define CDC_HIRQ_MPST   0x2000  /* Bit13: MPEG interrupt status notification */
     
-/* ƒoƒbƒtƒ@‹æ‰æ‚ÌƒZƒNƒ^”ÍˆÍiƒZƒNƒ^ˆÊ’u‚ÆƒZƒNƒ^”j‚Ì“Áêw’è */
-/* i‚¢‚¸‚ê‚à‰ºˆÊ16ƒrƒbƒg‚ª—LŒø‚ÅA“à•”“I‚É‚Í0xffff‚Æ“¯’lj */
-#define CDC_SPOS_END    -1  /* ‹æ‰æÅŒã‚ÌƒZƒNƒ^ˆÊ’u‚ğ¦‚· */
-#define CDC_SNUM_END    -1  /* w’è¾¸ÀˆÊ’u‚©‚ç‹æ‰æÅŒã‚Ü‚Å‚Ì¾¸À”‚ğ¦‚· */
+/* Special specification of the sector range (sector position and number of sectors) of the buffer compartment */
+/* (Both have lower 16 bits enabled and internally equivalent to 0xffff) */
+#define CDC_SPOS_END    -1  /* Indicates the sector position at the end of the compartment */
+#define CDC_SNUM_END    -1  /* Indicates the number of sectors from the specified sector position to the end of the compartment */
 
-/* ‚»‚Ì‘¼‚Ì“Áêw’è */
-#define CDC_PARA_DFL    0       /* ƒpƒ‰ƒ[ƒ^‚ÌÈ—ª’lw’è */
-#define CDC_PARA_NOCHG  -1      /* ƒpƒ‰ƒ[ƒ^‚Ì–¢•ÏXw’è */
-#define CDC_NUL_SEL     0xff    /* ƒZƒŒƒNƒ^”Ô†‚Ì“Áê’l */
-#define CDC_NUL_FID     -1      /* ƒtƒ@ƒCƒ‹¯•Êq‚Ì“Áê’l (0xffffff) */
+/* Other special specifications */
+#define CDC_PARA_DFL    0       /* Parameter abbreviation */
+#define CDC_PARA_NOCHG  -1      /* Unspecified change of the parameter */
+#define CDC_NUL_SEL     0xff    /* Special value of the selector number */
+#define CDC_NUL_FID     -1      /* Special value of the file identifier (0xffffff) */
 
-/* ‚b‚cƒtƒ‰ƒO */
-#define CDC_CDFLG_ROM   0x80    /* CD-ROMƒfƒR[ƒh’† */
+/* CD Flag */
+#define CDC_CDFLG_ROM   0x80    /* CD-ROM decoding */
 
-/* ƒn[ƒhƒEƒFƒAƒtƒ‰ƒOiƒn[ƒhƒEƒFƒAî•ñ“àj */
-#define CDC_HFLAG_MPEG  0x02    /* MPEG‚ ‚è */
-#define CDC_HFLAG_HERR  0x80    /* ƒn[ƒhƒEƒFƒAƒGƒ‰[”­¶ */
+/* Hardware Flag (in hardware information) */
+#define CDC_HFLAG_MPEG  0x02    /* MPEG available */
+#define CDC_HFLAG_HERR  0x80    /* Hardware error occurred */
 
-/* Ä¶ƒ‚[ƒhi‚b‚cÄ¶ƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_PM_DFL          0x00    /* Ä¶ƒ‚[ƒh‚ÌÈ—ª’l */
-#define CDC_PM_REP_NOCHG    0x7f    /* Å‘åƒŠƒs[ƒg‰ñ”‚ğ•ÏX‚µ‚È‚¢ */
-#define CDC_PM_PIC_NOCHG    0x80    /* ƒsƒbƒNƒAƒbƒvˆÊ’u‚ğ•ÏX‚µ‚È‚¢ */
-#define CDC_PM_NOCHG        -1      /* Ä¶ƒ‚[ƒh‚ğ•ÏX‚µ‚È‚¢ (0xff) */
+/* Play mode (in the CD play parameter) */
+#define CDC_PM_DFL          0x00    /* Play mode abbreviation */
+#define CDC_PM_REP_NOCHG    0x7f    /* Do not change the maximum number of repeats */
+#define CDC_PM_PIC_NOCHG    0x80    /* Do not change pickup position */
+#define CDC_PM_NOCHG        -1      /* Do not change playback mode (0xff) */
 
-/* ƒTƒuƒ‚[ƒh */
-#define CDC_SM_EOR      0x01    /* ƒŒƒR[ƒhÅŒã‚ÌƒZƒNƒ^ */
-#define CDC_SM_VIDEO    0x02    /* ƒrƒfƒIƒZƒNƒ^ */
-#define CDC_SM_AUDIO    0x04    /* ƒI[ƒfƒBƒIƒZƒNƒ^ */
-#define CDC_SM_DATA     0x08    /* ƒf[ƒ^ƒZƒNƒ^ */
-#define CDC_SM_TRIG     0x10    /* ƒgƒŠƒK‚n‚m */
-#define CDC_SM_FORM     0x20    /* ƒtƒH[ƒ€ƒrƒbƒgi1:Form2,  0:Form1j*/
-#define CDC_SM_RT       0x40    /* ƒŠƒAƒ‹ƒ^ƒCƒ€ƒZƒNƒ^ */
-#define CDC_SM_EOF      0x80    /* ƒtƒ@ƒCƒ‹ÅŒã‚ÌƒZƒNƒ^ */
+/* Submode */
+#define CDC_SM_EOR      0x01    /* The last sector in the record */
+#define CDC_SM_VIDEO    0x02    /* Video sector */
+#define CDC_SM_AUDIO    0x04    /* Audio sector */
+#define CDC_SM_DATA     0x08    /* Data sectors */
+#define CDC_SM_TRIG     0x10    /* Trigger on */
+#define CDC_SM_FORM     0x20    /* Form bits (1:Form2, 0:Form1)*/
+#define CDC_SM_RT       0x40    /* Real-time sectors */
+#define CDC_SM_EOF      0x80    /* The last sector of the file */
 
-/* ƒtƒ@ƒCƒ‹ƒAƒgƒŠƒrƒ…[ƒgiƒtƒ@ƒCƒ‹î•ñ“àj */
-#define CDC_ATR_DIRFG   0x02    /* ƒfƒBƒŒƒNƒgƒŠ‚Å‚ ‚é */
-#define CDC_ATR_FORM1   0x08    /* Form1ƒZƒNƒ^‚ğŠÜ‚Ş */
-#define CDC_ATR_FORM2   0x10    /* Form2ƒZƒNƒ^‚ğŠÜ‚Ş */
-#define CDC_ATR_INTLV   0x20    /* ƒCƒ“ƒ^ƒŠ[ƒuƒZƒNƒ^‚ğŠÜ‚Ş */
-#define CDC_ATR_CDDA    0x40    /* CD-DAƒtƒ@ƒCƒ‹ */
-#define CDC_ATR_DIRXA   0x80    /* ƒfƒBƒŒƒNƒgƒŠƒtƒ@ƒCƒ‹ */
+/* File attributes (in file information) */
+#define CDC_ATR_DIRFG   0x02    /* Directory */
+#define CDC_ATR_FORM1   0x08    /* Contains Form1 sectors */
+#define CDC_ATR_FORM2   0x10    /* Contains Form2 sectors */
+#define CDC_ATR_INTLV   0x20    /* Contains interleaved sectors */
+#define CDC_ATR_CDDA    0x40    /* CD-DA files */
+#define CDC_ATR_DIRXA   0x80    /* Directory files */
 
-/* ƒXƒ^ƒ“ƒoƒCƒ^ƒCƒ€ */
-#define CDC_STNBY_MIN   60      /* Å¬’l */
-#define CDC_STNBY_MAX   900     /* Å‘å’l */
+/* Standby time */
+#define CDC_STNBY_MIN   60      /* Minimum value */
+#define CDC_STNBY_MAX   900     /* Maximum value */
 
-/* ƒTƒuƒR[ƒhƒtƒ‰ƒO */
-#define CDC_SCD_PACK    0x01    /* ƒpƒbƒNƒf[ƒ^ƒGƒ‰[ */
-#define CDC_SCD_OVER    0x02    /* ƒI[ƒo[ƒ‰ƒ“ƒGƒ‰[ */
+/* The subcode flag */
+#define CDC_SCD_PACK    0x01    /* Pack data error */
+#define CDC_SCD_OVER    0x02    /* Overrun error */
 
-/* ‚b‚cƒuƒƒbƒN‚Ì“]‘—ƒ[ƒh” */
-#define CDC_DEND_ERR    0xffffff    /* ƒf[ƒ^“]‘—‚ÅƒGƒ‰[‚ª”­¶ */
+/* Number of CD block transfer words */
+#define CDC_DEND_ERR    0xffffff    /* Error in data transfer */
 
-/* Àƒf[ƒ^ƒTƒCƒY */
-#define CDC_ACTSIZ_ERR  0xffffff    /* ŒvZ‚ğÀs‚Å‚«‚È‚©‚Á‚½ */
+/* Actual data size */
+#define CDC_ACTSIZ_ERR  0xffffff    /* The calculation could not be performed */
 
-/* ƒtƒŒ[ƒ€ƒAƒhƒŒƒXŒŸõŒ‹‰ÊiƒZƒNƒ^ˆÊ’u‚ÆƒtƒŒ[ƒ€ƒAƒhƒŒƒXj */
-#define CDC_SPOS_ERR    0xffff      /* ŒŸõ‚ÅƒGƒ‰[‚ª”­¶ */
-#define CDC_FAD_ERR     0xffffff    /* ŒŸõ‚ğÀs‚Å‚«‚È‚©‚Á‚½ */
+/* Frame Address Search Results (Sector Location and Frame Address) */
+#define CDC_SPOS_ERR    0xffff      /* Search fails */
+#define CDC_FAD_ERR     0xffffff    /* The search could not be performed */
 
-/* ƒ}ƒXƒNƒrƒbƒgƒpƒ^[ƒ“ */
-#define CDC_STC_MSK     0x0f    /* ƒXƒe[ƒ^ƒXƒR[ƒh */
+/* Mask bit pattern */
+#define CDC_STC_MSK     0x0f    /* Status code */
 
 /*******************************************************************
-*       —ñ‹“’è”
+*       Enumeration constants
 *******************************************************************/
 
-/* ƒGƒ‰[ƒR[ƒh */
+/* Error code */
 enum CdcErrCode {
-    CDC_ERR_OK = OK,    /* ŠÖ”‚ª³íI—¹‚µ‚½ */
+    CDC_ERR_OK = OK,    /* Function completed successfully */
 
-    CDC_ERR_CMDBUSY=-1, /* ƒRƒ}ƒ“ƒhI—¹ƒtƒ‰ƒO‚ª‚P‚É‚È‚Á‚Ä‚¢‚È‚¢ */
-    CDC_ERR_CMDNG  =-2, /* ƒRƒ}ƒ“ƒh”­sACMOKƒtƒ‰ƒO‚ª‚P‚É‚È‚Á‚Ä‚¢‚È‚¢ */
-    CDC_ERR_TMOUT  =-3, /* ƒ^ƒCƒ€ƒAƒEƒgiÚ½Îßİ½‘Ò‚¿AÃŞ°À“]‘—€”õ‘Ò‚¿j*/
-    CDC_ERR_PUT    =-4, /* ‘‚«‚İ€”õ‚Å‹ó‚«ƒZƒNƒ^‚ğŠm•Û‚Å‚«‚È‚©‚Á‚½ */
-    CDC_ERR_REJECT =-5, /* ƒRƒ}ƒ“ƒh‚É‘Î‚·‚éƒŒƒXƒ|ƒ“ƒX‚ªREJECT‚Æ‚È‚Á‚½ */
-    CDC_ERR_WAIT   =-6, /* ƒRƒ}ƒ“ƒh‚É‘Î‚·‚éƒŒƒXƒ|ƒ“ƒX‚ªWAIT‚Æ‚È‚Á‚½ */
-    CDC_ERR_TRNS   =-7, /* ƒf[ƒ^“]‘—ƒTƒCƒY‚ªˆÙí‚Å‚ ‚é */
-    CDC_ERR_PERI   =-8  /* ’èŠúƒŒƒXƒ|ƒ“ƒX‚ğæ“¾‚Å‚«‚È‚©‚Á‚½ */
+    CDC_ERR_CMDBUSY=-1, /* Command exit flag is not 1 */
+    CDC_ERR_CMDNG  =-2, /* When issuing the command, the CMOK flag is not 1 */
+    CDC_ERR_TMOUT  =-3, /* Timeout (waiting for response, waiting for data transfer)*/
+    CDC_ERR_PUT    =-4, /* Write preparation failed to free sectors */
+    CDC_ERR_REJECT =-5, /* The response to the command is reject */
+    CDC_ERR_WAIT   =-6, /* The response to the command was wait */
+    CDC_ERR_TRNS   =-7, /* The data transfer size is abnormal */
+    CDC_ERR_PERI   =-8  /* Failed to get periodic response */
 };
 
-/* ƒXƒe[ƒ^ƒX */
+/* Status */
 enum CdcStatus {
-    /* ƒXƒe[ƒ^ƒXƒR[ƒhi‚b‚cƒhƒ‰ƒCƒuó‘Ôj */
-    CDC_ST_BUSY     = 0x00,     /* ó‘Ô‘JˆÚ’† */
-    CDC_ST_PAUSE    = 0x01,     /* ƒ|[ƒY’†iˆê’â~j */
-    CDC_ST_STANDBY  = 0x02,     /* ƒXƒ^ƒ“ƒoƒCiƒhƒ‰ƒCƒu’â~ó‘Ôj */
-    CDC_ST_PLAY     = 0x03,     /* ‚b‚cÄ¶’† */
-    CDC_ST_SEEK     = 0x04,     /* ƒV[ƒN’† */
-    CDC_ST_SCAN     = 0x05,     /* ƒXƒLƒƒƒ“Ä¶’† */
-    CDC_ST_OPEN     = 0x06,     /* ƒgƒŒƒC‚ªŠJ‚¢‚Ä‚¢‚é */
-    CDC_ST_NODISC   = 0x07,     /* ƒfƒBƒXƒN‚ª‚È‚¢ */
-    CDC_ST_RETRY    = 0x08,     /* ƒŠ[ƒhƒŠƒgƒ‰ƒCˆ—’† */
-    CDC_ST_ERROR    = 0x09,     /* ƒŠ[ƒhƒf[ƒ^ƒGƒ‰[‚ª”­¶‚µ‚½ */
-    CDC_ST_FATAL    = 0x0a,     /* ’v–½“IƒGƒ‰[‚ª”­¶‚µ‚½ */
+    /* Status code (CD drive status) */
+    CDC_ST_BUSY     = 0x00,     /* State transition in progress */
+    CDC_ST_PAUSE    = 0x01,     /* Pause */
+    CDC_ST_STANDBY  = 0x02,     /* Standby (Drive down) */
+    CDC_ST_PLAY     = 0x03,     /* Playing CD */
+    CDC_ST_SEEK     = 0x04,     /* Seeking */
+    CDC_ST_SCAN     = 0x05,     /* Scanning playing */
+    CDC_ST_OPEN     = 0x06,     /* Tray is open */
+    CDC_ST_NODISC   = 0x07,     /* No disc available */
+    CDC_ST_RETRY    = 0x08,     /* Read retry processing */
+    CDC_ST_ERROR    = 0x09,     /* A read data error has occurred */
+    CDC_ST_FATAL    = 0x0a,     /* A fatal error has occurred */
 
-    /* ‚»‚Ì‘¼ */
-    CDC_ST_PERI     = 0x20,     /* ’èŠúƒŒƒXƒ|ƒ“ƒX */
-    CDC_ST_TRNS     = 0x40,     /* ƒf[ƒ^“]‘——v‹‚ ‚è */
+    /* Other */
+    CDC_ST_PERI     = 0x20,     /* Periodic response */
+    CDC_ST_TRNS     = 0x40,     /* Data transfer request present */
     CDC_ST_WAIT     = 0x80,     /* WAIT */
     CDC_ST_REJECT   = 0xff      /* REJECT */
 };
 
-/* ˆÊ’uƒ^ƒCƒviÄ¶AƒV[ƒN‚É‚¨‚¯‚é‚b‚cˆÊ’uƒpƒ‰ƒ[ƒ^‚Åw’èj */
+/* Position type (play, specified by CD position parameter during seek) */
 enum CdcPosType {
-    CDC_PTYPE_DFL,          /* È—ª’l‚Ìw’è */
-    CDC_PTYPE_FAD,          /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒXw’è */
-    CDC_PTYPE_TNO,          /* ƒgƒ‰ƒbƒN^ƒCƒ“ƒfƒbƒNƒXw’è */
-    CDC_PTYPE_NOCHG,        /* –¢•ÏX‚Ìw’èiİ’è’l‚ğ•ÏX‚µ‚È‚¢j */
+    CDC_PTYPE_DFL,          /* Specify an abbreviation */
+    CDC_PTYPE_FAD,          /* Frame addressing */
+    CDC_PTYPE_TNO,          /* Track \u003e Index */
+    CDC_PTYPE_NOCHG,        /* Unchanged designation (do not change settings) */
 
     CDC_PTYPE_END
 };
 
-/* “]‘—€”õ‘Ò‚¿ƒ^ƒCƒviƒf[ƒ^“]‘—‚Ì€”õ‘Ò‚¿‚Åw’èj */
+/* Ready to transfer type (specified in Ready to transfer data) */
 enum CdcDrdyType {
-    CDC_DRDY_GET,           /* ƒf[ƒ^‚ğæ‚èo‚·iCDÌŞÛ¯¸¨Î½Äj */
-    CDC_DRDY_PUT,           /* ƒf[ƒ^‚ğ‘‚«‚ŞiÎ½Ä¨CDÌŞÛ¯¸j */
+    CDC_DRDY_GET,           /* Eject data (CD block â†’ host) */
+    CDC_DRDY_PUT,           /* Write data (Host â†’ CD Block) */
 
     CDC_DRDY_END
 };
 
-/* ƒXƒLƒƒƒ“•ûŒü */
+/* Scan direction */
 enum CdcScanDir {
-    CDC_SCAN_FWD = 0x00,    /* ‘‘—‚èÄ¶ */
-    CDC_SCAN_RVS = 0x01     /* ‘–ß‚µÄ¶ */
+    CDC_SCAN_FWD = 0x00,    /* Fast forward playback */
+    CDC_SCAN_RVS = 0x01     /* Play back quickly */
 };
 
-/* ƒZƒNƒ^’· */
+/* Sector length */
 enum CdcSctLen {
-    CDC_SLEN_2048  = 0,     /* 2048ƒoƒCƒg‚Æ2324ƒoƒCƒgiƒ†[ƒUƒf[ƒ^j*/
-    CDC_SLEN_2336  = 1,     /* 2336ƒoƒCƒgiƒTƒuƒwƒbƒ_‚Ü‚Åj*/
-    CDC_SLEN_2340  = 2,     /* 2340ƒoƒCƒgiƒwƒbƒ_‚Ü‚Åj*/
-    CDC_SLEN_2352  = 3,     /* 2352ƒoƒCƒgiƒZƒNƒ^‘S‘Ìj*/
-    CDC_SLEN_NOCHG = -1     /* İ’è‚ğ•ÏX‚µ‚È‚¢ (0xff) */
+    CDC_SLEN_2048  = 0,     /* 2048 bytes and 2324 bytes (user data)*/
+    CDC_SLEN_2336  = 1,     /* 2336 bytes (up to subheader)*/
+    CDC_SLEN_2340  = 2,     /* 2340 bytes (up to header)*/
+    CDC_SLEN_2352  = 3,     /* 2352 bytes (entire sector)*/
+    CDC_SLEN_NOCHG = -1     /* Do not change settings (0xff) */
 };
 
-/* •¡Ê^ˆÚ“®ƒGƒ‰[î•ñ */
+/* Copy/Move Error Information */
 enum CdcCopyErr {
-    CDC_COPY_OK   = 0,      /* ³íI—¹ */
-    CDC_COPY_NG   = 1,      /* ƒGƒ‰[”­¶ */
-    CDC_COPY_BUSY = 0xff    /* •¡Ê^ˆÚ“®ˆ—’† */
+    CDC_COPY_OK   = 0,      /* Successful completion */
+    CDC_COPY_NG   = 1,      /* Error occurred */
+    CDC_COPY_BUSY = 0xff    /* Copying/moving in progress */
 };
 
 /*******************************************************************
-*       \‘¢‘ÌƒAƒNƒZƒXˆ—ƒ}ƒNƒ
+*       Structure Access Processing Macro
 *******************************************************************/
 
-/* ‚b‚cƒXƒe[ƒ^ƒXî•ñ */
+/* CD status information */
 #define CDC_STAT_STATUS(stat)       ((stat)->status)
 #define CDC_STAT_FLGREP(stat)       ((stat)->report.flgrep)
 #define CDC_STAT_CTLADR(stat)       ((stat)->report.ctladr)
@@ -196,20 +196,20 @@ enum CdcCopyErr {
 #define CDC_STAT_IDX(stat)          ((stat)->report.idx)
 #define CDC_STAT_FAD(stat)          ((stat)->report.fad)
 
-/* ƒn[ƒhƒEƒFƒAî•ñ */
+/* Hardware information */
 #define CDC_HW_HFLAG(hw)            ((hw)->hflag)
 #define CDC_HW_VER(hw)              ((hw)->ver)
 #define CDC_HW_MPVER(hw)            ((hw)->mpver)
 #define CDC_HW_DRV(hw)              ((hw)->drv)
 #define CDC_HW_REV(hw)              ((hw)->rev)
 
-/* ‚b‚cˆÊ’uƒpƒ‰ƒ[ƒ^ */
+/* CD position parameters */
 #define CDC_POS_PTYPE(pos)          ((pos)->ptype)
 #define CDC_POS_FAD(pos)            ((pos)->pbody.fad)
 #define CDC_POS_TNO(pos)            ((pos)->pbody.trkidx.tno)
 #define CDC_POS_IDX(pos)            ((pos)->pbody.trkidx.idx)
 
-/* ‚b‚cÄ¶ƒpƒ‰ƒ[ƒ^ */
+/* CD playback parameters */
 #define CDC_PLY_START(ply)          ((ply)->start)
 #define CDC_PLY_END(ply)            ((ply)->end)
 #define CDC_PLY_PMODE(ply)          ((ply)->pmode)
@@ -224,7 +224,7 @@ enum CdcCopyErr {
 #define CDC_PLY_ETNO(ply)           CDC_POS_TNO(&CDC_PLY_END(ply))
 #define CDC_PLY_EIDX(ply)           CDC_POS_IDX(&CDC_PLY_END(ply))
 
-/* ƒTƒuƒwƒbƒ_ğŒ */
+/* Sub-header condition */
 #define CDC_SUBH_FN(subh)           ((subh)->fn)
 #define CDC_SUBH_CN(subh)           ((subh)->cn)
 #define CDC_SUBH_SMMSK(subh)        ((subh)->smmsk)
@@ -232,14 +232,14 @@ enum CdcCopyErr {
 #define CDC_SUBH_CIMSK(subh)        ((subh)->cimsk)
 #define CDC_SUBH_CIVAL(subh)        ((subh)->cival)
 
-/* ƒZƒNƒ^î•ñ */
+/* Sector information */
 #define CDC_SCT_FAD(sct)            ((sct)->fad)
 #define CDC_SCT_FN(sct)             ((sct)->fn)
 #define CDC_SCT_CN(sct)             ((sct)->cn)
 #define CDC_SCT_SM(sct)             ((sct)->sm)
 #define CDC_SCT_CI(sct)             ((sct)->ci)
 
-/* ƒtƒ@ƒCƒ‹î•ñ */
+/* File information */
 #define CDC_FILE_FAD(file)          ((file)->fad)
 #define CDC_FILE_SIZE(file)         ((file)->size)
 #define CDC_FILE_UNIT(file)         ((file)->unit)
@@ -248,101 +248,101 @@ enum CdcCopyErr {
 #define CDC_FILE_ATR(file)          ((file)->atr)
 
 /*******************************************************************
-*       ˆ—ƒ}ƒNƒ
+*       Processing macros
 *******************************************************************/
 
-/* ‚b‚cƒXƒe[ƒ^ƒXî•ñ‚©‚çƒXƒe[ƒ^ƒXƒR[ƒh‚ğæ“¾ */
+/* Obtain the status code from the CD status information */
 #define CDC_GET_STC(stat)       (CDC_STAT_STATUS(stat) & CDC_STC_MSK)
 
-/* ‚b‚cƒXƒe[ƒ^ƒXî•ñ‚©‚çƒŠƒs[ƒg‰ñ”‚ğæ“¾ */
+/* Retrieve the number of repeats from the CD status information */
 #define CDC_GET_REPEAT(stat)    (CDC_STAT_FLGREP(stat) & 0x0f)
 
-/* MPEG‚ªg—p‰Â”\‚©’²‚×‚éiTRUEFg—p‰Â”\AFALSEFg—p•s‰Âj */
-/* ’ˆÓF‚±‚Ìƒ}ƒNƒ‚Íƒ}ƒjƒ…ƒAƒ‹‚É‹Lq‚µ‚È‚¢ */
+/* Check if MPEG is available (TRUE: Enabled; FALSE: Disabled) */
+/* Note: This macro is not written in the manual */
 #define CDC_IS_MPEG_ENA(hw)     (CDC_HW_MPVER(hw) != 0)
 
 /*******************************************************************
-*       ƒf[ƒ^Œ^‚ÌéŒ¾
+*       Data type declaration
 *******************************************************************/
 
-/* ‚b‚cƒXƒe[ƒ^ƒXî•ñiƒXƒe[ƒ^ƒX{‚b‚cƒŒƒ|[ƒgj */
+/* CD Status Information (Status + CD Report) */
 typedef struct {
-    Uint8   status;         /* ƒXƒe[ƒ^ƒX */
-    struct {                /* ‚b‚cƒŒƒ|[ƒg */
-        Uint8   flgrep;     /* ‚b‚cƒtƒ‰ƒO‚ÆƒŠƒs[ƒg‰ñ” */
-        Uint8   ctladr;     /* CONTROL/ADRƒoƒCƒg */
-        Uint8   tno;        /* ƒgƒ‰ƒbƒN”Ô† */
-        Uint8   idx;        /* ƒCƒ“ƒfƒbƒNƒX”Ô† */
-        Sint32  fad;        /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒX */
+    Uint8   status;         /* Status */
+    struct {                /* CD reports */
+        Uint8   flgrep;     /* CD flag and number of repeats */
+        Uint8   ctladr;     /* Control/ADR bytes */
+        Uint8   tno;        /* Track number */
+        Uint8   idx;        /* Index number */
+        Sint32  fad;        /* Frame address */
     } report;
 } CdcStat;
 
-/* ƒn[ƒhƒEƒFƒAî•ñ */
+/* Hardware information */
 typedef struct {
-    Uint8   hflag;          /* ƒn[ƒhƒEƒFƒAƒtƒ‰ƒO */
-    Uint8   ver;            /* ‚b‚cƒuƒƒbƒN‚Ìƒo[ƒWƒ‡ƒ“î•ñ */
-    Uint8   mpver;          /* MPEG‚Ìƒo[ƒWƒ‡ƒ“î•ñ */
-    Uint8   drv;            /* ‚b‚cƒhƒ‰ƒCƒuî•ñ */
-    Uint8   rev;            /* ‚b‚cƒuƒƒbƒN‚ÌƒŠƒrƒWƒ‡ƒ“î•ñ */
+    Uint8   hflag;          /* Hardware flags */
+    Uint8   ver;            /* About CD blocks */
+    Uint8   mpver;          /* MPEG version information */
+    Uint8   drv;            /* CD drive information */
+    Uint8   rev;            /* Revision information for the CD block */
 } CdcHw;
 
-/* ‚b‚cˆÊ’uƒpƒ‰ƒ[ƒ^ */
+/* CD position parameters */
 typedef struct {
-    Sint32 ptype;           /* ˆÊ’uƒ^ƒCƒviˆÊ’uƒpƒ‰ƒ[ƒ^‚Ìí—Ş‚Ìw’èj*/
+    Sint32 ptype;           /* Position type (specify the type of position parameter)*/
     union {
-        Sint32 fad;         /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒXAƒZƒNƒ^” */
+        Sint32 fad;         /* Frame address, number of sectors */
         struct {
-            Uint8 tno;      /* ƒgƒ‰ƒbƒN”Ô† */
-            Uint8 idx;      /* ƒCƒ“ƒfƒbƒNƒX”Ô† */
+            Uint8 tno;      /* Track number */
+            Uint8 idx;      /* Index number */
         } trkidx;
     } pbody;
 } CdcPos;
 
-/* ‚b‚cÄ¶ƒpƒ‰ƒ[ƒ^ */
+/* CD playback parameters */
 typedef struct {
-    CdcPos  start;          /* ŠJnˆÊ’u */
-    CdcPos  end;            /* I—¹ˆÊ’u */
-    Uint8   pmode;          /* Ä¶ƒ‚[ƒhiËß¯¸±¯ÌßˆÚ“®AŒJ‚è•Ô‚µ‰ñ”j*/
+    CdcPos  start;          /* Start position */
+    CdcPos  end;            /* End position */
+    Uint8   pmode;          /* Play mode (pickup movement, repeat count)*/
 } CdcPly;
 
-/* ƒTƒuƒwƒbƒ_ğŒ */
+/* Sub-header condition */
 typedef struct {
-    Uint8   fn;             /* ƒtƒ@ƒCƒ‹”Ô† */
-    Uint8   cn;             /* ƒ`ƒƒƒlƒ‹”Ô† */
-    Uint8   smmsk;          /* ƒTƒuƒ‚[ƒh‚Ìƒ}ƒXƒNƒpƒ^[ƒ“ */
-    Uint8   smval;          /* ƒTƒuƒ‚[ƒh‚Ì”äŠr’l */
-    Uint8   cimsk;          /* ƒR[ƒfƒBƒ“ƒOî•ñ‚Ìƒ}ƒXƒNƒpƒ^[ƒ“ */
-    Uint8   cival;          /* ƒR[ƒfƒBƒ“ƒOî•ñ‚Ì”äŠr’l */
+    Uint8   fn;             /* File number */
+    Uint8   cn;             /* Channel number */
+    Uint8   smmsk;          /* Mask pattern in submode */
+    Uint8   smval;          /* Comparison value for the submode */
+    Uint8   cimsk;          /* The mask pattern of coding information */
+    Uint8   cival;          /* The comparison value for coding information */
 } CdcSubh;
 
-/* ƒZƒNƒ^î•ñ */
+/* Sector information */
 typedef struct {
-    Sint32  fad;            /* ƒtƒŒ[ƒ€ƒAƒhƒŒƒX */
-    Uint8   fn;             /* ƒtƒ@ƒCƒ‹”Ô† */
-    Uint8   cn;             /* ƒ`ƒƒƒlƒ‹”Ô† */
-    Uint8   sm;             /* ƒTƒuƒ‚[ƒh */
-    Uint8   ci;             /* ƒR[ƒfƒBƒ“ƒOî•ñ */
+    Sint32  fad;            /* Frame address */
+    Uint8   fn;             /* File number */
+    Uint8   cn;             /* Channel number */
+    Uint8   sm;             /* Submode */
+    Uint8   ci;             /* Coding information */
 } CdcSct;
 
-/* ƒtƒ@ƒCƒ‹î•ñ */
+/* File information */
 typedef struct {
-    Sint32  fad;            /* ƒtƒ@ƒCƒ‹æ“ªƒtƒŒ[ƒ€ƒAƒhƒŒƒX */
-    Sint32  size;           /* ƒtƒ@ƒCƒ‹ƒTƒCƒYiƒoƒCƒg”j */
-    Uint8   unit;           /* ƒtƒ@ƒCƒ‹ƒ†ƒjƒbƒgƒTƒCƒY */
-    Uint8   gap;            /* ƒMƒƒƒbƒvƒTƒCƒY */
-    Uint8   fn;             /* ƒtƒ@ƒCƒ‹”Ô† */
-    Uint8   atr;            /* ƒtƒ@ƒCƒ‹ƒAƒgƒŠƒrƒ…[ƒg */
+    Sint32  fad;            /* File start frame address */
+    Sint32  size;           /* File size in bytes */
+    Uint8   unit;           /* File unit size */
+    Uint8   gap;            /* Gap size */
+    Uint8   fn;             /* File number */
+    Uint8   atr;            /* File attributes */
 } CdcFile;
 
 /*******************************************************************
-*       •Ï”éŒ¾
+*       Variable declaration
 *******************************************************************/
 
 /*******************************************************************
-*       ŠÖ”éŒ¾
+*       Function declaration
 *******************************************************************/
 
-/* cdc_cmn.c */
+/* CDP_cmn.c */
 Sint32  CDC_GetCurStat(CdcStat *stat);
 Sint32  CDC_GetLastStat(CdcStat *stat);
 Sint32  CDC_GetHwInfo(CdcHw *hw);
@@ -354,21 +354,21 @@ Sint32  CDC_DataReady(Sint32 dtype);
 Sint32  CDC_DataEnd(Sint32 *cdwnum);
 Sint32  CDC_GetPeriStat(CdcStat *stat);
 
-/* cdc_drv.c */
+/* CDP_drv.c */
 Sint32  CDC_CdPlay(CdcPly *ply);
 Sint32  CDC_CdSeek(CdcPos *pos);
 Sint32  CDC_CdScan(Sint32 scandir);
 
-/* cdc_scd.c */
+/* CDP_SCD.c. */
 Sint32  CDC_TgetScdQch(Uint16 *qcode);
 Sint32  CDC_TgetScdRwch(Uint16 *rwcode, Sint32 *scdflag);
 
-/* cdc_dev.c */
+/* CDP_dev.c */
 Sint32  CDC_CdSetCon(Sint32 filtno);
 Sint32  CDC_CdGetCon(Sint32 *filtno);
 Sint32  CDC_CdGetLastBuf(Sint32 *bufno);
 
-/* cdc_sel.c */
+/* CDP_sel.c. */
 Sint32  CDC_SetFiltRange(Sint32 filtno, Sint32 fad, Sint32 fasnum);
 Sint32  CDC_GetFiltRange(Sint32 filtno, Sint32 *fad, Sint32 *fasnum);
 Sint32  CDC_SetFiltSubh(Sint32 filtno, CdcSubh *subh);
@@ -380,7 +380,7 @@ Sint32  CDC_SetFiltCon(Sint32 filtno, Sint32 cflag, Sint32 bufno,
 Sint32  CDC_GetFiltCon(Sint32 filtno, Sint32 *bufno, Sint32 *flnout);
 Sint32  CDC_ResetSelector(Sint32 rflag, Sint32 bufno);
 
-/* cdc_bif.c */
+/* CDP_bif.c. */
 Sint32  CDC_GetBufSiz(Sint32 *totalsiz, Sint32 *bufnum, Sint32 *freesiz);
 Sint32  CDC_GetSctNum(Sint32 bufno, Sint32 *snum);
 Sint32  CDC_CalActSiz(Sint32 bufno, Sint32 spos, Sint32 snum);
@@ -389,7 +389,7 @@ Sint32  CDC_GetSctInfo(Sint32 bufno, Sint32 spos, CdcSct *sct);
 Sint32  CDC_ExeFadSearch(Sint32 bufno, Sint32 spos, Sint32 fad);
 Sint32  CDC_GetFadSearch(Sint32 *bufno, Sint32 *spos, Sint32 *fad);
 
-/* cdc_bio.c */
+/* CDP_bio.c. */
 Sint32  CDC_SetSctLen(Sint32 getslen, Sint32 putslen);
 Sint32  CDC_GetSctData(Sint32 bufno, Sint32 spos, Sint32 snum);
 Sint32  CDC_DelSctData(Sint32 bufno, Sint32 spos, Sint32 snum);
@@ -401,7 +401,7 @@ Sint32  CDC_MoveSctData(Sint32 srcbn, Sint32 spos, Sint32 snum,
                         Sint32 dstfln);
 Sint32  CDC_GetCopyErr(Sint32 *cpyerr);
 
-/* cdc_cfs.c */
+/* CDP_CFS.c. */
 Sint32  CDC_ChgDir(Sint32 filtno, Sint32 fid);
 Sint32  CDC_ReadDir(Sint32 filtno, Sint32 fid);
 Sint32  CDC_GetFileScope(Sint32 *fid, Sint32 *infnum, Bool *drend);
@@ -409,7 +409,7 @@ Sint32  CDC_TgetFileInfo(Sint32 fid, CdcFile *file);
 Sint32  CDC_ReadFile(Sint32 filtno, Sint32 fid, Sint32 offset);
 Sint32  CDC_AbortFile(void);
 
-/* cdc_reg.c */
+/* CDP_reg.c */
 Uint32  *CDC_GetDataPtr(void);
 Sint32  CDC_GetHirqReq(void);
 void    CDC_ClrHirqReq(Sint32 bitpat);
@@ -423,7 +423,7 @@ Uint32  *CDC_GetMpegPtr(void);
 /********************************************************************/
 /********************************************************************/
 /*------------------------------------------------------------------*/
-/*------------------------- sMPEGƒp[ƒgt -------------------------*/
+/*------------------------- MPEG Part -------------------------*/
 /*------------------------------------------------------------------*/
 /********************************************************************/
 /********************************************************************/
@@ -432,221 +432,221 @@ Uint32  *CDC_GetMpegPtr(void);
 
 
 /*******************************************************************
-*       ’è”ƒ}ƒNƒ
+*       Constant macros
 *******************************************************************/
 
-/* ƒEƒBƒ“ƒhƒEƒTƒCƒY‚ÆÀ•W‚ÌÅ‘å’l */
-#define CDC_MPNT_NSX    352           /* NTSC’Êí‚w•ûŒüƒTƒCƒY(352) */
-#define CDC_MPNT_NSY    240           /* NTSC’Êí‚x•ûŒüƒTƒCƒY(240) */
-#define CDC_MPNT_NPX (CDC_MPNT_NSX-1) /* NTSC’Êí‚w•ûŒüÀ•W  (351) */
-#define CDC_MPNT_NPY (CDC_MPNT_NSY-1) /* NTSC’Êí‚x•ûŒüÀ•W  (239) */
+/* Maximum window size and coordinates */
+#define CDC_MPNT_NSX    352           /* NTSC Normal X Size (352) */
+#define CDC_MPNT_NSY    240           /* NTSC Normal Y Size (240) */
+#define CDC_MPNT_NPX (CDC_MPNT_NSX-1) /* NTSC Normal X Coordinate (351) */
+#define CDC_MPNT_NPY (CDC_MPNT_NSY-1) /* NTSC Normal Y Coordinate (239) */
 
-#define CDC_MPNT_HSX (2*CDC_MPNT_NSX) /* NTSC‚¸×‚w•ûŒüƒTƒCƒY(704) */
-#define CDC_MPNT_HSY (2*CDC_MPNT_NSY) /* NTSC‚¸×‚x•ûŒüƒTƒCƒY(480) */
-#define CDC_MPNT_HPX (CDC_MPNT_HSX-1) /* NTSC‚¸×‚w•ûŒüÀ•W  (703) */
-#define CDC_MPNT_HPY (CDC_MPNT_HSY-1) /* NTSC‚¸×‚x•ûŒüÀ•W  (479) */
+#define CDC_MPNT_HSX (2*CDC_MPNT_NSX) /* NTSC high-definition X-direction size (704) */
+#define CDC_MPNT_HSY (2*CDC_MPNT_NSY) /* NTSC High-Definition Y-Direction Size (480) */
+#define CDC_MPNT_HPX (CDC_MPNT_HSX-1) /* NTSC high-definition X-direction coordinates (703) */
+#define CDC_MPNT_HPY (CDC_MPNT_HSY-1) /* NTSC High-Definition Y-Direction Coordinates (479) */
 
-#define CDC_MPPL_NSX    352           /* PAL ’Êí‚w•ûŒüƒTƒCƒY(352) */
-#define CDC_MPPL_NSY    288           /* PAL ’Êí‚x•ûŒüƒTƒCƒY(288) */
-#define CDC_MPPL_NPX (CDC_MPPL_NSX-1) /* PAL ’Êí‚w•ûŒüÀ•W  (351) */
-#define CDC_MPPL_NPY (CDC_MPPL_NSY-1) /* PAL ’Êí‚x•ûŒüÀ•W  (287) */
+#define CDC_MPPL_NSX    352           /* PAL Normal X Size (352) */
+#define CDC_MPPL_NSY    288           /* PAL Normal Y-direction size (288) */
+#define CDC_MPPL_NPX (CDC_MPPL_NSX-1) /* PAL Normal X Coordinate (351) */
+#define CDC_MPPL_NPY (CDC_MPPL_NSY-1) /* PAL Normal Y Coordinate (287) */
 
-#define CDC_MPPL_HSX (2*CDC_MPPL_NSX) /* PAL ‚¸×‚w•ûŒüƒTƒCƒY(704) */
-#define CDC_MPPL_HSY (2*CDC_MPPL_NSY) /* PAL ‚¸×‚x•ûŒüƒTƒCƒY(576) */
-#define CDC_MPPL_HPX (CDC_MPPL_HSX-1) /* PAL ‚¸×‚w•ûŒüÀ•W  (703) */
-#define CDC_MPPL_HPY (CDC_MPPL_HSY-1) /* PAL ‚¸×‚x•ûŒüÀ•W  (575) */
+#define CDC_MPPL_HSX (2*CDC_MPPL_NSX) /* PAL High Definition X-direction size (704) */
+#define CDC_MPPL_HSY (2*CDC_MPPL_NSY) /* PAL High-Definition Y-Direction Size (576) */
+#define CDC_MPPL_HPX (CDC_MPPL_HSX-1) /* PAL High-Definition X-Direction Coordinates (703) */
+#define CDC_MPPL_HPY (CDC_MPPL_HSY-1) /* PAL High-Definition Y Coordinate (575) */
 
-/* MPEG/Video“®ìó‘ÔiMPEG“®ìƒXƒe[ƒ^ƒX‚Ìbit0`2j */
-#define CDC_MPASTV_STOP     0x01    /* ’â~ */
-#define CDC_MPASTV_PRE1     0x02    /* €”õ‚P */
-#define CDC_MPASTV_PRE2     0x03    /* €”õ‚Q */
-#define CDC_MPASTV_TRNS     0x04    /* “]‘—iÄ¶j */
-#define CDC_MPASTV_CHG      0x05    /* Ø‚è‘Ö‚¦ */
-#define CDC_MPASTV_RCV      0x06    /* •œŠˆˆ— */
+/* MPEG/Video operating state (MPEG operation status bit0-2) */
+#define CDC_MPASTV_STOP     0x01    /* Stop */
+#define CDC_MPASTV_PRE1     0x02    /* Preparation 1 */
+#define CDC_MPASTV_PRE2     0x03    /* Preparation 2 */
+#define CDC_MPASTV_TRNS     0x04    /* Transfer (Play) */
+#define CDC_MPASTV_CHG      0x05    /* Toggle */
+#define CDC_MPASTV_RCV      0x06    /* Reinstatement */
 
-/* MPEGƒfƒR[ƒhó‘ÔiMPEG“®ìƒXƒe[ƒ^ƒX‚Ìbit3j */
-#define CDC_MPASTD_STOP     0x08    /* MPEGƒfƒR[ƒh’â~ */
+/* MPEG decode state (bit3 of MPEG operation status) */
+#define CDC_MPASTD_STOP     0x08    /* MPEG decode stopped */
 
-/* MPEG/Audio“®ìó‘ÔiMPEG“®ìƒXƒe[ƒ^ƒX‚Ìbit4`6j */
-#define CDC_MPASTA_STOP     0x10    /* ’â~ */
-#define CDC_MPASTA_PRE1     0x20    /* €”õ‚P */
-#define CDC_MPASTA_PRE2     0x30    /* €”õ‚Q */
-#define CDC_MPASTA_TRNS     0x40    /* “]‘—iÄ¶j */
-#define CDC_MPASTA_CHG      0x50    /* Ø‚è‘Ö‚¦ */
-#define CDC_MPASTA_RCV      0x60    /* •œŠˆˆ— */
+/* MPEG/Audio Operational State (MPEG Operational Status bit4-6) */
+#define CDC_MPASTA_STOP     0x10    /* Stop */
+#define CDC_MPASTA_PRE1     0x20    /* Preparation 1 */
+#define CDC_MPASTA_PRE2     0x30    /* Preparation 2 */
+#define CDC_MPASTA_TRNS     0x40    /* Transfer (Play) */
+#define CDC_MPASTA_CHG      0x50    /* Toggle */
+#define CDC_MPASTA_RCV      0x60    /* Reinstatement */
 
-/* MPEG/AudioƒXƒe[ƒ^ƒX */
-#define CDC_MPSTA_DEC       0x01    /* ƒI[ƒfƒBƒIƒfƒR[ƒh“®ìƒtƒ‰ƒO */
-#define CDC_MPSTA_ILG       0x08    /* ƒI[ƒfƒBƒIƒCƒŠ[ƒKƒ‹ƒtƒ‰ƒO */
-#define CDC_MPSTA_BEMPTY    0x10    /* ƒI[ƒfƒBƒI—pƒoƒbƒtƒ@‹æ‰æ‹óƒtƒ‰ƒO */
-#define CDC_MPSTA_ERR       0x20    /* ƒI[ƒfƒBƒIƒGƒ‰[ƒtƒ‰ƒO */
-#define CDC_MPSTA_OUTL      0x40    /* ¶ƒ`ƒƒƒ“ƒlƒ‹o—Íƒtƒ‰ƒO */
-#define CDC_MPSTA_OUTR      0x80    /* ‰Eƒ`ƒƒƒ“ƒlƒ‹o—Íƒtƒ‰ƒO */
+/* MPEG/Audio status */
+#define CDC_MPSTA_DEC       0x01    /* Audio decode activity flag */
+#define CDC_MPSTA_ILG       0x08    /* Audio illegal flag */
+#define CDC_MPSTA_BEMPTY    0x10    /* Buffer compartment empty flag for audio */
+#define CDC_MPSTA_ERR       0x20    /* Audio error flag */
+#define CDC_MPSTA_OUTL      0x40    /* Left channel output flag */
+#define CDC_MPSTA_OUTR      0x80    /* Right channel output flag */
 
-/* MPEG/VideoƒXƒe[ƒ^ƒX */
-#define CDC_MPSTV_DEC       0x0001  /* ƒrƒfƒIƒfƒR[ƒh“®ìƒtƒ‰ƒO */
-#define CDC_MPSTV_DISP      0x0002  /* •\¦ƒtƒ‰ƒO */
-#define CDC_MPSTV_PAUSE     0x0004  /* ƒ|[ƒYƒtƒ‰ƒO */
-#define CDC_MPSTV_FREEZE    0x0008  /* ƒtƒŠ[ƒYƒtƒ‰ƒO */
-#define CDC_MPSTV_LSTPIC    0x0010  /* ÅŒãƒsƒNƒ`ƒƒ•\¦ƒtƒ‰ƒO */
-#define CDC_MPSTV_FIELD     0x0020  /* Šï”ƒtƒB[ƒ‹ƒhƒtƒ‰ƒO */
-#define CDC_MPSTV_UPDPIC    0x0040  /* ƒsƒNƒ`ƒƒXVƒtƒ‰ƒO */
-#define CDC_MPSTV_ERR       0x0080  /* ƒrƒfƒIƒGƒ‰[ƒtƒ‰ƒO */
-#define CDC_MPSTV_RDY       0x0100  /* o—Í€”õŠ®—¹ƒtƒ‰ƒO */
-#define CDC_MPSTV_1STPIC    0x0800  /* æ“ªƒsƒNƒ`ƒƒ•\¦ƒtƒ‰ƒO */
-#define CDC_MPSTV_BEMPTY    0x1000  /* ƒrƒfƒI—pƒoƒbƒtƒ@‹æ‰æ‹óƒtƒ‰ƒO */
+/* MPEG/Video status */
+#define CDC_MPSTV_DEC       0x0001  /* Video decode activity flag */
+#define CDC_MPSTV_DISP      0x0002  /* Display flag */
+#define CDC_MPSTV_PAUSE     0x0004  /* Pause flag */
+#define CDC_MPSTV_FREEZE    0x0008  /* Freeze flag */
+#define CDC_MPSTV_LSTPIC    0x0010  /* Last picture display flag */
+#define CDC_MPSTV_FIELD     0x0020  /* Odd field flag */
+#define CDC_MPSTV_UPDPIC    0x0040  /* Picture update flag */
+#define CDC_MPSTV_ERR       0x0080  /* Video error flag */
+#define CDC_MPSTV_RDY       0x0100  /* Ready to output flag */
+#define CDC_MPSTV_1STPIC    0x0800  /* First picture display flag */
+#define CDC_MPSTV_BEMPTY    0x1000  /* Buffer compartment empty flag for video */
 
-/* MPEGŠ„‚è‚İ—vˆö */
-#define CDC_MPINT_VSRDY  0x00000001 /* ƒrƒfƒIƒXƒgƒŠ[ƒ€€”õŠ®—¹ */
-#define CDC_MPINT_VSCHG  0x00000002 /* ƒrƒfƒIƒXƒgƒŠ[ƒ€Ø‚è‘Ö‚¦Š®—¹ */
-#define CDC_MPINT_VORDY  0x00000004 /* ƒrƒfƒIo—Í€”õŠ®—¹ */
-#define CDC_MPINT_VOSTRT 0x00000008 /* ƒrƒfƒIo—ÍŠJn */
-#define CDC_MPINT_VDERR  0x00000010 /* ƒrƒfƒIƒfƒR[ƒhƒGƒ‰[ */
-#define CDC_MPINT_VSERR  0x00000020 /* ƒrƒfƒIƒXƒgƒŠ[ƒ€ƒf[ƒ^ƒGƒ‰[ */
-#define CDC_MPINT_VBERR  0x00000040 /* ƒrƒfƒIƒoƒbƒtƒ@‹æ‰æÚ‘±ƒGƒ‰[ */
-#define CDC_MPINT_VNERR  0x00000080 /* Ÿ”­ËŞÃŞµ½ÄØ°Ñ‚Ìƒf[ƒ^ƒGƒ‰[ */
-#define CDC_MPINT_PSTRT  0x00000100 /* ƒsƒNƒ`ƒƒƒXƒ^[ƒgŒŸo */
-#define CDC_MPINT_GSTRT  0x00000200 /* GOPƒXƒ^[ƒgŒŸo */
-#define CDC_MPINT_SQEND  0x00000400 /* ƒV[ƒPƒ“ƒXƒGƒ“ƒhŒŸo */
-#define CDC_MPINT_SQSTRT 0x00000800 /* ƒV[ƒPƒ“ƒXƒXƒ^[ƒgŒŸo */
-#define CDC_MPINT_VTRG   0x00001000 /* ƒrƒfƒIƒZƒNƒ^‚ÌƒgƒŠƒKƒrƒbƒgŒŸo */
-#define CDC_MPINT_VEOR   0x00002000 /* ƒrƒfƒIƒZƒNƒ^‚ÌEORƒrƒbƒgŒŸo */
-#define CDC_MPINT_ATRG   0x00004000 /* ƒI[ƒfƒBƒIƒZƒNƒ^‚ÌÄØ¶ŞËŞ¯ÄŒŸo */
-#define CDC_MPINT_AEOR   0x00008000 /* ƒI[ƒfƒBƒIƒZƒNƒ^‚ÌEORƒrƒbƒgŒŸo */
-#define CDC_MPINT_ASRDY  0x00010000 /* ƒI[ƒfƒBƒIƒXƒgƒŠ[ƒ€€”õŠ®—¹ */
-#define CDC_MPINT_ASCHG  0x00020000 /* ƒI[ƒfƒBƒIƒXƒgƒŠ[ƒ€Ø‚è‘Ö‚¦Š®—¹ */
-#define CDC_MPINT_AORDY  0x00040000 /* ƒI[ƒfƒBƒIo—Í€”õŠ®—¹ */
-#define CDC_MPINT_AOSTRT 0x00080000 /* ƒI[ƒfƒBƒIo—ÍŠJn */
-#define CDC_MPINT_ADERR  0x00100000 /* ƒI[ƒfƒBƒIƒfƒR[ƒhƒGƒ‰[ */
-#define CDC_MPINT_ASERR  0x00200000 /* ƒI[ƒfƒBƒIƒXƒgƒŠ[ƒ€ƒf[ƒ^ƒGƒ‰[ */
-#define CDC_MPINT_ABERR  0x00400000 /* ƒI[ƒfƒBƒIƒoƒbƒtƒ@‹æ‰æÚ‘±ƒGƒ‰[ */
-#define CDC_MPINT_ANERR  0x00800000 /* Ÿ”­µ°ÃŞ¨µ½ÄØ°Ñ‚Ìƒf[ƒ^ƒGƒ‰[ */
+/* MPEG interrupt factor */
+#define CDC_MPINT_VSRDY  0x00000001 /* Video stream ready */
+#define CDC_MPINT_VSCHG  0x00000002 /* Video stream switching complete */
+#define CDC_MPINT_VORDY  0x00000004 /* Ready for video output */
+#define CDC_MPINT_VOSTRT 0x00000008 /* Video output started */
+#define CDC_MPINT_VDERR  0x00000010 /* Video decoding error */
+#define CDC_MPINT_VSERR  0x00000020 /* Video stream data error */
+#define CDC_MPINT_VBERR  0x00000040 /* Video buffer compartment connection error */
+#define CDC_MPINT_VNERR  0x00000080 /* Data error in the primary video stream */
+#define CDC_MPINT_PSTRT  0x00000100 /* Picture Start Detection */
+#define CDC_MPINT_GSTRT  0x00000200 /* GOP start detection */
+#define CDC_MPINT_SQEND  0x00000400 /* Sequence End Detection */
+#define CDC_MPINT_SQSTRT 0x00000800 /* Sequence start detection */
+#define CDC_MPINT_VTRG   0x00001000 /* Trigger bit detection for video sectors */
+#define CDC_MPINT_VEOR   0x00002000 /* EOR bit detection for video sectors */
+#define CDC_MPINT_ATRG   0x00004000 /* Trigger bit detection in the audio sector */
+#define CDC_MPINT_AEOR   0x00008000 /* EOR bit detection in audio sectors */
+#define CDC_MPINT_ASRDY  0x00010000 /* Audio stream ready */
+#define CDC_MPINT_ASCHG  0x00020000 /* Audio stream switching complete */
+#define CDC_MPINT_AORDY  0x00040000 /* Ready for audio output */
+#define CDC_MPINT_AOSTRT 0x00080000 /* Audio output started */
+#define CDC_MPINT_ADERR  0x00100000 /* Audio decode error */
+#define CDC_MPINT_ASERR  0x00200000 /* Audio stream data error */
+#define CDC_MPINT_ABERR  0x00400000 /* Audio buffer compartment connection error */
+#define CDC_MPINT_ANERR  0x00800000 /* Data error in the primary audio stream */
 
-/* Ú‘±ƒ‚[ƒhiMPEGƒfƒR[ƒ_Ú‘±æƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPCMOD_EOR      0x01    /* EORƒrƒbƒg‚ÅØ‚è‘Ö‚¦‚é */
-#define CDC_MPCMOD_SEC      0x02    /* ƒVƒXƒeƒ€ƒGƒ“ƒh(SEC)‚ÅØ‚è‘Ö‚¦‚é */
-#define CDC_MPCMOD_DEL      0x04    /* ƒZƒNƒ^‚ÌÁ‹ */
-#define CDC_MPCMOD_IGPTS    0x08    /* PTS¯•Ê‚ğ‚µ‚È‚¢ */
-#define CDC_MPCMOD_VCLR     0x10    /* VBV‚ÌƒNƒŠƒA */
-#define CDC_MPCMOD_VWCLR    0x20    /* VBV+WBC‚ÌƒNƒŠƒA */
-#define CDC_MPCMOD_BEF      0x40    /* Œã•ûi‚è‚Ì‘O‚ÅI—¹ğŒ”»’è */
+/* Connection mode (in MPEG decoder destination parameter) */
+#define CDC_MPCMOD_EOR      0x01    /* Toggle with EOR bit */
+#define CDC_MPCMOD_SEC      0x02    /* Switch at the system end (SEC) */
+#define CDC_MPCMOD_DEL      0x04    /* Erase sectors */
+#define CDC_MPCMOD_IGPTS    0x08    /* Does not identify PTS */
+#define CDC_MPCMOD_VCLR     0x10    /* Clear VBV */
+#define CDC_MPCMOD_VWCLR    0x20    /* Clear VVVV+WBC */
+#define CDC_MPCMOD_BEF      0x40    /* Exit criteria determination before the back stamp */
 
-/* ƒŒƒCƒ„w’èiMPEGƒfƒR[ƒ_Ú‘±æƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPLAY_SYS       0x00    /* ƒVƒXƒeƒ€ƒŒƒCƒ„ */
-#define CDC_MPLAY_AUDIO     0x01    /* ƒI[ƒfƒBƒIƒŒƒCƒ„ */
-#define CDC_MPLAY_VIDEO     0x01    /* ƒrƒfƒIƒŒƒCƒ„ */
+/* Layer designation (in MPEG decoder destination parameters) */
+#define CDC_MPLAY_SYS       0x00    /* The Cosmetic Layer */
+#define CDC_MPLAY_AUDIO     0x01    /* Audio layer */
+#define CDC_MPLAY_VIDEO     0x01    /* Video layer */
 
-/* MPEG/Video‚ÌƒsƒNƒ`ƒƒƒT[ƒ`w’èiMPEGƒfƒR[ƒ_Ú‘±æƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPSRCH_OFF      0x00    /* ƒsƒNƒ`ƒƒƒT[ƒ`‚ğ‚µ‚È‚¢ */
-#define CDC_MPSRCH_VIDEO    0x80    /* ƒsƒNƒ`ƒƒƒT[ƒ`‚ğ‚·‚é */
-#define CDC_MPSRCH_AV       0xc0    /* Ëß¸Á¬»°Á‚É‡‚í‚¹µ°ÃŞ¨µÃŞ°À‚ğ”jŠü */
+/* Specify MPEG/Video Picture Search (in MPEG Decoder Destination Parameters) */
+#define CDC_MPSRCH_OFF      0x00    /* Do not search for pictures */
+#define CDC_MPSRCH_VIDEO    0x80    /* Search for pictures */
+#define CDC_MPSRCH_AV       0xc0    /* Discard audio data for picture search */
 
-/* ƒXƒgƒŠ[ƒ€ƒ‚[ƒhiMPEGƒXƒgƒŠ[ƒ€ƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPSMOD_SNSET    0x01    /* ƒXƒgƒŠ[ƒ€”Ô†‚Ìİ’è‚ğs‚¤ */
-#define CDC_MPSMOD_SNIDF    0x02    /* ƒXƒgƒŠ[ƒ€”Ô†‚ğ¯•Ê‚·‚é */
-#define CDC_MPSMOD_CNSET    0x10    /* ƒ`ƒƒƒlƒ‹”Ô†‚Ìİ’è‚ğs‚¤ */
-#define CDC_MPSMOD_CNIDF    0x20    /* ƒ`ƒƒƒlƒ‹”Ô†‚ğ¯•Ê‚·‚é */
+/* Stream mode (in MPEG stream parameters) */
+#define CDC_MPSMOD_SNSET    0x01    /* Configure stream number settings */
+#define CDC_MPSMOD_SNIDF    0x02    /* Identify the stream number */
+#define CDC_MPSMOD_CNSET    0x10    /* Configure channel number settings */
+#define CDC_MPSMOD_CNIDF    0x20    /* Identify the channel number */
 
-/* •âŠÔƒ‚[ƒhi‰æ–Ê“ÁêŒø‰Êƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPITP_YH        0x01    /* ‚x‚Ì…•½•âŠÔ‚ğ‚·‚é */
-#define CDC_MPITP_CH        0x02    /* ‚b‚Ì…•½•âŠÔ‚ğ‚·‚é */
-#define CDC_MPITP_YV        0x04    /* ‚x‚Ì‚’¼•âŠÔ‚ğ‚·‚é */
-#define CDC_MPITP_CV        0x08    /* ‚b‚Ì‚’¼•âŠÔ‚ğ‚·‚é */
+/* Interpolation mode (in Screen Special Effects Parameters) */
+#define CDC_MPITP_YH        0x01    /* Horizontal interpolation of Y */
+#define CDC_MPITP_CH        0x02    /* Horizontal interpolation of C. */
+#define CDC_MPITP_YV        0x04    /* Make a vertical interpolation of Y */
+#define CDC_MPITP_CV        0x08    /* Perform a vertical interpolation of C. */
 
-/* “§–¾ƒrƒbƒgƒ‚[ƒhi‰æ–Ê“ÁêŒø‰Êƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPTRP_DFL       0x00    /* ’Êíi“§–¾ƒrƒbƒgˆ—‚ğ‚µ‚È‚¢j */
-#define CDC_MPTRP_64        0x01    /* ‹P“x64 */
-#define CDC_MPTRP_128       0x02    /* ‹P“x128 */
-#define CDC_MPTRP_256       0x03    /* ‹P“x256 */
-#define CDC_MPTRP_MAG       0x04    /* “§–¾—Ìˆæ‚ÌŠg‘å‚ğ‚·‚é */
+/* Transparent bit mode (in the Screen Special Effects parameter) */
+#define CDC_MPTRP_DFL       0x00    /* Normal (no transparent bit processing) */
+#define CDC_MPTRP_64        0x01    /* Brightness 64 */
+#define CDC_MPTRP_128       0x02    /* Brightness 128 */
+#define CDC_MPTRP_256       0x03    /* Brightness 256 */
+#define CDC_MPTRP_MAG       0x04    /* Zoom in on transparent areas */
 
-/* ‚Ú‚©‚µƒ‚[ƒhi‰æ–Ê“ÁêŒø‰Êƒpƒ‰ƒ[ƒ^“àj */
-#define CDC_MPSOFT_ON       0x01    /* ‚Ú‚©‚µ‚ğ‚©‚¯‚é */
+/* Blur mode (in Screen Special Effects parameters) */
+#define CDC_MPSOFT_ON       0x01    /* Blur */
 
-/* MPEG/Audio‚Ìƒ~ƒ…[ƒg */
-#define CDC_MPMUT_DFL       0x04    /* È—ª’liƒ~ƒ…[ƒg‚µ‚È‚¢j */
-#define CDC_MPMUT_R         0x01    /* ‰Eƒ`ƒƒƒ“ƒlƒ‹‚Ìƒ~ƒ…[ƒg‚ğ‚·‚é */
-#define CDC_MPMUT_L         0x02    /* ¶ƒ`ƒƒƒ“ƒlƒ‹‚Ìƒ~ƒ…[ƒg‚ğ‚·‚é */
+/* Mute MPEG/Audio */
+#define CDC_MPMUT_DFL       0x04    /* Abbreviated (not muted) */
+#define CDC_MPMUT_R         0x01    /* Mute the right channel */
+#define CDC_MPMUT_L         0x02    /* Mute the left channel */
 
 /*******************************************************************
-*       —ñ‹“’è”
+*       Enumeration constants
 *******************************************************************/
 
-/* ƒGƒ‰[ƒR[ƒh */
+/* Error code */
 enum CdcMpErrCode {
-    CDC_ERR_MP_COMU = -20   /* MPCMƒtƒ‰ƒO‚ª‚P‚É‚È‚Á‚Ä‚¢‚È‚¢ */
+    CDC_ERR_MP_COMU = -20   /* MPCM flag is not 1 */
 };
 
-/* ŸƒXƒgƒŠ[ƒ€ƒtƒ‰ƒOiŒ»ƒXƒgƒŠ[ƒ€‚ÆŸƒXƒgƒŠ[ƒ€‚Ìw’èj */
+/* Next stream flag (specify current stream and next stream) */
 enum CdcMpStf {
-    CDC_MPSTF_CUR  = 0,     /* Œ»İ‚ÌÚ‘±æ^ƒXƒgƒŠ[ƒ€‚Ìw’èiæ”­j */
-    CDC_MPSTF_NEXT = 1      /* @Ÿ‚ÌÚ‘±æ^ƒXƒgƒŠ[ƒ€‚Ìw’èiŸ”­j */
+    CDC_MPSTF_CUR  = 0,     /* Specify current Destination/Stream (first-time) */
+    CDC_MPSTF_NEXT = 1      /* Specify next destination/stream (next) */
 };
 
-/* ƒsƒNƒ`ƒƒƒ^ƒCƒvi‰ºˆÊ‚Rƒrƒbƒg‚ª—LŒøj */
+/* Picture type (Low 3 bits are enabled) */
 enum CdcMpPict {
-    CDC_MPPICT_I = 0x01,    /* ‚hƒsƒNƒ`ƒƒ */
-    CDC_MPPICT_P = 0x02,    /* ‚oƒsƒNƒ`ƒƒ */
-    CDC_MPPICT_B = 0x03,    /* ‚aƒsƒNƒ`ƒƒ */
-    CDC_MPPICT_D = 0x04     /* ‚cƒsƒNƒ`ƒƒ */
+    CDC_MPPICT_I = 0x01,    /* I-picture */
+    CDC_MPPICT_P = 0x02,    /* P-Picture */
+    CDC_MPPICT_B = 0x03,    /* B Picture */
+    CDC_MPPICT_D = 0x04     /* D-Picture */
 };
 
-/* MPEG“®ìƒ‚[ƒh */
+/* MPEG operating mode */
 enum CdcMpAct {
-    CDC_MPACT_NMOV = 0,     /* “®‰æÄ¶ƒ‚[ƒh */
-    CDC_MPACT_NSTL = 1,     /* Ã~‰æÄ¶ƒ‚[ƒh */
-    CDC_MPACT_HMOV = 2,     /* ‚¸×‚Ì“®‰æÄ¶ƒ‚[ƒhi–¢‘Î‰j */
-    CDC_MPACT_HSTL = 3,     /* ‚¸×‚ÌÃ~‰æÄ¶ƒ‚[ƒh */
-    CDC_MPACT_SBUF = 4      /* MPEGƒZƒNƒ^ƒoƒbƒtƒ@ƒ‚[ƒh */
+    CDC_MPACT_NMOV = 0,     /* Video playback mode */
+    CDC_MPACT_NSTL = 1,     /* Still image playback mode */
+    CDC_MPACT_HMOV = 2,     /* High-definition video playback mode (not supported) */
+    CDC_MPACT_HSTL = 3,     /* High-definition still image playback mode */
+    CDC_MPACT_SBUF = 4      /* MPEG sector buffer mode */
 };
 
-/* ƒfƒR[ƒhƒ^ƒCƒ~ƒ“ƒO */
+/* Decode timing */
 enum CdcMpDec {
-    CDC_MPDEC_VSYNC = 0,    /* VSYNC“¯Šú‚É‚æ‚éƒfƒR[ƒh */
-    CDC_MPDEC_HOST  = 1     /* ƒzƒXƒg“¯Šú‚É‚æ‚éƒfƒR[ƒh */
+    CDC_MPDEC_VSYNC = 0,    /* Decode with VSYNC synchronization */
+    CDC_MPDEC_HOST  = 1     /* Host-synchronous decoding */
 };
 
-/* ‰æ‘œƒf[ƒ^‚Ìo—Íæ */
+/* The destination of the image data */
 enum CdcMpOut {
-    CDC_MPOUT_VDP2 = 0,     /* VDP2‚Öo—Í */
-    CDC_MPOUT_HOST = 1      /* ƒzƒXƒg‚Öo—Í */
+    CDC_MPOUT_VDP2 = 0,     /* Output to VDP2 */
+    CDC_MPOUT_HOST = 1      /* Output to host */
 };
 
-/* MPEGÄ¶ƒ‚[ƒh */
+/* MPEG playback mode */
 enum CdcMpPly {
-    CDC_MPPLY_SYNC = 0,     /* “¯ŠúÄ¶ƒ‚[ƒh */
-    CDC_MPPLY_INDP = 1      /* “Æ—§Ä¶ƒ‚[ƒh */
+    CDC_MPPLY_SYNC = 0,     /* Synchronous playback mode */
+    CDC_MPPLY_INDP = 1      /* Independant playback mode */
 };
 
-/* MPEGƒfƒR[ƒ_‚Ì“]‘—ƒ‚[ƒh */
+/* The MPEG decoder\u0027s transfer mode */
 enum CdcMpTrn {
-    CDC_MPTRN_AUTO  = 0,    /* ©“®“]‘—ƒ‚[ƒh */
-    CDC_MPTRN_FORCE = 1     /* ‹­§“]‘—ƒ‚[ƒh */
+    CDC_MPTRN_AUTO  = 0,    /* Call forwarding mode */
+    CDC_MPTRN_FORCE = 1     /* Forced transfer mode */
 };
 
-/* MPEGƒfƒR[ƒ_‚ÌÚ‘±Ø‚è‘Ö‚¦ƒtƒ‰ƒO */
+/* MPEG decoder connection switching flag */
 enum CdcMpCof {
-    CDC_MPCOF_ABT = 0,      /* Ø‚è—£‚µi‹­§I—¹j */
-    CDC_MPCOF_CHG = 1       /* ‹­§Ø‚è‘Ö‚¦ */
+    CDC_MPCOF_ABT = 0,      /* Detach (Force Quit) */
+    CDC_MPCOF_CHG = 1       /* Force switch */
 };
 
-/* MPEG/Audio‚ÌƒNƒŠƒA•û® */
+/* MPEG/Audio clear method */
 enum CdcMpCla {
-    CDC_MPCLA_OFF = 0,      /* ƒNƒŠƒA‚µ‚È‚¢ */
-    CDC_MPCLA_ON  = 1       /* ‘¦À‚É‚PƒZƒNƒ^‚Ìƒoƒbƒtƒ@‚ğƒNƒŠƒA‚·‚é */
+    CDC_MPCLA_OFF = 0,      /* Do not clear */
+    CDC_MPCLA_ON  = 1       /* Immediately clears a single sector buffer */
 };
 
-/* MPEG/Video‚ÌƒNƒŠƒA•û® */
+/* MPEG/Video clearing method */
 enum CdcMpClv {
-    CDC_MPCLV_FRM = 0,      /* ‘¦À‚ÉVBV‚ÆMPEGÌÚ°ÑÊŞ¯Ì§‚ğƒNƒŠƒA‚·‚é */
-    CDC_MPCLV_VBV = 2       /* Ÿ‚ÌI‚Ü‚½‚ÍPËß¸Á¬½À°Ä‚ÅVBV‚ğƒNƒŠƒA‚·‚é */
+    CDC_MPCLV_FRM = 0,      /* Immediately clears VBV and MPEG frame buffers */
+    CDC_MPCLV_VBV = 2       /* Clear the VBV at the next I or P-Picture Start */
 };
 
 /*******************************************************************
-*       \‘¢‘ÌƒAƒNƒZƒXˆ—ƒ}ƒNƒ
+*       Structure Access Processing Macro
 *******************************************************************/
 
-/* MPEGƒXƒe[ƒ^ƒXî•ñ */
+/* MPEG status information */
 #define CDC_MPSTAT_STS(mpstat)      ((mpstat)->status)
 #define CDC_MPSTAT_AST(mpstat)      ((mpstat)->report.actst)
 #define CDC_MPSTAT_PICT(mpstat)     ((mpstat)->report.pict)
@@ -654,23 +654,23 @@ enum CdcMpClv {
 #define CDC_MPSTAT_STV(mpstat)      ((mpstat)->report.stat_v)
 #define CDC_MPSTAT_VCNT(mpstat)     ((mpstat)->report.vcnt)
 
-/* ƒ^ƒCƒ€ƒR[ƒh */
+/* Timecode */
 #define CDC_MPTC_HOUR(mptc)         ((mptc)->hour)
 #define CDC_MPTC_MIN(mptc)          ((mptc)->min)
 #define CDC_MPTC_SEC(mptc)          ((mptc)->sec)
 #define CDC_MPTC_PIC(mptc)          ((mptc)->pic)
 
-/* MPEGƒfƒR[ƒ_Ú‘±æƒpƒ‰ƒ[ƒ^ */
+/* MPEG decoder destination parameter */
 #define CDC_MPCON_CMOD(mpcon)       ((mpcon)->cmod)
 #define CDC_MPCON_LAY(mpcon)        ((mpcon)->lay)
 #define CDC_MPCON_BN(mpcon)         ((mpcon)->bn)
 
-/* MPEGƒXƒgƒŠ[ƒ€ƒpƒ‰ƒ[ƒ^ */
+/* MPEG stream parameters */
 #define CDC_MPSTM_SMOD(mpstm)       ((mpstm)->smod)
 #define CDC_MPSTM_ID(mpstm)         ((mpstm)->id)
 #define CDC_MPSTM_CN(mpstm)         ((mpstm)->cn)
 
-/* ‰æ–Ê“ÁêŒø‰Êƒpƒ‰ƒ[ƒ^ */
+/* Screen special effects parameters */
 #define CDC_MPVEF_ITP(mpvef)        ((mpvef)->itp)
 #define CDC_MPVEF_TRP(mpvef)        ((mpvef)->trp)
 #define CDC_MPVEF_MOZH(mpvef)       ((mpvef)->moz_h)
@@ -679,75 +679,75 @@ enum CdcMpClv {
 #define CDC_MPVEF_SOFTV(mpvef)      ((mpvef)->soft_v)
 
 /*******************************************************************
-*       ˆ—ƒ}ƒNƒ
+*       Processing macros
 *******************************************************************/
 
-/* MPEGƒXƒe[ƒ^ƒXî•ñ‚©‚çƒXƒe[ƒ^ƒXƒR[ƒh‚ğæ“¾‚·‚é */
+/* Get status codes from MPEG status information */
 #define CDC_MPGET_STC(mpstat)   (CDC_MPSTAT_STS(mpstat) & CDC_STC_MSK)
 
-/* MPEGƒXƒe[ƒ^ƒXî•ñ‚©‚çMPEG/Video“®ìó‘Ô‚ğæ“¾‚·‚é */
+/* Gets the MPEG/Video operating state from the MPEG status information */
 #define CDC_MPGET_ASTV(mpstat)   (CDC_MPSTAT_AST(mpstat) & 0x07)
 
-/* MPEGƒXƒe[ƒ^ƒXî•ñ‚©‚çMPEG/Audio“®ìó‘Ô‚ğæ“¾‚·‚é */
+/* Gets the MPEG/Audio operating state from the MPEG status information */
 #define CDC_MPGET_ASTA(mpstat)   (CDC_MPSTAT_AST(mpstat) & 0x70)
 
 /*******************************************************************
-*       ƒf[ƒ^Œ^‚ÌéŒ¾
+*       Data type declaration
 *******************************************************************/
 
-/* MPEGƒXƒe[ƒ^ƒXî•ñiƒXƒe[ƒ^ƒX{MPEGƒŒƒ|[ƒgj */
+/* MPEG Status Information (Status + MPEG Report) */
 typedef struct {
-    Uint8   status;         /* ƒXƒe[ƒ^ƒX */
-    struct {                /* MPEGƒŒƒ|[ƒg */
-        Uint8   actst;      /* MPEG“®ìƒXƒe[ƒ^ƒX */
-        Uint8   pict;       /* ƒsƒNƒ`ƒƒî•ñ */
-        Uint8   stat_a;     /* MPEG/AudioƒXƒe[ƒ^ƒX */
-        Uint16  stat_v;     /* MPEG/VideoƒXƒe[ƒ^ƒX */
-        Uint16  vcnt;       /* “®ì‹æŠÔiVSYNCjƒJƒEƒ“ƒ^ */
+    Uint8   status;         /* Status */
+    struct {                /* MPEG Report */
+        Uint8   actst;      /* MPEG operational status */
+        Uint8   pict;       /* Picture information */
+        Uint8   stat_a;     /* MPEG/Audio status */
+        Uint16  stat_v;     /* MPEG/Video status */
+        Uint16  vcnt;       /* Operating interval (VSYNC) counter */
     } report;
 } CdcMpStat;
 
-/* ƒ^ƒCƒ€ƒR[ƒh */
+/* Timecode */
 typedef struct {
-    Uint8   hour;           /* ŠÔ */
-    Uint8   min;            /* •ª */
-    Uint8   sec;            /* •b */
-    Uint8   pic;            /* ƒsƒNƒ`ƒƒ */
+    Uint8   hour;           /* Time */
+    Uint8   min;            /* Minutes */
+    Uint8   sec;            /* Seconds */
+    Uint8   pic;            /* Picture */
 } CdcMpTc;
 
-/* MPEGƒfƒR[ƒ_Ú‘±æƒpƒ‰ƒ[ƒ^ */
+/* MPEG decoder destination parameter */
 typedef struct {
-    Uint8   cmod;           /* Ú‘±ƒ‚[ƒh */
-    Uint8   lay;            /* ƒŒƒCƒ„w’è‚ÆƒsƒNƒ`ƒƒƒT[ƒ`w’è */
-    Uint8   bn;             /* ƒoƒbƒtƒ@‹æ‰æ”Ô† */
+    Uint8   cmod;           /* Connection mode */
+    Uint8   lay;            /* Layer and picture search specifications */
+    Uint8   bn;             /* Buffer compartment number */
 } CdcMpCon;
 
-/* MPEGƒXƒgƒŠ[ƒ€ƒpƒ‰ƒ[ƒ^ */
+/* MPEG stream parameters */
 typedef struct {
-    Uint8   smod;           /* ƒXƒgƒŠ[ƒ€ƒ‚[ƒh */
-    Uint8   id;             /* ƒXƒgƒŠ[ƒ€”Ô† */
-    Uint8   cn;             /* ƒ`ƒƒƒlƒ‹”Ô† */
+    Uint8   smod;           /* Stream mode */
+    Uint8   id;             /* Stream number */
+    Uint8   cn;             /* Channel number */
 } CdcMpStm;
 
-/* ‰æ–Ê“ÁêŒø‰Êƒpƒ‰ƒ[ƒ^ */
+/* Screen special effects parameters */
 typedef struct {
-    Uint8   itp;            /* •âŠÔƒ‚[ƒh */
-    Uint8   trp;            /* “§–¾ƒrƒbƒgƒ‚[ƒh */
-    Uint8   moz_h;          /* …•½•ûŒüƒ‚ƒUƒCƒNƒ‚[ƒh */
-    Uint8   moz_v;          /* ‚’¼•ûŒüƒ‚ƒUƒCƒNƒ‚[ƒh */
-    Uint8   soft_h;         /* …•½•ûŒü‚Ú‚©‚µƒ‚[ƒh */
-    Uint8   soft_v;         /* ‚’¼•ûŒü‚Ú‚©‚µƒ‚[ƒh */
+    Uint8   itp;            /* Interpolation mode */
+    Uint8   trp;            /* Transparent bit mode */
+    Uint8   moz_h;          /* Horizontal mosaic mode */
+    Uint8   moz_v;          /* Vertical Mosaic mode */
+    Uint8   soft_h;         /* Horizontal blur mode */
+    Uint8   soft_v;         /* Vertical Blur Mode */
 } CdcMpVef;
 
 /*******************************************************************
-*       •Ï”éŒ¾
+*       Variable declaration
 *******************************************************************/
 
 /*******************************************************************
-*       ŠÖ”éŒ¾
+*       Function declaration
 *******************************************************************/
 
-/* cdc_mdc.c */
+/* CDP_MDC.c. */
 Sint32  CDC_MpGetCurStat(CdcMpStat *mpstat);
 Sint32  CDC_MpGetLastStat(CdcMpStat *mpstat);
 Sint32  CDC_MpGetInt(Sint32 *intreq);
@@ -762,7 +762,7 @@ Sint32  CDC_MpOutDsync(Sint32 fbn);
 Sint32  CDC_MpGetTc(Sint32 *bnk, Sint32 *pictyp, Sint32 *tr, CdcMpTc *mptc);
 Sint32  CDC_MpGetPts(Sint32 *pts_a);
 
-/* cdc_mst.c */
+/* CDP_mst.c */
 Sint32  CDC_MpSetCon(Sint32 next, CdcMpCon *mpcon_a, CdcMpCon *mpcon_v);
 Sint32  CDC_MpGetCon(Sint32 next, CdcMpCon *mpcon_a, CdcMpCon *mpcon_v);
 Sint32  CDC_MpChgCon(Sint32 chg_a, Sint32 chg_v,
@@ -771,7 +771,7 @@ Sint32  CDC_MpSetStm(Sint32 next, CdcMpStm *mpstm_a, CdcMpStm *mpstm_v);
 Sint32  CDC_MpGetStm(Sint32 next, CdcMpStm *mpstm_a, CdcMpStm *mpstm_v);
 Sint32  CDC_MpGetPictSiz(Sint32 *siz_h, Sint32 *siz_v);
 
-/* cdc_mwn.c */
+/* CDP_mwn.c */
 Sint32  CDC_MpDisp(Bool dspsw, Sint32 fbn);
 Sint32  CDC_MpSetWinFpos(Bool chgflg, Sint32 fpx, Sint32 fpy);
 Sint32  CDC_MpSetWinFrat(Bool chgflg, Sint32 frx, Sint32 fry);
@@ -782,7 +782,7 @@ Sint32  CDC_MpSetBcolor(Sint32 bcolor);
 Sint32  CDC_MpSetFade(Sint32 gain_y, Sint32 gain_c);
 Sint32  CDC_MpSetVeff(CdcMpVef *mpvef);
 
-/* cdc_mfb.c */
+/* CDP_mfb.c. */
 Sint32  CDC_MpGetImg(Sint32 *dwnum);
 Sint32  CDC_MpSetImgPos(Sint32 fbn, Sint32 ipx, Sint32 ipy);
 Sint32  CDC_MpSetImgSiz(Sint32 fbn, Sint32 isx, Sint32 isy);
@@ -791,13 +791,13 @@ Sint32  CDC_MpReadImg(Sint32 srcfbn,
 Sint32  CDC_MpWriteImg(Sint32 bn_y, Sint32 bn_cr, Sint32 bn_cb,
                        Sint32 dstfbn, Sint32 clrmod);
 
-/* cdc_mbu.c */
+/* CDP_Mbu.c. */
 Sint32  CDC_MpReadSct(Sint32 srcmsp, Sint32 snum, Sint32 dstfln);
 Sint32  CDC_MpWriteSct(Sint32 srcbn, Sint32 sp, Sint32 snum,
                        Sint32 dstmsp);
 
-/* cdc_mls.c */
-/* ’ˆÓFˆÈ‰º‚ÌŠÖ”‚Í”ñŒöŠJ‚Æ‚·‚é */
+/* CDP_mls.c. */
+/* Note: The following functions are private */
 Sint32  CDC_MpGetLsi(Sint32 r_sw, Sint32 reg_no, Sint32 *rdata);
 Sint32  CDC_MpSetLsi(Sint32 rwsw, Sint32 reg_no, Sint32 wdata,
                      Sint32 *rdata);

@@ -1,26 +1,26 @@
 /*
- * システム名称：ソフトウェアライブラリ
+ * System name: Software library
  *
- * モジュール記号名称：sega_xpt.h
+ * Module symbol name: sega_xpt.h
  *
- * モジュール名称：ライブラリ共通ヘッダファイル
+ * Module name: Library common header file
  *
- * 目的：(1)他マシン移植を簡単にするため
- *       (2)プログラムを解析しやすくするため
+ * Purpose: (1) To simplify porting to other machines
+ *       (2) To make the program easier to analyze
  *
- * 適用範囲：プログラミング全般（ライブラリ開発者、ライブラリ使用者の両方が使
- *           用できる）
+ * Scope: General programming (used by both library developers and library users)
+ *           Can be used)
  *
- * 前提条件：ここで宣言、定義している識別子と同じ意味の宣言、定義を他ファイル
- *           でしてはいけない。
+ * Prerequisites: Declarations and definitions that have the same meaning as the identifiers defined here, and definitions are defined in other files.
+ *           Don't do it.
  * 
- * AUTHOR：Ver1.00  N.T 1993/12/22
+ * AUTHOR Ver1.00  N.T 1993/12/22
  *         Ver1.01  N.T 1993/12/27
  *         Ver1.02  N.T 1994/01/06
  *         Ver1.03  N.T 1994/02/23
  *         Ver1.04  N.T 1994/02/23
  *
- * DATE：1994-07-29
+ * DATE 1994-07-29
  */
 
 
@@ -28,24 +28,24 @@
 #define SEGA_XPT_H
 
 /*****************************************************************************/
-/****************************** 基本データ型宣言 *****************************/
+/****************************** Basic data type declaration *****************************/
 /*****************************************************************************/
 
-typedef unsigned    char    Uint8;      /* 符号なし１バイト整数 */
-typedef signed      char    Sint8;      /* 符号つき１バイト整数 */
-typedef unsigned    short   Uint16;     /* 符号なし２バイト整数 */
-typedef signed      short   Sint16;     /* 符号つき２バイト整数 */
-typedef unsigned    long    Uint32;     /* 符号なし４バイト整数 */
-typedef signed      long    Sint32;     /* 符号つき４バイト整数 */
-typedef float               Float32;    /* ４バイト実数 */
-typedef double              Float64;    /* ８バイト実数 */
+typedef unsigned    char    Uint8;      /* Unsigned 1-byte integer */
+typedef signed      char    Sint8;      /* Signed 1-byte integer */
+typedef unsigned    short   Uint16;     /* Unsigned SmallInt */
+typedef signed      short   Sint16;     /* Signed SmallInt */
+typedef unsigned    long    Uint32;     /* Unsigned 4-byte integer */
+typedef signed      long    Sint32;     /* Signed 4-byte integer */
+typedef float               Float32;    /* 4 bytes Real */
+typedef double              Float64;    /* 8 bytes Real */
 
-typedef int                 Int;        /* INT型（ツール用）            */
+typedef int                 Int;        /* Int type (for tool)            */
 
-typedef int                 Bool;       /* 論理型（論理定数を値にとる） */
+typedef int                 Bool;       /* Logical type (takes logical constants into values) */
 
 /*****************************************************************************/
-/********************************* 定数マクロ ********************************/
+/********************************* Constant macros ********************************/
 /*****************************************************************************/
 
 #ifndef NULL
@@ -53,30 +53,30 @@ typedef int                 Bool;       /* 論理型（論理定数を値にとる） */
 #endif  /* NULL */
 
 /*****************************************************************************/
-/********************************** 列挙定数 *********************************/
+/********************************** Enumeration constants *********************************/
 /*****************************************************************************/
 
-enum BooleanLogic {                     /* 論理定数１（偽、真） */
+enum BooleanLogic {                     /* Logical constant 1 (false, true) */
     FALSE = 0,
     TRUE  = 1
 };
 
-enum BooleanSwitch {                    /* 論理定数２（スイッチ） */
+enum BooleanSwitch {                    /* Logical Constant 2 (Switch) */
     OFF = 0,
     ON  = 1
 };
 
-enum Judgement {                        /* 結果判定の定数（成功、失敗） */
-    OK = 0,                             /* 成功 */
-    NG = -1                             /* 失敗 */
+enum Judgement {                        /* Conclusions constants (success, failure) */
+    OK = 0,                             /* Success */
+    NG = -1                             /* Failed */
 };
 
 /*****************************************************************************/
-/********************************* 処理マクロ ********************************/
+/********************************* Processing macros ********************************/
 /*****************************************************************************/
 
-#define MAX(x, y)       ((x) > (y) ? (x) : (y)) /* 最大値 */
-#define MIN(x, y)       ((x) < (y) ? (x) : (y)) /* 最小値 */
-#define ABS(x)          ((x) < 0 ? -(x) : (x))  /* 絶対値 */
+#define MAX(x, y)       ((x) > (y) ? (x) : (y)) /* Maximum value */
+#define MIN(x, y)       ((x) < (y) ? (x) : (y)) /* Minimum value */
+#define ABS(x)          ((x) < 0 ? -(x) : (x))  /* Absolute value */
 
 #endif  /* SEGA_XPT_H */

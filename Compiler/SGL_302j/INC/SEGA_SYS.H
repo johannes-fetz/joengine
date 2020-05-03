@@ -1,27 +1,27 @@
 /*
- * 名称:        システム プログラム
+ * name:        System program
  *
- * ファイル名:  sega_sys.h
+ * file name:  sega_sys.h
  *
- * 目的:        BOOT ROM のサービスルーチンを定義します。
+ * Purpose:        Defines the BOOT ROM service routine.
  *
- *              (1) SCU 割り込みサービスルーチンの登録参照
- *              (2) SH2 割り込みベクタの登録参照
- *              (3) システムセマフォの操作  (BOOT ROM V0.90以降)
- *              (4) SCU 割り込みマスクの操作(BOOT ROM V0.90以降)
- *              (5) システムクロックの切替え(BOOT ROM V0.92以降)
- *              (6) SCU 割り込みルーチン優先度の変更(SCU2.1以降)
- *              (7) CD  マルチプレーヤの起動実行(CD付きモデル用)
- *              (8) パワーオンクリアメモリの操作 (ROM V1.00以降)
- *              (9) MPEG チェック(完了復帰型)    (ROM V1.00以降)
+ *              (1) Refer to SCU interrupt service routine registration
+ *              (2) Refer to SH2 interrupt vector registration
+ *              (3) System semaphore operation (BOOT ROM V0.90 or later)
+ *              (4) SCU interrupt mask operation (BOOT ROM V0.90 or later)
+ *              (5) System clock switching (BOOT ROM V0.92 or later)
+ *              (6) Change of SCU interrupt routine priority (SCU 2.1 or later)
+ *              (7) CD multiplayer startup execution (for models with CD)
+ *              (8) Power-on-clear memory operation (ROM V1.00 or later)
+ *              (9) MPEG check (completion return type) (ROM V1.00 or later)
  *
- *              sega_sys.libで関数を定義します。（Ver.2.01以降）
+ *              Define the function in sega_sys.lib. (Ver.2.01 or later)
  *
- * 使用方法:
+ * how to use:
  *
  *      void  Vfunc(void)
  *      {
- *           // ... 実行文 ... //
+ *           /* ... Execution statement ... */
  *      }
  *
  *      extern void  Hihdr(void);
@@ -43,47 +43,47 @@
  *              0x0070fe00, 0x0070fe00, 0x0070fe00, 0x0070fe00,
  *           };
  *
- *           SYS_SETUINT(0x40, Vfunc);  // Vfunc() を VB-In 割込み用に登録   //
- *           tmp = SYS_GETUINT(0x41);   // 現在の VB-Out ルーチン登録を参照  //
- *           SYS_SETUINT(0x41, 0);      // VB-Out ルーチンの登録を消去       //
+ *           SYS_SETUINT(0x40, Vfunc);  /* Register Vfunc() for VB-in interrupts   */
+ *           tmp = SYS_GETUINT(0x41);   /* See current VB-out routine registration  */
+ *           SYS_SETUINT(0x41, 0);      /* Cleared the registration of the VB-out routine       */
  *
- *           SYS_SETSINT(0x42, Hihdr);  // Hihdr() を HB-In ベクタに登録     //
- *           tmp = SYS_GETSINT(0x6e);   // 現在の DIVU ベクタ登録を参照      //
- *           SYS_SETSINT(0x6e, 0);      // DIVU ベクタを再初期化             //
+ *           SYS_SETSINT(0x42, Hihdr);  /* Register Hihdr() with HB-in vector     */
+ *           tmp = SYS_GETSINT(0x6e);   /* See current DIVU vector registration      */
+ *           SYS_SETSINT(0x6e, 0);      /* Reinitialize the DIVU vector             */
  *
- *           rep = SYS_TASSEM(0x5);     // セマフォ 5 をテスト･アンド･セット //
- *           SYS_CLRSEM(0x5);           // セマフォ 5 をクリア               //
+ *           rep = SYS_TASSEM(0x5);     /* Test and set semaphore 5 */
+ *           SYS_CLRSEM(0x5);           /* Cleared semaphore 5               */
  *
- *           SYS_SETSCUIM(0xfffffffe);  // VB-In 割込みのみを許可に設定      //
- *           SYS_CHGSCUIM(0xfffffffc, 0); // VB-In, VB-Out を許可に変更      //
- *           SYS_CHGSCUIM(0xffffffff, 2); // VB-Out  を不許可に変更          //
- *           msk = SYS_GETSCUIM;        // 現在の SCU 割込みマスク値を参照   //
+ *           SYS_SETSCUIM(0xfffffffe);  /* Set only VB-in interrupts to allow      */
+ *           SYS_CHGSCUIM(0xfffffffc, 0); /* Changed VB-in, VB-out to allowed      */
+ *           SYS_CHGSCUIM(0xffffffff, 2); /* VB-out changed to unauthorized          */
+ *           msk = SYS_GETSCUIM;        /* See current SCU interrupt mask value   */
  *
- *           SYS_CHGSYSCK(1);           // システムクロックを２８Ｍに切替え  //
- *           clk = SYS_GETSYSCK;        // 現在の システムクロック値を参照   //
- *                                      //   0: 26 MHz       1: 28 MHz       //
- *                                      //     320/640 pix/H   352/704 pix/H //
+ *           SYS_CHGSYSCK(1);           /* Switch system clock to 28M  */
+ *           clk = SYS_GETSYSCK;        /* See current system clock value   */
+ *                                      /*   0: 26 MHz 1: 28 MHz       */
+ *                                      /*     320/640 PIX/H 352/704 PIX/H. */
  *
- *           SYS_CHGUIPR(PriTab);       // ＳＣＵ割り込みルーチン優先度変更  //
+ *           SYS_CHGUIPR(PriTab);       /* SCU interrupt routine priority change  */
  *
- *           SYS_EXECDMP();             // ＣＤマルチプレーヤ起動実行        //
+ *           SYS_EXECDMP();             /* CD multi-player boot performed        */
  *
- *           p0 = SYS_PCLRMEM;          // パワーオンクリアメモリ先頭バイト  //
- *           lval1 = *((Uint32*)&SYS_PCLRMEM+1); // と後半ロングワードを参照 //
+ *           p0 = SYS_PCLRMEM;          /* Power-on clear memory first byte  */
+ *           lval1 = *((Uint32*)&SYS_PCLRMEM+1); /* See and long words in the second half */
  *
- *           rep = SYS_CHKMPEG(0);      // 引数は必ず 0. MANSYS.DOC の使用例 //
- *                                      // に従ってください                  //
+ *           rep = SYS_CHKMPEG(0);      /* Argument must be 0. Example of using the names.DOC */
+ *                                      /* Follow the instructions                  */
  *      }
  *
- *      // ... 別のファイル ... //
+ *      /* ...another file... */
  *      #pragma interrupt(Hihdr)
  *      void  Hihdr(void)
  *      {
- *           // ... 実行文 ... //
+ *           /* ...Execution Statement... */
  *      }
  *
  *
- * 日付:        1994/05/06  for BOOT 0.90,0.901,0.91  by T. S.
+ * date:        1994/05/06  for BOOT 0.90,0.901,0.91  by T. S.
  *              1994/07/16  for BOOT 0.92x,0.95       by T. S.
  *              1994/07/29  for BOOT 0.96x,1.00       by T. S.
  *              1994/08/31  how to exec CD multi-player
@@ -91,7 +91,7 @@
  *              1995/03/31  MPEG check service
  *              1995/09/26  sega_sys.lib (Ver.2.01)   by M. M.
  *
- * バージョン:  Ver.2.01
+ * version:  Ver.2.01
  *
  */
 
@@ -99,12 +99,12 @@
 #define SEGA_SYS_H
 
 /***********************************************************************
- *      インクルードファイル
+ *      Include files
  ***********************************************************************/
 #include "SEGA_XPT.H"
 
 /***********************************************************************
- *      処理マクロ
+ *      Processing macros
  ***********************************************************************/
 #define SYS_SETUINT(_Num_, _Hdr_) \
         ((**(volatile void(**)(Uint32, void*))0x6000300)((_Num_), (_Hdr_)))
@@ -146,7 +146,7 @@
         ((**(volatile Sint32(**)(Sint32))0x6000274)(_dummy_))
 
 /***********************************************************************
- *      関数の宣言
+ *      Function declaration
  ***********************************************************************/
 void SYS_CheckTrack(Sint32 tno);
 void SYS_Exit(Sint32 code);

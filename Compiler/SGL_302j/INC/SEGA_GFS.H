@@ -1,10 +1,10 @@
 /******************************************************************************
- *      ソフトウェアライブラリ
+ *      Software library
  *
  *      Copyright (c) 1994,1995,1996 SEGA
  *
- * Library:ファイルシステム
- * Module :ライブラリヘッダ
+ * Library:File system
+ * Module :Library header
  * File   :sega_gfs.h
  * Date   :1996-02-18
  * Version:2.11
@@ -16,14 +16,14 @@
 #define SEGA_GFS_H
 
 /*****************************************************************************
- *      インクルードファイル
+ *      Include files
  *****************************************************************************/
 #include "SEGA_CDC.H"
 
-/* バージョン   */
-                            /*             1         2         3         4  */
-                            /*    1234567890123456789012345678901234567890  */
-                            /*    ++++++++++++++++++++++++++++++++          */
+/* Version   */
+                            /*             1 2 3 4  */
+                            /*    1234567890123456789012345678901234567890 1234567890  */
+                            /*    +++++++++++++++++++++++++++++++++++          */
 #if defined(USE_SGL)
     #define GFS_VERSION_STR     ("GFS_SGL Version 2.11 1996-02-18")
 #else
@@ -32,121 +32,121 @@
 #define GFS_VERSION_LEN 32
 
 /*****************************************************************************
- *      定数マクロ
+ *      Constant macros
  *****************************************************************************/
-#define GFS_FNAME_LEN   12              /* ファイル名の長さ                 */
+#define GFS_FNAME_LEN   12              /* Length of the file name                 */
 
-/* ファイルの属性 */
-#define GFS_ATR_DIR     0x80            /* ディレクトリ                     */
-#define GFS_ATR_CDDA    0x40            /* CDDAファイル                     */
-#define GFS_ATR_INTLV   0x20            /* インターリーブセクタを含む       */
-#define GFS_ATR_FORM2   0x10            /* Form2セクタを含む                */
-#define GFS_ATR_FORM1   0x08            /* Form1セクタを含む                */
-#define GFS_ATR_END_TBL 0x01            /* ディレクトリテーブルの最後       */
+/* File attributes */
+#define GFS_ATR_DIR     0x80            /* Directory                     */
+#define GFS_ATR_CDDA    0x40            /* CDDA file                     */
+#define GFS_ATR_INTLV   0x20            /* Contains interleaved sectors       */
+#define GFS_ATR_FORM2   0x10            /* Contains Form2 sectors                */
+#define GFS_ATR_FORM1   0x08            /* Contains Form1 sectors                */
+#define GFS_ATR_END_TBL 0x01            /* End of the directory table       */
 
-#define GFS_BUFSIZ_INF  -1              /* 読み込み領域サイズに制限はない   */
-#define GFS_RPARA_DFL   0x7fffffff      /* 読み込みパラメータの初期値       */
+#define GFS_BUFSIZ_INF  -1              /* There is no limit to the size of the load space   */
+#define GFS_RPARA_DFL   0x7fffffff      /* The initial value of the read parameter       */
 
-/* デモデモ用   */
-#define GFS_DDS_ADDR    0x6000ccc       /* デモデモ情報参照領域のアドレス   */
-#define GFS_DDS_EXEC    0x01            /* DDS実行中を示す                  */
-#define GFS_DDS_ID()    (*(Uint8 *)(GFS_DDS_ADDR+0))  /* DDS識別子の値      */
-#define GFS_DDS_TNO()   (*(Uint8 *)(GFS_DDS_ADDR+1))  /* 先頭CDDAトラックNo */
-#define GFS_DDS_FID()   (*(Uint16 *)(GFS_DDS_ADDR+2)) /* ディレクトリ識別子 */
-#define GFS_IS_DDS()    (GFS_DDS_ID()==GFS_DDS_EXEC)  /* DDS実行中の判断    */
+/* Demo   */
+#define GFS_DDS_ADDR    0x6000ccc       /* Demo Demo Information Reference area address   */
+#define GFS_DDS_EXEC    0x01            /* Indicates DDS is running                  */
+#define GFS_DDS_ID()    (*(Uint8 *)(GFS_DDS_ADDR+0))  /* The value of the DDS identifier      */
+#define GFS_DDS_TNO()   (*(Uint8 *)(GFS_DDS_ADDR+1))  /* First CDDA track No. */
+#define GFS_DDS_FID()   (*(Uint16 *)(GFS_DDS_ADDR+2)) /* Directory identifier */
+#define GFS_IS_DDS()    (GFS_DDS_ID()==GFS_DDS_EXEC)  /* DDS in Progress Decision    */
 
-/* エラーコード */
-#define GFS_ERR_OK              0       /* 正常終了                         */
-#define GFS_ERR_CDRD            (-1)    /* CDリードエラー                   */
-#define GFS_ERR_CDNODISC        (-2)    /* CDがセットされていない           */
-#define GFS_ERR_CDROM           (-3)    /* ディスクがCD-ROMでない           */
-#define GFS_ERR_DIRTBL          (-4)    /* ディレクトリ管理テーブルが不正   */
-#define GFS_ERR_OPENMAX         (-5)    /* 最大オープン数の値が不正         */
-#define GFS_ERR_DIR             (-6)    /* 指定ファイルはディレクトリでない */
-#define GFS_ERR_CDBFS           (-7)    /* CDブロックファイルシステムの     */
-                                        /* 使用宣言していない               */
-#define GFS_ERR_NONAME          (-8)    /* ファイル名を扱えない             */
-#define GFS_ERR_NEXIST          (-9)    /* 指定されたファイルは存在しない   */
-#define GFS_ERR_FID             (-10)   /* 不正なファイル識別子             */
-#define GFS_ERR_HNDL            (-11)   /* ファイルハンドルが不正           */
-#define GFS_ERR_SEEK            (-12)   /* シーク位置が不正                 */
-#define GFS_ERR_ORG             (-13)   /* 基準位値が不正                   */
-#define GFS_ERR_NUM             (-14)   /* バイト数が負                     */
-#define GFS_ERR_OFS             (-15)   /* オフセットが不正                 */
-#define GFS_ERR_FBUSY           (-16)   /* 指定ファイルの処理が残っている   */
-#define GFS_ERR_PARA            (-17)   /* パラメータが不正                 */
-#define GFS_ERR_BUSY            (-18)   /* ライブラリ関数実行中             */
-#define GFS_ERR_NOHNDL          (-19)   /* ファイルハンドルに空きがない     */
-#define GFS_ERR_PUINUSE         (-20)   /* ピックアップ動作中               */
-#define GFS_ERR_ALIGN           (-21)   /* 作業領域が4byte境界にない        */
-#define GFS_ERR_TMOUT           (-22)   /* タイムアウト                     */
-#define GFS_ERR_CDOPEN          (-23)   /* トレイが開いている               */
-#define GFS_ERR_BFUL            (-24)   /* バッファフルで読み込み中止       */
-#define GFS_ERR_FATAL           (-25)   /* CDがFATAL状態                    */
+/* Error code */
+#define GFS_ERR_OK              0       /* Successful completion                         */
+#define GFS_ERR_CDRD            (-1)    /* CD read error                   */
+#define GFS_ERR_CDNODISC        (-2)    /* CD is not inserted           */
+#define GFS_ERR_CDROM           (-3)    /* The disc is not a CD-ROM           */
+#define GFS_ERR_DIRTBL          (-4)    /* Directory administration table is invalid   */
+#define GFS_ERR_OPENMAX         (-5)    /* Invalid value for maximum open count         */
+#define GFS_ERR_DIR             (-6)    /* The specified file is not a directory */
+#define GFS_ERR_CDBFS           (-7)    /* Of the CD block file system     */
+                                        /* Not declared for use               */
+#define GFS_ERR_NONAME          (-8)    /* Cannot handle filenames             */
+#define GFS_ERR_NEXIST          (-9)    /* The specified file does not exist   */
+#define GFS_ERR_FID             (-10)   /* Bad file identifier             */
+#define GFS_ERR_HNDL            (-11)   /* Bad file handle           */
+#define GFS_ERR_SEEK            (-12)   /* Seek position incorrect                 */
+#define GFS_ERR_ORG             (-13)   /* Reference position value incorrect                   */
+#define GFS_ERR_NUM             (-14)   /* Negative number of bytes                     */
+#define GFS_ERR_OFS             (-15)   /* Incorrect offset                 */
+#define GFS_ERR_FBUSY           (-16)   /* Processing of the specified file remains   */
+#define GFS_ERR_PARA            (-17)   /* Incorrect parameter                 */
+#define GFS_ERR_BUSY            (-18)   /* Library function is running             */
+#define GFS_ERR_NOHNDL          (-19)   /* The file handle is full     */
+#define GFS_ERR_PUINUSE         (-20)   /* Pickup in progress               */
+#define GFS_ERR_ALIGN           (-21)   /* The work area is not at the 4byte boundary        */
+#define GFS_ERR_TMOUT           (-22)   /* Timeout                     */
+#define GFS_ERR_CDOPEN          (-23)   /* Tray is open               */
+#define GFS_ERR_BFUL            (-24)   /* Buffer full read aborted       */
+#define GFS_ERR_FATAL           (-25)   /* The CD is in fatal state                    */
 
 /*****************************************************************************
- *      列挙定数
+ *      Enumeration constants
  *****************************************************************************/
-/* アクセスモード(GfsFile:amode) */
+/* Access mode (GfsFile:amode) */
 enum GfsAccessMode {
-    GFS_NWSTAT_NOACT = 0,               /* 何もしていない              */
-    GFS_NWSTAT_FREAD,                   /* 読み込み中                  */
-    GFS_NWSTAT_CDREAD                   /* ＣＤリード中                */
+    GFS_NWSTAT_NOACT = 0,               /* I have nothing to do              */
+    GFS_NWSTAT_FREAD,                   /* Loading                  */
+    GFS_NWSTAT_CDREAD                   /* CD reading in progress                */
 };
 
 
-/* シークモード(GFS_Seek)               */
+/* Seek Mode (GFS_Seek)               */
 enum GfsSeekMode {
-    GFS_SEEK_SET = 0,                   /* 先頭からシーク               */
-    GFS_SEEK_CUR,                       /* 現在の位置からシーク         */
-    GFS_SEEK_END                        /* 終端からシーク               */
+    GFS_SEEK_SET = 0,                   /* Seek from beginning               */
+    GFS_SEEK_CUR,                       /* Seek from current position         */
+    GFS_SEEK_END                        /* Seek from End               */
 };
 
 
-/* 取り出しモード(GFS_SetGmode:gmode) */
+/* Eject mode (GFS_SetGmode:gmode) */
 enum GfsGetMode {
-    GFS_GMODE_ERASE = 0,                /* 転送後、バッファから削除     */
-    GFS_GMODE_RESIDENT                  /* ＣＤバッファに常駐           */
+    GFS_GMODE_ERASE = 0,                /* Removed from buffer after transfer     */
+    GFS_GMODE_RESIDENT                  /* Resides in the CD buffer           */
 };
 
 
-/* 転送モード(GFS_SetTmode) */
+/* Transfer mode (GFS_SetTmode) */
 enum GfsTransMode {
-    GFS_TMODE_SCU = 0,                  /* ＳＣＵによりＤＭＡ転送    */
-    GFS_TMODE_SDMA0,                    /* ＤＭＡサイクルスチール転送   cn=0 */
+    GFS_TMODE_SCU = 0,                  /* DMA transfers via SCU    */
+    GFS_TMODE_SDMA0,                    /* DMA cycle steel transfer cn=0 */
     GFS_TMODE_SDMA1,                    /*                              cn=1 */
-    GFS_TMODE_CPU,                      /* ソフトウェア転送 */
-    GFS_TMODE_STM,                      /* ストリーム用転送 */
+    GFS_TMODE_CPU,                      /* Software transfer */
+    GFS_TMODE_STM,                      /* Stream forwarding */
     GFS_TMODE_END
 };
 
-/* アクセスサーバ状態(GFS_NwExecServer) */
+/* Access Server State (GFS_NwExecServer) */
 enum GfsServerStatus {
-    GFS_SVR_COMPLETED = 0,              /* 全ファイルのアクセス終了     */
-    GFS_SVR_BUSY,                       /* ファイルアクセス中           */
-    GFS_SVR_CDPAUSE,                    /* ＣＤバッファフルの為一時停止 */
-    GFS_SVR_ERROR                       /* エラー発生 */
+    GFS_SVR_COMPLETED = 0,              /* End of access for all files     */
+    GFS_SVR_BUSY,                       /* File access in progress           */
+    GFS_SVR_CDPAUSE,                    /* CD buffer full, so paused */
+    GFS_SVR_ERROR                       /* Error occurred */
 };
 
 
-/* ディレクトリ種別(GFS_LoadDir, GFS_SetDir)     */
+/* Directory type (GFS_LoadDir, GFS_SetDir)     */
 enum GfsDirType {
-    GFS_DIR_ID          = 0,            /* ファイル名によるアクセス不可 */
-    GFS_DIR_NAME                        /* ファイル名によるアクセス可   */
+    GFS_DIR_ID          = 0,            /* Access by file name is not possible */
+    GFS_DIR_NAME                        /* Accessible by file name   */
 };
 
 
 /*****************************************************************************
- *      処理マクロ
+ *      Processing macros
  *****************************************************************************/
 #define GFS_WORK_SIZE(open_max) \
             (sizeof(GfsMng) + ((open_max) - 1) * sizeof(GfsFile))
 
 /*****************************************************************************
- *      構造体アクセス処理マクロ
+ *      Structure Access Processing Macro
  *****************************************************************************/
 
-/* ディレクトリレコード構造体  */
+/* Directory record structure  */
 #define GFS_DIR_REC(rec)        ((rec)->dirrec)
 #define GFS_DIR_FAD(rec)        CDC_FILE_FAD(&GFS_DIR_REC(rec))
 #define GFS_DIR_SIZE(rec)       CDC_FILE_SIZE(&GFS_DIR_REC(rec))
@@ -157,441 +157,441 @@ enum GfsDirType {
 #define GFS_DIR_FNAME(rec)      ((rec)->fname)
 
 
-/* ディレクトリ情報管理構造体 */
+/* Directory information management structure */
 #define GFS_DIRTBL_TYPE(dirtbl)         ((dirtbl)->type)
 #define GFS_DIRTBL_NDIR(dirtbl)         ((dirtbl)->ndir)
 #define GFS_DIRTBL_DIRID(dirtbl)        ((dirtbl)->dir.dir_i)
 #define GFS_DIRTBL_DIRNAME(dirtbl)      ((dirtbl)->dir.dir_n)
 
 
-/* エラー状態 */
+/* Error condition */
 #define GFS_ERR_FUNC(err)       ((err)->func)
 #define GFS_ERR_OBJ(err)        ((err)->obj)
 #define GFS_ERR_CODE(err)       ((err)->code)
 
 
 /*****************************************************************************
- *      データ型の定義
+ *      Data type definition
  *****************************************************************************/
 
 typedef Sint32 (*GfsTransFunc)(void *obj, Sint32 nsct);
 
-     /* ファイル情報 */
+     /* File information */
 typedef struct {
-    Sint32      fid;                    /* ファイル識別子 */
+    Sint32      fid;                    /* File identifier */
     CdcFile     finfo;
-    Sint32      sctsz;                  /* セクタ長 */
-    Sint32      nsct;                   /* セクタ数 */
-    Sint32      lstrm;                  /* 最終セクタ中の無効データ数   */
+    Sint32      sctsz;                  /* Sector length */
+    Sint32      nsct;                   /* Number of sectors */
+    Sint32      lstrm;                  /* Number of invalid data in the last sector   */
 } GfsFinfo;
 
 
-/* CDバッファの資源管理 */
+/* CD buffer resource management */
 typedef struct {
-    Sint32      bufno;                  /* バッファ区画番号 */
-    Sint32      sctsz;                  /* ＣＤバッファのセクタサイズ   */
-    Sint32      flt;                    /* 絞り番号 */
-    CdcSubh     subh;                   /* サブヘッダ */
-    Sint32      fmode;                  /* 絞りモード */
-    Sint32      puid;                   /* 取得ピックアップのユーザID */
-    Sint32      filepos;                /* 先頭データのファイル上の位置 */
-    Sint32      sctpos;                 /* 転送位置 */
-    /* 再生範囲 */
-    Sint32      sfad;                   /* 開始FAD */
-    Sint32      efad;                   /* 終了FAD */
+    Sint32      bufno;                  /* Buffer compartment number */
+    Sint32      sctsz;                  /* Sector size of the CD buffer   */
+    Sint32      flt;                    /* Stamp number */
+    CdcSubh     subh;                   /* Sub-header */
+    Sint32      fmode;                  /* Aperture mode */
+    Sint32      puid;                   /* The user ID of the retrieval pickup */
+    Sint32      filepos;                /* The position of the first data on the file */
+    Sint32      sctpos;                 /* Transfer position */
+    /* Playback Range */
+    Sint32      sfad;                   /* Start FAD */
+    Sint32      efad;                   /* End FAD */
 } GfsCdRsrc;
 
 
-/* SCSIファイルの仮想CDバッファ管理 */
+/* Virtual CD buffer management for SCSI files */
 typedef struct {
-    Sint32      fid;                    /* SCSIファイル識別子   */
-    Sint32      filepos;                /* 先頭データのファイル上の位置 */
-    Sint32      sctpos;                 /* バッファ上のセクタ位置 */
-    Sint32      sctnum;                 /* バッファ内のセクタ数 */
+    Sint32      fid;                    /* SCSI file identifier   */
+    Sint32      filepos;                /* The position of the first data on the file */
+    Sint32      sctpos;                 /* Sector position on the buffer */
+    Sint32      sctnum;                 /* Number of sectors in the buffer */
 } GfsScsiRsrc;
 
 
-/* メモリファイルの仮想CDバッファ管理 */
+/* Virtual CD buffer management for memory files */
 typedef struct {
-    void        *data;                  /* データ領域           */
-    Sint32      filepos;                /* 先頭データのファイル上の位置 */
-    Sint32      sctpos;                 /* バッファ上のセクタ位置 */
-    Sint32      sctnum;                 /* バッファ内のセクタ数 */
+    void        *data;                  /* Data area           */
+    Sint32      filepos;                /* The position of the first data on the file */
+    Sint32      sctpos;                 /* Sector position on the buffer */
+    Sint32      sctnum;                 /* Number of sectors in the buffer */
 } GfsMemRsrc;
 
 
-/* 読み込み元管理 */
+/* Import Source Management */
 typedef struct {
-    /* 読み込み元管理 */
-    Sint32      ftype;                  /* ファイル種別         */
+    /* Import Source Management */
+    Sint32      ftype;                  /* File type         */
     union {
-        GfsCdRsrc       cd;             /* CDの資源             */
-        GfsScsiRsrc     scsi;           /* SCSIファイルの資源   */
-        GfsMemRsrc      mem;            /* メモリファイルの資源 */
+        GfsCdRsrc       cd;             /* CD resources             */
+        GfsScsiRsrc     scsi;           /* SCSI file resources   */
+        GfsMemRsrc      mem;            /* Memory file resources */
     } rsrc;
 } GfsDtsrc;
 
 
-/* CDからの読み込みを管理する */
+/* Manage CD loading */
 typedef struct {
-    GfsFinfo    finfo;                  /* ファイル情報         */
-    GfsDtsrc    dtsrc;                  /* 読み込み元           */
-    Sint32      gmode;                  /* 取り出しモード       */
-    Sint32      stat;                   /* 実行状態             */
-    /* flow in管理 */
-    Sint32      sct;                    /* 読み込みセクタ数     */
-    Sint32      sctcnt;                 /* 読み込みカウンタ     */
-    Sint32      sctmax;                 /* 読み込み最大セクタ数 */
+    GfsFinfo    finfo;                  /* File information         */
+    GfsDtsrc    dtsrc;                  /* Import from           */
+    Sint32      gmode;                  /* Eject mode       */
+    Sint32      stat;                   /* Execution state             */
+    /* Flow in management */
+    Sint32      sct;                    /* Number of sectors to read     */
+    Sint32      sctcnt;                 /* Read counter     */
+    Sint32      sctmax;                 /* Maximum number of sectors to read */
 } GfsFlow;
 
 
-/* データパック構造体 */
+/* Data pack structure */
 typedef struct {
-    void        *data;                  /* データ領域           */
-    Sint32      adlt;                   /* アドレスの増加分     */
-    Sint32      len;                    /* 転送バイト数         */
-    Sint32      nsct;                   /* 転送セクタ数         */
-    Bool        use;                    /* 使用フラグ           */
+    void        *data;                  /* Data area           */
+    Sint32      adlt;                   /* The number of addresses that have increased     */
+    Sint32      len;                    /* Number of bytes transferred         */
+    Sint32      nsct;                   /* Number of transmission sectors         */
+    Bool        use;                    /* Usage flag           */
 } GfsDataPack;
 
 
 typedef GfsDataPack *GfdpHn;
 
-/* 転送管理 */
-/* CDバッファからの転送を管理する */
+/* Transfer management */
+/* Manages transfers from the CD buffer */
 typedef struct {
-    void        *buf;                   /* 転送先アドレス */
-    Sint32      size;                   /* データ領域のサイズ */
-    Sint32      wp;                     /* 書き込みオフセット */
-    /* 転送管理 */
-    GfdpHn      dps;                    /* 転送元のデータパック */
-    GfdpHn      dpd;                    /* 転送先からのデータパック */
-    Sint32      tsctmax;                /* １回の転送の最大セクタ数 */
-    Sint32      tsct;                   /* 転送目標セクタ数 */
-    Sint32      tsctcnt;                /* 現在まで転送セクタ数 */
-    Sint32      tbytcnt;                /* セクタ内の転送バイト数 */
-    /* 転送関数 */
-    void        *obj;                   /* 転送関数への第１引数 */
-    GfsTransFunc tfunc;                 /* 転送関数 */
-    Sint32      unit;                   /* 転送単位 */
-    Bool        active;                 /* 動作中フラグ */
-    Sint32      stat;                   /* 状態 */
-    Sint32      mode;                   /* 転送モード */
+    void        *buf;                   /* Destination address */
+    Sint32      size;                   /* Size of the data area */
+    Sint32      wp;                     /* Write offset */
+    /* Transfer management */
+    GfdpHn      dps;                    /* The data pack from which to transfer */
+    GfdpHn      dpd;                    /* Data pack from the destination */
+    Sint32      tsctmax;                /* Maximum number of sectors per transfer */
+    Sint32      tsct;                   /* The number of target sectors to transfer */
+    Sint32      tsctcnt;                /* Number of sectors transferred to the present time */
+    Sint32      tbytcnt;                /* Number of bytes transferred in the sector */
+    /* Transfer function */
+    void        *obj;                   /* The first argument to the transfer function */
+    GfsTransFunc tfunc;                 /* Transfer function */
+    Sint32      unit;                   /* Transfer Unit */
+    Bool        active;                 /* In-motion flag */
+    Sint32      stat;                   /* State */
+    Sint32      mode;                   /* Transfer mode */
 } GfsTrans;
 
 
 typedef GfsTrans *GftrHn;
 
 
-/* オープンしたファイルを管理する */
+/* Manage open files */
 typedef struct {
-    Bool        used;                   /* この構造体が使用中かどうか */
-    Sint32      amode;                  /* アクセスモード */
-    Sint32      astat;                  /* アクセス状態 */
+    Bool        used;                   /* Whether this structure is in use */
+    Sint32      amode;                  /* Access mode */
+    Sint32      astat;                  /* Access status */
     GfsFlow     flow;
     GfsTrans    trans;
 } GfsFile;
 
 
-/* ファイルハンドル */
+/* File handle */
 typedef GfsFile *GfsHn;
 
 
-/* ユーザ登録転送関数 */
+/* User Registration Transfer function */
 typedef Sint32 (*GfsTrFunc)(GfsHn gfs, Sint32 nsct);
      
 
-/* ディレクトリレコード構造体(ファイル名なし)   */
+/* Directory record structure (no file name)   */
 typedef struct {
     CdcFile     dirrec;
 } GfsDirId;
 
 
-/* ディレクトリレコード構造体(ファイル名あり)   */
+/* Directory record structure (with file name)   */
 typedef struct {
     CdcFile     dirrec;
-    Sint8       fname[GFS_FNAME_LEN];   /* ファイル名 */
+    Sint8       fname[GFS_FNAME_LEN];   /* File name */
 } GfsDirName;
 
 
-/* ディレクトリ情報管理構造体 */
+/* Directory information management structure */
 typedef struct {
-    Sint32      type;                   /* 種別 */
-    Sint32      ndir;                   /* 最大要素数 */
+    Sint32      type;                   /* The type */
+    Sint32      ndir;                   /* Maximum number of elements */
     union {
-        GfsDirId *dir_i;                /* ファイル名なしディレクトリ情報 */
-        GfsDirName *dir_n;              /* ファイル名つきディレクトリ情報 */
+        GfsDirId *dir_i;                /* Directory information without file name */
+        GfsDirName *dir_n;              /* Directory information with file names */
     } dir;
 } GfsDirTbl;
 
 
-/* エラー処理関数 */
+/* Error handling functions */
 typedef void (*GfsErrFunc)(void *obj, Sint32 ec);
 
-/* エラー状態 */
+/* Error condition */
 typedef struct {
-    GfsErrFunc  func;                   /* エラー発生時の呼び出し関数   */
-    void        *obj;                   /* 呼び出し関数に渡す第一引数   */
-    Sint32      code;                   /* エラーコード                 */
+    GfsErrFunc  func;                   /* The calling function on error   */
+    void        *obj;                   /* The first argument to the calling function   */
+    Sint32      code;                   /* Error code                 */
 } GfsErrStat;
 
 
 /*****************************************************************************
- *      関数の宣言
+ *      Function declaration
  *****************************************************************************/
 
-/* ファイルシステムの初期化 */
+/* File system initialization */
 Sint32 GFS_Init(Sint32 open_max, void *work, GfsDirTbl *dirtbl);
 
-/* ディレクトリレコードの読み込み */
+/* Read directory records */
 Sint32 GFS_LoadDir(Sint32 fid, GfsDirTbl *dirtbl);
 
-/* カレントディレクトリレコードの設定 */
+/* Setting the current directory record */
 Sint32 GFS_SetDir(GfsDirTbl *dirtbl);
 
-/* 名前からファイル識別子への変換 */
+/* Name to file identifier conversion */
 Sint32 GFS_NameToId(Sint8 *fname);
 
-/* ファイル識別子からファイル名への変換 */
+/* Converting a file identifier to a file name */
 Sint8 *GFS_IdToName(Sint32 fid);
 
-/* ファイル識別子からディレクトリレコード取得 */
+/* Get directory records from file identifiers */
 Sint32 GFS_GetDirInfo(Sint32 fid, GfsDirId *dirrec);
 
-/*  ファイルシステムのリセット  */
+/*  Reset the file system  */
 void    GFS_Reset(void);
 
-/* ファイルハンドルの割当て */
+/* File handle assignment */
 GfsHn GFS_Open(Sint32 fid);
 
-/* ファイルハンドルの割当て解除 */
+/* Unassigning file handles */
 void GFS_Close(GfsHn gfs);
 
-/* アクセスポインタの移動 */
+/* Moving the access pointer */
 Sint32 GFS_Seek(GfsHn gfs, Sint32 ofs, Sint32 org);
 
-/* アクセスポインタの取得 */
+/* Get access pointer */
 Sint32 GFS_Tell(GfsHn gfs);
 
-/* ファイル終了のチェック */
+/* Check File Exit */
 Bool GFS_IsEof(GfsHn gfs);
 
-/* バイトサイズからセクタサイズへの変換 */
+/* Conversion of byte size to sector size */
 Sint32 GFS_ByteToSct(GfsHn gfs, Sint32 nbyte);
 
-/* ファイルサイズに関する情報の取得 */
+/* Get information about file size */
 void GFS_GetFileSize(GfsHn gfs, Sint32 *sctsz, Sint32 *nsct, Sint32 *lstsz);
 
-/* ファイル情報の取得 */
+/* Get file information */
 void GFS_GetFileInfo(GfsHn gfs, Sint32 *fid, Sint32 *fn, Sint32 *fsize,
                      Sint32 *atr);
 
-/*  CDバッファ区画のセクタ数の取得      */
+/*  Get the number of sectors in the CD buffer compartment      */
 Sint32 GFS_GetNumCdbuf(GfsHn gfs);
 
-/* 一括読み込み */
+/* Bulk Load */
 Sint32 GFS_Load(Sint32 fid, Sint32 ofs, void *buf, Sint32 bsize);
 
-/* 完了復帰型読み込み */
+/* Completion Revert loaded */
 Sint32 GFS_Fread(GfsHn gfs, Sint32 nsct, void *buf, Sint32 bsize);
 
-/* 即時復帰型読み込み */
+/* Immediate Revert type import */
 Sint32 GFS_NwFread(GfsHn gfs, Sint32 nsct, void *buf, Sint32 bsize);
 
-/* 即時復帰型ＣＤバッファ読み込み */
+/* Immediate Revert CD Buffer Read */
 Sint32 GFS_NwCdRead(GfsHn gfs, Sint32 nsct);
 
-/* アクセス動作完了チェック */
+/* Access operation completion check */
 Bool GFS_NwIsComplete(GfsHn gfs);
 
-/* アクセス動作の中止 */
+/* Stop access operation */
 Sint32 GFS_NwStop(GfsHn gfs);
 
-/* アクセス状態の取得 */
+/* Get access status */
 void GFS_NwGetStat(GfsHn gfs, Sint32 *amode, Sint32 *ndata);
 
-/* ファイル単位でのアクセス動作の実行 */
+/* Perform file-by-file access operations */
 Sint32 GFS_NwExecOne(GfsHn gfs);
 
-/* サーバアクセス動作の実行 */
+/* Perform server access operations */
 Sint32 GFS_NwExecServer(GfsHn *now_gfs);
 
-/* ＣＤバッファからの取り出しモードの設定 */
+/* Setting the eject mode from the CD buffer */
 Sint32 GFS_SetGmode(GfsHn gfs, Sint32 gmode);
 
-/* 転送モードの設定 */
+/* Set the transfer mode */
 Sint32 GFS_SetTmode(GfsHn gfs, Sint32 tmode);
 
-/* ソースバッファへの読み込みセクタ数の設定 */
+/* Setting the number of sectors read into the source buffer */
 Sint32 GFS_SetReadPara(GfsHn gfs, Sint32 nsct);
 
-/* ソースバッファからホストへの転送セクタ数の設定 */
+/* Setting the number of transmit sectors from the source buffer to the host */
 Sint32 GFS_SetTransPara(GfsHn gfs, Sint32 tsize);
 
-/* 転送関数の登録       */
+/* Transfer function registration       */
 void    GFS_SetTrFunc(GfsHn gfs, GfsTrFunc func);
 
-/* 転送関数における転送開始     */
+/* Transfer start in transfer function     */
 Uint32  *GFS_StartTrans(GfsHn gfs, Sint32 *dadr);
 
-/* ピックアップをアクセスポインタの位置に移動する */
+/* Move the pickup to the access pointer position */
 Sint32 GFS_CdMovePickup(GfsHn gfs);
 
-/* エラー処理関数の登録 */
+/* Register error handling functions */
 void GFS_SetErrFunc(GfsErrFunc func, void *obj);
 
-/* エラー状態の取得 */
+/* Get error condition */
 void GFS_GetErrStat(GfsErrStat *stat);
 
-/*  トラック番号の変換      */
+/*  Track number conversion      */
 Sint32  GFS_ConvTno(Sint32 logtno);
 
-/* fidとオフセットからフレームアドレスを取得する */
+/* Get frame address from fid and offset */
 Sint32 GFS_GetFad(Sint32 fid, Sint32 ofs);
 
 
 /*****************************************************************************
- *      システム用情報
+ *      Information for the system
  *****************************************************************************/
 
-/*---定数--------------------------------------------------------------------*/
-#define GFS_OPEN_MAX    24              /* 最大オープンファイル数 */
-#define GFS_TBUF_NR     2               /* 転送バッファの数 */
-#define GFS_FTYPE_NR    3               /* ファイル種別数 */
-#define GFS_SCTBUF_SIZ  2048            /* セクタバッファの大きさ */
-#define GFS_CDBBUF_NR   24              /* CDブロックの区画数 */
-#define GFS_SELQ_MAX    24              /* 絞り設定コマンドキューの最大長 */
-#define GFS_FCONQ_MAX   24              /* 接続コマンドキューの最大長 */
+/*---Constants--------------------------------------------------------------------*/
+#define GFS_OPEN_MAX    24              /* Maximum open files */
+#define GFS_TBUF_NR     2               /* Number of transfer buffers */
+#define GFS_FTYPE_NR    3               /* Number of file types */
+#define GFS_SCTBUF_SIZ  2048            /* The size of the sector buffer */
+#define GFS_CDBBUF_NR   24              /* Number of blocks of CD blocks */
+#define GFS_SELQ_MAX    24              /* Maximum length of the stamp configuration command queue */
+#define GFS_FCONQ_MAX   24              /* Maximum length of the connection command queue */
 
-/*---データ型----------------------------------------------------------------*/
+/*---Data type----------------------------------------------------------------*/
 
-/* ファイル操作用関数(管理テーブル, GfsMngのメンバ) */
+/* Functions for working with files (administration tables, members of GfsMng) */
 typedef struct {
-    Sint32 (*flowin)(GfsFlow *);        /* ソースバッファ読み込み関数   */
-    void (*stopin)(GfsFlow *, Bool);    /* 読み込み中止関数             */
-    Sint32 (*seek)(GfsFlow *, Sint32);  /* アクセスポインタ設定関数     */
-    Sint32 (*tell)(GfsFlow *);          /* アクセスポインタ取得関数     */
+    Sint32 (*flowin)(GfsFlow *);        /* Source buffer read function   */
+    void (*stopin)(GfsFlow *, Bool);    /* Stop reading function             */
+    Sint32 (*seek)(GfsFlow *, Sint32);  /* Access pointer configuration functions     */
+    Sint32 (*tell)(GfsFlow *);          /* Access pointer Retrieval function     */
 } GfsFileFunc;
 
-/* アクセスサーバ管理構造体(管理テーブル, GfsMngのメンバ) */
+/* Access server management structure (administration tables, members of GfsMng) */
 typedef struct {
-    GfsHn   access_file[GFS_OPEN_MAX];  /* アクセスモード指定済ファイル */
-    Sint32  nfile;                      /* 登録ファイル数               */
+    GfsHn   access_file[GFS_OPEN_MAX];  /* Access mode specified file */
+    Sint32  nfile;                      /* Number of registered files               */
 } GfsSvr;
 
 
-/* ディレクトリ管理構造体(管理テーブル, GfsMngのメンバ) */
+/* Directory administration structure (administration tables, members of GfsMng) */
 typedef struct {
-    GfsDirTbl   dirtbl;                 /* ディレクトリ情報管理 */
-    Sint32      nfile;                  /* ファイル数 */
+    GfsDirTbl   dirtbl;                 /* Directory Information Management */
+    Sint32      nfile;                  /* Number of files */
 } GfsDirMng;
 
 
-/* 絞り設定コマンドキューの要素(CDブロック管理構造体, GfsCdbMngのメンバ) */
+/* Aperture Settings command Queue Elements (CD Block Management Structure, GfsCdbMng Members) */
 typedef struct {
-    Uint8 flt;                          /* 設定先絞り番号 */
-    Uint8 fmode;                        /* 絞りモード */
-    CdcSubh subh;                       /* サブヘッダ */
-    Sint32 fad;                         /* 開始FAD */
-    Sint32 snum;                        /* FADセクタ数 */
+    Uint8 flt;                          /* Target Aperture number */
+    Uint8 fmode;                        /* Aperture mode */
+    CdcSubh subh;                       /* Sub-header */
+    Sint32 fad;                         /* Start FAD */
+    Sint32 snum;                        /* Number of FAD sectors */
 } GfcdSelQu;
 
-/* 接続コマンドキューの要素(CDブロック管理構造体, GfsCdbMngのメンバ) */
+/* Connection command queue elements (CD block management structure, members of GfsCdbMng) */
 typedef struct {
-    Sint32 flt;                         /* 設定絞り */
-    Sint32 buf;                         /* 真出力接続バッファ */
-    Sint32 flnout;                      /* 偽出力接続絞り(負の値を使用) */
+    Sint32 flt;                         /* Settings Aperture */
+    Sint32 buf;                         /* True output connection buffer */
+    Sint32 flnout;                      /* False Output Connection Aperture (use negative values) */
 } GfcdFconQu;    
 
-/* CDブロック管理構造体(管理テーブル, GfsMngのメンバ) */
+/* CD Block Management Structure (Administrative Tables, GfsMng Members) */
 typedef struct {
-    /* 資源管理 */
-    Sint8 use_buf[GFS_CDBBUF_NR];       /* バッファ区画使用状態 */
-    Sint8 use_filt[GFS_CDBBUF_NR];      /* 絞り使用状態 */
-    Bool use_pu;                        /* ピックアップ使用状態 */
-    Sint32 tr_bufno;                    /* データ転送中のバッファ区画   */
-    Sint32 puid;                        /* ピックアップの所有者ID */
-    Sint32 timer;                       /* タイムアウトカウンタ */
-    CdcStat stat;                       /* CDブロックの状態 */
-    void (*func)(void *);               /* CSCTハンドラ */
-    void *obj;                          /* CSCTハンドラの引数 */
-    /* GFCD_SetFiltタスク */
+    /* Resource Management */
+    Sint8 use_buf[GFS_CDBBUF_NR];       /* Buffer compartment usage state */
+    Sint8 use_filt[GFS_CDBBUF_NR];      /* Aperture usage state */
+    Bool use_pu;                        /* Pickup in use state */
+    Sint32 tr_bufno;                    /* Buffer compartment during data transfer   */
+    Sint32 puid;                        /* The owner ID of the pickup */
+    Sint32 timer;                       /* Timeout counter */
+    CdcStat stat;                       /* The condition of the CD block */
+    void (*func)(void *);               /* CSCT handler */
+    void *obj;                          /* CSCT handler arguments */
+    /* GFCD_SetFilt task */
     struct {
-        Sint32 len;                     /* 絞り設定コマンドキューの長さ */
-        Sint32 stat;                    /* コマンドキュー先頭の状態 */
-        GfcdSelQu selq[GFS_SELQ_MAX];   /* 絞り設定コマンドキュー */
+        Sint32 len;                     /* The length of the stamp configuration command queue */
+        Sint32 stat;                    /* Command queue top state */
+        GfcdSelQu selq[GFS_SELQ_MAX];   /* Stamp Configuration command Queue */
     } tsk_setflt;
-    /* GFCD_SetFiltConタスク */
+    /* GFCD_SetFiltCon task */
     struct {
-        Sint32 len;                     /* 接続コマンドキューの長さ */
-        Sint32 stat;                    /* タスク終了フラグ */
-        GfcdFconQu fconq[GFS_FCONQ_MAX]; /* 接続コマンドキュー */
+        Sint32 len;                     /* Length of the connection command queue */
+        Sint32 stat;                    /* Task End Flag */
+        GfcdFconQu fconq[GFS_FCONQ_MAX]; /* Connection command queue */
     } tsk_fltcon;
-    /* GFCD_SetConタスク */
+    /* GFCD_SetCon task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint32 flt;                     /* CD接続先絞り */
+        Sint32 stat;                    /* Task End Flag */
+        Sint32 flt;                     /* CD destination aperture */
     } tsk_setcon;
-    /* GFCD_GetLenDataタスク */
+    /* GFCD_GetLenData task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint32 bufno;                   /* 対象区画 */
-        Sint32 spos;                    /* 先頭セクタ位置 */
-        Sint32 usct;                    /* 要求セクタ数 */
-        Sint32 cnt;                     /* タスクの実行回数 */
-        Sint32 *nsct;                   /* 区画内セクタ数格納先 */
-        Sint32 *nbyte;                  /* 区画内バイト数格納先 */
+        Sint32 stat;                    /* Task End Flag */
+        Sint32 bufno;                   /* The target compartment */
+        Sint32 spos;                    /* The first sector position */
+        Sint32 usct;                    /* Number of required sectors */
+        Sint32 cnt;                     /* The number of times the task is executed */
+        Sint32 *nsct;                   /* Number of sectors in the compartment */
+        Sint32 *nbyte;                  /* The number of bytes in the compartment */
     }tsk_getlen;
-    /* GFCD_ReqDataタスク */
+    /* GFCD_ReqData task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint32 bufno;                   /* 対象区画 */
-        Sint32 sctpos;                  /* セクタ位置 */
-        Sint32 nsct;                    /* 要求セクタ数 */
+        Sint32 stat;                    /* Task End Flag */
+        Sint32 bufno;                   /* The target compartment */
+        Sint32 sctpos;                  /* Sector position */
+        Sint32 nsct;                    /* Number of required sectors */
     } tsk_reqdat;
-    /* GFCD_DelSctDataタスク */
+    /* GFCD_DelSctData task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint32 bufno;                   /* 対象区画 */
-        Sint32 sctpos;                  /* 削除開始セクタ位置 */
-        Sint32 nsct;                    /* 削除セクタ数 */
+        Sint32 stat;                    /* Task End Flag */
+        Sint32 bufno;                   /* The target compartment */
+        Sint32 sctpos;                  /* The sector position from which to delete */
+        Sint32 nsct;                    /* Number of sectors to delete */
     } tsk_delsct;
-    /* GFCD_MoveSctDataタスク */
+    /* GFCD_MoveSctData task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint32 dst;                     /* 移動先区画 */
-        Sint32 src;                     /* 移動元区画 */
-        Sint32 spos;                    /* 移動開始セクタ位置 */
-        Sint32 snum;                    /* 移動セクタ数 */
-        Sint32 fmode;                   /* 移動先セレクタの絞りモード保存 */
+        Sint32 stat;                    /* Task End Flag */
+        Sint32 dst;                     /* Destination pane */
+        Sint32 src;                     /* Source pane */
+        Sint32 spos;                    /* The position of the sector from which the movement begins */
+        Sint32 snum;                    /* Number of moving sectors */
+        Sint32 fmode;                   /* Stamp mode storage of the destination selector */
     } tsk_movsct;
-    /* GFCD_ChgDirタスク */
+    /* GFCD_ChgDir task */
     struct {
-        Sint32 stat;                    /* タスク終了フラグ */
-        Sint16 fid;                     /* 設定ファイル識別子 */
-        Sint16 work;                    /* 作業バッファ */
-        Sint32 *ndir;                   /* 保持ディレクトリ情報個数 */
+        Sint32 stat;                    /* Task End Flag */
+        Sint16 fid;                     /* Configuration file identifier */
+        Sint16 work;                    /* Work buffer */
+        Sint32 *ndir;                   /* Number of directory information retained */
     } tsk_chgdir;
 } GfsCdbMng;
 
-/* 管理テーブル */
+/* Administration table */
 typedef struct {
-    Sint32      openmax;                /* オープンファイルの最大数 */
-    GfsFileFunc functbl[GFS_FTYPE_NR];  /* ファイル操作用関数 */
-    GfsSvr      svr;                    /* アクセスサーバ */
-    GfsDirMng   curdir;                 /* カレントディレクトリ */
-    GfsHn       pickup;                 /* ピックアップ制御中ファイル */
-    Sint32      sfad;                   /* 再生範囲:開始FAD */
-    Sint32      efad;                   /* 再生範囲:終了FAD+1 */
-    GfsHn       trans;                  /* データ転送中ファイル */
-    GfsErrStat  error;                  /* エラー状態 */
-    Uint32      flags;                  /* デバイス接続情報など */
-    Sint32      timer;                  /* タイムアウトカウンタ */
-    GfsCdbMng   cdb;                    /* CDブロック管理構造体 */
-    GfsDataPack srcpk;                  /* 転送元データパック */
-    GfsDataPack dstpk;                  /* 転送先データパック */
-    Uint8       sect_buf[GFS_SCTBUF_SIZ]; /* １セクタの読み込み用バッファ */
-    GfsFile     file[1];                /* 全ハンドルの配列（可変長） */
+    Sint32      openmax;                /* Maximum number of open files */
+    GfsFileFunc functbl[GFS_FTYPE_NR];  /* Functions for file operations */
+    GfsSvr      svr;                    /* Access server */
+    GfsDirMng   curdir;                 /* Current directory */
+    GfsHn       pickup;                 /* Pickup control in progress file */
+    Sint32      sfad;                   /* Playback Range: Start FAD */
+    Sint32      efad;                   /* Playback Range: End FAD+1 */
+    GfsHn       trans;                  /* File in data transfer */
+    GfsErrStat  error;                  /* Error condition */
+    Uint32      flags;                  /* Device connection information, etc. */
+    Sint32      timer;                  /* Timeout counter */
+    GfsCdbMng   cdb;                    /* CD block management structure */
+    GfsDataPack srcpk;                  /* Source data pack */
+    GfsDataPack dstpk;                  /* Destination Data Pack */
+    Uint8       sect_buf[GFS_SCTBUF_SIZ]; /* A buffer for reading one sector */
+    GfsFile     file[1];                /* Array of all handles (variable length) */
 } GfsMng;
 
 #endif      /* !defined(SEGA_GFS_H) */

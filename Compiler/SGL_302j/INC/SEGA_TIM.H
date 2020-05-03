@@ -5,11 +5,11 @@
  *
  *  PURPOSE:
  *
- *      É^ÉCÉ}ÉâÉCÉuÉâÉäÉwÉbÉ_ÉtÉ@ÉCÉãÅB
+ *      Timer library header file.
  *
  *  DESCRIPTION:
  *
- *      É^ÉCÉ}ä«óùÇé¿åªÇ∑ÇÈÅB
+ *      Realize timer management.
  *
  *  AUTHOR(S)
  *
@@ -17,7 +17,7 @@
  *      1995-11/14  H.O Ver.1.00a
  *
  *  MOD HISTORY:
- *      1995-11/14  äOïîÉNÉçÉbÉNéwíËÇÃã÷é~ÅB
+ *      1995-11/14  Prohibition of external clock designation.
  *
  *-----------------------------------------------------------------------------
  */
@@ -40,156 +40,156 @@
  * GLOBAL DEFINES/MACROS DEFINES
  */
 /**** SCU ********************************************************************/
-/******** ÉåÉWÉXÉ^ ***********************************************************/
-#define TIM_REG_T0C     ((volatile Uint32 *)0x25fe0090)          /* ¿≤œ∫›Õﬂ±⁄ºﬁΩ¿     */
-#define TIM_REG_T1S     ((volatile Uint32 *)0x25fe0094)          /* ¿≤œ1æØƒ⁄ºﬁΩ¿Å@    */
-#define TIM_REG_T1MD    ((volatile Uint32 *)0x25fe0098)          /* ¿≤œ1”∞ƒﬁ⁄ºﬁΩ¿     */
-/******** íËêî ***************************************************************/
-/************ ÉrÉbÉgà íu *****************************************************/
-/**************** ¿≤œ1”∞ƒﬁ ***************************************************/
-#define TIM_B_TENB      (0)                             /* ¿≤œ≤»∞ÃﬁŸ⁄ºﬁΩ¿Å@Å@*/
-#define TIM_B_T1MD      (8)                             /* ¿≤œ1”∞ƒﬁ⁄ºﬁΩ¿ Å@Å@*/
-/************ íl *************************************************************/
-/**************** ¿≤œ1”∞ƒﬁ ***************************************************/
-#define TIM_TENB_OFF    (0 << TIM_B_TENB)               /* ¿≤œoff            */
-#define TIM_TENB_ON     (1 << TIM_B_TENB)               /* ¿≤œon         Å@Å@*/
-#define TIM_T1MD_ALL_LINE   (0 << TIM_B_T1MD)           /* ñàÉâÉCÉìäÑÇËçûÇ›  */
-#define TIM_T1MD_CST_LINE   (1 << TIM_B_T1MD)           /* éwíËÉâÉCÉìäÑÇËçûÇ›*/
+/******** Registers ***********************************************************/
+#define TIM_REG_T0C     ((volatile Uint32 *)0x25fe0090)          /* Thai Macon pair register     */
+#define TIM_REG_T1S     ((volatile Uint32 *)0x25fe0094)          /* Timer 1 set resistor    */
+#define TIM_REG_T1MD    ((volatile Uint32 *)0x25fe0098)          /* Timer 1 mode resistor     */
+/******** Constants ***************************************************************/
+/************ Bit position *****************************************************/
+/**************** Timer 1 mode ***************************************************/
+#define TIM_B_TENB      (0)                             /* Tie-mable resistor*/
+#define TIM_B_T1MD      (8)                             /* Timer 1 mode resistor*/
+/************ Value *************************************************************/
+/**************** Timer 1 mode ***************************************************/
+#define TIM_TENB_OFF    (0 << TIM_B_TENB)               /* Timer off            */
+#define TIM_TENB_ON     (1 << TIM_B_TENB)               /* Timer on*/
+#define TIM_T1MD_ALL_LINE   (0 << TIM_B_T1MD)           /* Line interrupt per line  */
+#define TIM_T1MD_CST_LINE   (1 << TIM_B_T1MD)           /* Specified line interrupt*/
 
-/**** CPU (Ãÿ∞◊›∆›∏ﬁ¿≤œ) *****************************************************/
-/******** ÉåÉWÉXÉ^ ***********************************************************/
-#define TIM_REG_TIER    ((volatile Uint8  *)0xfffffe10)          /* ¿≤œ≤›¿◊Ãﬂƒ≤»∞ÃﬁŸ  */
-#define TIM_REG_TCSR    ((volatile Uint8  *)0xfffffe11)          /* ¿≤œ∫›ƒ€∞Ÿ•Ω√∞¿Ω   */
-#define TIM_REG_FRC_H   ((volatile Uint8  *)0xfffffe12)          /* Ãÿ∞◊›∆›∏ﬁ∂≥›¿ H   */
-#define TIM_REG_FRC_L   ((volatile Uint8  *)0xfffffe13)          /* Ãÿ∞◊›∆›∏ﬁ∂≥›¿ L   */
-#define TIM_REG_OCRX_H  ((volatile Uint8  *)0xfffffe14)          /* ±≥ƒÃﬂØƒ∫›Õﬂ±A,B H */
-#define TIM_REG_OCRX_L  ((volatile Uint8  *)0xfffffe15)          /* ±≥ƒÃﬂØƒ∫›Õﬂ±A,B L */
-#define TIM_REG_TCR     ((volatile Uint8  *)0xfffffe16)          /* ¿≤œ∫›ƒ€∞ŸÅ@Å@Å@   */
-#define TIM_REG_TOCR    ((volatile Uint8  *)0xfffffe17)          /* ¿≤œ±≥ƒÃﬂØƒ∫›Õﬂ±   */
-#define TIM_REG_ICRA_H  ((volatile Uint8  *)0xfffffe18)          /* ≤›ÃﬂØƒ∑¨Ãﬂ¡¨A H   */
-#define TIM_REG_ICRA_L  ((volatile Uint8  *)0xfffffe19)          /* ≤›ÃﬂØƒ∑¨Ãﬂ¡¨A L   */
-/******** íËêî ***************************************************************/
-/************ ÉrÉbÉgà íu *****************************************************/
-/**************** ¿≤œ≤›¿◊Ãﬂƒ≤»∞Ãﬁ  *******************************************/
+/**** CPU (Free running Timer) *****************************************************/
+/******** Registers ***********************************************************/
+#define TIM_REG_TIER    ((volatile Uint8  *)0xfffffe10)          /* Timer interrupt enable  */
+#define TIM_REG_TCSR    ((volatile Uint8  *)0xfffffe11)          /* Timer control status   */
+#define TIM_REG_FRC_H   ((volatile Uint8  *)0xfffffe12)          /* Free running counter H.   */
+#define TIM_REG_FRC_L   ((volatile Uint8  *)0xfffffe13)          /* Free running counter L.   */
+#define TIM_REG_OCRX_H  ((volatile Uint8  *)0xfffffe14)          /* Output pair a,B H. */
+#define TIM_REG_OCRX_L  ((volatile Uint8  *)0xfffffe15)          /* Output pair a,B L */
+#define TIM_REG_TCR     ((volatile Uint8  *)0xfffffe16)          /* Timer control   */
+#define TIM_REG_TOCR    ((volatile Uint8  *)0xfffffe17)          /* Timer output pairs   */
+#define TIM_REG_ICRA_H  ((volatile Uint8  *)0xfffffe18)          /* Input capture a H.   */
+#define TIM_REG_ICRA_L  ((volatile Uint8  *)0xfffffe19)          /* Input capture a L.   */
+/******** Constants ***************************************************************/
+/************ Bit position *****************************************************/
+/**************** Timer interrupt enable  *******************************************/
 #define TIM_B_ICIAE     (7)                             /* ICAE              */
 #define TIM_B_OCIAE     (3)                             /* OCIAE             */
 #define TIM_B_OCIBE     (2)                             /* OCIBE             */
 #define TIM_B_OVIE      (1)                             /* OVIE              */
-/**************** ¿≤œ∫›ƒ€∞Ÿ•Ω√∞¿ *********************************************/
+/**************** Timer control stator *********************************************/
 #define TIM_B_ICFA      (7)                             /* ICFA              */
 #define TIM_B_OCFA      (3)                             /* OCFA              */
 #define TIM_B_OCFB      (2)                             /* OCFB              */
 #define TIM_B_OVI       (1)                             /* OVI               */
 #define TIM_B_CCLRA     (0)                             /* CCLRA             */
-/**************** ¿≤œ∫›ƒ€∞Ÿ **************************************************/
+/**************** Timer control **************************************************/
 #define TIM_B_IEDGA     (7)                             /* IEDGA             */
 #define TIM_B_BUFEA     (3)                             /* BUFEA             */
 #define TIM_B_BUFEB     (2)                             /* BUFEB             */
 #define TIM_B_CKS1      (1)                             /* CKS1              */
 #define TIM_B_CKS0      (0)                             /* CKS0              */
-/**************** ¿≤œ±≥ƒÃﬂØƒ∫›Õﬂ±*********************************************/
+/**************** Timer output pairs*********************************************/
 #define TIM_B_OCRS      (4)                             /* OCRS              */
 #define TIM_B_OEA       (3)                             /* OEA               */
 #define TIM_B_OEB       (2)                             /* OEB               */
-#define TIM_B_OLVLA     (1)                             /* OLVLA             */
+#define TIM_B_OLVLA     (1)                             /* LVLA             */
 #define TIM_B_OLVLB     (0)                             /* OLVLB             */
-/************ É}ÉXÉN *********************************************************/
-/**************** ¿≤œ≤›¿◊Ãﬂƒ≤»∞Ãﬁ  *******************************************/
+/************ Mask *********************************************************/
+/**************** Timer interrupt enable  *******************************************/
 #define TIM_M_ICIAE     (1 << TIM_B_ICIAE)              /* ICAE              */
 #define TIM_M_OCIAE     (1 << TIM_B_OCIAE)              /* OCIAE             */
 #define TIM_M_OCIBE     (1 << TIM_B_OCIBE)              /* OCIBE             */
 #define TIM_M_OVIE      (1 << TIM_B_OVIE )              /* OVIE              */
-/**************** ¿≤œ∫›ƒ€∞Ÿ•Ω√∞¿ *********************************************/
+/**************** Timer control stator *********************************************/
 #define TIM_M_ICFA      (1 << TIM_B_ICFA )              /* ICFA              */
 #define TIM_M_OCFA      (1 << TIM_B_OCFA )              /* OCFA              */
 #define TIM_M_OCFB      (1 << TIM_B_OCFB )              /* OCFB              */
 #define TIM_M_OVI       (1 << TIM_B_OVI  )              /* OVI               */
 #define TIM_M_CCLRA     (1 << TIM_B_CCLRA)              /* CCLRA             */
-/**************** ¿≤œ∫›ƒ€∞Ÿ **************************************************/
+/**************** Timer control **************************************************/
 #define TIM_M_IEDGA     (1 << TIM_B_IEDGA)              /* IEDGA             */
 #define TIM_M_BUFEA     (1 << TIM_B_BUFEA)              /* BUFEA             */
 #define TIM_M_BUFEB     (1 << TIM_B_BUFEB)              /* BUFEB             */
 #define TIM_M_CKS       (3 << TIM_B_CKS0 )              /* CKS1,0            */
-/**************** ¿≤œ±≥ƒÃﬂØƒ∫›Õﬂ±*********************************************/
+/**************** Timer output pairs*********************************************/
 #define TIM_M_OCRS      (1 << TIM_B_OCRS )              /* OCRS              */
 #define TIM_M_OEA       (1 << TIM_B_OEA  )              /* OEA               */
 #define TIM_M_OEB       (1 << TIM_B_OEB  )              /* OEB               */
-#define TIM_M_OLVLA     (1 << TIM_B_OLVLA)              /* OLVLA             */
+#define TIM_M_OLVLA     (1 << TIM_B_OLVLA)              /* LVLA             */
 #define TIM_M_OLVLB     (1 << TIM_B_OLVLB)              /* OLVLB             */
-/************ íl *************************************************************/
-/**************** ¿≤œ≤›¿◊Ãﬂƒ≤»∞Ãﬁ ********************************************/
-/******************** ¿≤œ≤›¿◊Ãﬂƒ≤»∞Ãﬁ ****************************************/
-#define TIM_ICIAE_DIS   (0 << TIM_B_ICIAE)              /* ICAEã÷é~          */
-#define TIM_ICIAE_ENA   (1 << TIM_B_ICIAE)              /* ICAEãñâ¬          */
-/******************** ±≥ƒÃﬂØƒ∫›Õﬂ±A ******************************************/
-#define TIM_OCIAE_DIS   (0 << TIM_B_OCIAE)              /* OCFAEã÷é~         */
-#define TIM_OCIAE_ENA   (1 << TIM_B_OCIAE)              /* OCFAEãñâ¬         */
-/******************** ±≥ƒÃﬂØƒ∫›Õﬂ±B ******************************************/
-#define TIM_OCIBE_DIS   (0 << TIM_B_OCIBE)              /* OCFAEã÷é~         */
-#define TIM_OCIBE_ENA   (1 << TIM_B_OCIBE)              /* OCFBEãñâ¬         */
-/******************** ¿≤œµ∞ ﬁÃ€∞≤›¿◊Ãﬂƒ≤»∞ÃﬁŸ ********************************/
-#define TIM_OVIE_DIS    (0 << TIM_B_OVIE)               /* FOVI ã÷é~         */
-#define TIM_OVIE_ENA    (1 << TIM_B_OVIE)               /* FOVI ãñâ¬         */
-/**************** ¿≤œ∫›ƒ€∞Ÿ•Ω√∞¿ *********************************************/
+/************ Value *************************************************************/
+/**************** Timer interrupt enable ********************************************/
+/******************** Timer interrupt enable ****************************************/
+#define TIM_ICIAE_DIS   (0 << TIM_B_ICIAE)              /* ICAE inhibited          */
+#define TIM_ICIAE_ENA   (1 << TIM_B_ICIAE)              /* ICAE allowed          */
+/******************** Output pair A. ******************************************/
+#define TIM_OCIAE_DIS   (0 << TIM_B_OCIAE)              /* OCFAE prohibited         */
+#define TIM_OCIAE_ENA   (1 << TIM_B_OCIAE)              /* OCFAE allowed         */
+/******************** Output pair B. ******************************************/
+#define TIM_OCIBE_DIS   (0 << TIM_B_OCIBE)              /* OCFAE prohibited         */
+#define TIM_OCIBE_ENA   (1 << TIM_B_OCIBE)              /* OCFBE authorization         */
+/******************** Timer overflow interrupt enable ********************************/
+#define TIM_OVIE_DIS    (0 << TIM_B_OVIE)               /* FOVI inhibited         */
+#define TIM_OVIE_ENA    (1 << TIM_B_OVIE)               /* FOVI allowed         */
+/**************** Timer control stator *********************************************/
 /******************** ICFA ***************************************************/
-#define TIM_ICFA_CLR    (0 << TIM_B_ICFA)               /* ICFA ÉNÉäÉA       */
-#define TIM_ICFA_SET    (1 << TIM_B_ICFA)               /* ICFA ÉZÉbÉg       */
+#define TIM_ICFA_CLR    (0 << TIM_B_ICFA)               /* ICFA cleared       */
+#define TIM_ICFA_SET    (1 << TIM_B_ICFA)               /* ICFA set       */
 /******************** OCFA ***************************************************/
-#define TIM_OCFA_CLR    (0 << TIM_B_OCFA)               /* OCFA ÉNÉäÉA       */
-#define TIM_OCFA_SET    (1 << TIM_B_OCFA)               /* OCFA ÉZÉbÉg       */
+#define TIM_OCFA_CLR    (0 << TIM_B_OCFA)               /* OCFA cleared       */
+#define TIM_OCFA_SET    (1 << TIM_B_OCFA)               /* OCFA set       */
 /******************** OCFB ***************************************************/
-#define TIM_OCFB_CLR    (0 << TIM_B_OCFB)               /* OCFB ÉNÉäÉA       */
-#define TIM_OCFB_SET    (1 << TIM_B_OCFB)               /* OCFB ÉZÉbÉg       */
+#define TIM_OCFB_CLR    (0 << TIM_B_OCFB)               /* OCFB cleared       */
+#define TIM_OCFB_SET    (1 << TIM_B_OCFB)               /* OCFB set       */
 /******************** OVF ****************************************************/
-#define TIM_OVF_CLR     (0 << TIM_B_OVI)                /* OVI  ÉNÉäÉA       */
-#define TIM_OVF_SET     (1 << TIM_B_OVI)                /* OVI  ÉZÉbÉg       */
+#define TIM_OVF_CLR     (0 << TIM_B_OVI)                /* OVI Clear       */
+#define TIM_OVF_SET     (1 << TIM_B_OVI)                /* OVI Set       */
 /******************** CCLRA **************************************************/
-#define TIM_CCLRA_CLR   (0 << TIM_B_CCLRA)              /* FRC  ÉNÉäÉAã÷é~   */
-#define TIM_CCLRA_SET   (1 << TIM_B_CCLRA)              /* FRCÇÉNÉäÉA       */
-/**************** ¿≤œ∫›ƒ€∞Ÿ **************************************************/
+#define TIM_CCLRA_CLR   (0 << TIM_B_CCLRA)              /* FRC clear inhibit   */
+#define TIM_CCLRA_SET   (1 << TIM_B_CCLRA)              /* Clear FRC       */
+/**************** Timer control **************************************************/
 /******************** IEDGA **************************************************/
-#define TIM_IEDGA_UP_EG (1 << TIM_B_IEDGA)              /* UP EG ∑¨Ãﬂ¡¨      */
-#define TIM_IEDGA_DW_EG (0 << TIM_B_IEDGA)              /* DW EG ∑¨Ãﬂ¡¨      */
+#define TIM_IEDGA_UP_EG (1 << TIM_B_IEDGA)              /* Up EG Capture      */
+#define TIM_IEDGA_DW_EG (0 << TIM_B_IEDGA)              /* DW EG Capture      */
 /******************** BUFEA **************************************************/
-#define TIM_BUFEA_NO_US (0 << TIM_B_BUFEA)              /* ICRCÇ ﬁØÃßégóp   */
-#define TIM_BUFEA_US    (1 << TIM_B_BUFEA)              /* ICRCÇ ﬁØÃßégóp   */
+#define TIM_BUFEA_NO_US (0 << TIM_B_BUFEA)              /* ICRC buffered   */
+#define TIM_BUFEA_US    (1 << TIM_B_BUFEA)              /* ICRC buffered   */
 /******************** BUFEB **************************************************/
-#define TIM_BUFEB_NO_US (0 << TIM_B_BUFEB)              /* ICRDÇ ﬁØÃßégóp   */
-#define TIM_BUFEB_US    (1 << TIM_B_BUFEB)              /* ICRDÇ ﬁØÃßégóp   */
+#define TIM_BUFEB_NO_US (0 << TIM_B_BUFEB)              /* ICRD buffered   */
+#define TIM_BUFEB_US    (1 << TIM_B_BUFEB)              /* ICRD buffered   */
 /******************** CKS1,0 *************************************************/
-#define TIM_CKS_8       ( 0 << TIM_B_CKS0)              /* 8 ÉJÉEÉìÉg        */
-#define TIM_CKS_32      ( 1 << TIM_B_CKS0)              /* 32ÉJÉEÉìÉg        */
-#define TIM_CKS_128     ( 2 << TIM_B_CKS0)              /* 128ÉJÉEÉìÉg       */
-#define TIM_CKS_OUT     ( 3 << TIM_B_CKS0)              /* äOïîÉJÉEÉìÉg      */
-/**************** ¿≤œ±≥ƒÃﬂØƒ∫›Õﬂ±*********************************************/
+#define TIM_CKS_8       ( 0 << TIM_B_CKS0)              /* 8 counts        */
+#define TIM_CKS_32      ( 1 << TIM_B_CKS0)              /* 32 counts        */
+#define TIM_CKS_128     ( 2 << TIM_B_CKS0)              /* 128 counts       */
+#define TIM_CKS_OUT     ( 3 << TIM_B_CKS0)              /* External count      */
+/**************** Timer output pairs*********************************************/
 /******************** OCRS ***************************************************/
-#define TIM_OCRS_OCRA   ( 0 << TIM_B_OCRS)              /* OCRAëIëÅ@        */
-#define TIM_OCRS_OCRB   ( 1 << TIM_B_OCRS)              /* OCRBëIë          */
+#define TIM_OCRS_OCRA   ( 0 << TIM_B_OCRS)              /* OCRA selection        */
+#define TIM_OCRS_OCRB   ( 1 << TIM_B_OCRS)              /* OCRB selection          */
 /******************** OEA ****************************************************/
-#define TIM_OEA_DIS     ( 0 << TIM_B_OEA)               /* OEAã÷é~ Å@        */
-#define TIM_OEA_ENA     ( 1 << TIM_B_OEA)               /* OEAãñâ¬ Å@        */
+#define TIM_OEA_DIS     ( 0 << TIM_B_OEA)               /* OEA prohibited        */
+#define TIM_OEA_ENA     ( 1 << TIM_B_OEA)               /* OEA allowed        */
 /******************** OEB ****************************************************/
-#define TIM_OEB_DIS     ( 0 << TIM_B_OEB)               /* OEBã÷é~ Å@        */
-#define TIM_OEB_ENA     ( 1 << TIM_B_OEB)               /* OEBãñâ¬ Å@        */
-/******************** OLVLA **************************************************/
-#define TIM_OLVLA_0     ( 0 << TIM_B_OLVLA)             /* "0"èoóÕ Å@        */
-#define TIM_OLVLA_1     ( 1 << TIM_B_OLVLA)             /* "1"èoóÕÅ@         */
+#define TIM_OEB_DIS     ( 0 << TIM_B_OEB)               /* OEB inhibited        */
+#define TIM_OEB_ENA     ( 1 << TIM_B_OEB)               /* OEB allowed        */
+/******************** LVLA **************************************************/
+#define TIM_OLVLA_0     ( 0 << TIM_B_OLVLA)             /* "0"output „ÄÄ        */
+#define TIM_OLVLA_1     ( 1 << TIM_B_OLVLA)             /* "1"output         */
 /******************** OLVLB **************************************************/
-#define TIM_OLVLB_0     ( 0 << TIM_B_OLVLB)             /* "0"èoóÕ Å@        */
-#define TIM_OLVLB_1     ( 1 << TIM_B_OLVLB)             /* "1"èoóÕÅ@         */
-/**** èàóùÉ}ÉNÉç *************************************************************/
-/**** ÉÅÉÇÉäÉâÉCÉg ***********************************************************/
-#define TIM_POKE_B(adr, data)   (*((volatile Uint8 *)(adr)) = ((Uint8)(data)))  /* ﬁ≤ƒ*/
-#define TIM_POKE_W(adr, data)   (*((volatile Uint16 *)(adr)) = ((Uint16)(data)))/*‹∞ƒﬁ*/
-#define TIM_POKE_L(adr, data)   (*((volatile Uint32 *)(adr)) = ((Uint32)(data)))/*€›∏ﬁ*/
-/**** ÉÅÉÇÉäÉäÅ[Éh ***********************************************************/
-#define TIM_PEEK_B(adr)         (*((volatile Uint8 *)(adr)))                    /* ﬁ≤ƒ*/
-#define TIM_PEEK_W(adr)         (*((volatile Uint16 *)(adr)))                   /*‹∞ƒﬁ*/
-#define TIM_PEEK_L(adr)         (*((volatile Uint32 *)(adr)))                   /*€›∏ﬁ*/
+#define TIM_OLVLB_0     ( 0 << TIM_B_OLVLB)             /* "0"output „ÄÄ        */
+#define TIM_OLVLB_1     ( 1 << TIM_B_OLVLB)             /* "1"output         */
+/**** Processing macros *************************************************************/
+/**** Memory light ***********************************************************/
+#define TIM_POKE_B(adr, data)   (*((volatile Uint8 *)(adr)) = ((Uint8)(data)))  /*Bytes*/
+#define TIM_POKE_W(adr, data)   (*((volatile Uint16 *)(adr)) = ((Uint16)(data)))/*Word*/
+#define TIM_POKE_L(adr, data)   (*((volatile Uint32 *)(adr)) = ((Uint32)(data)))/*Long*/
+/**** Memory read ***********************************************************/
+#define TIM_PEEK_B(adr)         (*((volatile Uint8 *)(adr)))                    /*Bytes*/
+#define TIM_PEEK_W(adr)         (*((volatile Uint16 *)(adr)))                   /*Word*/
+#define TIM_PEEK_L(adr)         (*((volatile Uint32 *)(adr)))                   /*Long*/
 
 /*****************************************************************************/
 /*****************************************************************************/
-/**** ä÷êîå`éÆÉ}ÉNÉç *********************************************************/
+/**** Function format macros *********************************************************/
 /*****************************************************************************/
 /*****************************************************************************/
 
@@ -199,13 +199,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T0_ENABLE           - É^ÉCÉ}0äÑÇËçûÇ›ÉCÉlÅ[ÉuÉã
+ * NAME:    TIM_T0_ENABLE           - Timer 0 interrupt enable
  *
  * PARAMETERS :
- *      Ç»ÇµÅB
+ *      None.
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -216,13 +216,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T0_DISABLE          - É^ÉCÉ}0äÑÇËçûÇ›ÉfÉBÉZÅ[ÉuÉã
+ * NAME:    TIM_T0_DISABLE          - Timer 0 interrupt disabled
  *
  * PARAMETERS :
- *      Ç»ÇµÅB
+ *      None.
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -233,13 +233,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T1_ENABLE           - É^ÉCÉ}1äÑÇËçûÇ›ÉCÉlÅ[ÉuÉã
+ * NAME:    TIM_T1_ENABLE           - Timer 1 interrupt enable
  *
  * PARAMETERS :
- *      Ç»ÇµÅB
+ *      None.
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -250,13 +250,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T1_DISABLE          - É^ÉCÉ}1äÑÇËçûÇ›ÉfÉBÉZÅ[ÉuÉã
+ * NAME:    TIM_T1_DISABLE          - Timer 1 interrupt disabled
  *
  * PARAMETERS :
- *      Ç»ÇµÅB
+ *      None.
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -267,13 +267,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T0_SET_CMP          - É^ÉCÉ}0ÉRÉìÉyÉAÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_T0_SET_CMP          - Timer 0 compare register setting
  *
  * PARAMETERS :
- *      (1) Uint32 time_cmp         - <i>   É^ÉCÉ}0ÉRÉìÉyÉAÉåÉWÉXÉ^ê›íËíl
+ *      (1) Uint32 time_cmp         - <i>   Timer 0 compare register setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -282,13 +282,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T1_SET_DATA         - É^ÉCÉ}1ÉZÉbÉgÉfÅ[É^ÉåÉWÉXÉ^
+ * NAME:    TIM_T1_SET_DATA         - Timer 1 set data register
  *
  * PARAMETERS :
- *      (1) Uint32 time_data        - <i>   É^ÉCÉ}1ÉZÉbÉgÉfÅ[É^ÉåÉWÉXÉ^ê›íËíl
+ *      (1) Uint32 time_data        - <i>   Timer 1 set data register setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -297,13 +297,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T1_SET_MODE         - É^ÉCÉ}1ÉÇÅ[ÉhÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_T1_SET_MODE         - Timer 1 mode register setting
  *
  * PARAMETERS :
- *      (1) Uint32 time_mode        - <i>   É^ÉCÉ}1ÉÇÅ[ÉhÉåÉWÉXÉ^ê›íËíl
+ *      (1) Uint32 time_mode        - <i>   Timer 1 mode register setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -312,13 +312,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_T1_SET_MODE         - É^ÉCÉ}1ÉÇÅ[ÉhÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_T1_SET_MODE         - Timer 1 mode register setting
  *
  * PARAMETERS :
- *      (1) Uint32 time_mode        - <i>   É^ÉCÉ}1ÉÇÅ[ÉhÉåÉWÉXÉ^ê›íËíl
+ *      (1) Uint32 time_mode        - <i>   Timer 1 mode register setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -330,15 +330,15 @@
 /*****************************************************************************/
 /******************************************************************************
  *
- * NAME:    TIM_FRT_INIT            - FRTèâä˙âª
+ * NAME:    TIM_FRT_INIT            - FRT initialization
  *
  * PARAMETERS :
- *      (1) Uint32 mode             - <i>   ï™é¸êî
+ *      (1) Uint32 mode             - <i>   Number of divisions
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  * NOTICE:
- *      äOïîÉNÉçÉbÉNëIëÇÃã÷é~ëŒçÙî≈ÅB
+ *      External clock selection prohibition version.
  *
  ******************************************************************************
  */
@@ -359,13 +359,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_16          - ÉJÉEÉìÉ^ílê›íË(16ÉrÉbÉg)
+ * NAME:    TIM_FRT_SET_16          - Counter value setting (16 bits)
  *
  * PARAMETERS :
- *      (1) Uint16 cnt              - <i>   ÉJÉEÉìÉ^íl
+ *      (1) Uint16 cnt              - <i>   Counter value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -376,13 +376,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_16          - ÉJÉEÉìÉ^íléÊìæ(16ÉrÉbÉg)
+ * NAME:    TIM_FRT_GET_16          - Get counter value (16 bits)
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint16 cnt              - <o>   ÉJÉEÉìÉ^íl
+ *      (1) Uint16 cnt              - <o>   Counter value
  *
  ******************************************************************************
  */
@@ -391,13 +391,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_DELAY_16        - éûä‘ë“Çø(16ÉrÉbÉg)
+ * NAME:    TIM_FRT_DELAY_16        - Wait for time (16 bits)
  *
  * PARAMETERS :
- *      (1) Uint16 cnt              - <i>   éûä‘ë“ÇøÉJÉEÉìÉ^íl
+ *      (1) Uint16 cnt              - <i>   Time-waiting counter value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -409,50 +409,50 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_CNT_TO_MCR      -   ÉJÉEÉìÉ^íl->É}ÉCÉNÉçïbïœä∑
+ * NAME:    TIM_FRT_CNT_TO_MCR      -   Counter value-> microsecond conversion
  *
  * PARAMETERS :
- *      (1) Uint32 count            - <i>   ÉJÉEÉìÉ^íl
+ *      (1) Uint32 count            - <i>   Counter value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
 #define TIM_FRT_CNT_TO_MCR(count)\
     (\
-    (((*(Uint16 *)0x25f80004 & 0x1) == 0x1) ?   /* PAL Ç©? */\
-     ((SYS_GETSYSCK == 0) ? (Float32)0.037470726 : (Float32)0.035164835 ) :/*PAL 26,28*/\
-     ((SYS_GETSYSCK == 0) ? (Float32)0.037210548 : (Float32)0.03492059 )) /*NT 26,28*/\
+    (((*(Uint16 *)0x25f80004 & 0x1) == 0x1) ?   /* PAL? */\
+     ((SYS_GETSYSCK == 0) ? (Float32)0.037470726 : (Float32)0.035164835 ) :/*PAL 26, 28*/\
+     ((SYS_GETSYSCK == 0) ? (Float32)0.037210548 : (Float32)0.03492059 )) /*NT 26, 28*/\
      * (count) * (8 << ((TIM_PEEK_B(TIM_REG_TCR) & TIM_M_CKS) << 1)))
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_MCR_TO_CNT      -   É}ÉCÉNÉçïb->ÉJÉEÉìÉ^ílïœä∑
+ * NAME:    TIM_FRT_MCR_TO_CNT      -   „Éû„Ç§„ÇØ„É≠Áßí->„Ç´„Ç¶„É≥„ÇøÂÄ§Â§âÊèõ
  *
  * PARAMETERS :
- *      (1) Uint32 mcr              - <i>   É}ÉCÉNÉçïbíl
+ *      (1) Uint32 mcr              - <i>   „Éû„Ç§„ÇØ„É≠ÁßíÂÄ§
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
 #define TIM_FRT_MCR_TO_CNT(mcr)\
     ((mcr) /\
-    (((*(volatile Uint16 *)0x25f80004 & 0x1) == 0x1) ?   /* PAL Ç©? */\
-     ((SYS_GETSYSCK == 0) ? (Float32)0.037470726 : (Float32)0.035164835 ) :/*PAL 26,28*/\
-     ((SYS_GETSYSCK == 0) ? (Float32)0.037210548 : (Float32)0.03492059 )) /*NT 26,28*/\
+    (((*(volatile Uint16 *)0x25f80004 & 0x1) == 0x1) ?   /* PAL? */\
+     ((SYS_GETSYSCK == 0) ? (Float32)0.037470726 : (Float32)0.035164835 ) :/*PAL 26, 28*/\
+     ((SYS_GETSYSCK == 0) ? (Float32)0.037210548 : (Float32)0.03492059 )) /*NT 26, 28*/\
     / (8 << ((TIM_PEEK_B(TIM_REG_TCR) & TIM_M_CKS) << 1)))
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_TIER        - É^ÉCÉ}ÉCÉìÉ^ÉâÉvÉgÉCÉlÅ[ÉuÉãÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_FRT_SET_TIER        - Timer interrupt enable register setting
  *
  * PARAMETERS :
- *      (1) Uint8 reg               - <i>   ê›íËíl
+ *      (1) Uint8 reg               - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -461,13 +461,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_TCSR        - É^ÉCÉ}ÉRÉìÉgÉçÅ[ÉãÉXÉeÅ[É^ÉXÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_FRT_SET_TCSR        - Timer control status register setting
  *
  * PARAMETERS :
- *      (1) Uint8 reg               - <i>   ê›íËíl
+ *      (1) Uint8 reg               - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -476,13 +476,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_FRC         - ÉtÉäÅ[ÉâÉìÉjÉìÉOÉJÉEÉìÉ^ê›íË
+ * NAME:    TIM_FRT_SET_FRC         - Free running counter setting
  *
  * PARAMETERS :
- *      (1) Uint16 reg              - <i>   ê›íËíl
+ *      (1) Uint16 reg              - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -494,13 +494,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_OCRA        - ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉåÉWÉXÉ^Aê›íË
+ * NAME:    TIM_FRT_SET_OCRA        - Output compare register A setting
  *
  * PARAMETERS :
- *      (1) Uint16 reg              - <i>   ê›íËíl
+ *      (1) Uint16 reg              - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -514,13 +514,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_OCRB        - ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉåÉWÉXÉ^Bê›íË
+ * NAME:    TIM_FRT_SET_OCRB        - Output compare register B setting
  *
  * PARAMETERS :
- *      (1) Uint16 reg              - <i>   ê›íËíl
+ *      (1) Uint16 reg              - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -534,15 +534,15 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_TCR         - É^ÉCÉ}ÉRÉìÉgÉçÅ[ÉãÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_FRT_SET_TCR         - Timer control register setting
  *
  * PARAMETERS :
- *      (1) Uint8 reg               - <i>   ê›íËíl
+ *      (1) Uint8 reg               - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  * NOTICE:
- *      äOïîÉNÉçÉbÉNëIëÇÃã÷é~ëŒçÙî≈ÅB
+ *      External clock selection prohibition version.
  *
  ******************************************************************************
  */
@@ -565,13 +565,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_SET_TOCR        - É^ÉCÉ}ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉRÉìÉgÉçÅ[Éã
- *                                    ÉåÉWÉXÉ^ê›íË
+ * NAME:    TIM_FRT_SET_TOCR        - Timer output compare control
+ *                                    Register setting
  * PARAMETERS :
- *      (1) Uint8 reg               - <i>   ê›íËíl
+ *      (1) Uint8 reg               - <i>   Setting value
  *
  * POSTCONDITIONS:
- *      Ç»Çµ
+ *      None
  *
  ******************************************************************************
  */
@@ -580,13 +580,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_TIER        - É^ÉCÉ}ÉCÉìÉ^ÉâÉvÉgÉCÉlÅ[ÉuÉãÉåÉWÉXÉ^éÊìæ
+ * NAME:    TIM_FRT_GET_TIER        - Get timer interrupt enable register
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint8 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint8 reg               - <o>   Register value
  *
  ******************************************************************************
  */
@@ -595,13 +595,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_TCSR        - É^ÉCÉ}ÉRÉìÉgÉçÅ[ÉãÉXÉeÅ[É^ÉXÉåÉWÉXÉ^éÊìæ
+ * NAME:    TIM_FRT_GET_TCSR        - Get timer control status register
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint8 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint8 reg               - <o>   Register value
  *
  ******************************************************************************
  */
@@ -610,13 +610,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_FRC          - ÉtÉäÅ[ÉâÉìÉjÉìÉOÉJÉEÉìÉgéÊìæ
+ * NAME:    TIM_FRT_GET_FRC          - Get free running count
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint16 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint16 reg               - <o>   Register value
  *
  ******************************************************************************
  */
@@ -625,10 +625,10 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_OCRA         - ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉåÉWÉXÉ^AéÊìæ
+ * NAME:    TIM_FRT_GET_OCRA         - Output compare register A acquisition
  *
  * PARAMETERS :
- *      (1) Uint16 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint16 reg               - <o>   Register value
  *
  * POSTCONDITIONS:
  *
@@ -644,10 +644,10 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_OCRB         - ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉåÉWÉXÉ^BéÊìæ
+ * NAME:    TIM_FRT_GET_OCRB         - Get output compare register B
  *
  * PARAMETERS :
- *      (1) Uint16 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint16 reg               - <o>   Register value
  *
  * POSTCONDITIONS:
  *
@@ -663,13 +663,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_TCR          - É^ÉCÉ}ÉRÉìÉgÉçÅ[ÉãÉåÉWÉXÉ^éÊìæ
+ * NAME:    TIM_FRT_GET_TCR          - Get timer control register
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint8  reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint8  reg               - <o>   Register value
  *
  ******************************************************************************
  */
@@ -678,13 +678,13 @@
                                                               
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_TOCR         - É^ÉCÉ}ÉAÉEÉgÉvÉbÉgÉRÉìÉyÉAÉRÉìÉgÉçÅ[Éã
- *                                     ÉåÉWÉXÉ^éÊìæ
+ * NAME:    TIM_FRT_GET_TOCR         - Timer output compare control
+ *                                     Register acquisition
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint8 reg                - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint8 reg                - <o>   Register value
  *
  ******************************************************************************
  */
@@ -693,13 +693,13 @@
 
 /******************************************************************************
  *
- * NAME:    TIM_FRT_GET_ICRA         - ÉCÉìÉvÉbÉgÉLÉÉÉvÉ`ÉÉÉåÉWÉXÉ^AéÊìæ
+ * NAME:    TIM_FRT_GET_ICRA         - Get input capture register A
  *
  * PARAMETERS :
- *      Ç»Çµ
+ *      None
  *
  * POSTCONDITIONS:
- *      (1) Uint16 reg               - <o>   ÉåÉWÉXÉ^íl
+ *      (1) Uint16 reg               - <o>   Register value
  *
  ******************************************************************************
  */

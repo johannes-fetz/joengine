@@ -21,24 +21,24 @@
 #endif
 
 /*****************************************************************************/
-/****************************** 基本データ型宣言 *****************************/
+/****************************** Basic data type declaration *****************************/
 /*****************************************************************************/
 
-typedef unsigned char	Uint8 ;		/* 符号なし１バイト整数 */
-typedef signed   char	Sint8 ;		/* 符号つき１バイト整数 */
-typedef unsigned short	Uint16 ;	/* 符号なし２バイト整数 */
-typedef signed   short	Sint16 ;	/* 符号つき２バイト整数 */
-typedef unsigned long	Uint32 ;	/* 符号なし４バイト整数 */
-typedef signed   long	Sint32 ;	/* 符号つき４バイト整数 */
-typedef float		Float32 ;	/* ４バイト実数 */
-typedef double		Float64 ;	/* ８バイト実数 */
+typedef unsigned char	Uint8 ;		/* Unsigned 1-byte integer */
+typedef signed   char	Sint8 ;		/* Signed 1-byte integer */
+typedef unsigned short	Uint16 ;	/* Unsigned SmallInt */
+typedef signed   short	Sint16 ;	/* Signed SmallInt */
+typedef unsigned long	Uint32 ;	/* Unsigned 4-byte integer */
+typedef signed   long	Sint32 ;	/* Signed 4-byte integer */
+typedef float		Float32 ;	/* 4 bytes Real */
+typedef double		Float64 ;	/* 8 bytes Real */
 
-typedef int		Int ;		/* INT型（ツール用）		*/
+typedef int		Int ;		/* Int type (for tool)		*/
 
-typedef int		Bool ;		/* 論理型（論理定数を値にとる）	*/
+typedef int		Bool ;		/* Logical type (takes logical constants into values)	*/
 
 /*****************************************************************************/
-/********************************* 定数マクロ ********************************/
+/********************************* Constant macros ********************************/
 /*****************************************************************************/
 
 #ifndef NULL
@@ -46,49 +46,49 @@ typedef int		Bool ;		/* 論理型（論理定数を値にとる）	*/
 #endif  /* NULL */
 
 /*****************************************************************************/
-/********************************** 列挙定数 *********************************/
+/********************************** Enumeration constants *********************************/
 /*****************************************************************************/
 
-enum BooleanLogic {			/* 論理定数１（偽、真） */
+enum BooleanLogic {			/* Logical constant 1 (false, true) */
     FALSE = 0 ,
     TRUE  = 1
 };
 
-enum BooleanSwitch {			/* 論理定数２（スイッチ） */
+enum BooleanSwitch {			/* Logical Constant 2 (Switch) */
     OFF = 0 ,
     ON  = 1
 };
 
-enum Judgement {			/* 結果判定の定数（成功、失敗） */
-    OK = 0 ,				/* 成功 */
-    NG = -1				/* 失敗 */
+enum Judgement {			/* Conclusions constants (success, failure) */
+    OK = 0 ,				/* Success */
+    NG = -1				/* Failed */
 };
 
 /*****************************************************************************/
-/********************************* 処理マクロ ********************************/
+/********************************* Processing macros ********************************/
 /*****************************************************************************/
 
-#define MAX(x, y)	((x) > (y) ? (x) : (y))	/* 最大値 */
-#define MIN(x, y)	((x) < (y) ? (x) : (y))	/* 最小値 */
-#define ABS(x)		((x) < 0 ? -(x) : (x))	/* 絶対値 */
+#define MAX(x, y)	((x) > (y) ? (x) : (y))	/* Maximum value */
+#define MIN(x, y)	((x) < (y) ? (x) : (y))	/* Minimum value */
+#define ABS(x)		((x) < 0 ? -(x) : (x))	/* Absolute value */
 
 /*------------------------------------------------------------------------------------*/
 
-#define	    DI		15		/* 割り込みの禁止 */
-#define	    EI		 0		/* 割り込みの許可 */
+#define	    DI		15		/* Barge-in inhibited */
+#define	    EI		 0		/* Interrupt allowed */
 
-#if 0	/* Ver2.1 より削除 */
-#define	    MAX_EVENTS	64		/* 使用できるイベントの数 */
-#define	    MAX_WORKS	256		/* 使用できるワークの数 */
+#if 0	/* Removed from Ver2.1 */
+#define	    MAX_EVENTS	64		/* Number of events available */
+#define	    MAX_WORKS	256		/* The number of work available */
 #endif
 
-#define	    MAX_NEST	20		/* マトリクスのネストできる数 */
+#define	    MAX_NEST	20		/* Number of nested matrices */
 
-#define	    WORK_SIZE	0x40		/* ワークの大きさ */
-#define	    EVENT_SIZE	0x80		/* イベントの大きさ */
+#define	    WORK_SIZE	0x40		/* The size of the work */
+#define	    EVENT_SIZE	0x80		/* The size of the event */
 
-typedef	    Sint16	ANGLE ;		/* 一周３６０度を １６ビットで表す  */
-typedef	    Sint32	FIXED ;		/* 上位１６ビットで整数部、下位１６ビットで小数部を表す固定小数点型 */
+typedef	    Sint16	ANGLE ;		/* Represents 360 degrees per lap in 16 bits  */
+typedef	    Sint32	FIXED ;		/* A fixed-point type that represents an integer part in the upper 16 bits and a decimal part in the lower 16 bits */
 
 enum ps {X , Y , Z , XYZ , XYZS , XYZSS , XY = Z , S = XYZ , Sh = S , Sv = XYZS} ;
 
@@ -105,14 +105,14 @@ typedef struct evnt {
     Uint8		 user[EVENT_SIZE - (sizeof(WORK *) + sizeof(struct evnt *) * 2 + sizeof(void (*)()))] ;
 } EVENT ;
 
-typedef     FIXED	MATRIX[4][3] ;		/* マトリクスデータ */
-typedef     FIXED	VECTOR[XYZ] ;		/* ベクトルデータ */
-typedef     FIXED	POINT[XYZ] ;		/* 頂点の位置データ */
+typedef     FIXED	MATRIX[4][3] ;		/* Matrix data */
+typedef     FIXED	VECTOR[XYZ] ;		/* Vector data */
+typedef     FIXED	POINT[XYZ] ;		/* Vertex position data */
 
 #define	    CURRENT		0		/* Current Matrix */
 #define	    ORIGINAL		(0.99999)	/* Original Scale */
 
-enum mtrx {M00 , M01 , M02 ,		/* マトリクスの要素番号 */
+enum mtrx {M00 , M01 , M02 ,		/* The element number of the matrix */
 	   M10 , M11 , M12 ,
 	   M20 , M21 , M22 ,
 	   M30 , M31 , M32 ,
@@ -164,50 +164,50 @@ enum tvsz {
 #define	    _ZmLC		(0x09 << 8)	/* Zoom base Left Center */
 #define	    _ZmLB		(0x0d << 8)	/* Zoom base Left Bottom */
 #define	    _ZmCT		(0x06 << 8)	/* Zoom base Center Top */
-#define	    _ZmCC		(0x0a << 8)	/* Zoom base Center Center */
+#define	    _ZmCC		(0x0a << 8)	/* Zoom base Center */
 #define	    _ZmCB		(0x0e << 8)	/* Zoom base Center Bottom */
 #define	    _ZmRT		(0x07 << 8)	/* Zoom base Right Top */
 #define	    _ZmRC		(0x0b << 8)	/* Zoom base Right Center */
 #define	    _ZmRB		(0x0f << 8)	/* Zoom base Right Bottom */
 
-#define	    MSBon		(1 << 15)	/* フレームバッファに書き込むＭＳＢを１にする */
-#define	    HSSon		(1 << 12)	/* ハイスピードシュリンク有効 */
-#define	    HSSoff		(0 << 12)	/* ハイスピードシュリンク無効(default) */
-#define	    No_Window		(0 << 9)	/* ウィンドウの制限を受けない(default)*/
-#define	    Window_In		(2 << 9)	/* ウィンドウの内側に表示 */
-#define	    Window_Out		(3 << 9)	/* ウィンドウの外側に表示 */
-#define	    MESHoff		(0 << 8)	/* 通常表示(default) */
-#define	    MESHon		(1 << 8)	/* メッシュで表示 */
-#define	    ECdis		(1 << 7)	/* エンドコードをパレットのひとつとして使用 */
-#define	    ECenb		(0 << 7)	/* エンドコード有効 */
-#define	    SPdis		(1 << 6)	/* スペースコードをパレットのひとつとして使用 */
-#define	    SPenb		(0 << 6)	/* スペースは表示しない(default) */
-#define	    CL16Bnk		(0 << 3)	/* カラーバンク１６色モード (default) */
-#define	    CL16Look		(1 << 3)	/* カラールックアップ１６色モード */
-#define	    CL64Bnk		(2 << 3)	/* カラーバンク６４色モード */
-#define	    CL128Bnk		(3 << 3)	/* カラーバンク１２８色モード */
-#define	    CL256Bnk		(4 << 3)	/* カラーバンク２５６色モード */
-#define	    CL32KRGB		(5 << 3)	/* ＲＧＢ３２Ｋ色モード */
-#define	    CL_Replace		0		/* 重ね書き(上書き)モード */
-#define	    CL_Shadow		1		/* 影モード */
-#define	    CL_Half		2		/* 半輝度モード */
-#define	    CL_Trans		3		/* 半透明モード */
-#define	    CL_Gouraud		4		/* グーローシェーディングモード */
+#define	    MSBon		(1 << 15)	/* Write MSB to framebuffer to 1 */
+#define	    HSSon		(1 << 12)	/* High Speed Shrink enabled */
+#define	    HSSoff		(0 << 12)	/* High Speed Shlink Disabled (default) */
+#define	    No_Window		(0 << 9)	/* No window restrictions (default)*/
+#define	    Window_In		(2 << 9)	/* Visible inside the window */
+#define	    Window_Out		(3 << 9)	/* Visible outside the window */
+#define	    MESHoff		(0 << 8)	/* Normal Display (default) */
+#define	    MESHon		(1 << 8)	/* Show in Mesh */
+#define	    ECdis		(1 << 7)	/* Use end code as one of the pallets */
+#define	    ECenb		(0 << 7)	/* End code valid */
+#define	    SPdis		(1 << 6)	/* Use space codes as one of the pallets */
+#define	    SPenb		(0 << 6)	/* No spaces (default) */
+#define	    CL16Bnk		(0 << 3)	/* Color Bank 16 Color Mode (default) */
+#define	    CL16Look		(1 << 3)	/* Color Lookup 16 color mode */
+#define	    CL64Bnk		(2 << 3)	/* Color bank 64 color mode */
+#define	    CL128Bnk		(3 << 3)	/* Color Bank 128 color mode */
+#define	    CL256Bnk		(4 << 3)	/* Color bank 256 color mode */
+#define	    CL32KRGB		(5 << 3)	/* RGB32K color mode */
+#define	    CL_Replace		0		/* Superimpose (overwrite) mode */
+#define	    CL_Shadow		1		/* Shadow mode */
+#define	    CL_Half		2		/* Half-brightness mode */
+#define	    CL_Trans		3		/* Translucent mode */
+#define	    CL_Gouraud		4		/* Gooloading mode */
 
-#define	    UseTexture		(1 << 2)	/* テクスチャを貼るポリゴン */
-#define	    UseLight		(1 << 3)	/* 光源の影響を受けるポリゴン */
-#define	    UsePalette		(1 << 5)	/* ポリゴンのカラー */
+#define	    UseTexture		(1 << 2)	/* Polygon to be textured */
+#define	    UseLight		(1 << 3)	/* Polygons affected by the light source */
+#define	    UsePalette		(1 << 5)	/* The color of the polygon */
 
 /* SGL Ver3.0 Add */
-#define	    UseNearClip		(1 << 6)	/* ニア・クリッピングをする */
-#define	    UseGouraud		(1 << 7)	/* リアルグーロー */
-#define	    UseDepth		(1 << 4)	/* デプスキュー */
+#define	    UseNearClip		(1 << 6)	/* Near-clipping */
+#define	    UseGouraud		(1 << 7)	/* Real Gouro */
+#define	    UseDepth		(1 << 4)	/* Depth queue */
 /* */
 
 #if 0 /* SGL Ver3.0 Delete */
-#define	    UseClip		(1 << 4)		/* 画面外に頂点が出たら表示しない */
+#define	    UseClip		(1 << 4)		/* Do not show vertices when they are outside the screen */
 #else
-#define	    UseClip		UseNearClip		/* ニア・クリッピングをする */
+#define	    UseClip		UseNearClip		/* Near-clipping */
 #endif
 
 #define	    sprHflip		((1 << 4) | FUNC_Texture | (UseTexture << PDATA16))
@@ -218,50 +218,50 @@ enum tvsz {
 #define	    sprPolyLine		(FUNC_PolyLine | ((ECdis | SPdis) << 24))
 #define	    sprLine		(FUNC_Line | ((ECdis | SPdis) << 24))
 
-#define	    No_Texture		0		/* テクスチャを使用しない時 */
-#define	    No_Option		0		/* オプションを使用しない時 */
-#define	    No_Gouraud		0		/* グーローシェーディングを使用しない時 */
-#define	    No_Palet	        0		/* カラーパレットの指定がいらない時 */
-#define	    GouraudRAM		(0x00080000 - (32*8))	/* 光源の影響用のグーローバッファ */
+#define	    No_Texture		0		/* When no texture is used */
+#define	    No_Option		0		/* When no option is used */
+#define	    No_Gouraud		0		/* When you do not use Gooloading */
+#define	    No_Palet	        0		/* When you do not need to specify a color palette */
+#define	    GouraudRAM		(0x00080000 - (32*8))	/* Google buffer for light effects */
 
 typedef struct {
-    VECTOR	 norm ;			/* 法線ベクトル */
-    Uint16	 Vertices[4] ;		/* ポリゴンを構成する頂点番号 */
+    VECTOR	 norm ;			/* Normal vector */
+    Uint16	 Vertices[4] ;		/* The vertex number that comprises the polygon */
 } POLYGON ;
 
 typedef struct {
-    Uint8	 flag ;			/* 片面か両面かのフラグ */
-    Uint8	 sort ;			/* ソートの基準位置とオプション設定 */
-    Uint16	 texno ;		/* テクスチャ番号 */
-    Uint16	 atrb ;			/* アトリビュートデータ(表示モード) */
-    Uint16	 colno ;		/* カラーナンバー */
-    Uint16	 gstb ;			/* グーローシェーディングテーブル */
-    Uint16	 dir ;			/* テクスチャの反転とファンクションナンバー */
+    Uint8	 flag ;			/* Single or double-sided flag */
+    Uint8	 sort ;			/* Sort by position and option settings */
+    Uint16	 texno ;		/* Texture number */
+    Uint16	 atrb ;			/* Attribute Data (Display Mode) */
+    Uint16	 colno ;		/* Color number */
+    Uint16	 gstb ;			/* Gouraud shading table */
+    Uint16	 dir ;			/* Flipping the texture and the function number */
 } ATTR ;
 
 typedef struct {
-    Uint16	 texno ;		/* テクスチャ番号 */
-    Uint16	 atrb ;			/* アトリビュートデータ(表示モード) */
-    Uint16	 colno ;		/* カラーナンバー */
-    Uint16	 gstb ;			/* グーローシェーディングテーブル */
-    Uint16	 dir ;			/* テクスチャの反転とファンクションナンバー */
+    Uint16	 texno ;		/* Texture number */
+    Uint16	 atrb ;			/* Attribute Data (Display Mode) */
+    Uint16	 colno ;		/* Color number */
+    Uint16	 gstb ;			/* Gouraud shading table */
+    Uint16	 dir ;			/* Flipping the texture and the function number */
 } SPR_ATTR ;
 
 typedef struct {
-    POINT	*pntbl ;		/* 頂点の位置データテーブル */
-    Uint32	 nbPoint ;		/* 頂点の数 */
-    POLYGON	*pltbl ;		/* ポリゴン定義テーブル */
-    Uint32	 nbPolygon ;		/* ポリゴンの数 */
-    ATTR	*attbl ;		/* ポリゴンのアトリビュートテーブル */
+    POINT	*pntbl ;		/* Vertex position data table */
+    Uint32	 nbPoint ;		/* Number of vertices */
+    POLYGON	*pltbl ;		/* Polygon definition table */
+    Uint32	 nbPolygon ;		/* Number of polygons */
+    ATTR	*attbl ;		/* The attribute table for the polygon */
 } PDATA ;
 
 /* SGL Ver3.0 Add */
 typedef struct {
-    POINT	*pntbl ;		/* 頂点の位置データテーブル */
-    Uint32	 nbPoint ;		/* 頂点の数 */
-    POLYGON	*pltbl ;		/* ポリゴン定義テーブル */
-    Uint32	 nbPolygon ;		/* ポリゴンの数 */
-    ATTR	*attbl ;		/* ポリゴンのアトリビュートテーブル */
+    POINT	*pntbl ;		/* Vertex position data table */
+    Uint32	 nbPoint ;		/* Number of vertices */
+    POLYGON	*pltbl ;		/* Polygon definition table */
+    Uint32	 nbPolygon ;		/* Number of polygons */
+    ATTR	*attbl ;		/* The attribute table for the polygon */
     VECTOR	*vntbl;
 } XPDATA ;
 /* */
@@ -269,55 +269,55 @@ typedef struct {
 #ifdef ST_VE
 
 typedef struct {
-    Uint16	 pmod ;			/* スプライト表示モード */
-    Uint16	 colno ;		/* カラーナンバー */
-    Uint16	 CGadr ;		/* スプライトＣＧアドレス / ８ */
-    Uint16	 HVsize ;		/* Ｈサイズ/８、Ｖサイズ(ハード用) */
+    Uint16	 pmod ;			/* Sprite display mode */
+    Uint16	 colno ;		/* Color number */
+    Uint16	 CGadr ;		/* Sprite CG Address / 8 */
+    Uint16	 HVsize ;		/* H/8, V size (hard) */
 } gxATTR_VDP1 ;
 
 typedef struct {
-    Uint32	 texcel ;		/* テクスチャセルアドレス */
-    Uint16	 dspmode ;		/* ディスプレイモードフラグ */
-    Uint16	 colno ;		/* カラーデータ */
-    Uint8	 TXA , TYA ;		/* テクスチャポイント */
+    Uint32	 texcel ;		/* Texture cell address */
+    Uint16	 dspmode ;		/* Display mode flag */
+    Uint16	 colno ;		/* Color data */
+    Uint8	 TXA , TYA ;		/* Texture point */
     Uint8	 TXB , TYB ;
     Uint8	 TXC , TYC ;
     Uint8	 TXD , TYD ;
 } gxATTR_ENHC ;
 
 typedef struct{
-    Uint16	 texno ;		/* テクスチャ番号 */
-    Uint16	 atrb ;			/* アトリビュートデータ(表示モード) */
-    Uint16	 colno ;		/* カラーナンバー */
-    Uint16	 gstb ;			/* グーローシェーディングテーブル */
-    Uint16	 dir ;			/* テクスチャの反転とファンクションナンバー */
+    Uint16	 texno ;		/* Texture number */
+    Uint16	 atrb ;			/* Attribute Data (Display Mode) */
+    Uint16	 colno ;		/* Color number */
+    Uint16	 gstb ;			/* Gouraud shading table */
+    Uint16	 dir ;			/* Flipping the texture and the function number */
 } gxSPR_ATTR ;
 
 typedef struct {
-    Uint16	texno ;			/* テクスチャオフセットアドレス */
-    Uint8	attr ;			/* 質感コード、ソーティングモード等 */
-    Uint8	nvface ;		/* 面法線ベクトルナンバー */
-    Uint8	nvnum[4] ;		/* 頂点法線ベクトルナンバー */
-    Uint8	Vertices[4] ;		/* ポリゴンを構成する頂点番号 */
+    Uint16	texno ;			/* Texture offset address */
+    Uint8	attr ;			/* Texture-sensitive cords, sorting modes, etc. */
+    Uint8	nvface ;		/* Face normal vector number */
+    Uint8	nvnum[4] ;		/* Vertex normal vector number */
+    Uint8	Vertices[4] ;		/* The vertex number that comprises the polygon */
 } gxPOLYGON ;
 
 typedef struct {
-    POINT	*pntbl ;		/* 頂点の位置データテーブル */
-    Uint16	 nbPoint ;		/* 頂点の数 */
-    Uint16	 nbNVector ;		/* 法線ベクトルの数 */
-    VECTOR	*nvtbl ;		/* 法線ベクトルデータテーブル */
-    gxPOLYGON	*pltbl ;		/* ポリゴン定義テーブル */
-    Uint32	 nbPolygon ;		/* ポリゴンの数 */
-    gxATTR_VDP1	*attbl ;		/* ポリゴンのアトリビュートテーブル */
+    POINT	*pntbl ;		/* Vertex position data table */
+    Uint16	 nbPoint ;		/* Number of vertices */
+    Uint16	 nbNVector ;		/* Number of normal vectors */
+    VECTOR	*nvtbl ;		/* The Porcupine Data Table */
+    gxPOLYGON	*pltbl ;		/* Polygon definition table */
+    Uint32	 nbPolygon ;		/* Number of polygons */
+    gxATTR_VDP1	*attbl ;		/* The attribute table for the polygon */
 } gxPDATA ;
 
 typedef struct {
-    Uint32	 texadr ;		/* テクスチャデータテーブル */
-    Uint8	 BD ;			/* 各頂点の輝度 */
+    Uint32	 texadr ;		/* Texture data table */
+    Uint8	 BD ;			/* Brightness of each vertex */
     Uint8	 BC ;
     Uint8	 BB ;
     Uint8	 BA ;
-    Sint16	 XA ;			/* 各頂点の位置 */
+    Sint16	 XA ;			/* The position of each vertex */
     Sint16	 YA ;
     Sint16	 XB ;
     Sint16	 YB ;
@@ -325,18 +325,18 @@ typedef struct {
     Sint16	 YC ;
     Sint16	 XD ;
     Sint16	 YD ;
-    Uint16	 ZA ;			/* 各頂点のＺ値 */
+    Uint16	 ZA ;			/* Z value for each vertex */
     Uint16	 ZB ;
     Uint16	 ZC ;
     Uint16	 ZD ;
-    Uint16	 winno ;		/* ウィンドウナンバー */
-    Uint16	 ZF ;			/* 代表Ｚ値 */
+    Uint16	 winno ;		/* Window number */
+    Uint16	 ZF ;			/* The typical Z value */
 } gxDIRECT ;
 
-#define		winEXn		0	/* エンハンサ側 手前(near) */
-#define		winEXf		1	/* エンハンサ側 奥(far) */
-#define		winSTn		2	/* ＳＴ-Ｖ側 手前(near) */
-#define		winSTf		3	/* ＳＴ-Ｖ側 奥(far) */
+#define		winEXn		0	/* Before end of ENHansa (near) */
+#define		winEXf		1	/* Enhansa side back (far) */
+#define		winSTn		2	/* ST-V side front (near) */
+#define		winSTf		3	/* ST V far */
 
 #define	    gxPOLYTBL(f,s,t,m,n)	{((f)<<16)|((t)<<20)|((s)<<12)|((m)<<8)|(n)
 #define	    gxNormal(a,b,c,d)		(a,b,c,d)
@@ -349,69 +349,69 @@ typedef struct {
 #endif
 
 typedef struct obj{
-    PDATA	*pat ;			/* ポリゴンモデルデータテーブル */
-    FIXED	 pos[XYZ] ;		/* 相対位置データ */
-    ANGLE	 ang[XYZ] ;		/* 回転角データ */
-    FIXED	 scl[XYZ] ;		/* スケーリングデータ */
-    struct obj	*child ;		/* 子オブジェクトデータ */
-    struct obj	*sibling ;		/* 兄弟オブジェクトデータ */
+    PDATA	*pat ;			/* Polygon model data table */
+    FIXED	 pos[XYZ] ;		/* Relative position data */
+    ANGLE	 ang[XYZ] ;		/* Rotation angle data */
+    FIXED	 scl[XYZ] ;		/* Scaling data */
+    struct obj	*child ;		/* Child object data */
+    struct obj	*sibling ;		/* Sibling object data */
 } OBJECT ;
 
 typedef struct {
-    Uint16	 Hsize ;		/* スプライトのＨサイズ */
-    Uint16	 Vsize ;		/* スプライトのＶサイズ */
-    Uint16	 CGadr ;		/* スプライトＣＧアドレス / ８ */
-    Uint16	 HVsize ;		/* Ｈサイズ/８、Ｖサイズ(ハード用) */
+    Uint16	 Hsize ;		/* The H size of the sprite */
+    Uint16	 Vsize ;		/* The V size of the sprite */
+    Uint16	 CGadr ;		/* Sprite CG Address / 8 */
+    Uint16	 HVsize ;		/* H/8, V size (hard) */
 } TEXTURE ;
 
 typedef struct {
-    Uint16	 texno ;		/* テクスチャ番号 */
-    Uint16	 cmode ;		/* カラーモード */
-    void	*pcsrc ;		/* 元データの所在 */
+    Uint16	 texno ;		/* Texture number */
+    Uint16	 cmode ;		/* Color mode */
+    void	*pcsrc ;		/* The origin data is located */
 } PICTURE ;
 
-#define	    COL_16	(2+1)		/* カラーバンク１６色モード */
-#define	    COL_64	(2+0)		/* カラーバンク６４色モード */
-#define	    COL_128	(2+0)		/* カラーバンク１２８色モード */
-#define	    COL_256	(2+0)		/* カラーバンク２５６色モード */
-#define	    COL_32K	(2-1)		/* ＲＧＢ３２Ｋ色モード */
+#define	    COL_16	(2+1)		/* Color Bank 16 color mode */
+#define	    COL_64	(2+0)		/* Color bank 64 color mode */
+#define	    COL_128	(2+0)		/* Color Bank 128 color mode */
+#define	    COL_256	(2+0)		/* Color bank 256 color mode */
+#define	    COL_32K	(2-1)		/* RGB32K color mode */
 
     enum base {
-	SORT_BFR ,			/* 直前に表示したポリゴンの位置を使う */
-	SORT_MIN ,			/* ４点の内、一番手前の点を使う */
-	SORT_MAX ,			/* ４点の内一番遠い点を使う */
-	SORT_CEN			/* ４点の平均位置を使う */
+	SORT_BFR ,			/* Use the position of the last polygon you viewed */
+	SORT_MIN ,			/* Use the first of four points */
+	SORT_MAX ,			/* Use the furthest of the four points */
+	SORT_CEN			/* Use the average position of four points */
     } ;
 
     enum pln {
-	Single_Plane ,			/* 片面ポリゴン */
-	Dual_Plane			/* 両面ポリゴン(表裏判定の結果を見ない) */
+	Single_Plane ,			/* Single-sided polygons */
+	Dual_Plane			/* Double sided polygon (no front/back decision) */
     } ;
 
 typedef struct {
-    Uint16	CTRL ;			/* コントロールファンクション */
-    Uint16	LINK ;			/* リンクアドレス */
-    Uint16	PMOD ;			/* プットモード */
-    Uint16	COLR ;			/* カラーデータ */
-    Uint16	SRCA ;			/* ＣＧアドレス */
-    Uint16	SIZE ;			/* キャラクタサイズ */
-    Sint16	  XA ;			/* 表示位置 Ａ */
+    Uint16	CTRL ;			/* Control elements */
+    Uint16	LINK ;			/* Link address */
+    Uint16	PMOD ;			/* Put mode */
+    Uint16	COLR ;			/* Color data */
+    Uint16	SRCA ;			/* CG address */
+    Uint16	SIZE ;			/* Character size */
+    Sint16	  XA ;			/* Display position A. */
     Sint16	  YA ;
-    Sint16	  XB ;			/* 表示位置 Ｂ */
+    Sint16	  XB ;			/* Display position B. */
     Sint16	  YB ;
-    Sint16	  XC ;			/* 表示位置 Ｃ */
+    Sint16	  XC ;			/* Display position C. */
     Sint16	  YC ;
-    Sint16	  XD ;			/* 表示位置 Ｄ */
+    Sint16	  XD ;			/* Display position D. */
     Sint16	  YD ;
-    Uint16	GRDA ;			/* グーローシェーディングテーブル */
-    Uint16	DMMY ;			/* サイズ合わせ用 ダミーデータ */
+    Uint16	GRDA ;			/* Gouraud shading table */
+    Uint16	DMMY ;			/* Dummy data for sizing */
 } SPRITE ;
 
 #define	    SpriteVRAM		0x25c00000
 
 /*-----------------------------------------------------------------------*/
 
-/* ＲＧＢモードカラーサンプルデータ */
+/* RGB mode color sample data */
 
 #define	    RGB_Flag		0x8000
 
@@ -445,7 +445,7 @@ typedef struct {
 #define	    CD_Magenta		(31 << 10) | (31 << 5) | (0)  | RGB_Flag
 #define	    CD_White		(31 << 10) | (31 << 5) | (31) | RGB_Flag
 
-/*------[ Scroll control ]------------------------------------------------*/
+/*------Scroll control------------------------------------------------*/
 
 /*	Scroll V-RAM map address	*/
 
@@ -454,61 +454,61 @@ typedef struct {
 #define	    VDP2_VRAM_B0	0x25e40000
 #define	    VDP2_VRAM_B1	0x25e60000
 
-#define	    CGN01_RAM		VDP2_VRAM_B1		/* スクロール０、１用ＣＧデータ */
-#define	    NBG0_MAP		(CGN01_RAM+0x16000)	/* スクロール０のＶＲＡＭアドレス */
-#define	    NBG1_MAP		(CGN01_RAM+0x18000)	/* スクロール１のＶＲＡＭアドレス */
+#define	    CGN01_RAM		VDP2_VRAM_B1		/* CG data for scrolling 0, 1 */
+#define	    NBG0_MAP		(CGN01_RAM+0x16000)	/* VRAM address for scroll 0 */
+#define	    NBG1_MAP		(CGN01_RAM+0x18000)	/* VRAM address for scroll 1 */
 
-#define	    KTBL0_RAM		VDP2_VRAM_A1		/* 回転スクロール用係数テーブル */
+#define	    KTBL0_RAM		VDP2_VRAM_A1		/* Coefficient table for scrolling rotations */
 #define	    BACK_CRAM		(KTBL0_RAM + 0x1fffe)	/* Back color */
 #define     RBG_PARA_ADR	(KTBL0_RAM + 0x1ff00)
 #define     RBG_PARB_ADR	(RBG_PARA_ADR+ 0x80)
 
-#define	    CGR0_RAM		VDP2_VRAM_A0		/* 回転スクロール用ＣＧデータ*/
-#define	    RBG0_MAP		VDP2_VRAM_B0		/* 回転スクロール０のＶＲＡＭアドレス */
+#define	    CGR0_RAM		VDP2_VRAM_A0		/* CG data for rotating scrolling*/
+#define	    RBG0_MAP		VDP2_VRAM_B0		/* VRAM address for rotation scroll 0 */
 #define	    VDP2_COLRAM    		0x25f00000
 
-#define	    CG_Size		(8*8)		/* １セルの大きさ(CG) */
-#define     CG16Size            (8*8/2)         /* １セルの大きさ(CG 16Colors) */
-#define     CG256Size           (8*8)           /* １セルの大きさ(CG 256Colors) */
-#define     CG2048Size          (8*8*2)         /* １セルの大きさ(CG 2048Colors) */
-#define     CG32KSize           (8*8*2)         /* １セルの大きさ(CG 32KColors) */
+#define	    CG_Size		(8*8)		/* The size of a cell (CG) */
+#define     CG16Size            (8*8/2)         /* The size of a single cell (CG 16Colors) */
+#define     CG256Size           (8*8)           /* The size of a single cell (CG 256Colors) */
+#define     CG2048Size          (8*8*2)         /* The size of the single cell (CG 2048Colors) */
+#define     CG32KSize           (8*8*2)         /* The size of a single cell (CG 32KColors) */
 
-typedef     Uint16		CELL ;		/* １セルの大きさ(Pattern name) */
-#define	    Line		64		/* １ラインの大きさ */
-#define	    Page		(64*Line)	/* １ページの大きさ */
+typedef     Uint16		CELL ;		/* Pattern name */
+#define	    Line		64		/* The size of the * 1 line */
+#define	    Page		(64*Line)	/* The size of a page */
 
 typedef struct rdat{
-    FIXED	XST ;		/* スクリーン画面スタート座標 Ｘst */
-    FIXED	YST ;		/* スクリーン画面スタート座標 Ｙst */
-    FIXED	ZST ;		/* スクリーン画面スタート座標 Ｚst */
-    FIXED	DXST ;		/* スクリーン画面垂直方向座標増分 ｄＸst */
-    FIXED	DYST ;		/* スクリーン画面垂直方向座標増分 ｄＹst */
-    FIXED	DX ;		/* スクリーン画面水平方向座標増分 ｄＸ */
-    FIXED	DY ;		/* スクリーン画面水平方向座標増分 ｄＹ */
-    FIXED	MATA ;		/* 回転マトリクスパラメータＡ */
-    FIXED	MATB ;		/* 回転マトリクスパラメータＢ */
-    FIXED	MATC ;		/* 回転マトリクスパラメータＣ */
-    FIXED	MATD ;		/* 回転マトリクスパラメータＤ */
-    FIXED	MATE ;		/* 回転マトリクスパラメータＥ */
-    FIXED	MATF ;		/* 回転マトリクスパラメータＦ */
+    FIXED	XST ;		/* Screen start coordinates Xst */
+    FIXED	YST ;		/* Screen start coordinates Yst */
+    FIXED	ZST ;		/* Screen start coordinates Zst */
+    FIXED	DXST ;		/* Screen screen vertical coordinate increment dXst */
+    FIXED	DYST ;		/* Screen screen vertical coordinate increment dYst */
+    FIXED	DX ;		/* Screen screen horizontal coordinate increment DX */
+    FIXED	DY ;		/* Screen screen horizontal coordinate increment dY */
+    FIXED	MATA ;		/* Rotation matrix parameter A. */
+    FIXED	MATB ;		/* Rotation matrix parameter B. */
+    FIXED	MATC ;		/* Rotation matrix parameter C. */
+    FIXED	MATD ;		/* Rotation matrix parameter D. */
+    FIXED	MATE ;		/* Rotation matrix parameter E. */
+    FIXED	MATF ;		/* Rotation matrix parameter F. */
 
-    Sint16	PX ;		/* 視点座標 Ｐx */
-    Sint16	PY ;		/* 視点座標 Ｐy */
-    Sint16	PZ ;		/* 視点座標 Ｐz */
+    Sint16	PX ;		/* Viewpoint coordinates Px */
+    Sint16	PY ;		/* Viewpoint coordinates Py */
+    Sint16	PZ ;		/* Viewpoint coordinates Pz */
     Sint16	dummy0 ;
-    Sint16	CX ;		/* 中心座標 Ｃx */
-    Sint16	CY ;		/* 中心座標 Ｃy */
-    Sint16	CZ ;		/* 中心座標 Ｃz */
+    Sint16	CX ;		/* Center coordinate CX */
+    Sint16	CY ;		/* Centroid Cy */
+    Sint16	CZ ;		/* Center coordinate Cz */
     Sint16	dummy1 ;
 
-    FIXED	MX ;		/* 平行移動量 Ｍx */
-    FIXED	MY ;		/* 平行移動量 Ｍy */
-    FIXED	KX ;		/* 拡大縮小係数 kx */
-    FIXED	KY ;		/* 拡大縮小係数 ky */
+    FIXED	MX ;		/* Translation Quantity MX */
+    FIXED	MY ;		/* Translation amount My */
+    FIXED	KX ;		/* Scale factor kx */
+    FIXED	KY ;		/* Scaling factor ky */
 
-    Uint32	KAST ;		/* 係数テーブルスタートアドレス ＫＡst */
-    Sint32	DKAST ;		/* 係数テーブル垂直方向アドレス増分 ＫＡst */
-    Sint32	DKA ;		/* 係数テーブル水平方向アドレス増分 ＫＡ */
+    Uint32	KAST ;		/* Coefficient table start address KAst */
+    Sint32	DKAST ;		/* Coefficient table vertical address increment KAst */
+    Sint32	DKA ;		/* Coefficient table horizontal address increment KA */
 } ROTSCROLL ;
 
 /* slExtSignal */
@@ -587,7 +587,7 @@ typedef struct rdat{
 #define		CC_2ND		       	0x200
 #define		CC_EXT		       	0x400
 
-/* Gradation control */
+/* Grading control */
 #define		grdNBG0			0xa000
 #define		grdNBG1			0xc000
 #define		grdNBG2			0xd000
@@ -600,9 +600,9 @@ typedef struct rdat{
 #define		COL_G			(1<<5)
 #define		COL_B			(1<<10)
 /* SpriteColorCalc */
-#define		CC_pr_CN		0	/* Priority <= CCalcNum */
+#define		CC_pr_CN		0	/* Priority == CKalcNum */
 #define		CC_PR_CN		1	/* Priority == CCalcNum */
-#define		CC_PR_cn		2	/* Priority >= CCalcNum */
+#define		CC_PR_cn		2	/* Priority == CKalcNum */
 #define		CC_MSB			3	/* Use MSB */
 
 #define		SPR_PAL			0	/* Palette code only */
@@ -640,7 +640,7 @@ typedef struct rdat{
 	CLRate3_29 ,
 	CLRate2_30 ,
 	CLRate1_31 ,
-	CLRate0_32		/* Top 0 : Second 32 */
+	CLRate0_32		/* Top 0: Second 32 */
     } ;
 
 /* Screen select */
@@ -749,18 +749,18 @@ typedef struct rdat{
 #define		Sinc_Dfix_Long		19
 #define		Sdec_Dfix_Long		20
 
-/*------[ Sound control ]-------------------------------------------------*/
+/*------Sound control-------------------------------------------------*/
 
 typedef struct{
     Uint8	mode ;		/* Mode */
     Uint8	channel ;	/* PCM Channel Number */
-    Uint8	level ;		/* 0 ~ 127 */
-    Sint8	pan ;		/* -128 ~ +127 */
+    Uint8	level ;		/* 0 to 127 */
+    Sint8	pan ;		/* -128 to +127 */
     Uint16	pitch ;
-    Uint8	eflevelR ;	/* Effect level for Right(mono) 0 ~ 7 */
-    Uint8	efselectR ;	/* Effect select for Right(mono) 0 ~ 15 */
-    Uint8	eflevelL ;	/* Effect level for Left 0 ~ 7 */
-    Uint8	efselectL ;	/* Effect select for Left 0 ~ 15 */
+    Uint8	eflevelR ;	/* Effect level for right(mono) 0 to 7 */
+    Uint8	efselectR ;	/* Effect select for right(mono) 0 to 15 */
+    Uint8	eflevelL ;	/* Effect level for Left 0 to 7 */
+    Uint8	efselectL ;	/* Effect select for Left 0 to 15 */
 } PCM ;
 
 #define		_Stereo		0x80
@@ -795,7 +795,7 @@ typedef struct{
 
 #define		SoundRAM		0x25a00000
 
-/*------[ System Work Assignments ]---------------------------------------*/
+/*------System Work Assignments---------------------------------------*/
 
     extern const void*   MasterStack ;	/* Stack area End */
     extern const Uint16  MaxVertices ;	/* Calculatable vertice numbers */
@@ -823,7 +823,7 @@ typedef struct{
 
 /*------[ Prottype ]------------------------------------------------------*/
 
-/*  Math library	*/
+/*  Maths library	*/
 
     extern  FIXED  slSin(ANGLE) ;
     extern  FIXED  slCos(ANGLE) ;
@@ -1147,26 +1147,26 @@ typedef struct{
     extern  Bool    slBMSprPut(Sint16 , Sint16 , Sint16 , Sint16 , Sint8*) ;
 
 #ifdef ST_VE
-/*  Graphics enhancer control */
+/*  Graphics encher control */
 
     extern  Bool gxInitEnhancer(Uint16 , Uint16 , Uint16) ;
-#define	    EGX_IMMPAL		0	/* パレット直接 */
-#define	    EGX_PAL15		1	/* パレット間接 １５ビットカラー */
-#define	    EGX_PAL24		2	/* パレット間接 ２４ビットカラー */
-#define	    EGX_PAL_RGB15	3	/* パレット、ＲＧＢ混在 １５ビットカラー */
-#define	    EGX_PAL_RGB24	4	/* パレット、ＲＧＢ混在 ２４ビットカラー */
+#define	    EGX_IMMPAL		0	/* Pallet Direct */
+#define	    EGX_PAL15		1	/* Palette Indirect 15-bit color */
+#define	    EGX_PAL24		2	/* Palette Indirect 24-bit color */
+#define	    EGX_PAL_RGB15	3	/* Palette, RGB mixed 15-bit color */
+#define	    EGX_PAL_RGB24	4	/* Palette, RGB mixed 24-bit color */
 
 #define	    USE_EXVDP1		0
 #define	    USE_DSPDMA		1
 
     extern  void gxFocus(FIXED , FIXED) ;
     extern  void gxCalcMode(Uint16) ;
-#define	    CALCNVECTOR		1	/* 法線再計算 */
-#define	    USENVECTOR		0	/* 法線使用 */
+#define	    CALCNVECTOR		1	/* Normal Recalculation */
+#define	    USENVECTOR		0	/* Use Normal */
 
-#define	    NOSHADE		2	/* シェーディングなし */
-#define	    FLAT		4	/* フラットシェーディング */
-#define	    GOURAUD		8	/* グーローシェーディング */
+#define	    NOSHADE		2	/* No shading */
+#define	    FLAT		4	/* Flat shading */
+#define	    GOURAUD		8	/* Gooloading */
 
     extern  void gxSetMaterial(Uint16 , Uint16 , Uint16 , Uint16 , Uint16) ;
 
@@ -1208,45 +1208,45 @@ typedef struct{
 
 /*  Peripheral control */
 
-#define	SMPC_MASK_STE		0x80	/* ＳＥＴＴＩＭＥ実行済マスク		*/
-#define	SMPC_MASK_RESD		0x40	/* リセットイネーブルマスク		*/
-#define	SMPC_MASK_WEEK		0xf0	/* ＲＴＣ曜日マスク			*/
-#define	SMPC_MASK_MONTH		0x0f	/* ＲＴＣ月マスク			*/
-#define	SMPC_MASK_CTG1		0x02	/* カートリッジコード１			*/
-#define	SMPC_MASK_CTG0		0x01	/* カートリッジコード０			*/
-#define	SMPC_MASK_DOTSEL	0x4000	/* ＤＯＴＳＥＬ信号			*/
-#define	SMPC_MASK_MSHNMI	0x0800	/* ＭＳＨＮＭＩ信号			*/
-#define	SMPC_MASK_SYSRES	0x0200	/* ＳＹＳＲＥＳ信号			*/
-#define	SMPC_MASK_SNDRES	0x0100	/* ＳＮＤＲＥＳ信号			*/
-#define	SMPC_MASK_CDRES		0x0040	/* ＣＤＲＥＳ信号			*/
+#define	SMPC_MASK_STE		0x80	/* SETTIME performed Mask		*/
+#define	SMPC_MASK_RESD		0x40	/* Reset enable mask		*/
+#define	SMPC_MASK_WEEK		0xf0	/* RTC day mask			*/
+#define	SMPC_MASK_MONTH		0x0f	/* RTC month mask			*/
+#define	SMPC_MASK_CTG1		0x02	/* Cartridge code 1			*/
+#define	SMPC_MASK_CTG0		0x01	/* Cartridge code 0			*/
+#define	SMPC_MASK_DOTSEL	0x4000	/* DOTSEL signal			*/
+#define	SMPC_MASK_MSHNMI	0x0800	/* MSHNMI signal			*/
+#define	SMPC_MASK_SYSRES	0x0200	/* SYSRES signal			*/
+#define	SMPC_MASK_SNDRES	0x0100	/* SNDRES signal			*/
+#define	SMPC_MASK_CDRES		0x0040	/* CDRES signal			*/
 
-#define	SMPC_SUN	(0 << 4)	/* ＲＴＣ曜日番号（日曜日）		*/
-#define	SMPC_MON	(1 << 4)	/* ＲＴＣ曜日番号（月曜日）		*/
-#define	SMPC_TUE	(2 << 4)	/* ＲＴＣ曜日番号（火曜日）		*/
-#define	SMPC_WED	(3 << 4)	/* ＲＴＣ曜日番号（水曜日）		*/
-#define	SMPC_THU	(4 << 4)	/* ＲＴＣ曜日番号（木曜日）		*/
-#define	SMPC_FRI	(5 << 4)	/* ＲＴＣ曜日番号（金曜日）		*/
-#define	SMPC_SAT	(6 << 4)	/* ＲＴＣ曜日番号（土曜日）		*/
+#define	SMPC_SUN	(0 << 4)	/* RTC Day of Week number (Sunday)		*/
+#define	SMPC_MON	(1 << 4)	/* RTC Day of Week number (Monday)		*/
+#define	SMPC_TUE	(2 << 4)	/* RTC Day number Tuesday		*/
+#define	SMPC_WED	(3 << 4)	/* RTC Day number Wednesday		*/
+#define	SMPC_THU	(4 << 4)	/* RTC Day of Week number (Thursday)		*/
+#define	SMPC_FRI	(5 << 4)	/* RTC Day of Week number (Friday)		*/
+#define	SMPC_SAT	(6 << 4)	/* RTC Day number Saturday		*/
 
-#define	PER_RESULT_MAX		30	/* 最大ペリフェラル数			*/
+#define	PER_RESULT_MAX		30	/* Maximum number of peripherals			*/
 
-#define	PER_ID_StnPad		0x02	/* サターン標準パッド			*/
-#define	PER_ID_StnLacing	0x13	/* サターンレーシングコントローラー	*/
-#define	PER_ID_StnAnalog	0x15	/* サターンアナログジョイスティック	*/
-#define	PER_ID_StnMouse		0x23	/* サターンマウス			*/
-#define	PER_ID_StnShooting	0x25	/* サターンシューティングコントローラー */
-#define	PER_ID_StnKeyBoard	0x34	/* サターンキーボード			*/
-#define	PER_ID_MD3BtnPad	0xe1	/* メガドライブ３ボタンパッド		*/
-#define	PER_ID_MD6BtnPad	0xe2	/* メガドライブ６ボタンパッド		*/
-#define	PER_ID_ShuttleMouse	0xe3	/* シャトルマウス			*/
-#define	PER_ID_ExtDigital	0x00	/* 拡張サイズデジタルデバイス		*/
-#define	PER_ID_ExtAnalog	0x10	/* 拡張サイズアナログデバイス		*/
-#define	PER_ID_ExtPointing	0x20	/* 拡張サイズポインティングデバイス	*/
-#define	PER_ID_ExtKeyBoard	0x30	/* 拡張サイズキーボードデバイス		*/
-#define	PER_ID_ExtMegaDrive	0xe0	/* 拡張サイズメガドライブデバイス	*/
-#define	PER_ID_NotConnect	0xff	/* 未接続				*/
+#define	PER_ID_StnPad		0x02	/* Saturn Standard Pad			*/
+#define	PER_ID_StnLacing	0x13	/* Saturn Racing Controller	*/
+#define	PER_ID_StnAnalog	0x15	/* Saturn analogue joystick	*/
+#define	PER_ID_StnMouse		0x23	/* Saturn Mouse			*/
+#define	PER_ID_StnShooting	0x25	/* Saturn shooting controller */
+#define	PER_ID_StnKeyBoard	0x34	/* Saturn keyboard			*/
+#define	PER_ID_MD3BtnPad	0xe1	/* Mega Drive 3 button pad		*/
+#define	PER_ID_MD6BtnPad	0xe2	/* Mega Drive 6 button pad		*/
+#define	PER_ID_ShuttleMouse	0xe3	/* Shuttle Mouse			*/
+#define	PER_ID_ExtDigital	0x00	/* Extended size digital device		*/
+#define	PER_ID_ExtAnalog	0x10	/* Extended size analogue device		*/
+#define	PER_ID_ExtPointing	0x20	/* Extended size pointing device	*/
+#define	PER_ID_ExtKeyBoard	0x30	/* Extended-size keyboard device		*/
+#define	PER_ID_ExtMegaDrive	0xe0	/* Extended size megabridrive device	*/
+#define	PER_ID_NotConnect	0xff	/* Not connected				*/
 
-					/* デジタルデバイス			*/
+					/* Digital devices			*/
 #define	PER_DGT_KR	(1 << 15)	/* Right Key				*/
 #define	PER_DGT_KL	(1 << 14)	/*  Left Key				*/
 #define	PER_DGT_KD	(1 << 13)	/*  Down Key				*/
@@ -1261,189 +1261,189 @@ typedef struct{
 #define	PER_DGT_TZ	(1 <<  4)	/* Z Trigger				*/
 #define	PER_DGT_TL	(1 <<  3)	/* L Trigger				*/
 
-					/* キーボードデバイス			*/
+					/* Keyboard device			*/
 #define	PER_KBD_CL	(1 << 6)	/* Caps Lock				*/
 #define	PER_KBD_NL	(1 << 5)	/* Num Lock				*/
 #define	PER_KBD_SL	(1 << 4)	/* Scroll Lock				*/
 #define	PER_KBD_MK	(1 << 3)	/* Make					*/
 #define	PER_KBD_BR	(1 << 0)	/* Break				*/
 
-enum SmpcSelect {			/* ＳＭＰＣ入出力セレクトモード		*/
-	SMPC_SH2_DIRECT,		/* (00) ＳＨ２ダイレクト		*/
-	SMPC_CONTROL			/* (01) ＳＭＰＣコントロール		*/
+enum SmpcSelect {			/* SMPC Input/Output Select Mode		*/
+	SMPC_SH2_DIRECT,		/* (00) SH2 Direct		*/
+	SMPC_CONTROL			/* (01) SMPC control		*/
 };
 
-enum SmpcExtLatch {			/* ＳＭＰＣ外部ラッチ入力モード		*/
-	SMPC_EXL_ENA,			/* (00) 外部ラッチ入力許可		*/
-	SMPC_EXL_DIS			/* (01) 外部ラッチ入力禁止		*/
+enum SmpcExtLatch {			/* SMPC external latch input mode		*/
+	SMPC_EXL_ENA,			/* (00) External latch input permit		*/
+	SMPC_EXL_DIS			/* (01) External latch input inhibited		*/
 };
 
-enum SmpcResetButton {			/* ＳＭＰＣリセットボタン状態		*/
-	SMPC_RES_ON,			/* (00) リセットボタンＯＮ		*/
-	SMPC_RES_OFF			/* (01) リセットボタンＯＦＦ		*/
+enum SmpcResetButton {			/* SMPC reset button state		*/
+	SMPC_RES_ON,			/* (00) Reset button on		*/
+	SMPC_RES_OFF			/* (01) Reset button off		*/
 };
 
-enum SmpcAreaCode {			/* エリアコード				*/
-	SMPC_AREA_RSV_0,		/* (00) 使用禁止			*/
-	SMPC_AREA_JP,			/* (01) 日本地域			*/
-	SMPC_AREA_AJ_NTSC,		/* (02) アジアＮＴＳＣ地域		*/
-	SMPC_AREA_RSV_3,		/* (03) 使用禁止			*/
-	SMPC_AREA_NA,			/* (04) 北米地域			*/
-	SMPC_AREA_SA_NTSC,		/* (05) 中南米ＮＴＳＣ地域		*/
-	SMPC_AREA_KO,			/* (06) 韓国地域			*/
-	SMPC_AREA_RSV_7,		/* (07) 使用禁止			*/
-	SMPC_AREA_RSV_8,		/* (08) 使用禁止			*/
-	SMPC_AREA_RSV_9,		/* (09) 使用禁止			*/
-	SMPC_AREA_AJ_PAL,		/* (0a) アジアＰＡＬ地域		*/
-	SMPC_AREA_RSV_B,		/* (0b) 使用禁止			*/
-	SMPC_AREA_EU_PAL,		/* (0c) ヨーロッパＰＡＬ地域		*/
-	SMPC_AREA_SA_PAL,		/* (0d) 中南米ＰＡＬ地域		*/
-	SMPC_AREA_RSV_E,		/* (0e) 使用禁止			*/
-	SMPC_AREA_RSV_F			/* (0f) 使用禁止			*/
+enum SmpcAreaCode {			/* Area code				*/
+	SMPC_AREA_RSV_0,		/* (00) Prohibited			*/
+	SMPC_AREA_JP,			/* (01) Japan			*/
+	SMPC_AREA_AJ_NTSC,		/* (02) Asian NTSC region		*/
+	SMPC_AREA_RSV_3,		/* (03) do not use			*/
+	SMPC_AREA_NA,			/* (04) North America			*/
+	SMPC_AREA_SA_NTSC,		/* (05) Latin America NTSC region		*/
+	SMPC_AREA_KO,			/* (06) Korea			*/
+	SMPC_AREA_RSV_7,		/* (07) do not use			*/
+	SMPC_AREA_RSV_8,		/* (08) do not use			*/
+	SMPC_AREA_RSV_9,		/* (09) do not use			*/
+	SMPC_AREA_AJ_PAL,		/* (0a) Asia PAL region		*/
+	SMPC_AREA_RSV_B,		/* (0b) do not use			*/
+	SMPC_AREA_EU_PAL,		/* (0c) Europe PAL region		*/
+	SMPC_AREA_SA_PAL,		/* (0d) Latin America PAL region		*/
+	SMPC_AREA_RSV_E,		/* (0e) do not use			*/
+	SMPC_AREA_RSV_F			/* (0f) Prohibited			*/
 };
 
-enum SmpcOptimize {			/* 取得時間最適化モード			*/
-	SMPC_OPT_DIS,			/* (00) 取得時間最適化禁止		*/
-	SMPC_OPT_ENA			/* (01) 取得時間最適化許可		*/
+enum SmpcOptimize {			/* Acquisition time optimization mode			*/
+	SMPC_OPT_DIS,			/* (00) Acquisition time optimization prohibited		*/
+	SMPC_OPT_ENA			/* (01) Acquisition time optimization permission		*/
 };
 
-enum SmpcPortMode {			/* ＳＭＰＣポートモード			*/
-	SMPC_PORT_15,			/* (00) １５バイトモード		*/
-	SMPC_PORT_255,			/* (01) ２５５バイトモード		*/
-	SMPC_PORT_RSV,			/* (02) 設定禁止			*/
-	SMPC_PORT_ZERO			/* (03) ０バイトモード			*/
+enum SmpcPortMode {			/* SMPC port mode			*/
+	SMPC_PORT_15,			/* (00) 15-byte mode		*/
+	SMPC_PORT_255,			/* (01) 255 byte mode		*/
+	SMPC_PORT_RSV,			/* (02) Prohibit programming			*/
+	SMPC_PORT_ZERO			/* (03) 0 byte mode			*/
 };
 
-enum SmpcLanguage {			/* ＳＭＰＣメモリ言語番号		*/
-	SMPC_ENGLISH,			/* (00) 英語				*/
-	SMPC_DEUTSCH,			/* (01) ドイツ語			*/
-	SMPC_FRANCAIS,			/* (02) フランス語			*/
-	SMPC_ESPANOL,			/* (03) スペイン語			*/
-	SMPC_ITALIANO,			/* (04) イタリア語			*/
-	SMPC_JAPAN			/* (05) 日本語				*/
+enum SmpcLanguage {			/* SMPC memory language number		*/
+	SMPC_ENGLISH,			/* (00) English				*/
+	SMPC_DEUTSCH,			/* (01) German			*/
+	SMPC_FRANCAIS,			/* (02) French			*/
+	SMPC_ESPANOL,			/* (03) Spanish			*/
+	SMPC_ITALIANO,			/* (04) Italian			*/
+	SMPC_JAPAN			/* (05) Japanese				*/
 };
 
-enum SmpcSoundEffect {			/* ＳＭＰＣメモリ効果音モード		*/
-	SMPC_EFFECT_OFF,		/* (00) 効果音ＯＦＦ			*/
-	SMPC_EFFECT_ON			/* (01) 効果音ＯＮ			*/
+enum SmpcSoundEffect {			/* SMPC Memory Sound effect Mode		*/
+	SMPC_EFFECT_OFF,		/* (00) Sound off			*/
+	SMPC_EFFECT_ON			/* (01) Sound effect on			*/
 };
 
-enum SmpcSoundOutput {			/* ＳＭＰＣメモリ音声出力モード		*/
-	SMPC_SOUND_MONO,		/* (00) モノラル			*/
-	SMPC_SOUND_STEREO		/* (01) ステレオ			*/
+enum SmpcSoundOutput {			/* SMPC memory audio output mode		*/
+	SMPC_SOUND_MONO,		/* (00) Mono			*/
+	SMPC_SOUND_STEREO		/* (01) Stereo			*/
 };
 
-enum SmpcHelpWindow {			/* ＳＭＰＣメモリヘルプウィンドウモード	*/
-	SMPC_HELP_DIS,			/* (00) 表示しない			*/
-	SMPC_HELP_ENA			/* (01) 表示する			*/
+enum SmpcHelpWindow {			/* SMPC memory help window mode	*/
+	SMPC_HELP_DIS,			/* (00) do not display			*/
+	SMPC_HELP_ENA			/* (01) Display			*/
 };
 
-enum SmpcMonth {			/* ＲＴＣ月番号				*/
-	SMPC_DMY,			/* (00) ダミー				*/
-	SMPC_JAN,			/* (01) 　１月				*/
-	SMPC_FEB,			/* (02) 　２月				*/
-	SMPC_MAR,			/* (03) 　３月				*/
-	SMPC_APR,			/* (04) 　４月				*/
-	SMPC_MAY,			/* (05) 　５月				*/
-	SMPC_JUN,			/* (06) 　６月				*/
-	SMPC_JUL,			/* (07) 　７月				*/
-	SMPC_AUG,			/* (08) 　８月				*/
-	SMPC_SEP,			/* (09) 　９月				*/
-	SMPC_OCT,			/* (0a) １０月				*/
-	SMPC_NOV,			/* (0b) １１月				*/
-	SMPC_DEC			/* (0c) １２月				*/
+enum SmpcMonth {			/* RTC month number				*/
+	SMPC_DMY,			/* (00) dummy				*/
+	SMPC_JAN,			/* (01) January				*/
+	SMPC_FEB,			/* (02) February				*/
+	SMPC_MAR,			/* (03) March				*/
+	SMPC_APR,			/* (04) April				*/
+	SMPC_MAY,			/* (05) may				*/
+	SMPC_JUN,			/* (06) June				*/
+	SMPC_JUL,			/* (07) July				*/
+	SMPC_AUG,			/* (08) August				*/
+	SMPC_SEP,			/* (09) September				*/
+	SMPC_OCT,			/* (0a) October				*/
+	SMPC_NOV,			/* (0b) November				*/
+	SMPC_DEC			/* (0c) December				*/
 };
 
-enum SmpcCommand {			/* ＳＭＰＣコマンド番号			*/
-	SMPC_MSHON,			/* (00) マスタ　ＳＨ２　ＯＮ		*/
-	SMPC_SSHON,			/* (01) スレーブ　ＳＨ２　ＯＮ		*/
-	SMPC_SSHOFF,			/* (02) スレーブ　ＳＨ２　ＯＦＦ	*/
-	SMPC_SNDON,			/* (03) サウンド　ＯＮ			*/
-	SMPC_SNDOFF,			/* (04) サウンド　ＯＦＦ		*/
-	SMPC_CDON,			/* (05) ＣＤ　ＯＮ			*/
-	SMPC_CDOFF,			/* (06) ＣＤ　ＯＦＦ			*/
-	SMPC_SYSRES,			/* (07) システム全体リセット		*/
-	SMPC_CKC352,			/* (08) クロックチェンジ３５２モード	*/
-	SMPC_CKC320,			/* (09) クロックチェンジ３２０モード	*/
-	SMPC_NMIREQ,			/* (0a) ＮＭＩリクエスト		*/
-	SMPC_RESENA,			/* (0b) リセットイネーブル		*/
-	SMPC_RESDIS,			/* (0c) リセットディスエーブル		*/
-	SMPC_GETSTS,			/* (0d) ステータス取得			*/
-	SMPC_GETPER,			/* (0e) ペリフェラル取得		*/
-	SMPC_SETMEM,			/* (0f) ＳＭＰＣメモリ設定		*/
-	SMPC_SETTIM,			/* (10) 時刻設定			*/
-	SMPC_CMDMAX			/* (11) コマンド番号最大値		*/
+enum SmpcCommand {			/* SMPC command number			*/
+	SMPC_MSHON,			/* (00) Master SH2 on		*/
+	SMPC_SSHON,			/* (01) Slave SH2 on		*/
+	SMPC_SSHOFF,			/* (02) Slave SH2 off	*/
+	SMPC_SNDON,			/* (03) Sound on			*/
+	SMPC_SNDOFF,			/* (04) Sound off		*/
+	SMPC_CDON,			/* (05) CD on			*/
+	SMPC_CDOFF,			/* (06) CD off			*/
+	SMPC_SYSRES,			/* (07) System-wide reset		*/
+	SMPC_CKC352,			/* (08) Clock change 352 mode	*/
+	SMPC_CKC320,			/* (09) Clock change 320 mode	*/
+	SMPC_NMIREQ,			/* (0a) NMI request		*/
+	SMPC_RESENA,			/* (0b) Reset enable		*/
+	SMPC_RESDIS,			/* (0c) Reset disabled		*/
+	SMPC_GETSTS,			/* (0d) Status obtained			*/
+	SMPC_GETPER,			/* (0e) Peripheral Acquisition		*/
+	SMPC_SETMEM,			/* (0f) SMPC memory settings		*/
+	SMPC_SETTIM,			/* (10) Time settings			*/
+	SMPC_CMDMAX			/* (11) command number maximum		*/
 };
 
-enum SmpcWaitMode {			/* ＳＭＰＣコマンド実行モード		*/
-	SMPC_NO_WAIT,			/* (00) コマンド実行終了待ち無し	*/
-	SMPC_WAIT			/* (01) コマンド実行終了待ち有り	*/
+enum SmpcWaitMode {			/* SMPC command execution mode		*/
+	SMPC_NO_WAIT,			/* (00) No waiting for command to finish executing	*/
+	SMPC_WAIT			/* (01) command waiting to be executed	*/
 };
 
-typedef struct {			/* ＲＴＣ時刻				*/
-	Uint16	year;			/* 西暦年号				*/
-	Uint8	month;			/* 曜日・月				*/
-	Uint8	date;			/* 日					*/
-	Uint8	hour;			/* 時					*/
-	Uint8	minute;			/* 分					*/
-	Uint8	second;			/* 秒					*/
-	Uint8	dummy;			/* ダミー				*/
+typedef struct {			/* RTC time				*/
+	Uint16	year;			/* Year				*/
+	Uint8	month;			/* Day of the week and month				*/
+	Uint8	date;			/* Day					*/
+	Uint8	hour;			/* Hour					*/
+	Uint8	minute;			/* Minutes					*/
+	Uint8	second;			/* Seconds					*/
+	Uint8	dummy;			/* Dummy				*/
 } SmpcDateTime;
 
-typedef struct {			/* ＳＭＰＣステータス			*/
-	Uint8	cond;			/* 状態ステータス			*/
-	Uint8	dummy1;			/* ダミー１				*/
-	Uint16	dummy2;			/* ダミー２				*/
-	SmpcDateTime	rtc;		/* ＲＴＣ時刻				*/
-	Uint8	ctg;			/* カートリッジコード			*/
-	Uint8	area;			/* エリアコード				*/
-	Uint16	system;			/* システムステータス			*/
-	Uint32	smem;			/* ＳＭＰＣメモリ保持データ		*/
+typedef struct {			/* SMPC status			*/
+	Uint8	cond;			/* Status status			*/
+	Uint8	dummy1;			/* Dummy 1				*/
+	Uint16	dummy2;			/* Dummy 2				*/
+	SmpcDateTime	rtc;		/* RTC time				*/
+	Uint8	ctg;			/* Cartridge code			*/
+	Uint8	area;			/* Area code				*/
+	Uint16	system;			/* System status			*/
+	Uint32	smem;			/* SMPC memory retention data		*/
 } SmpcStatus;
 
-typedef struct {			/* デジタルデバイス			*/
-	Uint8	id;			/* ペリフェラルＩＤ			*/
-	Uint8	ext;			/* 拡張データサイズ			*/
-	Uint16	data;			/* ボタン現在データ			*/
-	Uint16	push;			/* ボタン押下データ			*/
-	Uint16	pull;			/* ボタン引上データ			*/
-	Uint32	dummy2[4];		/* ダミー２				*/
+typedef struct {			/* Digital devices			*/
+	Uint8	id;			/* Peripheral ID			*/
+	Uint8	ext;			/* Extended data size			*/
+	Uint16	data;			/* Button current data			*/
+	Uint16	push;			/* Button press data			*/
+	Uint16	pull;			/* Button pull data			*/
+	Uint32	dummy2[4];		/* Dummy 2				*/
 } PerDigital;
 
-typedef struct {			/* アナログデバイス			*/
-	Uint8	id;			/* ペリフェラルＩＤ			*/
-	Uint8	ext;			/* 拡張データサイズ			*/
-	Uint16	data;			/* ボタン現在データ			*/
-	Uint16	push;			/* ボタン押下データ			*/
-	Uint16	pull;			/* ボタン引上データ			*/
-	Uint8	x;			/* Ｘ軸データ絶対値			*/
-	Uint8	y;			/* Ｙ軸データ絶対値			*/
-	Uint8	z;			/* Ｚ軸データ絶対値			*/
-	Uint8	dummy1;			/* ダミー１				*/
-	Uint32	dummy2[3];		/* ダミー２				*/
+typedef struct {			/* Analogue devices			*/
+	Uint8	id;			/* Peripheral ID			*/
+	Uint8	ext;			/* Extended data size			*/
+	Uint16	data;			/* Button current data			*/
+	Uint16	push;			/* Button press data			*/
+	Uint16	pull;			/* Button pull data			*/
+	Uint8	x;			/* Absolute X-axis data value			*/
+	Uint8	y;			/* Absolute value of the Y-axis data			*/
+	Uint8	z;			/* Absolute value of the Z-axis data			*/
+	Uint8	dummy1;			/* Dummy 1				*/
+	Uint32	dummy2[3];		/* Dummy 2				*/
 } PerAnalog;
 
-typedef struct {			/* ポインティングデバイス		*/
-	Uint8	id;			/* ペリフェラルＩＤ			*/
-	Uint8	ext;			/* 拡張データサイズ			*/
-	Uint16	data;			/* ボタン現在データ			*/
-	Uint16	push;			/* ボタン押下データ			*/
-	Uint16	pull;			/* ボタン引上データ			*/
-	Uint16	x;			/* Ｘ座標				*/
-	Uint16	y;			/* Ｙ座標				*/
-	Uint32	dummy2[3];		/* ダミー２				*/
+typedef struct {			/* Pointing device		*/
+	Uint8	id;			/* Peripheral ID			*/
+	Uint8	ext;			/* Extended data size			*/
+	Uint16	data;			/* Button current data			*/
+	Uint16	push;			/* Button press data			*/
+	Uint16	pull;			/* Button pull data			*/
+	Uint16	x;			/* X coordinate				*/
+	Uint16	y;			/* Y coordinate				*/
+	Uint32	dummy2[3];		/* Dummy 2				*/
 } PerPoint;
 
-typedef struct {			/* キーボードデバイス			*/
-	Uint8	id;			/* ペリフェラルＩＤ			*/
-	Uint8	ext;			/* 拡張データサイズ			*/
-	Uint16	data;			/* ボタン現在データ			*/
-	Uint16	push;			/* ボタン押下データ			*/
-	Uint16	pull;			/* ボタン引上データ			*/
-	Uint8	cond;			/* 状態データ				*/
-	Uint8	code;			/* キーコード				*/
-	Uint16	dummy1;			/* ダミー１				*/
-	Uint32	dummy2[3];		/* ダミー２				*/
+typedef struct {			/* Keyboard device			*/
+	Uint8	id;			/* Peripheral ID			*/
+	Uint8	ext;			/* Extended data size			*/
+	Uint16	data;			/* Button current data			*/
+	Uint16	push;			/* Button press data			*/
+	Uint16	pull;			/* Button pull data			*/
+	Uint8	cond;			/* State data				*/
+	Uint8	code;			/* Key code				*/
+	Uint16	dummy1;			/* Dummy 1				*/
+	Uint32	dummy2[3];		/* Dummy 2				*/
 } PerKeyBoard;
 
 extern	Uint8	slGetPortDir1(void);
@@ -1510,11 +1510,11 @@ typedef struct {                        /* System Switch */
     extern  PerDigital  PerDigitalBuf[4] ;
     extern  SysSwitch   SystemSwitchBuf ;
 
-#define     _ServiceSw          0x80    /* 基盤上のスイッチとＪＡＭＭＡ入力の ＯＲしたもの */
+#define     _ServiceSw          0x80    /* An or of the switch on the base and the JAMA input */
 #define     _TestSw             0x40
-#define     _ServiceSwBD        0x20    /* 基盤上のタクトスイッチ */
+#define     _ServiceSwBD        0x20    /* Tact switch on the base */
 #define     _TestSwBD           0x10
-#define     _ServiceSwJM        0x08    /* ＪＡＭＭＡコネクタからのスイッチ入力 */
+#define     _ServiceSwJM        0x08    /* Switch input from the JAMMA connector */
 #define     _TestSwJM           0x04
 #define     _Coin2              0x02
 #define     _Coin1              0x01
@@ -1590,217 +1590,217 @@ typedef struct {                        /* System Switch */
  * GLOBAL DEFINES/MACROS DEFINES
  */
 
-/* 定数(CPU-DMA) */
-/**** DMAレジスタビット位置 **************************************************/
-/******** チャネルコントロールレジスタ ***************************************/
-#define DMA_CHCR_DE     0       /* DMAイネーブルビット                       */
-#define DMA_CHCR_TE     1       /* トランスファエンドフラグビット            */
-#define DMA_CHCR_IE     2       /* インタラプトイネーブルビット              */
-#define DMA_CHCR_TA     3       /* トランスファアドレスモードビット          */
-#define DMA_CHCR_TB     4       /* トランスファバスモードビット              */
-#define DMA_CHCR_DL     5       /* DREQレベルビット　　                      */
-#define DMA_CHCR_DS     6       /* DREQセレクトビット                        */
-#define DMA_CHCR_AL     7       /* アクノリッジレベルビット                  */
-#define DMA_CHCR_AM     8       /* アクノリッジ/トランスファモードビット     */
-#define DMA_CHCR_AR     9       /* オートリクエストビット                    */
-#define DMA_CHCR_TS     10      /* トランスファサイズビット                  */
-#define DMA_CHCR_SM     12      /* ソースアドレスモードビット                */
-#define DMA_CHCR_DM     14      /* ディスティネーションアドレスモードビット  */
-/******** DMAオペレーションレジスタ ******************************************/
-#define DMA_DMAOR_DME   0               /* DMAマスタイネーブルビット         */
-#define DMA_DMAOR_NMIF  1               /* NMIフラグビット                   */
-#define DMA_DMAOR_AE    2               /* アドレスエラーフラグビット        */
-#define DMA_DMAOR_PR    3               /* プライオリティモードビット        */
+/* Constants (CPU-DMA) */
+/**** DMA register bit position **************************************************/
+/******** Channel control register ***************************************/
+#define DMA_CHCR_DE     0       /* DMA enable bit                       */
+#define DMA_CHCR_TE     1       /* Transfer end flag bits            */
+#define DMA_CHCR_IE     2       /* Interrupt enable bit              */
+#define DMA_CHCR_TA     3       /* Transfer address mode bit          */
+#define DMA_CHCR_TB     4       /* Transfer bus mode bit              */
+#define DMA_CHCR_DL     5       /* DREQ level bits                      */
+#define DMA_CHCR_DS     6       /* DREQ Select bit                        */
+#define DMA_CHCR_AL     7       /* The acknowledge level bit                  */
+#define DMA_CHCR_AM     8       /* The acknowledge/transfer mode bit     */
+#define DMA_CHCR_AR     9       /* Auto request bit                    */
+#define DMA_CHCR_TS     10      /* Transfer size bit                  */
+#define DMA_CHCR_SM     12      /* Source address mode bits                */
+#define DMA_CHCR_DM     14      /* Destination address mode bits  */
+/******** DMA operation register ******************************************/
+#define DMA_DMAOR_DME   0               /* DMA Mass Tie-able bit         */
+#define DMA_DMAOR_NMIF  1               /* NMI flag bits                   */
+#define DMA_DMAOR_AE    2               /* Address error flag bits        */
+#define DMA_DMAOR_PR    3               /* Priority mode bits        */
 
 /*****************************************************************************/
-/**** DMAチャネル ************************************************************/
+/**** DMA channel ************************************************************/
 /*****************************************************************************/
-#define DMA_CPU_CH0 0                           /* チャネル0                 */
-#define DMA_CPU_CH1 1                           /* チャネル1                 */
+#define DMA_CPU_CH0 0                           /* Channel 0                 */
+#define DMA_CPU_CH1 1                           /* Channel 1                 */
 
-/**** (DmaCpuComPrm)共通転送パラメータ ***************************************/
-/******** (pr)プライオリティモード  ******************************************/
-#define DMA_CPU_FIX (0 << DMA_DMAOR_PR)         /* 優先順位は固定            */
-#define DMA_CPU_ROR (1 << DMA_DMAOR_PR)         /* 優先順位はラウンドロビン- */
-                                                /* による                    */
-/******** (dme)DMAマスタイネーブル *******************************************/
-#define DMA_CPU_DIS     (0 << DMA_DMAOR_DME)    /* 全チャネルのDMA転送を禁止 */
-#define DMA_CPU_ENA     (1 << DMA_DMAOR_DME)    /* 全チャネルのDMA転送を許可 */
-/******** (msk)マスクビット **************************************************/
-#define DMA_CPU_M_PR    (1 << 0)                /* プライオリティモード　　  */
-#define DMA_CPU_M_AE    (1 << 1)                /* アドレスエラーフラグ　　  */
-#define DMA_CPU_M_NMIF  (1 << 2)                /* NMIフラグ           　　  */
-#define DMA_CPU_M_DME   (1 << 3)                /* DMAマスタイネーブル 　　  */
+/**** (DmaCpuComPrm) common transfer parameters ***************************************/
+/******** (PR) Priority mode  ******************************************/
+#define DMA_CPU_FIX (0 << DMA_DMAOR_PR)         /* Fixed priority            */
+#define DMA_CPU_ROR (1 << DMA_DMAOR_PR)         /* The priority is round robin- */
+                                                /* By                    */
+/******** (Dme) DMA Mass Tie-nable *******************************************/
+#define DMA_CPU_DIS     (0 << DMA_DMAOR_DME)    /* Do not allow DMA transfers across all channels */
+#define DMA_CPU_ENA     (1 << DMA_DMAOR_DME)    /* Allow DMA transfers for all channels */
+/******** (Msk) mask bits **************************************************/
+#define DMA_CPU_M_PR    (1 << 0)                /* Priority mode  */
+#define DMA_CPU_M_AE    (1 << 1)                /* Address error flag  */
+#define DMA_CPU_M_NMIF  (1 << 2)                /* NMI flag  */
+#define DMA_CPU_M_DME   (1 << 3)                /* DMA Mass Tinable  */
 
-/**** (DmaCpuPrm)転送パラメータ **********************************************/
-/******** (dm)ディスティネーションアドレスモードビット ***********************/
-/******** (sm)ソースアドレスモードビット *************************************/
-#define DMA_CPU_AM_NOM  0x0                    /* 固定                      */
-#define DMA_CPU_AM_ADD  0x1                    /* 増加                      */
-#define DMA_CPU_AM_SUB  0x2                    /* 減少                      */
-/******** (ts)トランスファサイズ *********************************************/
-#define DMA_CPU_1   (0 << DMA_CHCR_TS)          /* バイト単位                */
-#define DMA_CPU_2   (1 << DMA_CHCR_TS)          /* ワード(2バイト)単位       */
-#define DMA_CPU_4   (2 << DMA_CHCR_TS)          /* ロングワード(4バイト)単位 */
-#define DMA_CPU_16  (3 << DMA_CHCR_TS)          /* 16バイト転送              */
-/******** (ar)オートリクエストモード *****************************************/
-#define DMA_CPU_MOD     (0 << DMA_CHCR_AR)      /* モジュールリクエスト      */
-#define DMA_CPU_AUTO    (1 << DMA_CHCR_AR)      /* オートリクエスト          */
-/******** (ie)インタラプトイネーブル *****************************************/
-#define DMA_CPU_INT_ENA (1 << DMA_CHCR_IE)      /* 割り込み要求を許可        */
-#define DMA_CPU_INT_DIS (0 << DMA_CHCR_IE)      /* 割り込み要求を禁止(初期値)*/
-/******** (drcr)DMA要求／応答選択制御 ****************************************/
+/**** (DmaCpuPrm) transfer parameters **********************************************/
+/******** (DM) destination address mode bits ***********************/
+/******** (SM) Source address mode bits *************************************/
+#define DMA_CPU_AM_NOM  0x0                    /* Fixed                      */
+#define DMA_CPU_AM_ADD  0x1                    /* Increase                      */
+#define DMA_CPU_AM_SUB  0x2                    /* Decrease                      */
+/******** (TS) Transfer size *********************************************/
+#define DMA_CPU_1   (0 << DMA_CHCR_TS)          /* In bytes                */
+#define DMA_CPU_2   (1 << DMA_CHCR_TS)          /* Word (2 bytes)       */
+#define DMA_CPU_4   (2 << DMA_CHCR_TS)          /* Long word (4 bytes) */
+#define DMA_CPU_16  (3 << DMA_CHCR_TS)          /* 16-byte transfer              */
+/******** (AR) Auto Request mode *****************************************/
+#define DMA_CPU_MOD     (0 << DMA_CHCR_AR)      /* Module request      */
+#define DMA_CPU_AUTO    (1 << DMA_CHCR_AR)      /* Auto Request          */
+/******** (Ie) Interrupt enable *****************************************/
+#define DMA_CPU_INT_ENA (1 << DMA_CHCR_IE)      /* Allow interrupt request        */
+#define DMA_CPU_INT_DIS (0 << DMA_CHCR_IE)      /* Block interrupt request (default)*/
+/******** (DrCR)DMA request/response selection control ****************************************/
 #if 0
-#define DMA_CPU_DREQ    0x0                     /* DREQ(外部リクエスト)      */
+#define DMA_CPU_DREQ    0x0                     /* DREQ (External Request)      */
 /*
- *  DMA要求に外部リクエストを指定するのは禁止('95-11/14 H.O)
+ *  Specifying external requests for DMA requests is prohibited ('95 -11/14 H.O)
  */
 #endif
-#define DMA_CPU_RXI     0x1                     /* RXI(内蔵SCIの受信データ-  */
-                                                /* フル割り込み転送要求)     */
-#define DMA_CPU_TXI     0x2                     /* TXI(内蔵SCIの送信データ-  */
-                                                /* エンプティ割り込み転送要求*/
-/******** (msk)マスクビット **************************************************/
-#define DMA_CPU_M_SAR   (1 << 0)                /* DMAソースアドレス         */
-#define DMA_CPU_M_DAR   (1 << 1)                /* DMAディスティネーション-  */
-                                                /* アドレス                  */
-#define DMA_CPU_M_TCR   (1 << 2)                /* DMAトランスファカウント   */
-#define DMA_CPU_M_DM    (1 << 3)                /* DMAディスティネーション-  */
-                                                /* アドレスモードビット      */
-#define DMA_CPU_M_SM    (1 << 4)                /* DMAソースアドレスモード-  */
-                                                /* ビット                    */
-#define DMA_CPU_M_TS    (1 << 5)                /* トランスファサイズ        */
-#define DMA_CPU_M_AR    (1 << 6)                /* オートリクエストモード    */
-#define DMA_CPU_M_IE    (1 << 7)                /* インタラプトイネーブル    */
-#define DMA_CPU_M_DRCR  (1 << 8)                /* DMA要求／応答選択制御     */
-#define DMA_CPU_M_TE    (1 << 9)                /* トランスファエンドフラグ  */
+#define DMA_CPU_RXI     0x1                     /* RXI (receive data for the integrated SCI-  */
+                                                /* Full interrupt transfer request)     */
+#define DMA_CPU_TXI     0x2                     /* TXI (Internal SCI transmit data-  */
+                                                /* Empty interrupt transfer request*/
+/******** (Msk) mask bits **************************************************/
+#define DMA_CPU_M_SAR   (1 << 0)                /* DMA source address         */
+#define DMA_CPU_M_DAR   (1 << 1)                /* DMA distilation-  */
+                                                /* Address                  */
+#define DMA_CPU_M_TCR   (1 << 2)                /* DMA transfer count   */
+#define DMA_CPU_M_DM    (1 << 3)                /* DMA distilation-  */
+                                                /* Address mode bits      */
+#define DMA_CPU_M_SM    (1 << 4)                /* DMA source address mode-  */
+                                                /* Bits                    */
+#define DMA_CPU_M_TS    (1 << 5)                /* Transfer size        */
+#define DMA_CPU_M_AR    (1 << 6)                /* Auto Request mode    */
+#define DMA_CPU_M_IE    (1 << 7)                /* Interrupt enable    */
+#define DMA_CPU_M_DRCR  (1 << 8)                /* DMA request/response selection control     */
+#define DMA_CPU_M_TE    (1 << 9)                /* Transfer end flag  */
 
-/**** (DmaCpuComStatus)共通ステータス ****************************************/
-/******** (ae)アドレスエラーフラグ *******************************************/
-#define DMA_CPU_ADR_ERR     (1 << DMA_DMAOR_AE) /* DMACによるアドレスエラー- */
-                                                /* 発生                      */
-#define DMA_CPU_ADR_NO_ERR  (0 << DMA_DMAOR_AE) /* DMACによるアドレスエラー- */
-                                                /* なし                      */
+/**** (DmaCpuComStatus) Common status ****************************************/
+/******** (AE) Address error flag *******************************************/
+#define DMA_CPU_ADR_ERR     (1 << DMA_DMAOR_AE) /* Address error due to DMAC- */
+                                                /* Occurs                      */
+#define DMA_CPU_ADR_NO_ERR  (0 << DMA_DMAOR_AE) /* Address error due to DMAC- */
+                                                /* None                      */
 
-/******** (nmif)NMIフラグ ****************************************************/
-#define DMA_CPU_NMI_ON  (1 << DMA_DMAOR_NMIF)   /* NMI割り込み発生           */
-#define DMA_CPU_NMI_OFF (0 << DMA_DMAOR_NMIF)   /* NMI割り込みなし           */
+/******** (Nmif)NMI flag ****************************************************/
+#define DMA_CPU_NMI_ON  (1 << DMA_DMAOR_NMIF)   /* NMI interrupt occurred           */
+#define DMA_CPU_NMI_OFF (0 << DMA_DMAOR_NMIF)   /* No NMI interrupt           */
 
-/**** (DmaCpuComStatus)共通ステータス ****************************************/
-#define DMA_CPU_TE_MV   (0 << DMA_CHCR_TE)      /* DMA転送中またはDMA転送中断*/
-#define DMA_CPU_TE_SP   (1 << DMA_CHCR_TE)      /* DMA転送正常終了           */
+/**** (DmaCpuComStatus) Common status ****************************************/
+#define DMA_CPU_TE_MV   (0 << DMA_CHCR_TE)      /* DMA transfer in progress or DMA transfer interrupted*/
+#define DMA_CPU_TE_SP   (1 << DMA_CHCR_TE)      /* DMA transfer successful           */
 
 
 typedef struct {
-    Uint32 pr;                                  /* プライオリティモード      */
-    Uint32 dme;                                 /* DMAマスタイネーブル       */
-    Uint32 msk;                                 /* マスクビット              */
-}DmaCpuComPrm;                                  /* 共通転送パラメータ        */
+    Uint32 pr;                                  /* Priority mode      */
+    Uint32 dme;                                 /* DMA Mass Tinable       */
+    Uint32 msk;                                 /* Mask bits              */
+}DmaCpuComPrm;                                  /* Common transfer parameters        */
 
 typedef struct {
-    Uint32 sar;                                 /* DMAソースアドレス         */
-    Uint32 dar;                                 /* DMAディスティネーション-  */
-                                                /* アドレス                  */
-    Uint32 tcr;                                 /* DMAトランスファカウント   */
-    Uint32 dm;                                  /* ディスティネーションアド- */
-                                                /* レスモードビット          */
-    Uint32 sm;                                  /* ソースアドレスモードビット*/
-    Uint32 ts;                                  /* トランスファサイズ        */
-    Uint32 ar;                                  /* オートリクエストモード    */
-    Uint32 ie;                                  /* インタラプトイネーブル    */
-    Uint32 drcr;                                /* DMA要求／応答選択制御     */
-    Uint32 msk;                                 /* マスクビット              */
-}DmaCpuPrm;                                     /* 転送パラメータ            */
+    Uint32 sar;                                 /* DMA source address         */
+    Uint32 dar;                                 /* DMA distilation-  */
+                                                /* Address                  */
+    Uint32 tcr;                                 /* DMA transfer count   */
+    Uint32 dm;                                  /* Destination add- */
+                                                /* The less mode bit          */
+    Uint32 sm;                                  /* Source address mode bits*/
+    Uint32 ts;                                  /* Transfer size        */
+    Uint32 ar;                                  /* Auto Request mode    */
+    Uint32 ie;                                  /* Interrupt enable    */
+    Uint32 drcr;                                /* DMA request/response selection control     */
+    Uint32 msk;                                 /* Mask bits              */
+}DmaCpuPrm;                                     /* Transfer parameters            */
 
 typedef struct {
-    Uint32 ae;                                  /* アドレスエラーフラグ      */
-    Uint32 nmif;                                /* NMIフラグ                 */
-}DmaCpuComStatus;                               /* 共通ステータス            */
+    Uint32 ae;                                  /* Address error flag      */
+    Uint32 nmif;                                /* NMI flag                 */
+}DmaCpuComStatus;                               /* Common status            */
 
-typedef Uint32 DmaCpuStatus;                    /* ステータス                */
+typedef Uint32 DmaCpuStatus;                    /* Status                */
 
-/* 定数(SCU-DMA) */
+/* Constants (SCU-DMA) */
 /*****************************************************************************/
-/**** DMAチャネル ************************************************************/
+/**** DMA channel ************************************************************/
 /*****************************************************************************/
-#define DMA_SCU_CH0 0x0                         /* チャネル0                 */
-#define DMA_SCU_CH1 0x1                         /* チャネル1                 */
-#define DMA_SCU_CH2 0x2                         /* チャネル2                 */
+#define DMA_SCU_CH0 0x0                         /* Channel 0                 */
+#define DMA_SCU_CH1 0x1                         /* Channel 1                 */
+#define DMA_SCU_CH2 0x2                         /* Channel 2                 */
 
-/**** DMAレジスタビット位置 **************************************************/
-/******** 加算値レジスタ *****************************************************/
-#define DMA_DXAD_DXRAD  8                       /* 読み込みアドレス加算値    */
-#define DMA_DXAD_DXWAD  0                       /* 書き込みアドレス加算値    */
-/******** DMA許可レジスタ ****************************************************/
-#define DMA_DXEN_DXGO   0                       /* DMA起動ビット             */
-#define DMA_DXEN_DXEN   8                       /* DMA許可ビット             */
-/******** DMAモード、アドレス更新、起動要因レジスタ **************************/
-#define DMA_DXMD_DXMOD  24                      /* モードビット              */
-#define DMA_DXMD_DXRUP  16                      /* 読み込みアドレス更新ビット*/
-#define DMA_DXMD_DXWUP   8                      /* 書き出しアドレス更新ビット*/
-#define DMA_DXMD_DXFT    0                      /* 起動要因選択ビット        */
+/**** DMA register bit position **************************************************/
+/******** Addition value register *****************************************************/
+#define DMA_DXAD_DXRAD  8                       /* Read address addition value    */
+#define DMA_DXAD_DXWAD  0                       /* Write address addition value    */
+/******** DMA authorization register ****************************************************/
+#define DMA_DXEN_DXGO   0                       /* DMA boot bit             */
+#define DMA_DXEN_DXEN   8                       /* DMA permission bits             */
+/******** DMA mode, address update, and boot factor registers **************************/
+#define DMA_DXMD_DXMOD  24                      /* Mode bits              */
+#define DMA_DXMD_DXRUP  16                      /* Read address update bit*/
+#define DMA_DXMD_DXWUP   8                      /* Export address update bit*/
+#define DMA_DXMD_DXFT    0                      /* Trigger factor selection bit        */
 
-
-/*****************************************************************************/
-/**** (DmaScuPrm)転送パラメータ **********************************************/
-/*****************************************************************************/
-/******** (dxad_r)読み込みアドレス加算値 *************************************/
-#define DMA_SCU_R0  (0x0 << DMA_DXAD_DXRAD)     /* 加算しない                */
-#define DMA_SCU_R4  (0x1 << DMA_DXAD_DXRAD)     /* 4バイト加算する           */
-/******** (dxad_w)書き込みアドレス加算値 *************************************/
-#define DMA_SCU_W0     (0x0 << DMA_DXAD_DXWAD)  /* 加算しない                */
-#define DMA_SCU_W2     (0x1 << DMA_DXAD_DXWAD)  /* 2バイト加算する           */
-#define DMA_SCU_W4     (0x2 << DMA_DXAD_DXWAD)  /* 4バイト加算する           */
-#define DMA_SCU_W8     (0x3 << DMA_DXAD_DXWAD)  /* 8バイト加算する           */
-#define DMA_SCU_W16    (0x4 << DMA_DXAD_DXWAD)  /* 16バイト加算する          */
-#define DMA_SCU_W32    (0x5 << DMA_DXAD_DXWAD)  /* 32バイト加算する          */
-#define DMA_SCU_W64    (0x6 << DMA_DXAD_DXWAD)  /* 64バイト加算する          */
-#define DMA_SCU_W128   (0x7 << DMA_DXAD_DXWAD)  /* 128バイト加算する         */
-/******** (dxmod)モードビット ************************************************/
-#define DMA_SCU_DIR    (0x0 << DMA_DXMD_DXMOD)  /* 直接モード                */
-#define DMA_SCU_IN_DIR (0x1 << DMA_DXMD_DXMOD)  /* 間接モード                */
-/******** (dxrup)読み込みアドレス更新ビット **********************************/
-/******** (dxwup)書き出しアドレス更新ビット **********************************/
-#define DMA_SCU_KEEP    0x0                     /* 保持する                  */
-#define DMA_SCU_REN     0x1                     /* 更新する                  */
-
-/******** (dxft)起動要因選択ビット *******************************************/
-#define DMA_SCU_F_VBLK_IN  (0x0 << DMA_DXMD_DXFT)/* V-ブランク-IN            */
-#define DMA_SCU_F_VBLK_OUT (0x1 << DMA_DXMD_DXFT)/* V-ブランク-OUT           */
-#define DMA_SCU_F_HBLK_IN  (0x2 << DMA_DXMD_DXFT)/* H-ブランク-IN            */
-#define DMA_SCU_F_TIM0     (0x3 << DMA_DXMD_DXFT)/* タイマ0                  */
-#define DMA_SCU_F_TIM1     (0x4 << DMA_DXMD_DXFT)/* タイマ1                  */
-#define DMA_SCU_F_SND      (0x5 << DMA_DXMD_DXFT)/* サウンド-Req             */
-#define DMA_SCU_F_SPR      (0x6 << DMA_DXMD_DXFT)/* スプライト描画           */
-#define DMA_SCU_F_DMA      (0x7 << DMA_DXMD_DXFT)/* DMA起動要因ビットのセット*/
-/******** (msk)マスクビット *************************************************/
-#define DMA_SCU_M_DXR      (1 << 0)             /* 読み込みアドレス          */
-#define DMA_SCU_M_DXW      (1 << 1)             /* 書き出しアドレス          */
 
 /*****************************************************************************/
-/**** (DmaScuStatus)ステータス ***********************************************/
+/**** (DmaScuPrm) transfer parameters **********************************************/
 /*****************************************************************************/
-/******** (dxbkr)DMA動作中フラグ *********************************************/
-/******** (ddmv)DSP側DMA動作中フラグ *****************************************/
-#define DMA_SCU_MV      0x1                     /* 動作中                    */
-#define DMA_SCU_NO_MV   0x0                     /* 動作中でない              */
+/******** (Dxad_r) Read address addition value *************************************/
+#define DMA_SCU_R0  (0x0 << DMA_DXAD_DXRAD)     /* Do not add                */
+#define DMA_SCU_R4  (0x1 << DMA_DXAD_DXRAD)     /* Add 4 bytes           */
+/******** (Dxad_w) Write address addition value *************************************/
+#define DMA_SCU_W0     (0x0 << DMA_DXAD_DXWAD)  /* Do not add                */
+#define DMA_SCU_W2     (0x1 << DMA_DXAD_DXWAD)  /* Double-byte addition           */
+#define DMA_SCU_W4     (0x2 << DMA_DXAD_DXWAD)  /* Add 4 bytes           */
+#define DMA_SCU_W8     (0x3 << DMA_DXAD_DXWAD)  /* Add 8 bytes           */
+#define DMA_SCU_W16    (0x4 << DMA_DXAD_DXWAD)  /* 16 bytes          */
+#define DMA_SCU_W32    (0x5 << DMA_DXAD_DXWAD)  /* Add 32 bytes          */
+#define DMA_SCU_W64    (0x6 << DMA_DXAD_DXWAD)  /* Add 64 bytes          */
+#define DMA_SCU_W128   (0x7 << DMA_DXAD_DXWAD)  /* 128 bytes added         */
+/******** (Dxmod) mode bits ************************************************/
+#define DMA_SCU_DIR    (0x0 << DMA_DXMD_DXMOD)  /* Direct mode                */
+#define DMA_SCU_IN_DIR (0x1 << DMA_DXMD_DXMOD)  /* Indirect mode                */
+/******** (Dxrup) Read address update bit **********************************/
+/******** (Dxwup) export address update bit **********************************/
+#define DMA_SCU_KEEP    0x0                     /* Keep it                  */
+#define DMA_SCU_REN     0x1                     /* Update                  */
+
+/******** (Dxft) the trigger factor selection bit *******************************************/
+#define DMA_SCU_F_VBLK_IN  (0x0 << DMA_DXMD_DXFT)/* V-blank-in            */
+#define DMA_SCU_F_VBLK_OUT (0x1 << DMA_DXMD_DXFT)/* V-blank-out           */
+#define DMA_SCU_F_HBLK_IN  (0x2 << DMA_DXMD_DXFT)/* H-blank -in            */
+#define DMA_SCU_F_TIM0     (0x3 << DMA_DXMD_DXFT)/* Timer 0                  */
+#define DMA_SCU_F_TIM1     (0x4 << DMA_DXMD_DXFT)/* Timer 1                  */
+#define DMA_SCU_F_SND      (0x5 << DMA_DXMD_DXFT)/* Sound-Req             */
+#define DMA_SCU_F_SPR      (0x6 << DMA_DXMD_DXFT)/* Sprite drawing           */
+#define DMA_SCU_F_DMA      (0x7 << DMA_DXMD_DXFT)/* Set of DMA boot factor bits*/
+/******** (Msk) mask bits *************************************************/
+#define DMA_SCU_M_DXR      (1 << 0)             /* Read address          */
+#define DMA_SCU_M_DXW      (1 << 1)             /* Export address          */
+
+/*****************************************************************************/
+/**** (DmaScuStatus) status ***********************************************/
+/*****************************************************************************/
+/******** (Dxbkr) DMA operating flag *********************************************/
+/******** (Dddmv) DSP-side DMA-in-progress flag *****************************************/
+#define DMA_SCU_MV      0x1                     /* Operating                    */
+#define DMA_SCU_NO_MV   0x0                     /* Not in operation              */
 
 typedef struct {
-    Uint32 dxr;                                 /* 読み込みアドレス          */
-    Uint32 dxw;                                 /* 書き出しアドレス          */
-    Uint32 dxc;                                 /* 転送バイト数              */
-    Uint32 dxad_r;                              /* 読み込みアドレス加算値    */
-    Uint32 dxad_w;                              /* 書き込みアドレス加算値    */
-    Uint32 dxmod;                               /* モードビット              */
-    Uint32 dxrup;                               /* 読み込みアドレス更新ビット*/
-    Uint32 dxwup;                               /* 書き込みアドレス更新ビット*/
-    Uint32 dxft;                                /* 起動要因選択ビット        */
-    Uint32 msk;                                 /* マスクビット              */
-}DmaScuPrm;                                     /* 転送パラメータ            */
+    Uint32 dxr;                                 /* Read address          */
+    Uint32 dxw;                                 /* Export address          */
+    Uint32 dxc;                                 /* Number of bytes transferred              */
+    Uint32 dxad_r;                              /* Read address addition value    */
+    Uint32 dxad_w;                              /* Write address addition value    */
+    Uint32 dxmod;                               /* Mode bits              */
+    Uint32 dxrup;                               /* Read address update bit*/
+    Uint32 dxwup;                               /* Write address update bit*/
+    Uint32 dxft;                                /* Trigger factor selection bit        */
+    Uint32 msk;                                 /* Mask bits              */
+}DmaScuPrm;                                     /* Transfer parameters            */
 
 typedef struct {
-    Uint32 dxmv;                            /* DMA動作中フラグ               */
-}DmaScuStatus;                              /* ステータス                    */
+    Uint32 dxmv;                            /* DMA running flag               */
+}DmaScuStatus;                              /* Status                    */
 
     extern void    DMA_CpuSetComPrm(DmaCpuComPrm *) ;
     extern void    DMA_CpuSetPrm(DmaCpuPrm *, Uint32) ;

@@ -1,14 +1,14 @@
 /******************************************************************************
- *	ƒ\ƒtƒgƒEƒFƒAƒ‰ƒCƒuƒ‰ƒŠ
+ *	Software library
  *
  *	Copyright (c) 1994,1995 SEGA
  *
- * Library	:‚o‚b‚lE‚`‚c‚o‚b‚lÄ¶ƒ‰ƒCƒuƒ‰ƒŠ
- * Module 	:ƒ‰ƒCƒuƒ‰ƒŠƒwƒbƒ_
+ * Library	:PCM / ADPCM playback library
+ * Module 	:Library header
  * File		:sega_pcm.h
  * Date		:1995-03-31
  * Version	:1.16
- * Auther	:Y.T
+ * Author	:Y.T
  *
  ****************************************************************************/
 #if !defined(SEGA_PCM_H)
@@ -17,21 +17,21 @@
 /* from Ver1.10, adpcm function support */
 #define ADPCM_FUNCTION
 
-/*-------------------- sƒCƒ“ƒNƒ‹[ƒhƒtƒ@ƒCƒ‹t --------------------*/
+/*-------------------- Include File --------------------*/
 #include "SEGA_XPT.H"
 #include "SEGA_GFS.H"
 #include "SEGA_STM.H"
 
-/*------------------------- sƒ}ƒNƒ’è”t -------------------------*/
+/*------------------------- Macro constants -------------------------*/
 
-/* ƒo[ƒWƒ‡ƒ“ */
+/* Version */
 #define PCM_VERSION				("PCM Version 1.16 1995-03-31")
-							/*	           1         2         3         4	*/
-							/*	  1234567890123456789012345678901234567890	*/
-							/*	  ++++++++++++++++++++++++++++++++			*/
+							/*	           1 2 3 4	*/
+							/*	  1234567890123456789012345678901234567890 1234567890	*/
+							/*	  +++++++++++++++++++++++++++++++++++			*/
 #define PCM_VERSION_LEN			(32)
 
-/* ƒnƒ“ƒhƒ‹‘” */
+/* Total handle count */
 #define PCM_HN_MAX				(32)
 
 /* 1024, 2048, 4096,... */
@@ -41,143 +41,142 @@
 #define PCM_SIZE_4K				(4 * PCM_SIZE_1K)
 #define PCM_SIZE_8K				(8 * PCM_SIZE_1K)
 
-/* ƒtƒ‰ƒO */
+/* Flag */
 typedef enum {
     PCM_OFF = 0,
     PCM_ON  = 1
 } PcmFlag;
 
-/* ƒGƒ‰[ƒR[ƒh	*/
+/* Error code	*/
 typedef enum {
-	PCM_ERR_OK					= 0x00000000,/* ƒGƒ‰[‚Í”­¶‚µ‚Ä‚¢‚È‚¢		*/
+	PCM_ERR_OK					= 0x00000000,/* No error occurred		*/
 
-	/* PCM_Create ‚ÌƒGƒ‰[ */
-	PCM_ERR_OUT_OF_HANDLE		= 0x00000101,/* ƒnƒ“ƒhƒ‹”„‚èØ‚ê 			*/
-	PCM_ERR_NO_INIT				= 0x00000103,/* ‰Šú‰»ŠÖ”‚ªº°Ù‚³‚ê‚Ä‚È‚¢ 	*/
+	/* Error in PCM_Create */
+	PCM_ERR_OUT_OF_HANDLE		= 0x00000101,/* Handle sold out 			*/
+	PCM_ERR_NO_INIT				= 0x00000103,/* Initialization function not called 	*/
 
-	/* PCM_Destroy ‚ÌƒGƒ‰[ */
-	PCM_ERR_INVALID_HN			= 0x00000201,/* •s³‚Èƒnƒ“ƒhƒ‹‚ÅÁ‹		*/
-	PCM_ERR_ILL_CREATE_MODE		= 0x00000202,/* Create ‚Ìƒ‚[ƒh‚Æˆá‚¤		*/
+	/* Error in PCM_Destroy */
+	PCM_ERR_INVALID_HN			= 0x00000201,/* Erase with wrong handle		*/
+	PCM_ERR_ILL_CREATE_MODE		= 0x00000202,/* Not in Create mode		*/
 
-	/* pcm_HeaderProcess ‚ÌƒGƒ‰[ */
-	PCM_ERR_TOO_LARGE_HEADER	= 0x00000302,/* ƒwƒbƒ_‚ª‚«‘å‚·‚¬‚é			*/
-											/* (ƒoƒbƒtƒ@ƒTƒCƒY‚ª¬‚³‚·‚¬‚é)	*/
-	PCM_ERR_HEADER_DATA			= 0x00000303,/* ƒwƒbƒ_ƒf[ƒ^ƒGƒ‰[ 			*/
-	PCM_ERR_TOO_SMALL_PCMBUF	= 0x00000304,/* PCMÊŞ¯Ì§»²½Ş‚ª¬‚³‚·‚¬‚é	*/
-	PCM_ERR_ILL_SIZE_PCMBUF		= 0x00000305,/* PCMÊŞ¯Ì§»²½Ş•s³ 4096*2`16	*/
-	PCM_ERR_AFI_NO_COMMON		= 0x00000306,/* CommonChunk ‚ª–³‚¢ 			*/
-	PCM_ERR_AFI_COMMPRESS		= 0x00000307,/* –¢‘Î‰ˆ³kƒ^ƒCƒv			*/
-	PCM_ERR_NOT_DECLARE_ADPCM	= 0x00000308,/* ADPCMg—péŒ¾‚ª‚È‚¢			*/
+	/* Error in PCM_HeaderProcess */
+	PCM_ERR_TOO_LARGE_HEADER	= 0x00000302,/* Header too large			*/
+											/* (Buffer size too small)	*/
+	PCM_ERR_HEADER_DATA			= 0x00000303,/* Header data error 			*/
+	PCM_ERR_TOO_SMALL_PCMBUF	= 0x00000304,/* PCM buffer size too small	*/
+	PCM_ERR_ILL_SIZE_PCMBUF		= 0x00000305,/* PCM buffer size incorrect 4096*2 to 16	*/
+	PCM_ERR_AFI_NO_COMMON		= 0x00000306,/* CommonChunk is missing 			*/
+	PCM_ERR_AFI_COMMPRESS		= 0x00000307,/* Unsupported compression type			*/
+	PCM_ERR_NOT_DECLARE_ADPCM	= 0x00000308,/* ADPCM use declaration missing			*/
 
 	/*  */
-	PCM_ERR_ILLEGAL_PARA		= 0x00000503,/* ˆø‚«”‚Ìw’è‚ªŠÔˆá‚Á‚Ä‚¢‚é 	*/
-	PCM_ERR_ILLEGAL_HANDLE		= 0x00000504,/* ƒnƒ“ƒhƒ‹‚ªˆÙí 				*/
+	PCM_ERR_ILLEGAL_PARA		= 0x00000503,/* The argument is not specified correctly 	*/
+	PCM_ERR_ILLEGAL_HANDLE		= 0x00000504,/* Handle is faulty 				*/
 
-	/* ˜A‘±Ä¶‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	PCM_ERR_NEXT_HN_STATUS		= 0x00000601,/* ˜A‘±Ä¶ƒnƒ“ƒhƒ‹‚Ìó‘ÔˆÙí 	*/
-	PCM_ERR_NEXT_HN_AUDIO		= 0x00000602,/* ƒI[ƒfƒBƒI‚ÌğŒ‚ªˆê’v‚µ‚È‚¢ */
-	PCM_ERR_CHANGE_NO_ENTRY		= 0x00000605,/* ƒGƒ“ƒgƒŠ‚ª‚È‚¢ó‘Ô‚Åƒ`ƒFƒ“ƒW */
+	/* Error with continuous playback */
+	PCM_ERR_NEXT_HN_STATUS		= 0x00000601,/* Continuous regeneration handle condition fault 	*/
+	PCM_ERR_NEXT_HN_AUDIO		= 0x00000602,/* Audio conditions do not match */
+	PCM_ERR_CHANGE_NO_ENTRY		= 0x00000605,/* Change without entry */
 
-	/* ƒ|[ƒY‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	PCM_ERR_PAUSE_STATUS		= 0x00000701,/* PCM_STAT_PLAY_TIME, ‚Ü‚½‚ÍA
-											 * PCM_STAT_PLAY_PAUSE ˆÈŠO‚Ì
-											 * ó‘Ô‚Åƒ|[ƒYŠÖ”‚ğƒR[ƒ‹‚µ‚½B
+	/* Error with pause */
+	PCM_ERR_PAUSE_STATUS		= 0x00000701,/* PCM_STAT_PLAY_TIME, Or
+											 * PCM_STAT_PLAY_PAUSE Other than
+											 * The pose function was called in the state.
 											 */
-	PCM_ERR_PAUSE_WORK_NULL		= 0x00000702,/* ƒ|[ƒYˆ——pƒ[ƒNˆÙí		*/
-	PCM_ERR_PAUSE_WORK_SIZE		= 0x00000703,/* ƒ|[ƒYˆ——pƒ[ƒNˆÙí		*/
-	PCM_ERR_PAUSE_WORK_SET		= 0x00000704,/* ƒ|[ƒYˆ——pƒ[ƒNw’è‚ª•s³*/
+	PCM_ERR_PAUSE_WORK_NULL		= 0x00000702,/* Work fault for pause processing		*/
+	PCM_ERR_PAUSE_WORK_SIZE		= 0x00000703,/* Work fault for pause processing		*/
+	PCM_ERR_PAUSE_WORK_SET		= 0x00000704,/* Incorrect work specification for pause processing*/
 
-	/* DMA“]‘—‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	PCM_ERR_DMA_MODE			= 0x00000801,/* –¢‘Î‰‚Ì“]‘—•û® 			*/
-	PCM_ERR_DMA_CPU_PCM			= 0x00000802,/* ‚c‚l‚`‚ªˆÙíI—¹ 			*/
+	/* Error with DMA transfer */
+	PCM_ERR_DMA_MODE			= 0x00000801,/* Unsupported transport method 			*/
+	PCM_ERR_DMA_CPU_PCM			= 0x00000802,/* DMA terminated abnormally 			*/
 
-	/* ƒtƒ@ƒCƒ‹“Ç‚İ‚İƒGƒ‰[ */
-	PCM_ERR_GFS_READ			= 0x00000901,/* ‚f‚e‚r‚Ì“Ç‚İ‚İ‚Å¸”s 		*/
+	/* Error reading file */
+	PCM_ERR_GFS_READ			= 0x00000901,/* GFS read failed 		*/
 
-	/* ƒŠƒ“ƒOƒoƒbƒtƒ@‚Ö‚Ìƒf[ƒ^‹Ÿ‹‹‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	PCM_ERR_RING_SUPPLY			= 0x00000a01,/* Ä¶Š®—¹Œã‚É‹Ÿ‹‹‚ª‚ ‚Á‚½    */
-											 /* i‹Ÿ‹‹‚ªŠÔ‚É‡‚í‚·’†’f‚µ‚½j*/
+	/* Error in supplying data to ring buffer */
+	PCM_ERR_RING_SUPPLY			= 0x00000a01,/* Supply was present after regeneration was completed    */
+											 /* (Supply interrupted in time)*/
 
 	PCM_ERR_END
 } PcmErrCode;
 
-/* Ä¶ƒXƒe[ƒ^ƒX */
+/* Playback status */
 typedef enum {
-	PCM_STAT_PLAY_ERR_STOP		= -1,		/* ˆÙí’â~					*/
-	PCM_STAT_PLAY_CREATE		= 0,		/* ‰Šúó‘Ô					*/
-	PCM_STAT_PLAY_PAUSE			= 1,		/* ˆê’â~		 			*/
-	PCM_STAT_PLAY_START			= 2,		/* ŠJn						*/
-	PCM_STAT_PLAY_HEADER		= 3,		/* ƒwƒbƒ_İ’è@				*/
-	PCM_STAT_PLAY_TIME			= 4,		/* Ä¶(ƒ^ƒCƒ}ƒXƒ^[ƒg)		*/
-	PCM_STAT_PLAY_END			= 5			/* Ä¶Š®—¹ 				*/
+	PCM_STAT_PLAY_ERR_STOP		= -1,		/* Abnormal stop					*/
+	PCM_STAT_PLAY_CREATE		= 0,		/* Initial state					*/
+	PCM_STAT_PLAY_PAUSE			= 1,		/* Pause		 			*/
+	PCM_STAT_PLAY_START			= 2,		/* Start						*/
+	PCM_STAT_PLAY_HEADER		= 3,		/* Header settings				*/
+	PCM_STAT_PLAY_TIME			= 4,		/* Play (timer start)		*/
+	PCM_STAT_PLAY_END			= 5			/* Playback complete 				*/
 } PcmPlayStatus;
 
-/* ƒtƒ@ƒCƒ‹ƒ^ƒCƒv */
+/* File type */
 typedef enum {
-	PCM_FILE_TYPE_NO_HEADER		= 1,	/* ƒwƒbƒ_‚È‚µB
-										 * (PCM×²ÌŞ×Ø‚ª–¢‘Î‰‚ÌÌ§²ÙŒ`®
-										 *  ‚ğÒÓØÄ¶‚³‚¹‚éê‡‚àŠÜ‚Ş)
+	PCM_FILE_TYPE_NO_HEADER		= 1,	/* No header.
+										 * (Including the case of playing the file format that the PCM library does not support)
 										 */
 	PCM_FILE_TYPE_AIFF			= 2,	/* AIFF							*/
 	PCM_FILE_TYPE_AIFC			= 3 	/* AIFC							*/
 } PcmFileType;
-/* [’ˆÓ] AIFC‚Íg—p‚Å‚«‚Ü‚¹‚ñB*/
+/* [Caution] AIFC is not available.*/
 
-/* ƒf[ƒ^ƒ^ƒCƒv */
+/* Data type */
 typedef enum {
-	PCM_DATA_TYPE_LRLRLR		= 1,	/* ‚PƒTƒ“ƒvƒ‹‚Ã‚Â¶‰E¶‰E¥¥¥¥	*/
-	PCM_DATA_TYPE_RLRLRL		= 2,	/* ‚PƒTƒ“ƒvƒ‹‚Ã‚Â‰E¶‰E¶¥¥¥¥	*/
-	PCM_DATA_TYPE_LLLRRR		= 3,	/* ƒuƒƒbƒN’PˆÊ‚Å¶¶‰E‰E¥¥¥¥	*/
-	PCM_DATA_TYPE_RRRLLL		= 4, 	/* ƒuƒƒbƒN’PˆÊ‚Å‰E‰E¶¶¥¥¥¥	*/
-	PCM_DATA_TYPE_ADPCM_SG		= 5, 	/* ADPCM,»³İÄŞ¸ŞÙ°Ìß‚Ì˜A‘±ƒf[ƒ^*/
-	PCM_DATA_TYPE_ADPCM_SCT		= 6 	/* ADPCM,1¾¸À18»³İÄŞ¸ŞÙ°Ìß		*/
+	PCM_DATA_TYPE_LRLRLR		= 1,	/* Left, right, left, right, and right samples	*/
+	PCM_DATA_TYPE_RLRLRL		= 2,	/* Left and right, one sample	*/
+	PCM_DATA_TYPE_LLLRRR		= 3,	/* Left right and left right in blocks	*/
+	PCM_DATA_TYPE_RRRLLL		= 4, 	/* Right left right left in block	*/
+	PCM_DATA_TYPE_ADPCM_SG		= 5, 	/* ADPCM, continuous data for sound groups*/
+	PCM_DATA_TYPE_ADPCM_SCT		= 6 	/* ADPCM,1 sector 18 sound group		*/
 } PcmDataType;
 
-/* ˆê’â~‚Ì§ŒäƒRƒ}ƒ“ƒh */
+/* Control pause command */
 typedef enum {
-	PCM_PAUSE_ON_AT_ONCE,				/* ‘¦ˆê’â~ 			*/
-	PCM_PAUSE_OFF						/* ˆê’â~‰ğœ 			*/
+	PCM_PAUSE_ON_AT_ONCE,				/* Immediate pause 			*/
+	PCM_PAUSE_OFF						/* Unpause 			*/
 } PcmPauseCmd;
 
-/* ‹­§Ø‚è‘Ö‚¦‰Â”\«ƒ`ƒFƒbƒN’l */
+/* Force switchability check value */
 typedef enum {
-	PCM_CHANGE_OK_AT_ONCE		= 0,	/* ‘¦Ø‚è‘Ö‚¦‰Â”\B			*/
-	PCM_CHANGE_NO_DATA			= 1,	/* ƒf[ƒ^‹Ÿ‹‹•s‘«B				*/
-	PCM_CHANGE_NO_ENTRY			= 2,	/* ƒGƒ“ƒgƒŠ‚ª–³‚¢B				*/
-	PCM_CHANGE_TOO_LARGE_HEADER	= 3		/* ƒwƒbƒ_‚ª‚«‘å‚·‚¬‚éB			*/
-										/* (ƒoƒbƒtƒ@ƒTƒCƒY‚ª¬‚³‚·‚¬‚é)	*/
+	PCM_CHANGE_OK_AT_ONCE		= 0,	/* Can be switched on immediately.			*/
+	PCM_CHANGE_NO_DATA			= 1,	/* Insufficient data supply.				*/
+	PCM_CHANGE_NO_ENTRY			= 2,	/* No entry.				*/
+	PCM_CHANGE_TOO_LARGE_HEADER	= 3		/* Header too large.			*/
+										/* (Buffer size too small)	*/
 } PcmChangeStatus;
 
-/* ƒf[ƒ^‚Ì“]‘—•û® */
+/* Method of data transfer */
 typedef enum {
-	PCM_TRMODE_CPU = 0,					/* ƒ\ƒtƒgƒEƒFƒA“]‘— 			*/
-	PCM_TRMODE_SDMA,					/* ‚c‚l‚`ƒTƒCƒNƒ‹ƒXƒ`[ƒ‹ 		*/
-	PCM_TRMODE_SCU						/* ‚r‚b‚t‚Ì‚c‚l‚`				*/
+	PCM_TRMODE_CPU = 0,					/* Software transfer 			*/
+	PCM_TRMODE_SDMA,					/* DMA Cycle Steel 		*/
+	PCM_TRMODE_SCU						/* DMA for SCU				*/
 } PcmTrMode;
 
-/* [’ˆÓ] 
-	ƒŠƒ“ƒOƒoƒbƒtƒ@¨‚o‚b‚lƒoƒbƒtƒ@‚Ì“]‘—‚ÍAƒ\ƒtƒgƒEƒFƒA“]‘—‚ÉŒÅ’è‚Å‚·B
+/* [Note] 
+	Transfer from ring buffer to PCM buffer is fixed to software transfer.
 */
 
-/*------------------------- sƒfƒtƒHƒ‹ƒg’lt -------------------------*/
+/*------------------------- Default value -------------------------*/
 
-/* ‚P‰ñ‚Ìƒ^ƒXƒN‚Åˆ—‚·‚é—Ê‚ÌãŒÀ [sample/1ch] */
+/* Maximum amount of work to be done in a single task [sample/1ch] */
 #define PCM_DEFAULT_SAMPLE_1TASK		(PCM_SIZE_1K)
 
-/* Ä¶ŠJnƒgƒŠƒKƒTƒCƒY[byte] */
+/* Start playback trigger size [byte] */
 #define PCM_DEFAULT_SIZE_START_TRG		(0)
 
-/* Ä¶ŠJnƒgƒŠƒKƒTƒ“ƒvƒ‹[sample/1ch] */
+/* Start Playback Trigger Sample [sample/1ch] */
 #define PCM_DEFAULT_SAMPLE_START_TRG	(PCM_SIZE_4K)
 
-/* Ä¶’â~ƒgƒŠƒKƒTƒ“ƒvƒ‹[sample/1ch] */
+/* Stop Playback Trigger Sample [sample/1ch] */
 #define PCM_DEFAULT_SAMPLE_STOP_TRG		(PCM_SIZE_2K)
 
 
-/*------------------------- sˆ—ƒ}ƒNƒt -------------------------*/
+/*------------------------- Processing Macro -------------------------*/
 
-/* ‚S‚a‚x‚s‚d•¶šƒR[ƒh‚ğ Uint32 Œ^‚Å•\Œ»‚·‚éB
- *   ('cvid'‚È‚Ç‚Æ‘‚­‚ÆÜ°Æİ¸Ş‚ªo‚Ä‚µ‚Ü‚¤‚Ì‚ÅA‚±‚ê‚ğ‰ñ”ğ‚·‚é‚½‚ß‚É)
+/* 4BYTE character code is expressed in Uint32 type.
+ *   (If you write'cvid 'etc., the wording will come out, so to avoid this)
  */
 #define PCM_4BYTE_CHAR(a,b,c,d)					\
 	(	((Uint32)((a) & 0x000000FF) << 24) | 	\
@@ -186,23 +185,23 @@ typedef enum {
 		 (Uint32)((d) & 0x000000FF)				\
 	)
 
-/* SEGA_PCM conpatible */
+/* SEGA_PCM compatible */
 #define PCM_PARA_WORK_ADDR(para)	PCM_PARA_WORK(para)
 #define PCM_PARA_BUF_ADDR(para)		PCM_PARA_RING_ADDR(para)
 #define PCM_PARA_BUF_SIZE(para)		PCM_PARA_RING_SIZE(para)
 #define PCM_CreateMemMovie			PCM_CreateMemHandle
 #define PCM_DestroyMemMovie			PCM_DestroyMemHandle
 
-/*-------------------- s\‘¢‘ÌƒAƒNƒZƒXƒ}ƒNƒt --------------------*/
+/*-------------------- Structure Access Macro --------------------*/
 
-/* ì¬ƒpƒ‰ƒ[ƒ^‚Ö‚ÌƒAƒNƒZƒXƒ}ƒNƒ */
+/* Access macro to creation parameters */
 #define PCM_PARA_WORK(para)			((para)->work)
 #define PCM_PARA_RING_ADDR(para)	((para)->ring_addr)
 #define PCM_PARA_RING_SIZE(para)	((para)->ring_size)
 #define PCM_PARA_PCM_ADDR(para)		((para)->pcm_addr)
 #define PCM_PARA_PCM_SIZE(para)		((para)->pcm_size)
 
-/* Ä¶î•ñ‚Ìİ’èƒpƒ‰ƒ[ƒ^‚Ö‚ÌƒAƒNƒZƒXƒ}ƒNƒ */
+/* Macro for accessing playback information configuration parameters */
 #define PCM_INFO_FILE_TYPE(info)		((info)->file_type)
 #define PCM_INFO_DATA_TYPE(info)		((info)->data_type)
 #define PCM_INFO_FILE_SIZE(info)		((info)->file_size)
@@ -212,18 +211,18 @@ typedef enum {
 #define PCM_INFO_SAMPLE_FILE(info)		((info)->sample_file)
 #define PCM_INFO_COMPRESSION_TYPE(info)	((info)->compression_type)
 
-/* ƒnƒ“ƒhƒ‹(ƒ[ƒN)‚ÌƒAƒNƒZƒX */
+/* Access to the handle (work) */
 #define PCM_HN_START_TRG_SIZE(hn)	(((*(PcmWork **)hn))->para.start_trg_size)
 #define PCM_HN_START_TRG_SAMPLE(hn)	(((*(PcmWork **)hn))->para.start_trg_sample)
 #define PCM_HN_STOP_TRG_SAMPLE(hn)	(((*(PcmWork **)hn))->para.stop_trg_sample)
 #define PCM_HN_CNT_LOOP(hn)			(((*(PcmWork **)hn))->status.cnt_loop)
 
 
-/*-------------------------- sƒf[ƒ^Œ^t --------------------------*/
-/* ƒnƒ“ƒhƒ‹ */
+/*-------------------------- Data type --------------------------*/
+/* The handle */
 typedef void *PcmHn;
 
-/* ƒGƒ‰[“o˜^ŠÖ” */
+/* Error Registration function */
 typedef void (*PcmErrFunc)(void *obj, Sint32 err_code);
 
 typedef struct {
@@ -300,7 +299,7 @@ typedef struct {
 	Uint8		pad[12];				/* P3-14 	*/
 } PcmChangeMixerPara;
 
-/* ÅŒã‚É”­s‚µ‚½ŠeƒRƒ}ƒ“ƒh‚Ì“à—e */
+/* Contents of each last command issued */
 typedef struct {
 	PcmStartPcm			start_pcm;
 	PcmStopPcm			stop_pcm;
@@ -314,158 +313,157 @@ typedef struct {
 */
 } PcmCommand;
 
-/* Ä¶î•ñ */
+/* Playback information */
 typedef struct {
-	PcmFileType		file_type;			/* ƒtƒ@ƒCƒ‹ƒ^ƒCƒv 					*/
-	PcmDataType		data_type;			/* ƒf[ƒ^ƒ^ƒCƒv 					*/
-	Sint32			file_size;			/* ƒtƒ@ƒCƒ‹ƒTƒCƒY[byte]
-										 * ‚±‚êˆÈã‚ÌØİ¸ŞÊŞ¯Ì§‚Ö‚Ì‹Ÿ‹‹‚ğ‹–‚·
-										 * ‚ªA‚»‚Ì•”•ª‚Íˆ—‚µ‚È‚¢B
+	PcmFileType		file_type;			/* File type 					*/
+	PcmDataType		data_type;			/* Data type 					*/
+	Sint32			file_size;			/* file size[byte]
+										 * Allow more supply to the ring buffer
+										 * But that part is not processed.
 										 */
-	Sint32			channel;			/* ƒ`ƒƒƒlƒ‹” 						*/
-	Sint32			sampling_bit;		/* ƒTƒ“ƒvƒŠƒ“ƒOƒrƒbƒg” 			*/
-	Sint32			sampling_rate;		/* ƒTƒ“ƒvƒŠƒ“ƒOƒŒ[ƒg[Hz] 			*/
-	Sint32			sample_file;		/* ƒtƒ@ƒCƒ‹‚ÌƒTƒ“ƒvƒ‹”[sample/1ch]	*/
-	Sint32			compression_type;	/* ˆ³kƒ^ƒCƒv 						*/
+	Sint32			channel;			/* Number of channels 						*/
+	Sint32			sampling_bit;		/* Number of sampling bits 			*/
+	Sint32			sampling_rate;		/* Sampling Rate [Hz] 			*/
+	Sint32			sample_file;		/* Sample number of files [sample/1ch]	*/
+	Sint32			compression_type;	/* Compression type 						*/
 } PcmInfo;
 
-/* PCM“]‘—î•ñ */
+/* PCM transfer information */
 typedef struct {
-	Sint8		*dst1;				/* “]‘—æƒAƒhƒŒƒX1 						*/
-	Sint8		*dst2;				/* “]‘—æƒAƒhƒŒƒX2 						*/
-	Sint8		*src;				/* “]‘—Œ³ƒAƒhƒŒƒX 						*/
-	Sint32		size;				/* “]‘—ƒoƒCƒg” 						*/
+	Sint8		*dst1;				/* Destination address 1 						*/
+	Sint8		*dst2;				/* Destination address 2 						*/
+	Sint8		*src;				/* Source address 						*/
+	Sint32		size;				/* Number of bytes transferred 						*/
 } PcmCopyTbl;
 
-/* Šeí§Œäî•ñ */
+/* Various control information */
 typedef struct {
-	/* ‘S‘Ì§Œäî•ñ */
-	Sint32			stat_start;		/* 'STAT' ƒXƒe[ƒ^ƒX‚ÌŠJn 				*/
-	PcmPlayStatus	play;			/* Ä¶ó‘Ô 							*/
-	PcmFlag			ignore_header;	/* 1:ƒwƒbƒ_î•ñ–³‹ 					*/
-	PcmFlag			need_ci;		/* 1:ƒTƒuƒwƒbƒ_‚©‚çci‚ğ“Ç‚Ş 			*/
-	Sint32			cnt_loop;		/* ƒ‹[ƒv‰ñ”(ƒJƒEƒ“ƒgƒ_ƒEƒ“) 			*/
+	/* Overall control information */
+	Sint32			stat_start;		/* 'STAT' Start of status 				*/
+	PcmPlayStatus	play;			/* Playback state 							*/
+	PcmFlag			ignore_header;	/* 1: Ignore header information 					*/
+	PcmFlag			need_ci;		/* 1: Read CI from sub-header 			*/
+	Sint32			cnt_loop;		/* Loop Count 			*/
 
-	/* Ä¶î•ñ */
-	Sint32		info_start;			/* 'INFO' Ä¶î•ñ‚ÌŠJn 				*/
-	PcmInfo		info;				/* Ä¶î•ñ 							*/
+	/* Playback information */
+	Sint32		info_start;			/* 'INFO' Start playback information 				*/
+	PcmInfo		info;				/* Playback information 							*/
 
-	/* ƒŠƒ“ƒOƒoƒbƒtƒ@§Œäî•ñ */
-	Sint32		ring_start;			/* 'RING' ƒŠƒ“ƒOƒoƒbƒtƒ@§Œäî•ñ‚ÌŠJn 	*/
-	Sint32		ring_write_offset;	/* ƒŠƒ“ƒOƒoƒbƒtƒ@‘‚«‚İˆÊ’u[byte] 	*/
-									/*	(Ì§²Ùæ“ª‚©‚ç‚ÌƒIƒtƒZƒbƒg)			*/
-	Sint32		ring_read_offset;	/* ƒŠƒ“ƒOƒoƒbƒtƒ@“Ç‚İ‚İƒIƒtƒZƒbƒg 	*/
-									/*	(Ì§²Ùæ“ª‚©‚ç‚ÌƒIƒtƒZƒbƒg)			*/
-	Sint8		*ring_end_addr;		/* ƒŠƒ“ƒOƒoƒbƒtƒ@I—¹ƒAƒhƒŒƒX 			*/
-	Sint8		*ring_write_addr;	/* ƒŠƒ“ƒOƒoƒbƒtƒ@‘‚«‚İƒAƒhƒŒƒX 		*/
-	Sint8		*ring_read_addr;	/* ƒŠƒ“ƒOƒoƒbƒtƒ@“Ç‚İæ‚èƒAƒhƒŒƒX 		*/
-	Sint32		media_offset;		/* ƒtƒ@ƒCƒ‹æ“ª‚©‚çƒf[ƒ^‚Ü‚Å‚ÌµÌ¾¯Ä 	*/
+	/* Ring buffer control information */
+	Sint32		ring_start;			/* 'RING' Start of ring buffer control information 	*/
+	Sint32		ring_write_offset;	/* Ring buffer write position [byte] 	*/
+									/*	(Offset from beginning of file)			*/
+	Sint32		ring_read_offset;	/* Ring buffer read offset 	*/
+									/*	(Offset from beginning of file)			*/
+	Sint8		*ring_end_addr;		/* Ring buffer end address 			*/
+	Sint8		*ring_write_addr;	/* Ring buffer write address 		*/
+	Sint8		*ring_read_addr;	/* Ring buffer read address 		*/
+	Sint32		media_offset;		/* Offset from the beginning of the file to the data 	*/
 
-	/* PCMÄ¶î•ñ */
-	Sint32		pcm_start;			/* 'PCM ' PCMÄ¶î•ñ‚ÌŠJn 			*/
-	Sint8		*pcm2_addr;			/* PCM‘æ‚QÁ¬İÈÙƒoƒbƒtƒ@ŠJnƒAƒhƒŒƒX 	*/
-	Sint32		pcm_bsize;			/* »³İÄŞÒÓØ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY[byte/1ch]*/
-	Sint32		pcm_write_offset;	/* PCMƒoƒbƒtƒ@‘‚«‚İˆÊ’u[byte]		*/
-									/*  (PCMƒoƒbƒtƒ@‚Ìæ“ª‚©‚ç‚ÌƒIƒtƒZƒbƒg)	*/
-	Sint32		cnt_4ksample;		/* PCM play address 4k»İÌßÙ’PˆÊXV¶³İÀ */
-	Sint32		sample_write_file;	/* “–ƒtƒ@ƒCƒ‹‚Ì‹Ÿ‹‹ƒTƒ“ƒvƒ‹”[sample/1ch]*/
-									/* (“–ƒtƒ@ƒCƒ‹‚ÌŒ»İ‚Ü‚Å‚Ì‘‹Ÿ‹‹—Ê)		*/
-	Sint32		sample_write;		/* ‹Ÿ‹‹ƒTƒ“ƒvƒ‹”[sample/1ch]			*/
-									/* (æ“ªÌ¨ÙÑ‚©‚ç‚ÌŒ»İ‚Ü‚Å‚Ì‘‹Ÿ‹‹—Ê)	*/
-	Sint32		sample_film_start;	/* ƒtƒBƒ‹ƒ€ŠJnƒTƒ“ƒvƒ‹”[sample/1ch]	*/
-									/* (æ“ªÌ¨ÙÑ‚©‚çŒ»İÌ¨ÙÑŠJn“_‚Ü‚Å‚Ì)	*/
-	Sint32		sample_pause;		/* ƒ|[ƒYƒTƒ“ƒvƒ‹”[sample/1ch]		*/
-									/* (æ“ªÌ¨ÙÑ‚©‚çÅ‹ß‚Ìƒ|[ƒY“_‚Ü‚Å‚Ì)	*/
-	Sint32		count_start;		/* ‚b‚o‚tƒNƒƒbƒNƒ^ƒCƒ}ŠJn 		*/
-									/* 						[CPU¸Û¯¸>>15] 	*/
-	Sint32		clock_scale;		/* ‚b‚o‚tƒNƒƒbƒNƒ^ƒCƒ}‚ÌƒXƒP[ƒ‹ 		*/
-	PcmFlag		fill_silence;		/* –³‰¹İ’èÏ‚İƒtƒ‰ƒO					*/
-	Sint32		*pwork_addr;		/* ƒ|[ƒYˆ——pƒ[ƒN					*/
-	Sint32		pwork_size;			/* ƒ|[ƒYˆ——pƒ[ƒNƒTƒCƒY[byte] 		*/
-									/*  (ƒ|[ƒY‹@”\‚ğg—p‚·‚éê‡‚É•K—v)	*/
-	Sint32		cnt_sg;				/* ƒTƒEƒ“ƒhƒOƒ‹[ƒvƒJƒEƒ“ƒ^				*/
-	Sint32		onetask_sample;		/* ‚P‰ñ‚Ìƒ^ƒXƒN‚Åˆ—‚·‚é—Ê[sample/1ch]	*/
-	Sint32		onetask_size;		/* ‚P‰ñ‚Ìƒ^ƒXƒN‚Åˆ—‚·‚é—Ê[byte/1ch]	*/
-	Sint32		onetask_sg;			/* ‚P‰ñ‚Ìƒ^ƒXƒN‚Åˆ—‚·‚é—Ê[sg/1ch]		*/
+	/* PCM regeneration information */
+	Sint32		pcm_start;			/* 'PCM ' Start of PCM playback information 			*/
+	Sint8		*pcm2_addr;			/* PCM second channel buffer start address 	*/
+	Sint32		pcm_bsize;			/* PCM buffer size in sound memory [byte/1ch]*/
+	Sint32		pcm_write_offset;	/* PCM buffer write position [byte]		*/
+									/*  (Offset from the beginning of the PCM buffer)	*/
+	Sint32		cnt_4ksample;		/* PCM play address 4k per sample update counter */
+	Sint32		sample_write_file;	/* Number of samples supplied with this file [sample/1ch]*/
+									/* (Total amount of supply to the present date of this file)		*/
+	Sint32		sample_write;		/* Number of Supply Samples [sample/1ch]			*/
+									/* (Total current supply from the first film)	*/
+	Sint32		sample_film_start;	/* Sample at Film Start [sample/1ch]	*/
+									/* (From the first film to the current film start)	*/
+	Sint32		sample_pause;		/* Sample at Pause [sample/1ch]		*/
+									/* (From the first film to the most recent pause)	*/
+	Sint32		count_start;		/* CPU clock timer start time 		*/
+									/* 						CPU Clock 15 	*/
+	Sint32		clock_scale;		/* CPU clock timer scale 		*/
+	PcmFlag		fill_silence;		/* Silence-set flag					*/
+	Sint32		*pwork_addr;		/* Work for pause processing					*/
+	Sint32		pwork_size;			/* The work size [byte] for the pause processing 		*/
+									/*  (Required if using the Pause feature)	*/
+	Sint32		cnt_sg;				/* Sound group counter				*/
+	Sint32		onetask_sample;		/* How much to handle in one task [sample/1ch]	*/
+	Sint32		onetask_size;		/* How much to handle in one task [byte/1ch]	*/
+	Sint32		onetask_sg;			/* How much to process in one task [sg/1ch]		*/
 
-	/* ƒTƒEƒ“ƒhƒhƒ‰ƒCƒoŠÖ˜A */
-	Sint32		sddrv_start;		/* 'SDRV' ƒTƒEƒ“ƒhƒhƒ‰ƒCƒoŠÖ˜A‚ÌŠJn 	*/
-	PcmCommand	command;			/* ÅŒã‚É”­s‚µ‚½ŠeƒRƒ}ƒ“ƒh‚Ì“à—e 		*/
+	/* Sound driver related */
+	Sint32		sddrv_start;		/* 'SDRV' Sound driver related start 	*/
+	PcmCommand	command;			/* Contents of each last command issued 		*/
 
-	/* PCMƒf[ƒ^“]‘—‚ÉŠÖ‚·‚éî•ñ */
-	Sint32		copy_start;			/* 'COPY' PCMƒf[ƒ^“]‘—ŠÖ˜A‚ÌŠJn 		*/
-	PcmTrMode	copy_mode_pcm;		/* ƒf[ƒ^‚Ì“]‘—•û® 					*/
-	PcmFlag		dma_hold;			/* 1:‚±‚Ìƒnƒ“ƒhƒ‹‚ªDMA‘Œ¹‚ğ•Û‚µ‚Ä‚¢‚é*/
-	Uint32		pcm_renew_size;		/* DMAI—¹pcmÊŞ¯Ì§‘‚«‚İÎß²İÀXV»²½Ş*/
-	Uint32		buf_renew_size;		/* DMAI—¹ÊŞ¯Ì§“Ç‚İæ‚èÎß²İÀXV»²½Ş 	*/
-	Sint32		copy_idx;			/* PCM“]‘—î•ñƒe[ƒuƒ‹‚ÌƒCƒ“ƒfƒbƒNƒX 	*/
-	PcmCopyTbl 	copy_tbl[4];		/* PCM“]‘—î•ñƒe[ƒuƒ‹ 					*/
+	/* Information about PCM data transfer */
+	Sint32		copy_start;			/* 'COPY' Start related to PCM data transfer 		*/
+	PcmTrMode	copy_mode_pcm;		/* Method of data transfer 					*/
+	PcmFlag		dma_hold;			/* 1: This handle holds DMA resources*/
+	Uint32		pcm_renew_size;		/* Use the PCM buffer write pointer update size at the end of DMA*/
+	Uint32		buf_renew_size;		/* DMA end-time buffer read pointer update size 	*/
+	Sint32		copy_idx;			/* The index of the PCM transfer information table 	*/
+	PcmCopyTbl 	copy_tbl[4];		/* PCM transfer information table 					*/
 
-	/* ŠÔŠÇ—î•ñ */
-	Sint32		vbl_start;			/* 'VBL ' ŠÔŠÇ—î•ñ‚ÌŠJn 			*/
-	Sint32		vbl_film_start;		/* ƒtƒBƒ‹ƒ€ŠJn[vbl] 				*/
-	Sint32		vbl_pause;			/* ƒ|[ƒYŠJn[vbl] 					*/
-	Sint32		vbl_pcm_start;		/* PCMŠJn[vbl]
-									 * Å‰‚Ì ‚É cnt_4ksample ‚ğŒë‚Á‚Ä¶³İÄ
-									 * ±¯Ìß‚µ‚È‚¢‚æ‚¤‚ÉB
+	/* Time management information */
+	Sint32		vbl_start;			/* 'VBL ' Start time management information 			*/
+	Sint32		vbl_film_start;		/* Film Start Time [vbl] 				*/
+	Sint32		vbl_pause;			/* Pause Start Time [vbl] 					*/
+	Sint32		vbl_pcm_start;		/* PCM start time [vbl]
+									 * Accidentally counting cnt_4ksample at the beginning
 									 */
 
-	/* ADPCMØ‚è•ª‚¯—pŠÖ”ƒ|ƒCƒ“ƒ^ */
+	/* ADPCM isolation function pointer */
 	void (*audio_process_fp)(PcmHn hn);
-									/* ‚PƒI[ƒfƒBƒIƒTƒ“ƒvƒ‹ˆ—
-									 * pcm_AudioProcess      ‚Ü‚½‚ÍA
-									 * pcm_AudioProcessAdpcm ‚ª“o˜^
-									 * ‚³‚ê‚é
+									/* 1 Audio sample processing
+									 * pcm_AudioProcess      Or
+									 * pcm_AudioProcessAdpcm Registered
+									 * Be done
 									 */
 
-	/* ƒGƒ‰[î•ñ */
-	Uint32		err_start;			/* 'ERR ' ƒGƒ‰[î•ñ‚ÌŠJn 				*/
-	Uint32		cnt_load_miss;		/* PCMƒ[ƒhƒ~ƒXƒJƒEƒ“ƒ^ 				*/
-	Uint32		cnt_task_call;		/* ƒ^ƒXƒNƒR[ƒ‹ƒJƒEƒ“ƒ^ 				*/
-	Uint32		cnt_over_task_call;	/* ‰ßèƒ^ƒXƒNƒR[ƒ‹ƒJƒEƒ“ƒ^ 			*/
-	Uint32		cnt_buf_empty;		/* ƒoƒbƒtƒ@‹óƒ^ƒXƒNƒJƒEƒ“ƒ^ 			*/
-	Uint32		max_late_time;		/* Å‘å’x‚ê[sample] 				*/
-	Uint32		max_late_sample;	/* Å‘å’x‚êŠÔ[sample] 				*/
-	Sint32		cnt_fill_silence;	/* –³‰¹İ’èƒJƒEƒ“ƒ^						*/
+	/* Error information */
+	Uint32		err_start;			/* 'ERR ' Start of error information 				*/
+	Uint32		cnt_load_miss;		/* PCM load miss counter 				*/
+	Uint32		cnt_task_call;		/* Task call counters 				*/
+	Uint32		cnt_over_task_call;	/* Excessive task call counters 			*/
+	Uint32		cnt_buf_empty;		/* Buffer empty task counter 			*/
+	Uint32		max_late_time;		/* Maximum delay time [sample] 				*/
+	Uint32		max_late_sample;	/* Maximum delay time [sample] 				*/
+	Sint32		cnt_fill_silence;	/* Silence setting counter						*/
 } PcmStatus;
 
-/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXŠÖŒW */
+/* File access relationships */
 typedef struct {
-	GfsHn		gfs;			/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹ */
-	Sint32		load_sect;		/* “]‘—Å‘åƒZƒNƒ^” */
-	Bool		called_cdread;	/* GFS_NwCdRead ‚ğƒR[ƒ‹‚µ‚½‚ç TRUE */
-	Bool		exec_one_state;	/* ExecOne Às’†‚È‚ç TRUE */
-	Sint32		exec_load_size;	/* ExecOne ‚Å“Ç‚İ‚ŞƒoƒCƒg” */
-	Sint32		now_load_size;	/* ExecOne ‚Å“Ç‚İ‚ñ‚Å‚¢‚éƒoƒCƒg” */
-	Sint32		load_total_sect;/* “Ç‚İ‚İ‘ƒZƒNƒ^” */
-	Sint32		file_sect;		/* ƒtƒ@ƒCƒ‹‚ÌƒZƒNƒ^” */
-	PcmTrMode	tr_mode;		/* “]‘—ƒ‚[ƒh */
+	GfsHn		gfs;			/* File handle */
+	Sint32		load_sect;		/* Maximum number of sectors to transfer */
+	Bool		called_cdread;	/* True if calling GFS_NwCdRead */
+	Bool		exec_one_state;	/* True if ExecOne is running */
+	Sint32		exec_load_size;	/* Number of bytes read by ExecOne */
+	Sint32		now_load_size;	/* Number of bytes that ExecOne is reading */
+	Sint32		load_total_sect;/* Total number of sectors to read */
+	Sint32		file_sect;		/* Number of sectors in the file */
+	PcmTrMode	tr_mode;		/* Transfer mode */
 } PcmFileGfsPara;
 
 typedef struct {
-	StmHn		stm;			/* ƒXƒgƒŠ[ƒ€ƒnƒ“ƒhƒ‹ */
-	Sint32		load_sect;		/* “]‘—Å‘åƒZƒNƒ^” */
-	Sint32		old_cd_buf_num;	/* ‘O‰ñ‚Ì‚b‚cƒoƒbƒtƒ@‚Ì” */
-	Bool		dma_state;		/* ‚c‚l‚`“]‘—‚µ‚Ä‚¢‚é‚È‚ç TRUE */
-	Sint32		dma_sect;		/* ‚c‚l‚`“]‘—‚·‚éƒZƒNƒ^” */
-	Uint32		*write_addr;	/* ‘‚«‚ŞƒAƒhƒŒƒX */
-	Sint32		buf_bsize;		/* ‹ó‚«ƒoƒbƒtƒ@‚ÌƒoƒCƒg” */
-	Sint32		write_bsize;	/* “]‘—‚µ‚½ƒoƒCƒg” */
-	Sint32		sect_bsize;		/* ‚PƒZƒNƒ^‚ÌƒoƒCƒg” */
-	Sint32		audio_1st_sect;	/* æ“ªƒI[ƒfƒBƒIƒZƒNƒ^ */
-	StmTrFunc	load_func;		/* “]‘—ŠÖ” */
+	StmHn		stm;			/* Stream handle */
+	Sint32		load_sect;		/* Maximum number of sectors to transfer */
+	Sint32		old_cd_buf_num;	/* Number of previous CD buffers */
+	Bool		dma_state;		/* True if DMA transfer is in process */
+	Sint32		dma_sect;		/* Number of sectors to DMA transfer */
+	Uint32		*write_addr;	/* Address to write to */
+	Sint32		buf_bsize;		/* Number of bytes in the free buffer */
+	Sint32		write_bsize;	/* Number of bytes transferred */
+	Sint32		sect_bsize;		/* Number of bytes in a sector */
+	Sint32		audio_1st_sect;	/* The first audio sector */
+	StmTrFunc	load_func;		/* Transfer function */
 } PcmFileStmPara;
 
 typedef struct {
-	Sint32		faccess_type;		/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXƒ^ƒCƒv */
-	/* ƒtƒ@ƒCƒ‹ƒ[ƒJƒ‹ƒf[ƒ^ */
+	Sint32		faccess_type;		/* File access type */
+	/* File local data */
 	union	{
 		PcmFileGfsPara	gfs;
 		PcmFileStmPara	stm;
 	} data;
 } PcmFilePara;
 
-/* ÀsŠÖ” */
+/* Execution functions */
 typedef struct {
 	void	(*start)(PcmHn pcm);
 	void	(*task)(PcmHn pcm);
@@ -474,177 +472,177 @@ typedef struct {
 	void	(*set_trmode)(PcmHn pcm, PcmTrMode mode);
 } PcmExecFunc;
 
-/* ‘ŠŒİQÆ‚Ì‚½‚ß‚Ì‹óéŒ¾ */
+/* Empty declaration for cross-references */
 struct PcmWork;
 
-/* ì¬ƒpƒ‰ƒ[ƒ^ */
+/* Creation parameters */
 typedef struct {
-	struct PcmWork *work;		/* ƒ[ƒN‚ÌƒAƒhƒŒƒX 						*/
-								/*  (ƒ‰ƒCƒuƒ‰ƒŠ‚ªg—p‚·‚éÊİÄŞÙ–ˆ‚Ìì‹Æ—Ìˆæ) */
-	Sint8		*ring_addr;		/* ƒtƒ@ƒCƒ‹‚ğŠi”[‚·‚éƒoƒbƒtƒ@‚Ìæ“ªƒAƒhƒŒƒX */
-								/*  (ƒƒ‚ƒŠ‚Ìƒtƒ@ƒCƒ‹‚Ì‚Í‚»‚ÌƒAƒhƒŒƒX) 	*/
-								/*  (CD‚Ìƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚Ì±ÄŞÚ½) 	*/
-	Sint32		ring_size;		/* ƒoƒbƒtƒ@ƒTƒCƒY[byte] 					*/
-								/*  (ƒƒ‚ƒŠ‚Ìƒtƒ@ƒCƒ‹‚Ì‚Íƒtƒ@ƒCƒ‹ƒTƒCƒY) 	*/
-								/*  (CD‚Ìƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚ÌƒTƒCƒY 	*/
-	Sint8		*pcm_addr;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒAƒhƒŒƒX 		*/
-	Sint32		pcm_size;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY[sample]*/
-								/*  (1ch•ª‚ÌƒTƒ“ƒvƒ‹” 4096*1..4096*16) 	*/
+	struct PcmWork *work;		/* Work address 						*/
+								/*  (The work area for each handle used by the library) */
+	Sint8		*ring_addr;		/* The first address of the buffer that stores the file */
+								/*  (Address of the file in memory, if it is a file) 	*/
+								/*  (Ring buffer address for CD files) 	*/
+	Sint32		ring_size;		/* Buffer size [byte] 					*/
+								/*  (File size for memory files) 	*/
+								/*  (For CD files, the size of the ring buffer 	*/
+	Sint8		*pcm_addr;		/* PCM buffer address of the sound memory 		*/
+	Sint32		pcm_size;		/* PCM buffer size in sound memory [sample]*/
+								/*  (Number of samples per channel: 4096*1..4096*16) 	*/
 } PcmCreatePara;
 
-/* ì¬ƒpƒ‰ƒ[ƒ^ */
+/* Creation parameters */
 typedef struct {
-	Sint8		*ring_addr;		/* ƒtƒ@ƒCƒ‹‚ğŠi”[‚·‚éƒoƒbƒtƒ@‚Ìæ“ªƒAƒhƒŒƒX */
-								/*  (ƒƒ‚ƒŠ‚Ìƒtƒ@ƒCƒ‹‚Ì‚Í‚»‚ÌƒAƒhƒŒƒX) 	*/
-								/*  (CD‚Ìƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚Ì±ÄŞÚ½) 	*/
-	Sint32		ring_size;		/* ƒoƒbƒtƒ@ƒTƒCƒY[byte] 					*/
-								/*  (ƒƒ‚ƒŠ‚Ìƒtƒ@ƒCƒ‹‚Ì‚Íƒtƒ@ƒCƒ‹ƒTƒCƒY) 	*/
-								/*  (CD‚Ìƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚ÌƒTƒCƒY 	*/
-	Sint8		*pcm_addr;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒAƒhƒŒƒX 		*/
-	Sint32		pcm_size;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY 		*/
-								/*  (1ch•ª‚ÌƒTƒ“ƒvƒ‹” 4096*1..4096*16) 	*/
+	Sint8		*ring_addr;		/* The first address of the buffer that stores the file */
+								/*  (Address of the file in memory, if it is a file) 	*/
+								/*  (Ring buffer address for CD files) 	*/
+	Sint32		ring_size;		/* Buffer size [byte] 					*/
+								/*  (File size for memory files) 	*/
+								/*  (For CD files, the size of the ring buffer 	*/
+	Sint8		*pcm_addr;		/* PCM buffer address of the sound memory 		*/
+	Sint32		pcm_size;		/* PCM buffer size of the sound memory 		*/
+								/*  (Number of samples per channel: 4096*1..4096*16) 	*/
 
-	Sint32		command_blk_no;		/* ƒRƒ}ƒ“ƒhƒuƒƒbƒN”Ô† 				*/
-	Sint32		pcm_stream_no;		/* ‚o‚b‚lƒXƒgƒŠ[ƒ€Ä¶”Ô† 			*/
-	Sint32		pcm_pan;			/* ‚o‚`‚m     [0..31] 					*/
-	Sint32		pcm_level;			/* ‚k‚d‚u‚d‚k [0..7] 					*/
+	Sint32		command_blk_no;		/* Command block number 				*/
+	Sint32		pcm_stream_no;		/* PCM stream regeneration number 			*/
+	Sint32		pcm_pan;			/* Pan [0..31] 					*/
+	Sint32		pcm_level;			/* Level [0..7] 					*/
 
-	Sint32		start_trg_size;		/* Ä¶ŠJnƒgƒŠƒKƒTƒCƒY[byte] 			*/
-	Sint32		start_trg_sample;	/* Ä¶ŠJnƒgƒŠƒKƒTƒ“ƒvƒ‹[sample/1ch] 	*/
-	Sint32		stop_trg_sample;	/* Ä¶’â~ƒgƒŠƒKƒTƒ“ƒvƒ‹[sample/1ch] 	*/
+	Sint32		start_trg_size;		/* Start playback trigger size [byte] 			*/
+	Sint32		start_trg_sample;	/* Start Playback Trigger Sample [sample/1ch] 	*/
+	Sint32		stop_trg_sample;	/* Stop Playback Trigger Sample [sample/1ch] 	*/
 } PcmPara;
 
-/* ‚o‚b‚lƒ[ƒN */
+/* PCM work */
 typedef struct {
-	Sint32			work_start;		/* 'WORK' ƒ[ƒN‚ÌŠJn 			*/
-	PcmPara 		para;			/* ƒpƒ‰ƒ[ƒ^ 					*/
-	PcmStatus 		status;			/* Šeí§Œäî•ñ 				*/
-	PcmFilePara 	filepara;		/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXƒpƒ‰ƒ[ƒ^ 	*/
-	PcmExecFunc 	execfunc;		/* ÀsŠÖ” 					*/
+	Sint32			work_start;		/* 'WORK' Start of work 			*/
+	PcmPara 		para;			/* Parameters 					*/
+	PcmStatus 		status;			/* Various control information 				*/
+	PcmFilePara 	filepara;		/* File access parameters 	*/
+	PcmExecFunc 	execfunc;		/* Execution functions 					*/
 } PcmWork;
 
-/*-------------------------- sŠÖ”éŒ¾t --------------------------*/
-/* ƒ‰ƒCƒuƒ‰ƒŠ‚Ì‰Šú‰» */
+/*-------------------------- Function Declaration --------------------------*/
+/* Library initialization */
 Bool PCM_Init(void);
 
-/* ƒ‰ƒCƒuƒ‰ƒŠ‚ÌI—¹ˆ— */
+/* The process of closing the library */
 void PCM_Finish(void);
 
-/* ‚`‚c‚o‚b‚lg—péŒ¾ */
+/* ADPCM Declaration of use */
 void PCM_DeclareUseAdpcm(void);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒƒ‚ƒŠj */
+/* Create handle (memory) */
 PcmHn PCM_CreateMemHandle(PcmCreatePara *para);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒƒ‚ƒŠj */
+/* Clear handle (memory) */
 void PCM_DestroyMemHandle(PcmHn pcm);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€j */
+/* Create handles (File System) */
 PcmHn PCM_CreateGfsHandle(PcmCreatePara *para, GfsHn gfs);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€j */
+/* Clear handles (File System) */
 void PCM_DestroyGfsHandle(PcmHn pcm);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒXƒgƒŠ[ƒ€ƒVƒXƒeƒ€j */
+/* Creating handles (Stream System) */
 PcmHn PCM_CreateStmHandle(PcmCreatePara *para, StmHn stm);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒXƒgƒŠ[ƒ€ƒVƒXƒeƒ€j */
+/* Clear handle (Stream System) */
 void PCM_DestroyStmHandle(PcmHn pcm);
 
-/* Ä¶ƒ^ƒXƒN */
+/* Playback task */
 void PCM_Task(PcmHn pcm);
 
-/* ‚uƒuƒ‰ƒ“ƒN‚h‚mˆ—ŠÖ” */
+/* V blank in processing function */
 void PCM_VblIn(void);
 
-/* Ä¶ŠJn */
+/* Start playback */
 void PCM_Start(PcmHn pcm);
 
-/* Ä¶’â~ */
+/* Stop playback */
 void PCM_Stop(PcmHn pcm);
 
-/* ˆê’â~ */
+/* Pause */
 void PCM_Pause(PcmHn pcm, PcmPauseCmd cmd);
 
-/* ƒ‹[ƒv‰ñ”‚Ìw’è */
+/* Specify the number of loops */
 void PCM_SetLoop(PcmHn pcm, Sint32 cnt_loop);
 
-/* Ÿ‚ÉÄ¶‚·‚éƒnƒ“ƒhƒ‹‚Ì“o˜^ */
+/* Register the next handle to play */
 void PCM_EntryNext(PcmHn pcm);
 
-/* ƒnƒ“ƒhƒ‹‚Ì‹­§Ø‚è‘Ö‚¦ */
+/* Force switch of the handle */
 void PCM_Change(void);
 
-/* ƒnƒ“ƒhƒ‹‚ÌØ‚è‘Ö‚¦ó‘Ô‚Ìæ“¾ */
+/* Get handle toggle status */
 PcmChangeStatus PCM_CheckChange(void);
 
-/* ƒ|[ƒYˆ——pƒ[ƒNƒAƒhƒŒƒXAƒTƒCƒY‚Ìİ’è */
+/* Work address for pause processing, setting size */
 void PCM_SetPauseWork(Sint32 *addr, Sint32 size);
 
-/* Å‘å“]‘—ƒZƒNƒ^”‚Ìİ’è */
+/* Set the maximum number of transmit sectors */
 void PCM_SetLoadNum(PcmHn pcm, Sint32 read_sct);
 
-/* Ä¶‚o‚`‚m‚Ìİ’è */
+/* Playback pan settings */
 void PCM_SetPan(PcmHn pcm, Sint32 pan);
 
-/* Ä¶ƒ{ƒŠƒ…[ƒ€‚Ìİ’è */
+/* Playback volume settings */
 void PCM_SetVolume(PcmHn pcm, Sint32 volume);
 
-/* ‚o‚b‚lÄ¶ƒpƒ‰ƒ[ƒ^‚Ì•ÏX */
+/* PCM regeneration parameter changes */
 void PCM_ChangePcmPara(PcmHn pcm);
 
-/* ‚o‚b‚lÄ¶î•ñ‚Ìİ’è */
+/* PCM regeneration information configuration */
 void PCM_SetInfo(PcmHn hn, PcmInfo *info);
 
-/* ‚P‰ñ‚Ìƒ^ƒXƒN‚Åˆ—‚·‚é—Ê‚ÌãŒÀ‚Ìİ’è [sample/1ch] */
+/* Set the limit for the amount of work you want to handle in a single task [sample/1ch] */
 void PCM_Set1TaskSample(PcmHn pcm, Sint32 sample);
 
-/* Ä¶ŠJnƒgƒŠƒKƒTƒCƒY‚Ìİ’è [byte] */
+/* Set the start playback trigger size [byte] */
 void PCM_SetStartTrgSize(PcmHn pcm, Sint32 size);
 
-/* Ä¶ŠJnƒgƒŠƒKƒTƒ“ƒvƒ‹‚Ìİ’è [sample/1ch] */
+/* Start Playback Trigger Set Sample [sample/1ch] */
 void PCM_SetStartTrgSample(PcmHn pcm, Sint32 sample);
 
-/* Ä¶’â~ƒgƒŠƒKƒTƒ“ƒvƒ‹‚Ìİ’è [sample/1ch] */
+/* Stop Playback Trigger Sample Settings [sample/1ch] */
 void PCM_SetStopTrgSample(PcmHn pcm, Sint32 sample);
 
-/* ‚o‚b‚lƒRƒ}ƒ“ƒhƒuƒƒbƒN”Ô†‚Ìİ’è */
-/* void PCM_SetPcmCmdBlockNo(PcmHn pcm, Sint32 blk_no); */
+/* PCM command block number configuration */
+/* Void PCM_SetPcmCmdBlockNo(PcmHn PCM, Sint32 blk_no) */
 
-/* ‚o‚b‚lƒXƒgƒŠ[ƒ€”Ô†‚Ìİ’è */
+/* PCM stream number configuration */
 void PCM_SetPcmStreamNo(PcmHn pcm, Sint32 stream_no);
 
-/* ƒf[ƒ^‚Ì“]‘—•û®‚Ìİ’èi‚b‚cƒuƒƒbƒN¨ƒŠƒ“ƒOƒoƒbƒtƒ@j */
+/* Setting the method for transferring data (CD blocks â†’ ring buffers) */
 void PCM_SetTrModeCd(PcmHn pcm, PcmTrMode mode);
 
-/* ƒf[ƒ^‚Ì“]‘—•û®‚Ìİ’èiƒŠƒ“ƒOƒoƒbƒtƒ@¨‚o‚b‚lƒoƒbƒtƒ@j */
-/* void PCM_SetTrModePcm(PcmHn pcm, PcmTrMode mode); */
+/* Set the data transfer method (ring buffer â†’ PCM buffer) */
+/* Void PCM_SetTrModePcm (PcmHn PCM, PcmTrMode mode) */
 
-/* Ä¶‚Ìæ“¾ */
+/* Get playback time */
 Sint32 PCM_GetTime(PcmHn pcm);
 
-/* Ä¶ƒXƒe[ƒ^ƒX‚Ìæ“¾ */
+/* Get playback status */
 PcmPlayStatus PCM_GetPlayStatus(PcmHn pcm);
 
-/* ‘‚«‚İƒoƒbƒtƒ@ƒAƒhƒŒƒX‚Ìæ“¾ */
+/* Get write buffer address */
 Uint32 *PCM_GetWriteBuf(PcmHn pcm, Sint32 *free_size, Sint32 *free_total);
 
-/* ƒoƒbƒtƒ@‚Ö‚Ì‘‚«‚İƒTƒCƒY‚Ì’Ê’m */
+/* Notification of the write size to the buffer */
 void PCM_NotifyWriteSize(PcmHn pcm, Sint32 write_size);
 
-/* ƒƒ‚ƒŠ‚Éƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚Ş */
+/* Load files into memory */
 Sint32 PCM_PreloadFile(PcmHn pcm, Sint32 size);
 
-/* ƒƒ‚ƒŠ‚Éƒtƒ@ƒCƒ‹ƒwƒbƒ_‚ğ“Ç‚İ‚Ş */
-/* Sint32 PCM_PreloadHeader(PcmHn pcm); */
+/* Read file headers into memory */
+/* Sint32 PCM_PreloadHeader(PcmHn PCM) */
 
-/* ƒGƒ‰[ŠÖ”‚Ì“o˜^ */
+/* Register error function */
 void PCM_SetErrFunc(PcmErrFunc func, void *obj);
 
-/* ƒGƒ‰[î•ñ‚Ìæ“¾ */
+/* Get error information */
 PcmErrCode PCM_GetErr(void);
 
-/* ”ñŒöŠJ */
+/* Private */
 Bool PCM_IsDeath(PcmHn pcm);
 
 #endif	/* SEGA_PCM_H */

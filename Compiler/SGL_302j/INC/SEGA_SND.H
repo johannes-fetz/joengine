@@ -5,11 +5,11 @@
  *
  *  PURPOSE:
  *
- *      サウンドI/Fライブラリヘッダファイル。
+ *      Sound I / F library header file.
  *
  *  DESCRIPTION:
  *
- *      サウンドドライバとのインタフェースを実現する。
+ *      Realizes the interface with the sound driver.
  *
  *  AUTHOR(S)
  *
@@ -40,133 +40,133 @@
 /*
  * GLOBAL DEFINES/MACROS DEFINES
  */
-/**** 定数 *******************************************************************/
-/******** ｺﾏﾝﾄﾞ実行状態 ******************************************************/
-#define SND_RET_SET     0                       /* 正常終了                     */
-#define SND_RET_NSET    1                       /* 異常終了                     */
-/******** ｻｳﾝﾄﾞｺﾝﾄﾛｰﾙ設定 ****************************************************/
+/**** Constants *******************************************************************/
+/******** Command execution state ******************************************************/
+#define SND_RET_SET     0                       /* Successful completion                     */
+#define SND_RET_NSET    1                       /* Abnormal termination                     */
+/******** Sound control settings ****************************************************/
 #define SND_CTRL_OUTPUT_STEREO  (0 << 7)        /* Sound output mode : STEREO*/
 #define SND_CTRL_OUTPUT_MONO    (1 << 7)        /* Sound output mode : MONO  */
 
-/******** Sequence PAN ｺﾝﾄﾛｰﾙｽｲｯﾁ ********************************************/
+/******** Sequence pan control switch ********************************************/
 #define SND_SEQ_PAN_OFF (0 << 7)                /* Control OFF               */
 #define SND_SEQ_PAN_ON  (1 << 7)                /* Control ON                */
 
-/******** ﾊｰﾄﾞｳｪｱﾁｪｯｸﾊﾟﾗﾒｰﾀ **************************************************/
+/******** Hardware check parameters **************************************************/
 #define SND_DRAM4           0                   /* DRAM 4Mbit r/w            */
 #define SND_DRAM8           1                   /* DRAM 8Mbit r/w            */
 #define SND_SCSP_MIDI       2                   /* SCSP MIDI                 */
-#define SND_SOUND_SRC_LR    3                   /* 音源出力(L/R)            */
-#define SND_SOUND_SRC_L     4                   /* 音源出力(L)              */
-#define SND_SOUND_SRC_R     5                   /* 音源出力(R)              */
-/******** ﾊｰﾄﾞｳｪｱﾁｪｯｸｽﾃｰﾀｽ ***************************************************/
-#define SND_HARD_OK     0x8000                  /* 正常終了                  */
-#define SND_HARD_ERR    0x7fff                  /* 異常終了                  */
-/******** 割り込み許可ビット *************************************************/
-#define SND_INT_PCM_ADR     (1 <<  7)           /* PCM play address 更新   */
-/******** 対Host割り込み種別 *************************************************/
-#define SND_FCT_PCM_ADR     0x01                /* PCM play address 更新   */
-/******** PCMｱﾄﾞﾚｽ更新割り込みｽﾃｰﾀｽ ******************************************/
-#define SND_PCM_PLAY0   (1 <<  0)               /* PCM再生番号0              */
-#define SND_PCM_PLAY1   (1 <<  1)               /* PCM再生番号1              */
-#define SND_PCM_PLAY2   (1 <<  2)               /* PCM再生番号2              */
-#define SND_PCM_PLAY3   (1 <<  3)               /* PCM再生番号3              */
-#define SND_PCM_PLAY4   (1 <<  4)               /* PCM再生番号4              */
-#define SND_PCM_PLAY5   (1 <<  5)               /* PCM再生番号5              */
-#define SND_PCM_PLAY6   (1 <<  6)               /* PCM再生番号6              */
-#define SND_PCM_PLAY7   (1 <<  7)               /* PCM再生番号7              */
+#define SND_SOUND_SRC_LR    3                   /* Source output (L/R)            */
+#define SND_SOUND_SRC_L     4                   /* Source Output              */
+#define SND_SOUND_SRC_R     5                   /* Source output (R)              */
+/******** Hardware check status ***************************************************/
+#define SND_HARD_OK     0x8000                  /* Successful completion                  */
+#define SND_HARD_ERR    0x7fff                  /* Abnormal termination                  */
+/******** Interrupt permission bits *************************************************/
+#define SND_INT_PCM_ADR     (1 <<  7)           /* PCM play address updated   */
+/******** Versus Host interrupt type *************************************************/
+#define SND_FCT_PCM_ADR     0x01                /* PCM play address updated   */
+/******** PCM address update interrupt status ******************************************/
+#define SND_PCM_PLAY0   (1 <<  0)               /* PCM regeneration number 0              */
+#define SND_PCM_PLAY1   (1 <<  1)               /* PCM regeneration number 1              */
+#define SND_PCM_PLAY2   (1 <<  2)               /* PCM regeneration number 2              */
+#define SND_PCM_PLAY3   (1 <<  3)               /* PCM regeneration number 3              */
+#define SND_PCM_PLAY4   (1 <<  4)               /* PCM regeneration number 4              */
+#define SND_PCM_PLAY5   (1 <<  5)               /* PCM regeneration number 5              */
+#define SND_PCM_PLAY6   (1 <<  6)               /* PCM regeneration number 6              */
+#define SND_PCM_PLAY7   (1 <<  7)               /* PCM regeneration number 7              */
 
-/******** SndSeqStat(シーケンスステータス) ***********************************/
+/******** SndSeqStat (sequence status) ***********************************/
 /************* SND_SEQ_STAT_MODE(song mode) **********************************/
 #define SND_MD_STOP     0x000                           /* stop              */
 #define SND_MD_PLAY     0x100                           /* play              */
 #define SND_MD_FADE     0x200                           /* fade              */
 #define SND_MD_PLAY_PS  0x300                           /* play pause        */
 #define SND_MD_FADE_PS  0x400                           /* fade pause        */
-/******** SndPcmStartPrm(PCM開始パラメータ) **********************************/
-/************* SND_PRM_MODE(ｽﾃﾚｵ･ﾓﾉｸﾛ+ｻﾝﾌﾟﾘﾝｸﾞﾚｰﾄ) ***************************/
-#define SND_MD_MONO     (0 <<  7)                   /* ﾓﾉｸﾛ                  */
-#define SND_MD_STEREO   (1 <<  7)                   /* ｽﾃﾚｵ                  */
+/******** SndPcmStartPrm **********************************/
+/************* SND_PRM_mode (Stereo/Monochrome + Sampling Rate) ***************************/
+#define SND_MD_MONO     (0 <<  7)                   /* Monochrome                  */
+#define SND_MD_STEREO   (1 <<  7)                   /* Stereo                  */
 #define SND_MD_16       (0 <<  4)                   /* 16bitPCM              */
 #define SND_MD_8        (1 <<  4)                   /* 8bitPCM               */
-/******** SND_MoveData(サウンドデータ転送) ***********************************/
-#define SND_KD_TONE         0x0                         /* 音色              */
-#define SND_KD_SEQ          0x1                         /* シーケンス        */
-#define SND_KD_DSP_PRG      0x2                         /* DSPプログラム     */
-#define SND_KD_DSP_RAM      0x3                         /* DSPﾜｰｸRAM         */
-/**** アクセスマクロ *********************************************************/
-/******** SndIniDt(システム起動) *********************************************/
-#define SND_INI_PRG_ADR(sys_ini)    ((sys_ini).prg_adr) /* 68Kﾌﾟﾛｸﾞﾗﾑ格納... */
-#define SND_INI_PRG_SZ(sys_ini)     ((sys_ini).prg_sz)  /* 68Kﾌﾟﾛｸﾞﾗﾑｻｲｽﾞ... */
-#define SND_INI_ARA_ADR(sys_ini)    ((sys_ini).ara_adr) /* ｻｳﾝﾄﾞｴﾘｱﾏｯﾌﾟ格納. */
-#define SND_INI_ARA_SZ(sys_ini)     ((sys_ini).ara_sz)  /* ｻｳﾝﾄﾞｴﾘｱﾏｯﾌﾟｻｲｽﾞ. */
-/******** SndSeqStat(シーケンスステータス) ***********************************/
+/******** SND_MoveData (Sound Data Transfer) ***********************************/
+#define SND_KD_TONE         0x0                         /* Tone              */
+#define SND_KD_SEQ          0x1                         /* Sequence        */
+#define SND_KD_DSP_PRG      0x2                         /* DSP Program     */
+#define SND_KD_DSP_RAM      0x3                         /* DSP work RAM         */
+/**** Access macros *********************************************************/
+/******** SndIniDt (system boot) *********************************************/
+#define SND_INI_PRG_ADR(sys_ini)    ((sys_ini).prg_adr) /* 68K Program Storage... */
+#define SND_INI_PRG_SZ(sys_ini)     ((sys_ini).prg_sz)  /* 68K Program Size... */
+#define SND_INI_ARA_ADR(sys_ini)    ((sys_ini).ara_adr) /* Sound Area Map Retract. */
+#define SND_INI_ARA_SZ(sys_ini)     ((sys_ini).ara_sz)  /* Sound Area Map Size. */
+/******** SndSeqStat (sequence status) ***********************************/
 #define SND_SEQ_STAT_MODE(status)   ((status).mode)     /* song mode         */
 #define SND_SEQ_STAT_STAT(status)   ((status).stat)     /* song status       */
-/******** SndPcmStartPrm(PCM開始パラメータ) **********************************/
-#define SND_PRM_MODE(prm)       ((prm).mode)        /* ｽﾃﾚｵ･ﾓﾉｸﾛ+ｻﾝﾌﾟﾘﾝｸﾞﾚｰﾄ */
-#define SND_PRM_SADR(prm)       ((prm).sadr)        /* PCMｽﾄﾘｰﾑﾊﾞｯﾌｧｽﾀｰﾄｱﾄﾞﾚｽ*/
-#define SND_PRM_SIZE(prm)       ((prm).size)        /* PCMｽﾄﾘｰﾑﾊﾞｯﾌｧｻｲｽﾞ   */
-#define SND_PRM_OFSET(prm)      ((prm).ofset)       /* PCMｽﾄﾘｰﾑ再生開始ｵﾌｾｯﾄ */
-/******** SndPcmChgPrm(PCM変更パラメータ) ************************************/
-#define SND_PRM_NUM(prm)        ((prm).num)         /* PCMｽﾄﾘｰﾑ再生番号       */
-#define SND_PRM_LEV(prm)        ((prm).lev)         /* ﾀﾞｲﾚｸﾄ音Level         */
-#define SND_PRM_PAN(prm)        ((prm).pan)         /* ﾀﾞｲﾚｸﾄ音pan           */
-#define SND_PRM_PICH(prm)       ((prm).pich)        /* PICHﾜｰﾄﾞ              */
-#define SND_R_EFCT_IN(prm)      ((prm).r_efct_in)   /* Efect in select(右)   */
-#define SND_R_EFCT_LEV(prm)     ((prm).r_efct_lev)  /* Efect send Level(右)  */
-#define SND_L_EFCT_IN(prm)      ((prm).l_efct_in)   /* Efect in select(左)   */
-#define SND_L_EFCT_LEV(prm)     ((prm).l_efct_lev)  /* Efect send Level(左)  */
+/******** SndPcmStartPrm **********************************/
+#define SND_PRM_MODE(prm)       ((prm).mode)        /* Stereo monochrome + sampling rate */
+#define SND_PRM_SADR(prm)       ((prm).sadr)        /* PCM stream buffer start address*/
+#define SND_PRM_SIZE(prm)       ((prm).size)        /* PCM stream buffer size   */
+#define SND_PRM_OFSET(prm)      ((prm).ofset)       /* PCM stream start offset */
+/******** SndPcmChgPrm ************************************/
+#define SND_PRM_NUM(prm)        ((prm).num)         /* PCM stream regeneration number       */
+#define SND_PRM_LEV(prm)        ((prm).lev)         /* Direct sound level         */
+#define SND_PRM_PAN(prm)        ((prm).pan)         /* Direct sound pan           */
+#define SND_PRM_PICH(prm)       ((prm).pich)        /* The pie word              */
+#define SND_R_EFCT_IN(prm)      ((prm).r_efct_in)   /* EFect in select (right)   */
+#define SND_R_EFCT_LEV(prm)     ((prm).r_efct_lev)  /* Right perfect send Level  */
+#define SND_L_EFCT_IN(prm)      ((prm).l_efct_in)   /* EFect in select (left)   */
+#define SND_L_EFCT_LEV(prm)     ((prm).l_efct_lev)  /* Elect send Level (left)  */
 #define SND_PRM_TL(prm)     	((prm).lev)  		/* Master Level			 */
-/******** SndPcmPlayAdr(PCM再生ｱﾄﾞﾚｽ) ****************************************/
-#define SND_PCM_RADR(prm)       ((prm).radr)        /* 右出力(ﾓﾉｸﾛ)          */
-#define SND_PCM_LADR(prm)       ((prm).ladr)        /* 左出力                 */
-/******** SndCdHzSrVl(周波数帯域別ｽﾃﾚｵ解析音量) ******************************/
-#define SND_CD_LHIGH(hz_vl)     ((hz_vl).high.left) /* 左出力 高音域         */
-#define SND_CD_LMID(hz_vl)      ((hz_vl).mid.left)  /* 左出力 中音域         */
-#define SND_CD_LLOW(hz_vl)      ((hz_vl).low.left)  /* 左出力 低音域         */
-#define SND_CD_RHIGH(hz_vl)     ((hz_vl).high.right)/* 右出力 高音域         */
-#define SND_CD_RMID(hz_vl)      ((hz_vl).mid.right) /* 右出力 中音域         */
-#define SND_CD_RLOW(hz_vl)      ((hz_vl).low.right) /* 右出力 低音域         */
+/******** SndPcmPlayAdr ****************************************/
+#define SND_PCM_RADR(prm)       ((prm).radr)        /* Right Output (Black & White)          */
+#define SND_PCM_LADR(prm)       ((prm).ladr)        /* Left output                 */
+/******** SndCdHz SrVl (Stereo Analysis Volume by Frequency Band) ******************************/
+#define SND_CD_LHIGH(hz_vl)     ((hz_vl).high.left) /* Left output treble         */
+#define SND_CD_LMID(hz_vl)      ((hz_vl).mid.left)  /* Left output medium tone         */
+#define SND_CD_LLOW(hz_vl)      ((hz_vl).low.left)  /* Left output bass         */
+#define SND_CD_RHIGH(hz_vl)     ((hz_vl).high.right)/* Right output treble         */
+#define SND_CD_RMID(hz_vl)      ((hz_vl).mid.right) /* Right output medium tone         */
+#define SND_CD_RLOW(hz_vl)      ((hz_vl).low.right) /* Right output bass         */
 
-#define SND_POKE_B(adr, data)   (*((volatile Uint8 *)(adr)) = ((Uint8)(data))) /* ﾊﾞｲﾄ*/
+#define SND_POKE_B(adr, data)   (*((volatile Uint8 *)(adr)) = ((Uint8)(data))) /* Bytes*/
 #define SND_POKE_W(adr, data)   (*((volatile Uint16 *)(adr)) = ((Uint16)(data)))
-#define SND_PEEK_B(adr)         (*((volatile Uint8 *)(adr)))                   /* ﾊﾞｲﾄ*/
+#define SND_PEEK_B(adr)         (*((volatile Uint8 *)(adr)))                   /* Bytes*/
 
-/**** システムインタフェースワークオフセット *********************************/
+/**** System interface work offset *********************************/
 #define SND_ADR_INTR_CTRL_WORD  (0x00)          /* Interrupt control word    */
 #define SND_ADR_INTR_MODE       (0x01)          /* Interrupt mode            */
 #define SND_ADR_PCM_PLAY_NUM    (0x02)          /* PCM play num              */
 #define SND_ADR_SND_CTRL        (0x03)          /* Sound control             */
-/**** アドレス ***************************************************************/
-#define SND_ADR_INTR_RESET  ((volatile Uint16 *)0x25b0042e)  /* SCSP割り込みﾘｾｯﾄﾚｼﾞｽﾀ */
+/**** Address ***************************************************************/
+#define SND_ADR_INTR_RESET  ((volatile Uint16 *)0x25b0042e)  /* SCSP interrupt reset register */
 
-/*割り込み *******************************************************************/
+/*Interrupt *******************************************************************/
 /******************************************************************************
  *
- * NAME:    SND_SET_ENA_INT()       - 割り込み許可設定
+ * NAME:    SND_SET_ENA_INT()       - Interrupt enable setting
  *
  * PARAMETERS :
- *      (1) Uint8 ena_bit   - <i>   割り込み許可ビット
+ *      (1) Uint8 ena_bit   - <i>   Interrupt enable bit
  *
  * DESCRIPTION:
- *      割り込み許可を設定します。
+ *      Set interrupt enable.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし
+ *      None
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
 
 #define SND_SET_ENA_INT(ena_bit)\
     do{\
-        snd_msk_work_work = get_imask();           /* ｻｳﾝﾄﾞ割り込みをDisable*/\
+        snd_msk_work_work = get_imask();           /* Disable sound interrupt*/\
         set_imask(15);\
         SND_POKE_B(snd_adr_sys_int_work + SND_ADR_INTR_CTRL_WORD, (ena_bit));\
         set_imask(snd_msk_work_work);\
@@ -174,22 +174,22 @@
 
 /******************************************************************************
  *
- * NAME:    SND_GET_ENA_INT()       - 割り込み許可取得
+ * NAME:    SND_GET_ENA_INT()       - Get interrupt enable
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
- *      割り込み許可を取得します。
+ *      Get interrupt enable.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) Uint8           - <o>   割り込み許可ビット
+ *      (1) Uint8           - <o>   Interrupt enable bit
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -199,22 +199,22 @@
 
 /******************************************************************************
  *
- * NAME:    SND_GET_FCT_INT()       - 割り込み要因取得
+ * NAME:    SND_GET_FCT_INT()       - Get interrupt factor
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
- *      割り込み要因を取得します。
+ *      Get the interrupt factor.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) Uint8       - <o>   割り込み要因
+ *      (1) Uint8       - <o>   Interrupt factor
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -224,22 +224,22 @@
 
 /******************************************************************************
  *
- * NAME:    SND_RESET_INT()     - 割り込みﾘｾｯﾄ
+ * NAME:    SND_RESET_INT()     - Interrupt reset
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
- *      割り込みをﾘｾｯﾄします。
+ *      Reset the interrupt.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし
+ *      None
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -249,22 +249,22 @@
 
 /******************************************************************************
  *
- * NAME:    SND_GET_INT_STAT()  - PCM実行アドレス更新割り込みステータス取得
+ * NAME:    SND_GET_INT_STAT()  - PCM execution address update interrupt status acquisition
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
- *      PCM実行アドレス更新割り込みステータスを取得します。
+ *      Gets the PCM execution address update interrupt status.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) SndPcmIntStat *     - <o>   PCM実行アドレス更新割り込みステータス
+ *      (1) SndPcmIntStat *     - <o>   PCM execution address update interrupt status
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -272,25 +272,25 @@
 #define SND_GET_INT_STAT()\
     (SND_PEEK_B(snd_adr_sys_int_work + SND_ADR_PCM_PLAY_NUM))
 
-/*その他 *********************************************************************/
+/*Other *********************************************************************/
 /******************************************************************************
  *
- * NAME:    SND_SET_SND_CTRL        - サウンドコントロール情報設定
+ * NAME:    SND_SET_SND_CTRL        - Sound control information setting
  *
  * PARAMETERS :
- *      (1) Uint8   ctrl_bit   - <i>   割り込み許可ビット
+ *      (1) Uint8   ctrl_bit   - <i>   Interrupt enable bit
  *
  * DESCRIPTION:
- *      サウンドコントロール情報を設定します。
+ *      Set the sound control information.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし
+ *      None
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -302,22 +302,22 @@
 
 /******************************************************************************
  *
- * NAME:    SND_GET_SND_CTRL        - サウンドコントロール情報取得
+ * NAME:    SND_GET_SND_CTRL        - Sound control information acquisition
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
- *      サウンドコントロール情報を取得します。
+ *      Gets sound control information.
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし
+ *      None
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -333,28 +333,28 @@
  * TYPEDEFS
  */
 
-/**** 共通 *******************************************************************/
+/**** Common *******************************************************************/
 typedef struct{
-    Uint16 *prg_adr;                        /* 68Kﾌﾟﾛｸﾞﾗﾑ格納先頭ｱﾄﾞﾚｽ       */
-    Uint16 prg_sz;                          /* 68Kﾌﾟﾛｸﾞﾗﾑｻｲｽﾞｻｲｽﾞ           */
-    Uint16 *ara_adr;                        /* ｻｳﾝﾄﾞｴﾘｱﾏｯﾌﾟ格納先頭ｱﾄﾞﾚｽ     */
-    Uint16 ara_sz;                          /* ｻｳﾝﾄﾞｴﾘｱﾏｯﾌﾟｻｲｽﾞ(ﾜｰﾄﾞ単位)    */
-}SndIniDt;                                  /* システム起動データ型          */
+    Uint16 *prg_adr;                        /* 68K first address of program store       */
+    Uint16 prg_sz;                          /* 68K program size size           */
+    Uint16 *ara_adr;                        /* Sound area map start address     */
+    Uint16 ara_sz;                          /* Sound Area Map Size (in words)    */
+}SndIniDt;                                  /* System boot data type          */
 
-typedef Uint8 SndAreaMap;                   /* ｻｳﾝﾄﾞｴﾘｱﾏｯﾌﾟデータ型          */
-typedef Uint8 SndTlVl;                      /* 全体音量データ型              */
-typedef Uint8 SndEfctBnkNum;                /* Effct bank numberデータ型     */
-typedef Uint8 SndToneBnkNum;                /* 音色 bank numberデータ型      */
-typedef Uint8 SndMixBnkNum;                 /* Mixer numberデータ型          */
-typedef Uint8 SndEfctOut;                   /* Effect out selectデータ型     */
-typedef Uint8 SndLev;                       /* Levelデータ型                 */
-typedef Sint8 SndPan;                       /* PANデータ型                   */
-typedef Uint8 SndRet;                       /* ｺﾏﾝﾄﾞ実行状態データ型         */
-typedef Uint8 SndHardPrm;                   /* ﾊｰﾄﾞｳｪｱﾁｪｯｸﾊﾟﾗﾒｰﾀデータ型     */
-typedef Uint16 SndHardStat;                 /* ﾊｰﾄﾞｳｪｱﾁｪｯｸｽﾃｰﾀｽデータ型      */
+typedef Uint8 SndAreaMap;                   /* Sound area map data type          */
+typedef Uint8 SndTlVl;                      /* Global volume data type              */
+typedef Uint8 SndEfctBnkNum;                /* Effct bank number data type     */
+typedef Uint8 SndToneBnkNum;                /* The tone bank number data type      */
+typedef Uint8 SndMixBnkNum;                 /* Mixer number data type          */
+typedef Uint8 SndEfctOut;                   /* Effect out select data type     */
+typedef Uint8 SndLev;                       /* Level data type                 */
+typedef Sint8 SndPan;                       /* Pan data type                   */
+typedef Uint8 SndRet;                       /* Command execution state data type         */
+typedef Uint8 SndHardPrm;                   /* Hardware check parameter data type     */
+typedef Uint16 SndHardStat;                 /* Hardware check status data type      */
 
-/**** シーケンス *************************************************************/
-typedef Uint8 SndSeqNum;                    /* 発音管理番号                  */
+/**** Sequence *************************************************************/
+typedef Uint8 SndSeqNum;                    /* Phonetic control number                  */
 typedef Uint8 SndSeqBnkNum;                 /* Sequence bank number          */
 typedef Uint8 SndSeqSongNum;                /* Sequence song number          */
 typedef Uint8 SndSeqPri;                    /* Priorty level                 */
@@ -364,54 +364,54 @@ typedef Sint16 SndTempo;                    /* Tempo                         */
 typedef struct{
     Uint16 mode;                            /* song mode                     */
     Uint8 stat;                             /* song status                   */
-}SndSeqStat;                                /* シーケンスステータス          */
-typedef Uint16 SndSeqPlayPos;               /* 発音管理番号再生位置          */
+}SndSeqStat;                                /* Sequence status          */
+typedef Uint16 SndSeqPlayPos;               /* Phonetic control number playback position          */
 
 /**** PCM ********************************************************************/
 typedef struct{
-    Uint8 mode;                             /* ｽﾃﾚｵ･ﾓﾉｸﾛ+ｻﾝﾌﾟﾘﾝｸﾞﾚｰﾄ         */
-    Uint16 sadr;                            /* PCMｽﾄﾘｰﾑﾊﾞｯﾌｧｽﾀｰﾄｱﾄﾞﾚｽ        */
-    Uint16 size;                            /* PCMｽﾄﾘｰﾑﾊﾞｯﾌｧｻｲｽﾞ             */
-}SndPcmStartPrm;                            /* PCM開始パラメータ          */
+    Uint8 mode;                             /* Stereo monochrome + sampling rate         */
+    Uint16 sadr;                            /* PCM stream buffer start address        */
+    Uint16 size;                            /* PCM stream buffer size             */
+}SndPcmStartPrm;                            /* PCM start parameter          */
 
-typedef Uint8 SndPcmNum;                    /* PCMｽﾄﾘｰﾑ再生番号               */
-typedef Uint8 SndEfctIn;                    /* Efect in select               */
+typedef Uint8 SndPcmNum;                    /* PCM stream regeneration number               */
+typedef Uint8 SndEfctIn;                    /* Select in select               */
 typedef struct{
-    SndPcmNum num;                          /* PCMｽﾄﾘｰﾑ再生番号               */
-    SndLev lev;                             /* ﾀﾞｲﾚｸﾄ音Level                 */
-    SndPan pan;                             /* ﾀﾞｲﾚｸﾄ音pan                   */
-    Uint16 pich;                            /* PICHﾜｰﾄﾞ                      */
-    SndEfctIn r_efct_in;                    /* Efect in select(右出力)       */
-    SndLev r_efct_lev;                      /* Efect send Level(右出力)      */
-    SndEfctIn l_efct_in;                    /* Efect in select(左出力)       */
-    SndLev l_efct_lev;                      /* Efect send Level(左出力)      */
-}SndPcmChgPrm;                              /* PCM変更パラメータ           */
+    SndPcmNum num;                          /* PCM stream regeneration number               */
+    SndLev lev;                             /* Direct sound level                 */
+    SndPan pan;                             /* Direct sound pan                   */
+    Uint16 pich;                            /* The pie word                      */
+    SndEfctIn r_efct_in;                    /* Efect in select (right output)       */
+    SndLev r_efct_lev;                      /* Right Output perfect send Level      */
+    SndEfctIn l_efct_in;                    /* Efect in select (Left Output)       */
+    SndLev l_efct_lev;                      /* Efect send Level (Left output)      */
+}SndPcmChgPrm;                              /* PCM change parameters           */
 
 typedef struct{
-    Uint8 radr;                             /* 右出力(ﾓﾉｸﾛ)                  */
-    Uint8 ladr;                             /* 左出力                         */
-}SndPcmPlayAdr;                             /* PCM再生ｱﾄﾞﾚｽ               */
+    Uint8 radr;                             /* Right Output (Black \u0026 White)                  */
+    Uint8 ladr;                             /* Left output                         */
+}SndPcmPlayAdr;                             /* PCM regeneration address               */
 
-typedef Uint8 SndPcmIntStat;                /* PCMｱﾄﾞﾚｽ更新割り込みｽﾃｰﾀｽ     */
+typedef Uint8 SndPcmIntStat;                /* PCM address update interrupt status     */
 
 /**** CD *********************************************************************/
-typedef Uint16 SndCdVlAnl;                  /* 解析音量                      */
+typedef Uint16 SndCdVlAnl;                  /* Analysis volume                      */
 
 typedef struct{
-    SndCdVlAnl left;                        /* 左出力                        */
-    SndCdVlAnl right;                       /* 右出力                        */
-}SndCdHzVl;                                 /* 周波数帯域別ｽﾃﾚｵ解析音量      */
+    SndCdVlAnl left;                        /* Left output                        */
+    SndCdVlAnl right;                       /* Right output                        */
+}SndCdHzVl;                                 /* Stereo analysis volume by frequency band      */
 
 typedef struct{
-    SndCdHzVl high;                         /* 高音域                        */
-    SndCdHzVl mid;                          /* 中音域                        */
-    SndCdHzVl low;                          /* 低音域                        */
-}SndCdHzSrVl;                               /* 周波数帯域別解析音量          */
+    SndCdHzVl high;                         /* High-pitched                        */
+    SndCdHzVl mid;                          /* Mid-range                        */
+    SndCdHzVl low;                          /* Bass                        */
+}SndCdHzSrVl;                               /* Analysis volume by frequency band          */
 
 /*
  * EXTERNAL VARIABLE DECLARATIONS
  */
-extern Uint8 *snd_adr_sys_int_work;             /*ｼｽﾃﾑｲﾝﾀﾌｪｰｽﾜｰｸ先頭ｱﾄﾞﾚｽ格納*/
+extern Uint8 *snd_adr_sys_int_work;             /*System interfaceworksTop address storage*/
 extern Uint32 snd_msk_work_work;                /* sound priority msk        */
 
 /*

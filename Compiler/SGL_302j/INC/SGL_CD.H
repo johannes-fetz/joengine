@@ -1,5 +1,5 @@
-/*---------------------------------------------------------
- * SGLƒ‰ƒCƒuƒ‰ƒŠCDŠÖ”—p	1995.10.30
+ï»¿/*---------------------------------------------------------
+ * SGL library for CD functions 1995.10.30
  *---------------------------------------------------------*/
 
 /* sgl_cd.h */
@@ -8,139 +8,139 @@
 #include	"SL_DEF.H"
 #include        <SEGA_STM.H>
 
-/*--- ˆê”Ê“I‚Èƒf[ƒ^Œ^ -------------------------------------------------*/
-/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹			*/
+/*--- A common data type -------------------------------------------------*/
+/* File handle			*/
 typedef	StmGrpHn	CDHN;
 
 
-/*--- ƒXƒgƒŠ[ƒ€ƒf[ƒ^‚ğ•ª—Ş‚·‚é‚½‚ß‚ÌƒL[ -----------------------------*/
+/*--- Key for classifying stream data -----------------------------*/
 typedef struct {
-    Sint16	cn;			/* ƒ`ƒƒƒlƒ‹”Ô†			*/
-    Sint16	sm;			/* ƒTƒuƒ‚[ƒh			*/
-    Sint16	ci;			/* ƒR[ƒfƒBƒ“ƒOî•ñ		*/
+    Sint16	cn;			/* Channel number			*/
+    Sint16	sm;			/* Submode			*/
+    Sint16	ci;			/* Coding information		*/
 } CDKEY;
 
-#define	CDKEY_NONE	STM_KEY_NONE	/* ƒXƒgƒŠ[ƒ€ƒL[‚Ì‘I‘ğ‚ğ‚µ‚È‚¢	*/
-#define	CDKEY_TERM	(-2)		/* ƒXƒgƒŠ[ƒ€ƒL[‚Ì‘I‘ğI—¹	*/
+#define	CDKEY_NONE	STM_KEY_NONE	/* Do not select a stream key	*/
+#define	CDKEY_TERM	(-2)		/* End of selection of the stream key	*/
 
 
-/*--- “Ç‚İ‚İ—Ìˆæî•ñ -------------------------------------------------*/
-typedef struct {			/* ƒ[ƒNRAM‚Ö‚ÌƒRƒs[		*/
-    void	*addr;			/* “]‘—æ—Ìˆæ(“]‘—‚µ‚È‚¢:NULL)	*/
-    Sint32	unit;			/* “]‘——Ìˆæ‚Ìƒ†ƒjƒbƒgƒTƒCƒY	*/
-    Sint32	size;			/* “]‘——Ìˆæ‚Ìƒ†ƒjƒbƒg”		*/
+/*--- Read area information -------------------------------------------------*/
+typedef struct {			/* Copy to work RAM		*/
+    void	*addr;			/* Destination area (not transferred: NULL)	*/
+    Sint32	unit;			/* Unit size of the transfer area	*/
+    Sint32	size;			/* Number of units in the transfer area		*/
 } TRANS_COPY;
 
-typedef struct {			/* “]‘—ŠÖ”‚ğg—p‚·‚éê‡	*/
+typedef struct {			/* When using transfer functions	*/
     Sint32	(*func )(void *obj, Uint32 *addr, 
-                        Sint32 adinc, Sint32 nsct);	/* “]‘—ŠÖ”	*/
-    void	*obj;			/* ƒIƒuƒWƒFƒNƒg			*/
+                        Sint32 adinc, Sint32 nsct);	/* Transfer function	*/
+    void	*obj;			/* Object			*/
 } TRANS_FUNC;
 
 typedef struct {
-    Sint32	type;			/* “]‘—•û–@			*/
+    Sint32	type;			/* Transfer method			*/
     union {
-	TRANS_COPY	copy;		/* ƒ[ƒNRAM‚Ö‚ÌƒRƒs[		*/
-	TRANS_FUNC	func;		/* “]‘—ŠÖ”‚ğg—p‚·‚éê‡	*/
+	TRANS_COPY	copy;		/* Copy to work RAM		*/
+	TRANS_FUNC	func;		/* When using transfer functions	*/
     } trans;
 } CDBUF;
 
-/* “]‘—•û–@				*/
+/* Transfer method				*/
 enum TRANS_TYPE {
-    CDBUF_COPY	= 0,			/* ƒ[ƒNRAM‚Ö‚ÌƒRƒs[		*/
-    CDBUF_FUNC	= 1,			/* “]‘—ŠÖ”‚ğg—p‚·‚é		*/
-    CDBUF_TERM	= 2			/* “Ç‚İ‚İ—Ìˆæî•ñ‚Ìw’èI—¹	*/
+    CDBUF_COPY	= 0,			/* Copy to work RAM		*/
+    CDBUF_FUNC	= 1,			/* Use transfer functions		*/
+    CDBUF_TERM	= 2			/* Finished specifying read area information	*/
 };
 
-/* “]‘——Ìˆæ‚Ìƒ†ƒjƒbƒgƒTƒCƒY		*/
+/* Unit size of the transfer area		*/
 enum TRANS_UNIT {
-    CDBUF_FORM1	= STM_UNIT_FORM1,	/* 2048byte’PˆÊ			*/
-    CDBUF_FORM2	= STM_UNIT_FORM2,	/* 2324byte’PˆÊ			*/
-    CDBUF_BYTE	= STM_UNIT_BYTE		/* ƒoƒCƒg’PˆÊ			*/
+    CDBUF_FORM1	= STM_UNIT_FORM1,	/* 2048byte units			*/
+    CDBUF_FORM2	= STM_UNIT_FORM2,	/* 2324 bytes			*/
+    CDBUF_BYTE	= STM_UNIT_BYTE		/* In bytes			*/
 };
 
-/* CDƒuƒƒbƒN‚Ìó‘Ô‚ğæ“¾‚·‚é‚½‚ß‚Ì’è”	*/
-#define	CDREQ_FREE	((CDHN)0xffffffff)	/* CDƒuƒƒbƒN‹ó‚«ƒZƒNƒ^	*/
-#define	CDREQ_FAD	((CDHN)0xfffffffe)	/* ƒsƒbƒNƒAƒbƒv‚ÌˆÊ’u	*/
-#define	CDREQ_DRV	((CDHN)0xfffffffd)	/* ƒhƒ‰ƒCƒu‚Ìó‘Ô	*/
+/* Constant for retrieving the state of the CD block	*/
+#define	CDREQ_FREE	((CDHN)0xffffffff)	/* The free sector of the CD block	*/
+#define	CDREQ_FAD	((CDHN)0xfffffffe)	/* Pickup position	*/
+#define	CDREQ_DRV	((CDHN)0xfffffffd)	/* Drive status	*/
 
-/*--- CDƒhƒ‰ƒCƒuó‘Ô ---------------------------------------------------*/
+/*--- CD drive status ---------------------------------------------------*/
 enum CDDRV {
-    CDDRV_BUSY	= CDC_ST_BUSY,		/* ó‘Ô‘JˆÚ’†			*/
-    CDDRV_PAUSE = CDC_ST_PAUSE,		/* ƒ|[ƒY’†			*/
-    CDDRV_STDBY	= CDC_ST_STANDBY,	/* ƒXƒ^ƒ“ƒoƒC			*/
-    CDDRV_PLAY	= CDC_ST_PLAY,		/* ‚b‚cÄ¶’†			*/
-    CDDRV_SEEK	= CDC_ST_SEEK,		/* ƒV[ƒN’†			*/
-    CDDRV_SCAN	= CDC_ST_SCAN,		/* ƒXƒLƒƒƒ“Ä¶’†		*/
-    CDDRV_OPEN	= CDC_ST_OPEN,		/* ƒgƒŒƒC‚ªŠJ‚¢‚Ä‚¢‚é		*/
-    CDDRV_NODISC= CDC_ST_NODISC,	/* ƒfƒBƒXƒN‚ª‚È‚¢		*/
-    CDDRV_RETRY	= CDC_ST_RETRY,		/* ƒŠ[ƒhƒŠƒgƒ‰ƒCˆ—’†		*/
-    CDDRV_ERROR	= CDC_ST_ERROR,		/* ƒŠ[ƒhƒf[ƒ^ƒGƒ‰[‚ª”­¶‚µ‚½	*/
-    CDDRV_FATAL	= CDC_ST_FATAL		/* ’v–½“IƒGƒ‰[‚ª”­¶‚µ‚½	*/
+    CDDRV_BUSY	= CDC_ST_BUSY,		/* State transition in progress			*/
+    CDDRV_PAUSE = CDC_ST_PAUSE,		/* Pause in progress			*/
+    CDDRV_STDBY	= CDC_ST_STANDBY,	/* Standby			*/
+    CDDRV_PLAY	= CDC_ST_PLAY,		/* Playing CD			*/
+    CDDRV_SEEK	= CDC_ST_SEEK,		/* Seeking			*/
+    CDDRV_SCAN	= CDC_ST_SCAN,		/* Scanning playing		*/
+    CDDRV_OPEN	= CDC_ST_OPEN,		/* Tray is open		*/
+    CDDRV_NODISC= CDC_ST_NODISC,	/* No disc available		*/
+    CDDRV_RETRY	= CDC_ST_RETRY,		/* Read retry processing		*/
+    CDDRV_ERROR	= CDC_ST_ERROR,		/* A read data error has occurred	*/
+    CDDRV_FATAL	= CDC_ST_FATAL		/* A fatal error has occurred	*/
 };
 
-/*--- ƒXƒe[ƒ^ƒX -------------------------------------------------------*/
+/*--- Status -------------------------------------------------------*/
 enum CDSTAT {
-    CDSTAT_PAUSE	= STM_EXEC_PAUSE,	/* “Ç‚İ‚İ’â~’†	*/
-    CDSTAT_DOING	= STM_EXEC_DOING,	/* “Ç‚İ‚İ’†		*/
-    CDSTAT_WAIT		= STM_EXEC_WAIT,	/* “]‘—‘Ò‚¿ó‘Ô		*/
-    CDSTAT_COMPLETED	= STM_EXEC_COMPLETED	/* “Ç‚İ‚İŠ®—¹		*/
+    CDSTAT_PAUSE	= STM_EXEC_PAUSE,	/* Loading stopped	*/
+    CDSTAT_DOING	= STM_EXEC_DOING,	/* Loading		*/
+    CDSTAT_WAIT		= STM_EXEC_WAIT,	/* Waiting for transfer		*/
+    CDSTAT_COMPLETED	= STM_EXEC_COMPLETED	/* Read complete		*/
 };
 
-/*--- ƒGƒ‰[ƒR[ƒh -----------------------------------------------------*/
+/*--- Error code -----------------------------------------------------*/
 enum CDERR {
-    CDERR_OK	= STM_ERR_OK,		/* ³íI—¹			*/
-    CDERR_RDERR	= STM_ERR_CDRD,		/* ƒŠ[ƒhƒGƒ‰[			*/
-    CDERR_NODISC= STM_ERR_CDNODISC,	/* ƒfƒBƒXƒN‚ªƒZƒbƒg‚³‚ê‚Ä‚¢‚È‚¢	*/
-    CDERR_CDROM	= GFS_ERR_CDROM,	/* ƒfƒBƒXƒN‚ªCD-ROM‚Å‚È‚¢       */
-    CDERR_IPARA	= GFS_ERR_DIRTBL,	/* ‰Šú‰»ƒpƒ‰ƒ[ƒ^•s³         */
-    CDERR_DIR	= GFS_ERR_DIR,		/* ƒfƒBƒŒƒNƒgƒŠˆÈŠO‚Ö‚ÌˆÚ“®     */
-    CDERR_NEXIST= GFS_ERR_NEXIST,	/* ƒtƒ@ƒCƒ‹‚ª‘¶İ‚µ‚È‚¢		*/
-    CDERR_NUM	= STM_ERR_NUM,		/* ƒoƒCƒg”‚È‚Ç‚ª•‰             */
-    CDERR_PUINUSE=STM_ERR_PUINUSE,	/* ƒsƒbƒNƒAƒbƒv“®ì’†           */
-    CDERR_ALIGN	= GFS_ERR_ALIGN,	/* ì‹Æ—Ìˆæ‚ª4byte‹«ŠE‚É‚È‚¢    */
-    CDERR_TMOUT	= STM_ERR_TMOUT,	/* ƒ^ƒCƒ€ƒAƒEƒg			*/
-    CDERR_OPEN	= STM_ERR_CDOPEN,	/* ƒgƒŒƒCƒI[ƒvƒ“		*/
-    CDERR_FATAL	= STM_ERR_FATAL,	/* CDƒhƒ‰ƒCƒu‚ª<FATAL>ó‘Ô	*/
-    CDERR_BUSY	= (-50)			/* ó‘Ô‘JˆÚ’†                   */
+    CDERR_OK	= STM_ERR_OK,		/* Successful completion			*/
+    CDERR_RDERR	= STM_ERR_CDRD,		/* Read error			*/
+    CDERR_NODISC= STM_ERR_CDNODISC,	/* No disk is inserted	*/
+    CDERR_CDROM	= GFS_ERR_CDROM,	/* The disc is not a CD-ROM       */
+    CDERR_IPARA	= GFS_ERR_DIRTBL,	/* Initialization parameters incorrect         */
+    CDERR_DIR	= GFS_ERR_DIR,		/* Move to a directory other than     */
+    CDERR_NEXIST= GFS_ERR_NEXIST,	/* File does not exist		*/
+    CDERR_NUM	= STM_ERR_NUM,		/* Negative bytes, etc.             */
+    CDERR_PUINUSE=STM_ERR_PUINUSE,	/* Pickup in progress           */
+    CDERR_ALIGN	= GFS_ERR_ALIGN,	/* The work area is not at the 4byte boundary    */
+    CDERR_TMOUT	= STM_ERR_TMOUT,	/* Timeout			*/
+    CDERR_OPEN	= STM_ERR_CDOPEN,	/* Tray open		*/
+    CDERR_FATAL	= STM_ERR_FATAL,	/* The CD drive is in the \u003cfatal\u003e state	*/
+    CDERR_BUSY	= (-50)			/* State transition in progress                   */
 };
 
-/*--- ì‹Æ—Ìˆæ‚ÌƒTƒCƒY -------------------------------------------------*/
+/*--- The size of the work area -------------------------------------------------*/
 
-/* ‰Šú‰»‚Ìì‹Æ—Ìˆæ‚ÌƒTƒCƒY		*/
+/* Size of the work area at initialization		*/
 #define	SLCD_MAX_OPEN	24
 #define	SLCD_WORK_SIZE(nfile)	(nfile * sizeof(GfsDirName))
 
-/*--- ƒvƒƒgƒ^ƒCƒv -----------------------------------------------------*/
+/*--- Prototype -----------------------------------------------------*/
 
-/* ‰Šú‰»				*/
+/* Initialization				*/
 Sint32	slCdInit(Sint32 nfile, void *work);
 
-/* ƒfƒBƒŒƒNƒgƒŠˆÚ“®			*/
+/* Directory move			*/
 Sint32	slCdChgDir(Sint8 *pathname);
 
-/* ƒtƒ@ƒCƒ‹ƒI[ƒvƒ“			*/
+/* File Open			*/
 CDHN	slCdOpen(Sint8 *pathname, CDKEY key[]);
 
-/* ƒtƒ@ƒCƒ‹‚Ì“Ç‚İ‚İ			*/
+/* Import files			*/
 Sint32	slCdLoadFile(CDHN cdhn, CDBUF buf[]);
 
-/* ƒXƒgƒŠ[ƒ€‚Ì“]‘—			*/
+/* Stream forwarding			*/
 Sint32	slCdTrans(CDHN cdhn, CDBUF buf[], Sint32 ndata[]);
 
-/* “]‘——Ìˆæ‚ÌƒŠƒZƒbƒg			*/
+/* Reset the transfer area			*/
 Bool	slCdResetBuf(CDHN cdhn, CDKEY *key);
 
-/* “Ç‚İ‚İ’†’f				*/
+/* Load aborted				*/
 Sint32	slCdAbort(CDHN cdhn);
 
-/* “Ç‚İ‚İˆê’â~			*/
+/* Load paused			*/
 Sint32	slCdPause(CDHN cdhn);
 
-/* ƒXƒe[ƒ^ƒXæ“¾			*/
+/* Get Status			*/
 Sint32	slCdGetStatus(CDHN cdhn, Sint32 ndata[]);
 
-/* ‚b‚c—pƒCƒxƒ“ƒgŠÖ”			*/
+/* Event functions for CD			*/
 void	slCdEvent(void);
 
 #endif

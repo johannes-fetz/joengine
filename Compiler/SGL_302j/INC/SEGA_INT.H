@@ -5,7 +5,7 @@
  *
  *  PURPOSE:
  *
- *      INTライブラリヘッダファイル。
+ *      INT library header file.
  *
  *  DESCRIPTION:
  *
@@ -29,13 +29,13 @@
  * GLOBAL DEFINES/MACROS DEFINES
  */
 
-/* 定数 */
-/**** 割り込みアドレスレジスタ ***********************************************/
-#define INT_REG_IST     ((Uint32 *)0x25fe00a4)  /* 割り込みステータスレジスタ*/
-#define INT_REG_IACK    ((Uint32 *)0x25fe00bc)  /* A-Bus割り込みアクノリッジ */
-/***** 割り込みマスクビット値定数 ********************************************/
-#define INT_MSK_NULL      0             /* 指定なし                          */
-#define INT_MSK_ALL      (INT_MSK_ABUS     |    /* 全指定　                 */\
+/* Constants */
+/**** Interrupt address register ***********************************************/
+#define INT_REG_IST     ((Uint32 *)0x25fe00a4)  /* Interrupt status register*/
+#define INT_REG_IACK    ((Uint32 *)0x25fe00bc)  /* A-Bus Interrupt Acknowledgment */
+/***** Interrupt mask bit value constant ********************************************/
+#define INT_MSK_NULL      0             /* None specified                          */
+#define INT_MSK_ALL      (INT_MSK_ABUS     |    /* Specify All                 */\
                           INT_MSK_SPR      |\
                           INT_MSK_DMAI     |\
                           INT_MSK_DMA0     |\
@@ -51,24 +51,24 @@
                           INT_MSK_VBLK_OUT |\
                           INT_MSK_VBLK_IN  )
 #define INT_MSK_ABUS     (1 << 15)      /* A-Bus                             */
-#define INT_MSK_SPR      (1 << 13)      /* スプライト描画終了                */
-#define INT_MSK_DMAI     (1 << 12)      /* DMAイリーガル                     */
-#define INT_MSK_DMA0     (1 << 11)      /* レベル0-DMA                       */
-#define INT_MSK_DMA1     (1 << 10)      /* レベル1-DMA                       */
-#define INT_MSK_DMA2     (1 <<  9)      /* レベル2-DMA                       */
+#define INT_MSK_SPR      (1 << 13)      /* Sprite drawing finished                */
+#define INT_MSK_DMAI     (1 << 12)      /* DMA illegal                     */
+#define INT_MSK_DMA0     (1 << 11)      /* Level 0-DMA                       */
+#define INT_MSK_DMA1     (1 << 10)      /* Level 1-DMA                       */
+#define INT_MSK_DMA2     (1 <<  9)      /* Level 2-DMA                       */
 #define INT_MSK_PAD      (1 <<  8)      /* PAD                               */
-#define INT_MSK_SYS      (1 <<  7)      /* システムマネージャ                */
-#define INT_MSK_SND      (1 <<  6)      /* サウンドリクエスト                */
-#define INT_MSK_DSP      (1 <<  5)      /* DSP終了　　                       */
-#define INT_MSK_TIM1     (1 <<  4)      /* タイマ-1                          */
-#define INT_MSK_TIM0     (1 <<  3)      /* タイマ-0                          */
-#define INT_MSK_HBLK_IN  (1 <<  2)      /* H-ブランク-IN                     */
-#define INT_MSK_VBLK_OUT (1 <<  1)      /* V-ブランク-OUT                    */
-#define INT_MSK_VBLK_IN  (1 <<  0)      /* V-ブランク-IN                     */
+#define INT_MSK_SYS      (1 <<  7)      /* System Manager                */
+#define INT_MSK_SND      (1 <<  6)      /* Sound request                */
+#define INT_MSK_DSP      (1 <<  5)      /* DSP termination                       */
+#define INT_MSK_TIM1     (1 <<  4)      /* Timer-1                          */
+#define INT_MSK_TIM0     (1 <<  3)      /* Timer - 0                          */
+#define INT_MSK_HBLK_IN  (1 <<  2)      /* H-blank -in                     */
+#define INT_MSK_VBLK_OUT (1 <<  1)      /* V-blank-out                    */
+#define INT_MSK_VBLK_IN  (1 <<  0)      /* V-blank-in                     */
 
-/***** 割り込みステータスビット値定数 ****************************************/
-#define INT_ST_NULL      0              /* 指定なし                          */
-#define INT_ST_ALL      (INT_ST_ABUS      |    /* 全指定　                 */\
+/***** Interrupt status bit value constant ****************************************/
+#define INT_ST_NULL      0              /* None specified                          */
+#define INT_ST_ALL      (INT_ST_ABUS      |    /* Specify All                 */\
                           INT_ST_SPR      |\
                           INT_ST_DMAI     |\
                           INT_ST_DMA0     |\
@@ -115,73 +115,73 @@
 #define INT_ST_ABUS14   (1 << 18)       /* A-Bus14                           */
 #define INT_ST_ABUS15   (1 << 17)       /* A-Bus15                           */
 #define INT_ST_ABUS16   (1 << 16)       /* A-Bus16                           */
-#define INT_ST_SPR      (1 << 13)       /* スプライト描画終了                */
-#define INT_ST_DMAI     (1 << 12)       /* DMAイリーガル                     */
-#define INT_ST_DMA0     (1 << 11)       /* レベル0-DMA                       */
-#define INT_ST_DMA1     (1 << 10)       /* レベル1-DMA                       */
-#define INT_ST_DMA2     (1 <<  9)       /* レベル2-DMA                       */
+#define INT_ST_SPR      (1 << 13)       /* Sprite drawing finished                */
+#define INT_ST_DMAI     (1 << 12)       /* DMA illegal                     */
+#define INT_ST_DMA0     (1 << 11)       /* Level 0-DMA                       */
+#define INT_ST_DMA1     (1 << 10)       /* Level 1-DMA                       */
+#define INT_ST_DMA2     (1 <<  9)       /* Level 2-DMA                       */
 #define INT_ST_PAD      (1 <<  8)       /* PAD                               */
-#define INT_ST_SYS      (1 <<  7)       /* システムマネージャ                */
-#define INT_ST_SND      (1 <<  6)       /* サウンドリクエスト                */
-#define INT_ST_DSP      (1 <<  5)       /* DSP終了　　                       */
-#define INT_ST_TIM1     (1 <<  4)       /* タイマ-1                          */
-#define INT_ST_TIM0     (1 <<  3)       /* タイマ-0                          */
-#define INT_ST_HBLK_IN  (1 <<  2)       /* H-ブランク-IN                     */
-#define INT_ST_VBLK_OUT (1 <<  1)       /* V-ブランク-OUT                    */
-#define INT_ST_VBLK_IN  (1 <<  0)       /* V-ブランク-IN                     */
+#define INT_ST_SYS      (1 <<  7)       /* System Manager                */
+#define INT_ST_SND      (1 <<  6)       /* Sound request                */
+#define INT_ST_DSP      (1 <<  5)       /* DSP termination                       */
+#define INT_ST_TIM1     (1 <<  4)       /* Timer-1                          */
+#define INT_ST_TIM0     (1 <<  3)       /* Timer - 0                          */
+#define INT_ST_HBLK_IN  (1 <<  2)       /* H-blank -in                     */
+#define INT_ST_VBLK_OUT (1 <<  1)       /* V-blank-out                    */
+#define INT_ST_VBLK_IN  (1 <<  0)       /* V-blank-in                     */
 
-/***** ベクタ番号定数 ********************************************************/
+/***** Vector number constant ********************************************************/
 /********* SCU ***************************************************************/
-#define INT_SCU_SPR         0x4d        /* スプライト描画終了                */
-#define INT_SCU_DMAI        0x4c        /* DMAイリーガル                     */
-#define INT_SCU_DMA0        0x4b        /* レベル0-DMA                       */
-#define INT_SCU_DMA1        0x4a        /* レベル1-DMA                       */
-#define INT_SCU_DMA2        0x49        /* レベル2-DMA                       */
+#define INT_SCU_SPR         0x4d        /* Sprite drawing finished                */
+#define INT_SCU_DMAI        0x4c        /* DMA illegal                     */
+#define INT_SCU_DMA0        0x4b        /* Level 0-DMA                       */
+#define INT_SCU_DMA1        0x4a        /* Level 1-DMA                       */
+#define INT_SCU_DMA2        0x49        /* Level 2-DMA                       */
 #define INT_SCU_PAD         0x48        /* PAD                               */
-#define INT_SCU_SYS         0x47        /* システムマネージャ                */
-#define INT_SCU_SND         0x46        /* サウンドリクエスト                */
-#define INT_SCU_DSP         0x45        /* DSP終了　　                       */
-#define INT_SCU_TIM1        0x44        /* タイマ-1                          */
-#define INT_SCU_TIM0        0x43        /* タイマ-0                          */
-#define INT_SCU_HBLK_IN     0x42        /* H-ブランク-IN                     */
-#define INT_SCU_VBLK_OUT    0x41        /* V-ブランク-OUT                    */
-#define INT_SCU_VBLK_IN     0x40        /* V-ブランク-IN                     */
+#define INT_SCU_SYS         0x47        /* System Manager                */
+#define INT_SCU_SND         0x46        /* Sound request                */
+#define INT_SCU_DSP         0x45        /* DSP termination                       */
+#define INT_SCU_TIM1        0x44        /* Timer-1                          */
+#define INT_SCU_TIM0        0x43        /* Timer - 0                          */
+#define INT_SCU_HBLK_IN     0x42        /* H-blank -in                     */
+#define INT_SCU_VBLK_OUT    0x41        /* V-blank-out                    */
+#define INT_SCU_VBLK_IN     0x40        /* V-blank-in                     */
      
 /********* CPU ***************************************************************/
-#define INT_CPU_DIVU        0v6e        /* 除算器                            */
-#define INT_CPU_DMAC0       0x6d        /* DMACチャネル0                     */
-#define INT_CPU_DMAC1       0x6c        /* DMACチャネル1                     */
-#define INT_CPU_WDT         0x68        /* WDTインターバル                   */
-#define INT_CPU_BSC         0x69        /* BSCコンペアマッチ                 */
-#define INT_CPU_SCI_ERI     0x60        /* SCI受信エラー　　                 */
-#define INT_CPU_SCI_RXI     0x61        /* SCI受信データフル                 */
-#define INT_CPU_SCI_TXI     0x62        /* SCI受信データエンプティ           */
-#define INT_CPU_SCI_TEI     0x63        /* SCI送信終了  　　                 */
-#define INT_CPU_FRT_ICI     0x64        /* FRTインプットキャプチャ           */
-#define INT_CPU_FRT_OCI     0x65        /* FRTアウトプットコンペア           */
-#define INT_CPU_FRT_OVI     0x66        /* FRTオーバフロー　                 */
+#define INT_CPU_DIVU        0v6e        /* Divider                            */
+#define INT_CPU_DMAC0       0x6d        /* DMAC channel 0                     */
+#define INT_CPU_DMAC1       0x6c        /* DMAC channel 1                     */
+#define INT_CPU_WDT         0x68        /* WDT interval                   */
+#define INT_CPU_BSC         0x69        /* BSC pair match                 */
+#define INT_CPU_SCI_ERI     0x60        /* SCI receive error                 */
+#define INT_CPU_SCI_RXI     0x61        /* SCI receive data full                 */
+#define INT_CPU_SCI_TXI     0x62        /* SCI receive data empty           */
+#define INT_CPU_SCI_TEI     0x63        /* SCI sent                 */
+#define INT_CPU_FRT_ICI     0x64        /* FRT input capture           */
+#define INT_CPU_FRT_OCI     0x65        /* FRT output pairs           */
+#define INT_CPU_FRT_OVI     0x66        /* FRT overflow                 */
 
-/***** アクノリッジ値 *******************************************************/
-#define INT_ACK_ENA         0x1         /* 有効                              */
-#define INT_ACK_DIS         0x0         /* 保持                              */
+/***** The acceptable value *******************************************************/
+#define INT_ACK_ENA         0x1         /* Enabled                              */
+#define INT_ACK_DIS         0x0         /* Hold                              */
 
 /******************************************************************************
  *
- * NAME:    INT_GetMsk()        -   割り込みマスクレジスタ取得
+ * NAME:    INT_GetMsk()        -   Get interrupt mask register
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) Uint32  割り込みマスクビット値
+ *      (1) Uint32  Interrupt mask bit value
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -190,21 +190,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_SetMsk()    -   割り込みマスクレジスタ設定
+ * NAME:    INT_SetMsk()    -   Interrupt mask register setting
  *
  * PARAMETERS :
- *      (1) Uint32 msk_bit      <i>   割り込みマスクビット値
+ *      (1) Uint32 msk_bit      <i>   Interrupt mask bit value
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし。
+ *      None.
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -213,22 +213,22 @@
 
 /******************************************************************************
  *
- * NAME:   INT_ChgMsk()     -   割り込みマスクレジスタ変更
+ * NAME:   INT_ChgMsk()     -   Change interrupt mask register
  *
  * PARAMETERS :
- *      (1) Uint32 ena_msk_bit  <i>   割り込みマスクビット（イネーブル)
- *      (2) Uint32 dis_msk_bit  <i>   割り込みマスクビット（ディセーブル)
+ *      (1) Uint32 ena_msk_bit  <i>   Interrupt mask bit (enable)
+ *      (2) Uint32 dis_msk_bit  <i>   Interrupt mask bit (disabled)
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし。
+ *      None.
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -238,21 +238,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_GetStat()   -   割り込みステータスレジスタ取得
+ * NAME:    INT_GetStat()   -   Get interrupt status register
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) Uint32  割り込みステータスレジスタ値
+ *      (1) Uint32  Interrupt status register value
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -261,21 +261,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_ResStat()       -   割り込みステータスレジスタリセット
+ * NAME:    INT_ResStat()       -   Interrupt status register reset
  *
  * PARAMETERS :
- *      (1) Uint32 status_bit   <i>   割り込みステータスビット値
+ *      (1) Uint32 status_bit   <i>   Interrupt status bit value
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし。
+ *      None.
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -287,21 +287,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_SetAck()            -   A-Bus割り込みアクノリッジ設定
+ * NAME:    INT_SetAck()            -   A-Bus interrupt acknowledge setting
  *
  * PARAMETERS :
- *      (1) Uint32 ack                  <i>   アクノリッジ値
+ *      (1) Uint32 ack                  <i>   Acknowledge value
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      なし。
+ *      None.
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -313,21 +313,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_GetAck()            -   A-Bus割り込みアクノリッジ取得
+ * NAME:    INT_GetAck()            -   Acquire A-Bus interrupt acknowledge
  *
  * PARAMETERS :
- *      なし。
+ *      None.
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) Uint32  アクノリッジ値
+ *      (1) Uint32  Acknowledge value
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -336,21 +336,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_SetFunc()       -   割り込み関数登録 
+ * NAME:    INT_SetFunc()       -   Register interrupt function 
  *
  * PARAMETERS :
- *      (1) Uint32 num      <i>   ベクタ番号
- *      (2) void *hdr       <i>   割り込み関数アドレス
+ *      (1) Uint32 num      <i>   Vector number
+ *      (2) void *hdr       <i>   Interrupt function address
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -359,21 +359,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_SetScuFunc()    -   SCU関数登録 
+ * NAME:    INT_SetScuFunc()    -   SCU function registration 
  *
  * PARAMETERS :
- *      (1) Uint32 num      <i>   ベクタ番号(SCUベクタ番号)
- *      (2) void *hdr       <i>   SCU関数アドレス
+ *      (1) Uint32 num      <i>   Vector number (SCU vector number)
+ *      (2) void *hdr       <i>   SCU function address
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -382,21 +382,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_GetFunc()       -   割り込み関数アドレス取得
+ * NAME:    INT_GetFunc()       -   Get interrupt function address
  *
  * PARAMETERS :
- *      (1) Uint32 num      <i>   ベクタ番号
+ *      (1) Uint32 num      <i>   Vector number
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) void (*)()  割り込み関数アドレス
+ *      (1) void (*)()  Interrupt function address
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */
@@ -405,21 +405,21 @@
 
 /******************************************************************************
  *
- * NAME:    INT_GetScuFunc()       -   SCU関数アドレス取得
+ * NAME:    INT_GetScuFunc()       -   Get SCU function address
  *
  * PARAMETERS :
- *      (1) Uint32 num      <i>   ベクタ番号(SCUベクタ番号)
+ *      (1) Uint32 num      <i>   Vector number (SCU vector number)
  *
  * DESCRIPTION:
  *
  * PRECONDITIONS:
- *      なし。
+ *      None.
  *
  * POSTCONDITIONS:
- *      (1) void (*)()  SCU関数アドレス
+ *      (1) void (*)()  SCU function address
  *
  * CAVEATS:
- *      なし。
+ *      None.
  *
  ******************************************************************************
  */

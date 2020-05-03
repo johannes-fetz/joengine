@@ -5,7 +5,7 @@
 *
 *                      Copyright(c) 1994,1995 SEGA
 *
-*   Comment: —˜—pÒ—pƒwƒbƒ_
+*   Comment: User header
 *   File   : SEGA_CPK.H
 *   Date   : 1995-10-05
 *   Version: 1.20
@@ -16,16 +16,15 @@
 #define SEGA_CPK_H
 
 
-/*-------------------------- sˆ—‘I‘ğt --------------------------*/
+/*-------------------------- Treatment Selection --------------------------*/
 
-/* ƒR[ƒhƒuƒbƒNƒAƒhƒŒƒXƒe[ƒuƒ‹‚ğg—p‚·‚é
- * @‚±‚ê‚ğ—LŒø‚É‚·‚éê‡‚ÍAcpk_ra15.src cpk_er15.src ‚à“¯‚É‚P‚Æ
- *   éŒ¾‚·‚é‚±‚Æ
+/* Use codebook address table
+ * If you enable this, cpk_ra15.src and cpk_er15.src are also set to 1 at the same time.
  */
 /* #define CPK_USE_CBTBL */
 
 
-/*-------------------- sƒCƒ“ƒNƒ‹[ƒhƒtƒ@ƒCƒ‹t --------------------*/
+/*-------------------- Include File --------------------*/
 #include <SEGA_XPT.H>
 #if 0
 #include <sega_gfs.h>
@@ -35,140 +34,139 @@
 #endif
 
 
-/*------------------------- sƒ}ƒNƒ’è”t -------------------------*/
+/*------------------------- Macro constants -------------------------*/
 
-/* ƒo[ƒWƒ‡ƒ“ */
+/* Version */
 #define CPK_VERSION				("CPK Version 1.20 1995-10-05")
-							/*	           1         2         3         4	*/
-							/*	  1234567890123456789012345678901234567890	*/
-							/*	  ++++++++++++++++++++++++++++++++			*/
+							/*	           1 2 3 4	*/
+							/*	  1234567890123456789012345678901234567890 1234567890	*/
+							/*	  +++++++++++++++++++++++++++++++++++			*/
 #define CPK_VERSION_LEN			(32)
 
-/* ƒnƒ“ƒhƒ‹‘” */
+/* Total handle count */
 #define CPK_HN_MAX				(32)
 
-/* ƒGƒ‰[ƒR[ƒh	*/
+/* Error code	*/
 typedef enum {
-	CPK_ERR_OK					= 0x00000000,/* ƒGƒ‰[‚Í”­¶‚µ‚Ä‚¢‚È‚¢		*/
+	CPK_ERR_OK					= 0x00000000,/* No error occurred		*/
 
-	/* CPK_Create ‚ÌƒGƒ‰[ */
-	CPK_ERR_OUT_OF_HANDLE		= 0x00000101,/* ƒnƒ“ƒhƒ‹”„‚èØ‚ê 			*/
-	CPK_ERR_TOO_SMALL_BUF		= 0x00000102,/* Øİ¸ŞÊŞ¯Ì§»²½Ş‚ª¬‚³‚·‚¬‚é	*/
-	CPK_ERR_NO_INIT				= 0x00000103,/* ‰Šú‰»ŠÖ”‚ªº°Ù‚³‚ê‚Ä‚È‚¢ 	*/
+	/* Error in CPK_Create */
+	CPK_ERR_OUT_OF_HANDLE		= 0x00000101,/* Handle sold out 			*/
+	CPK_ERR_TOO_SMALL_BUF		= 0x00000102,/* Ring buffer size too small	*/
+	CPK_ERR_NO_INIT				= 0x00000103,/* Initialization function not called 	*/
 
-	/* CPK_Destroy ‚ÌƒGƒ‰[ */
-	CPK_ERR_INVALID_HN			= 0x00000201,/* •s³‚Èƒnƒ“ƒhƒ‹‚ÅÁ‹		*/
-	CPK_ERR_ILL_CREATE_MODE		= 0x00000202,/* Create ‚Ìƒ‚[ƒh‚Æˆá‚¤		*/
+	/* Error in CPK_Destroy */
+	CPK_ERR_INVALID_HN			= 0x00000201,/* Erase with wrong handle		*/
+	CPK_ERR_ILL_CREATE_MODE		= 0x00000202,/* Not in Create mode		*/
 
-	/* cpk_HeaderProcess ‚ÌƒGƒ‰[ */
-	CPK_ERR_TOO_SMALL_FLOP		= 0x00000301,/* FLOP‰Šú’l‚ª¬‚³‚·‚¬‚é		*/
-	CPK_ERR_TOO_LARGE_HEADER	= 0x00000302,/* ƒwƒbƒ_‚ª‚«‘å‚·‚¬‚é			*/
-											/* (Øİ¸ŞÊŞ¯Ì§»²½Ş‚ª¬‚³‚·‚¬‚é)	*/
-	CPK_ERR_HEADER_DATA			= 0x00000303,/* ƒwƒbƒ_ƒf[ƒ^ƒGƒ‰[ 			*/
-	CPK_ERR_TOO_SMALL_PCMBUF	= 0x00000304,/* PCMÊŞ¯Ì§»²½Ş‚ª¬‚³‚·‚¬‚é	*/
-	CPK_ERR_ILL_SIZE_PCMBUF		= 0x00000305,/* PCMÊŞ¯Ì§»²½Ş•s³ 4096*2`16	*/
+	/* Error in cpk_HeaderProcess */
+	CPK_ERR_TOO_SMALL_FLOP		= 0x00000301,/* The flop initial value is too low		*/
+	CPK_ERR_TOO_LARGE_HEADER	= 0x00000302,/* Header too large			*/
+											/* (Ring buffer size too small)	*/
+	CPK_ERR_HEADER_DATA			= 0x00000303,/* Header data error 			*/
+	CPK_ERR_TOO_SMALL_PCMBUF	= 0x00000304,/* PCM buffer size too small	*/
+	CPK_ERR_ILL_SIZE_PCMBUF		= 0x00000305,/* PCM buffer size incorrect 4096*2 to 16	*/
 
-	/* cpk_VideoSample ‚ÌƒGƒ‰[ */
-	CPK_ERR_SAMPLE_ID			= 0x00000401,/* ¯•ÊqƒGƒ‰[B00h,01h ˆÈŠO‚¾¡*/
-	CPK_ERR_SAMPLE_DATA			= 0x00000402,/* •s³ƒf[ƒ^B				*/
+	/* Error in cpk_VideoSample */
+	CPK_ERR_SAMPLE_ID			= 0x00000401,/* Identifier error. Not 00h,01h.*/
+	CPK_ERR_SAMPLE_DATA			= 0x00000402,/* Bad data.				*/
 
 	/*  */
-	CPK_ERR_ILLEGAL_PARA		= 0x00000503,/* ˆø‚«”‚Ìw’è‚ªŠÔˆá‚Á‚Ä‚¢‚é 	*/
-	CPK_ERR_ILLEGAL_HANDLE		= 0x00000504,/* ƒnƒ“ƒhƒ‹‚ªˆÙí 				*/
+	CPK_ERR_ILLEGAL_PARA		= 0x00000503,/* The argument is not specified correctly 	*/
+	CPK_ERR_ILLEGAL_HANDLE		= 0x00000504,/* Handle is faulty 				*/
 
-	/* ˜A‘±Ä¶‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	CPK_ERR_NEXT_MOVI_STATUS	= 0x00000601,/* ˜A‘±Ä¶Ñ°ËŞ°‚Ìó‘ÔˆÙí 	*/
-	CPK_ERR_NEXT_MOVI_AUDIO		= 0x00000602,/* ƒI[ƒfƒBƒI‚ÌğŒ‚ªˆê’v‚µ‚È‚¢ */
-	CPK_ERR_NEXT_MOVI_SCALE		= 0x00000603,/* ƒ^ƒCƒ€ƒXƒP[ƒ‹‚ªˆê’v‚µ‚È‚¢ 	*/
-	CPK_ERR_CHANGE_NO_DATA		= 0x00000604,/* ƒf[ƒ^‹Ÿ‹‹•s‘«ó‘Ô‚Åƒ`ƒFƒ“ƒW */
-	CPK_ERR_CHANGE_NO_ENTRY		= 0x00000605,/* ƒGƒ“ƒgƒŠ‚ª‚È‚¢ó‘Ô‚Åƒ`ƒFƒ“ƒW */
+	/* Error with continuous playback */
+	CPK_ERR_NEXT_MOVI_STATUS	= 0x00000601,/* Continuous movie condition is abnormal 	*/
+	CPK_ERR_NEXT_MOVI_AUDIO		= 0x00000602,/* Audio conditions do not match */
+	CPK_ERR_NEXT_MOVI_SCALE		= 0x00000603,/* Timescales do not match 	*/
+	CPK_ERR_CHANGE_NO_DATA		= 0x00000604,/* Change in lack of data supply */
+	CPK_ERR_CHANGE_NO_ENTRY		= 0x00000605,/* Change without entry */
 
-	/* ƒ|[ƒY‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	CPK_ERR_PAUSE_STATUS		= 0x00000701,/* CPK_STAT_PLAY_TIME, ‚Ü‚½‚ÍA
-											 * CPK_STAT_PLAY_PAUSE ˆÈŠO‚Ì
-											 * ó‘Ô‚Åƒ|[ƒYŠÖ”‚ğƒR[ƒ‹‚µ‚½B
+	/* Error with pause */
+	CPK_ERR_PAUSE_STATUS		= 0x00000701,/* CPK_STAT_PLAY_TIME, Or
+											 * CPK_STAT_PLAY_PAUSE Or
+											 * The pose function was called in the state.
 											 */
 
-	/* DMA“]‘—‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	CPK_ERR_DMA_MODE			= 0x00000801,/* –¢‘Î‰‚Ì“]‘—•û® 			*/
-	CPK_ERR_DMA_CPU_PCM			= 0x00000802,/* CPUDMA‚ªˆÙíI—¹ 			*/
+	/* Error with DMA transfer */
+	CPK_ERR_DMA_MODE			= 0x00000801,/* Unsupported transport method 			*/
+	CPK_ERR_DMA_CPU_PCM			= 0x00000802,/* CPUDMA terminated abnormally 			*/
 
-	/* ƒtƒ@ƒCƒ‹“Ç‚İ‚İƒGƒ‰[ */
-	CPK_ERR_GFS_READ			= 0x00000901,/* ‚f‚e‚r‚Ì“Ç‚İ‚İ‚Å¸”s 		*/
-	CPK_ERR_STM_FAD				= 0x00000902,/* STM“]‘—ŠÖ”‚Å,fad‚ª–µ‚ 	*/
-	CPK_ERR_STM_HN				= 0x00000903,/* STM“]‘—ŠÖ”‚Å,STMÊİÄŞÙˆÙí 	*/
+	/* Error reading file */
+	CPK_ERR_GFS_READ			= 0x00000901,/* GFS read failed 		*/
+	CPK_ERR_STM_FAD				= 0x00000902,/* Inconsistent fad in STM transfer function 	*/
+	CPK_ERR_STM_HN				= 0x00000903,/* STM transfer function, STM handle failure 	*/
 
-	/* CPK_DecodeFrame‚ÉŠÖ‚·‚éƒGƒ‰[ */
-	CPK_ERR_DF_NO_DATA			= 0x00000A01,/* ƒwƒbƒ_•ª‚Ìƒf[ƒ^‹Ÿ‹‹‚ª‚È‚¢ 	*/
-	CPK_ERR_DF_IS_NOT_VIDEO		= 0x00000A02,/* ƒrƒfƒIƒTƒ“ƒvƒ‹‚Å‚È‚¢ 		*/
+	/* Error with CPK_DecodeFrame */
+	CPK_ERR_DF_NO_DATA			= 0x00000A01,/* No data supply for header 	*/
+	CPK_ERR_DF_IS_NOT_VIDEO		= 0x00000A02,/* Not a video sample 		*/
 
 
 	CPK_ERR_END
 } CpkErrCode;
 
-/* Ä¶ƒXƒe[ƒ^ƒX */
+/* Playback status */
 typedef enum {
-	CPK_STAT_PLAY_ERR_STOP		= -1,		/* ˆÙí’â~					*/
-	CPK_STAT_PLAY_STOP			= 0,		/* ’â~(ƒNƒŠƒGƒCƒg) 		*/
-	CPK_STAT_PLAY_PAUSE			= 1,		/* ˆê’â~		 			*/
-	CPK_STAT_PLAY_START			= 2,		/* ŠJn						*/
-	CPK_STAT_PLAY_HEADER		= 3,		/* ƒwƒbƒ_ˆ—@				*/
-	CPK_STAT_PLAY_TIME			= 4,		/* Ä¶’†(ƒ^ƒCƒ}ƒXƒ^[ƒg)	*/
-	CPK_STAT_PLAY_END			= 5			/* Ä¶Š®—¹ 				*/
+	CPK_STAT_PLAY_ERR_STOP		= -1,		/* Abnormal stop					*/
+	CPK_STAT_PLAY_STOP			= 0,		/* Stop (Create) 		*/
+	CPK_STAT_PLAY_PAUSE			= 1,		/* Pause		 			*/
+	CPK_STAT_PLAY_START			= 2,		/* Start						*/
+	CPK_STAT_PLAY_HEADER		= 3,		/* Header processing				*/
+	CPK_STAT_PLAY_TIME			= 4,		/* During playback (timer start)	*/
+	CPK_STAT_PLAY_END			= 5			/* Playback complete 				*/
 } CpkPlayStatus;
 
-/* ˆê’â~‚Ì§ŒäƒRƒ}ƒ“ƒh */
+/* Control pause command */
 typedef enum {
-	CPK_PAUSE_ON_AT_ONCE,					/* ‘¦ˆê’â~ 			*/
-	CPK_PAUSE_ON_KEYFRAME,					/* ƒL[ƒtƒŒ[ƒ€‘Ò‚¿ˆê’â~	*/
-	CPK_PAUSE_OFF							/* ˆê’â~‰ğœ 			*/
+	CPK_PAUSE_ON_AT_ONCE,					/* Immediate pause 			*/
+	CPK_PAUSE_ON_KEYFRAME,					/* Pause waiting for keyframe	*/
+	CPK_PAUSE_OFF							/* Unpause 			*/
 } CpkPauseCmd;
 
-/* •\¦F”[bit] */
+/* Number of colors [bit] */
 typedef enum {
-	CPK_COLOR_24BIT				= 24,		/* 1600–œF 				*/
-	CPK_COLOR_15BIT				= 15		/* 32000F 					*/
+	CPK_COLOR_24BIT				= 24,		/* 16 million colors 				*/
+	CPK_COLOR_15BIT				= 15		/* 32000 colors 					*/
 } CpkColorType;
 
-/* ‹­§Ø‚è‘Ö‚¦‰Â”\«ƒ`ƒFƒbƒN’l */
+/* Force switchability check value */
 typedef enum {
-	CPK_CHANGE_OK_AT_ONCE		= 0,	/* ‘¦Ø‚è‘Ö‚¦‰Â”\B			*/
-	CPK_CHANGE_NO_DATA			= 1,	/* ƒf[ƒ^‹Ÿ‹‹•s‘«B				*/
-	CPK_CHANGE_NO_ENTRY			= 2,	/* ƒGƒ“ƒgƒŠ‚ª–³‚¢B				*/
-	CPK_CHANGE_TOO_LARGE_HEADER	= 3		/* ƒwƒbƒ_‚ª‚«‘å‚·‚¬‚éB			*/
-										/* (ƒoƒbƒtƒ@ƒTƒCƒY‚ª¬‚³‚·‚¬‚é)	*/
+	CPK_CHANGE_OK_AT_ONCE		= 0,	/* Can be switched on immediately.			*/
+	CPK_CHANGE_NO_DATA			= 1,	/* Insufficient data supply.				*/
+	CPK_CHANGE_NO_ENTRY			= 2,	/* No entry.				*/
+	CPK_CHANGE_TOO_LARGE_HEADER	= 3		/* Header too large.			*/
+										/* (Buffer size too small)	*/
 } CpkChangeStatus;
 
-/* ‰æ‘œL’£ƒ^ƒCƒ~ƒ“ƒO‚Ìİ’è’l */
+/* Image stretch timing setting */
 typedef enum {
-	CPK_DEC_TIMING_DECODE_IN_HASTE = 0,	/* æ‚è‚ ‚¦‚¸L’£‚µ‚Ä‚¨‚­		*/
-	CPK_DEC_TIMING_WAIT_AND_DECODE = 1	/* •\¦‚ğ‘Ò‚Á‚ÄL’£‚·‚é		*/
+	CPK_DEC_TIMING_DECODE_IN_HASTE = 0,	/* Keep it stretched		*/
+	CPK_DEC_TIMING_WAIT_AND_DECODE = 1	/* Wait for the display time to stretch		*/
 } CpkDecTiming;
 
-/* ƒf[ƒ^‚Ì“]‘—•û® */
+/* Method of data transfer */
 typedef enum {
-	CPK_TRMODE_CPU = 0,					/* ƒ\ƒtƒgƒEƒFƒA“]‘— 			*/
-	CPK_TRMODE_SDMA,					/* ‚c‚l‚`ƒTƒCƒNƒ‹ƒXƒ`[ƒ‹ 		*/
-	CPK_TRMODE_SCU,						/* ‚r‚b‚t‚Ì‚c‚l‚`				*/
-	CPK_TRMODE_SCUDSPDMA				/* ‚r‚b‚t|‚c‚r‚o‚Ì‚c‚l‚`		*/
+	CPK_TRMODE_CPU = 0,					/* Software transfer 			*/
+	CPK_TRMODE_SDMA,					/* DMA Cycle Steel 		*/
+	CPK_TRMODE_SCU,						/* DMA for SCU				*/
+	CPK_TRMODE_SCUDSPDMA				/* SCU - DMA for the DSP		*/
 } CpkTrMode;
 
-/* [’ˆÓ1] “]‘—•û®‚Ìİ’è‚É‚ÍŸ‚Ì•\‚É¦‚·§ŒÀ‚ª‚ ‚è‚Ü‚·B
- *@@@@@@@@@@@ƒf[ƒ^“]‘—•û®‚Ìİ’è‚Ì§ŒÀ
+/* [Note 1] The transfer method settings have the restrictions shown in the following table.
+ *ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€ã€€Data transfer method setting restrictions
  *  ====================+=================================================
- *     ˆ—@_@•û®   |  ¿ÌÄ³ª±“]‘—  CPU‚ÌDMA  SCU‚ÌDMA  SCU-DSP‚ÌDMA
+ *     Processing \ method   |  Software transfer  CPU-DMA  SCU-DMA  SCU-DSP-DMA
  *  ====================+=================================================
- *    CPK_SetTrModeCd   |      ›         ›        ›          ~
- *    CPK_SetTrModePcm  |      ›         ›        ~          ›
+ *    CPK_SetTrModeCd   |      â—‹         â—‹        â—‹          Ã—
+ *    CPK_SetTrModePcm  |      â—‹         â—‹        Ã—          â—‹
  *  ====================+=================================================
- * [’ˆÓ2] “]‘—•û®‚É CPK_TRMODE_SCUDSPDMA ‚ªw’è‚³‚ê‚Ä‚¢‚é‚ÆA‰Šúó‘Ô‚Æ‚µ‚ÄA
- *  SCU-DSP ‚Ìg—pŒ ‚Í Cinepak×²ÌŞ×Ø ‚É‚ ‚è‚Ü‚·BSCU-DSP ‚ğ Cinepak×²ÌŞ×Ø ‚Æ 
- *  ±ÌßØ¹°¼®İ ‚Ì—¼•û‚Å—˜—p‚·‚éê‡‚É‚Í CPK_AllocScuDsp, CPK_FreeScuDsp ‚ğg‚¢
- *  ‚Ü‚·B
+ * [Note 2] When CPK_TRMODE_SCUDSPDMA is specified as the transfer method,
+ *  The right to use SCU-DSP is in Cinepak library. SCU-DSP as Cinepak library
+ *  Use CPK_AllocScuDsp, CPK_FreeScuDsp to use both in the application.
  */
 
-/* ‚S‚a‚x‚s‚d•¶šƒR[ƒh‚ğ Uint32 Œ^‚Å•\Œ»‚·‚éB
- *   ('cvid'‚È‚Ç‚Æ‘‚­‚ÆÜ°Æİ¸Ş‚ªo‚Ä‚µ‚Ü‚¤‚Ì‚ÅA‚±‚ê‚ğ‰ñ”ğ‚·‚é‚½‚ß‚É)
+/* 4BYTE character code is expressed in Uint32 type.
+ *   (If you write'cvid 'etc., the wording will come out, so to avoid this)
  */
 #define CPK_4BYTE_CHAR(a,b,c,d)					\
 	(	((Uint32)((a) & 0x000000FF) << 24) | 	\
@@ -177,58 +175,58 @@ typedef enum {
 		 (Uint32)((d) & 0x000000FF)				\
 	)
 
-/* ˆ³k•û® */
+/* Compression method */
 typedef enum {
-	CPK_CTYPE_NOVIDEO 	= 0,								/* ‰æ‘œ‚È‚µ 	*/
-	CPK_CTYPE_NONE 		= CPK_4BYTE_CHAR('r','a','w',' '),	/* ”ñˆ³k 		*/
-	CPK_CTYPE_CVID 		= CPK_4BYTE_CHAR('c','v','i','d'),	/* Cinepakˆ³k 	*/
+	CPK_CTYPE_NOVIDEO 	= 0,								/* No image 	*/
+	CPK_CTYPE_NONE 		= CPK_4BYTE_CHAR('r','a','w',' '),	/* Uncompressed 		*/
+	CPK_CTYPE_CVID 		= CPK_4BYTE_CHAR('c','v','i','d'),	/* Cinepak compression 	*/
 	CPK_CTYPE_END
 } CpkCType;
 
-/* ‚b‚o‚tg—pğŒ */
+/* CPU usage conditions */
 typedef enum {
 	CPK_CPU_MAIN 		= 1, 		/* main cpu only (default)			*/
 	CPK_CPU_SLAVE 		= 2, 		/* slave cpu only (Not supported) 	*/
 	CPK_CPU_DUAL 		= 3, 		/* dual cpu 						*/
 	CPK_CPU_END
 } CpkCpu;
-/* [’ˆÓ] 
- *  ‚b‚o‚tg—pğŒ‚É CPK_CPU_DUAL ‚ªw’è‚³‚ê‚Ä‚¢‚é‚ÆAslave cpu ‚Í Cinepak
- *  ×²ÌŞ×Ø ‚ªê—L‚µ‚Ü‚·B±ÌßØ¹°¼®İ‚Í slave cpu ‚ğ—˜—p‚·‚é‚±‚Æ‚Í‚Å‚«‚Ü‚¹‚ñB
+/* [Note] 
+ *  When CPK_CPU_DUAL is specified as the CPU usage condition, slave cpu is Cinepak
+ *  It is exclusively used by the library. Applications cannot use slave cpu.
  */
 
 
-/*---------------------- sŠeíƒfƒtƒHƒ‹ƒg’lt ----------------------*/
+/*---------------------- Various default values ----------------------*/
 
-/* ƒNƒƒ}ƒL[ƒJƒbƒgƒIƒt‚ÌƒfƒtƒHƒ‹ƒg’l */
+/* Default value for chroma key cutoff */
 #define CPK_DEFAULT_CKEY_CUTOFF_15		(3 * 7)
 #define CPK_DEFAULT_CKEY_CUTOFF_24		(CPK_DEFAULT_CKEY_CUTOFF_15 * 8)
 
-/* –³‰¹—¦‚ÌƒfƒtƒHƒ‹ƒg’l [1/s] */
+/* Default silence value [1/s] */
 #define CPK_DEFAULT_SILENCE_RATE	(8)
 
-/* Ä¶‘¬“x‚ÌƒfƒtƒHƒ‹ƒg’l(’Êí‚ÌÄ¶‘¬“x) */
+/* Default playback speed (normal playback speed) */
 #define CPK_SPEED_ORIGINAL		(0)
 
-/* Ä¶‘¬“x‚Ìİ’è’PˆÊ */
+/* The unit of measurement for playback speed */
 #define CPK_SPEED_UNIT			(1024)
 
-/* ƒfƒoƒbƒOî•ñ‚Ìo—ÍŠJnƒAƒhƒŒƒXiƒfƒtƒHƒ‹ƒg’lj */
+/* Output start address for debug information (default value) */
 #define CPKD_START_ADDR			(0x04000000)
 
-/* ƒfƒoƒbƒOî•ñ‚Ìo—ÍI—¹ƒAƒhƒŒƒXiƒfƒtƒHƒ‹ƒg’lj */
+/* Output end address for debug information (default value) */
 #define CPKD_END_ADDR			(0x047FFFF0)
 
-/* ƒfƒoƒbƒOî•ñ‚Ìo—ÍŠJnˆÊ’u‚Ìƒ}[ƒWƒ“[dword] */
+/* Margin at which debug information begins to output [dword] */
 #define CPKD_HEAD_MARGIN		(4)
 
-/* CPKDƒVƒXƒeƒ€\‘¢‘Ì‚Ì¯•Ê•¶š—ñ’· [dword], [byte] */
+/* Identification string length [dword], [byte] of the CPKD system structure */
 #define CPKD_STRING_LEN			(4)
 #define CPKD_STRING_LEN_BYTE	(4 * CPKD_STRING_LEN)
 
 
-/*------------------------- sˆ—ƒ}ƒNƒt -------------------------*/
-/* ì¬ƒpƒ‰ƒ[ƒ^‚Ö‚ÌƒAƒNƒZƒXƒ}ƒNƒ */
+/*------------------------- Processing Macro -------------------------*/
+/* Access macro to creation parameters */
 #define	CPK_PARA_WORK_ADDR(para)	((para)->work_addr)
 #define	CPK_PARA_WORK_SIZE(para)	((para)->work_size)
 #define	CPK_PARA_BUF_ADDR(para)		((para)->buf_addr)
@@ -236,24 +234,24 @@ typedef enum {
 #define	CPK_PARA_PCM_ADDR(para)		((para)->pcm_addr)
 #define	CPK_PARA_PCM_SIZE(para)		((para)->pcm_size)
 
-/* ƒnƒ“ƒhƒ‹ƒAƒNƒZƒX */
+/* Handle access */
 #define	CPK_HN_DONT_DEC_VIDEO(hn) ((*(CpkWork **)(hn))->status.dont_dec_video)
 
-/* Code1Book‚ÌƒTƒCƒY [byte],[dbyte] */
+/* Code1Book size [byte],[dbyte] */
 #define CPK_BSIZE_CODE1BOOK				(0x800)
 #define CPK_BSIZE_CODE1BOOK_FUL			(2 * CPK_BSIZE_CODE1BOOK)
 #define CPK_DSIZE_CODE1BOOK				(CPK_BSIZE_CODE1BOOK     / 4)
 #define CPK_DSIZE_CODE1BOOK_FUL			(CPK_BSIZE_CODE1BOOK_FUL / 4)
 
-/* ‚Q‚S‚‚‚‰‚”ƒtƒ‹ƒJƒ‰[—p‚Ìƒ[ƒNƒoƒbƒtƒ@ƒTƒCƒY */
+/* Work buffer size for 24-bit full color */
 #define	CPK_24WORK_BSIZE	sizeof(CpkWork)
 #define	CPK_24WORK_DSIZE	((CPK_24WORK_BSIZE + 3) / 4)
 
-/* ‚P‚T‚‚‚‰‚”ƒJƒ‰[—p‚Ìƒ[ƒNƒoƒbƒtƒ@ƒTƒCƒY */
+/* Work buffer size for 15-bit color */
 #define	CPK_15WORK_BSIZE	(sizeof(CpkWork) - (4 * CPK_BSIZE_CODE1BOOK))
 #define	CPK_15WORK_DSIZE	((CPK_15WORK_BSIZE + 3) / 4)
 
-/* CPKDƒVƒXƒeƒ€\‘¢‘ÌƒAƒNƒZƒX */
+/* CPKD System Structure Access */
 #define CPKD_SYS_STRING			(cpkd_sys.string)
 #define CPKD_SYS_MODE			(cpkd_sys.mode)
 #define CPKD_SYS_START_ADDR		(cpkd_sys.start_addr)
@@ -262,231 +260,231 @@ typedef enum {
 #define CPKD_SYS_RETURN_CNT		(cpkd_sys.return_cnt)
 
 
-/*-------------------------- sƒf[ƒ^Œ^t --------------------------*/
-/* ƒ€[ƒrƒnƒ“ƒhƒ‹ */
+/*-------------------------- Data type --------------------------*/
+/* The moving handle */
 typedef void *CpkHn;
 
-/* ì¬ƒpƒ‰ƒ[ƒ^ */
+/* Creation parameters */
 typedef struct {
-	Uint32		*work_addr;		/* ƒ[ƒN‚Ìæ“ªƒAƒhƒŒƒX */
-								/* –{ƒ‰ƒCƒuƒ‰ƒŠ‚ªƒ€[ƒr‚ğÄ¶‚·‚é‚Ìì‹Æ—Ìˆæ*/
-	Uint32		work_size;		/* ƒ[ƒN‚ÌƒoƒCƒg” */
-								/* CPK_BSIZE_WORK ‚ğw’è‚·‚é */
-	Uint32		*buf_addr;		/* Ñ°ËŞÌ§²Ù‚ğŠi”[‚·‚éƒoƒbƒtƒ@‚Ìæ“ªƒAƒhƒŒƒX */
-								/* ƒƒ‚ƒŠ‚Ìƒ€[ƒrƒtƒ@ƒCƒ‹‚Ì‚Í‚»‚ÌƒAƒhƒŒƒX */
-								/* CD‚Ìƒ€[ƒrƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚Ì±ÄŞÚ½ */
-	Uint32		buf_size;		/* ƒoƒbƒtƒ@ƒTƒCƒY */
-								/* ƒƒ‚ƒŠ‚Ìƒ€[ƒrƒtƒ@ƒCƒ‹‚Ì‚Íƒtƒ@ƒCƒ‹ƒTƒCƒY*/
-								/* CD‚Ìƒ€[ƒrƒtƒ@ƒCƒ‹‚Ì‚ÍØİ¸ŞÊŞ¯Ì§‚ÌƒTƒCƒY */
-	Uint16		*pcm_addr;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒAƒhƒŒƒX 		*/
-	Uint32		pcm_size;		/* ƒTƒEƒ“ƒhƒƒ‚ƒŠ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY		*/
-								/* (1ch•ª‚ÌƒTƒ“ƒvƒ‹”(4096*1..4096*16))		*/
+	Uint32		*work_addr;		/* The first address of the work */
+								/* The work area in which the library plays the movie*/
+	Uint32		work_size;		/* Number of bytes in the work */
+								/* Specify CPK_BSIZE_work */
+	Uint32		*buf_addr;		/* The first address of the buffer that contains the movie file */
+								/* Address of the memory movie file, if any */
+								/* The address of the ring buffer when the CD movie file is in */
+	Uint32		buf_size;		/* Buffer size */
+								/* File size for memory movie files*/
+								/* The size of the ring buffer when the CD movie file is in */
+	Uint16		*pcm_addr;		/* PCM buffer address of the sound memory 		*/
+	Uint32		pcm_size;		/* PCM buffer size of the sound memory		*/
+								/* (Number of samples per channel (4096*1..4096*16))		*/
 } CpkCreatePara;
 
 
-/* ƒtƒBƒ‹ƒ€ƒTƒ“ƒvƒ‹ƒe[ƒuƒ‹€–Ú */
+/* Film Sample Table Item */
 typedef struct {
-	Uint32		offset;				/* ƒƒfƒBƒAŠJnˆÊ’u‚©‚ç‚ÌƒIƒtƒZƒbƒg */
-	Sint32		size;				/* ƒTƒ“ƒvƒ‹ƒTƒCƒY 					*/
-	Sint32		time;				/* ƒtƒŒ[ƒ€•\¦A-1:µ°ÃŞ¨µ»İÌßÙ */
-	Sint32		duration;			/* ƒtƒŒ[ƒ€•\¦‘±ŠÔ 			*/
+	Uint32		offset;				/* Offset from media start position */
+	Sint32		size;				/* Sample size 					*/
+	Sint32		time;				/* Frame display time, -1: Audio sample */
+	Sint32		duration;			/* Frame display duration 			*/
 } CpkFilmSample;
 
 
-/* ƒtƒBƒ‹ƒ€ƒwƒbƒ_ */
+/* Film header */
 typedef struct {
 	/* FilmHeader */
 	Uint32		film;				/* "FILM" 								*/
-	Uint32		size_header;		/* ƒwƒbƒ_ƒTƒCƒY(ƒƒfƒBƒAŠJn‚Ö‚ÌµÌ¾¯Ä)	*/
-	Uint32		version;			/* ƒo[ƒWƒ‡ƒ“ 							*/
-	Uint32		reserved;			/* —\–ñ 								*/
+	Uint32		size_header;		/* Header Size (Offset to Media Start)	*/
+	Uint32		version;			/* Version 							*/
+	Uint32		reserved;			/* Reservations 								*/
 	/* FrameDescription */
 	Uint32		fdsc;				/* "FDSC" 								*/
-	Uint32		size_fdsc;			/* FDSCƒTƒCƒY 0x0000001C = 7*4[byte]	*/
-	CpkCType	c_type;				/* ˆ³k•û® "cvid" 						*/
-	Uint32		height;				/* ‚½‚Ä•[pixel]						*/
-	Uint32		width;				/* ‚æ‚±•[pixel] 						*/
-	Uint8		color;				/* •\¦F”[bit] 						*/
-	Uint8		sound_channel;		/* ƒ`ƒƒƒlƒ‹” 							*/
-	Uint8		sound_smpling_bit;	/* ƒTƒ“ƒvƒŠƒ“ƒOƒrƒbƒg”[bit] 			*/
-	Uint8		sound_compress;		/* ˆ³k 00h:–³‚µ 01h:ADPCM 				*/
-	Uint32		sound_smpling_rate;	/* »İÌßØİ¸ŞÚ°Ä[Hz] ‰ºˆÊ‚Qbyte‚Í¬” 	*/
-	Uint32		ckey;				/* ƒNƒƒ}ƒL[î•ñ	 					*/
+	Uint32		size_fdsc;			/* FDSC size 0x0000001C = 7*4[byte]	*/
+	CpkCType	c_type;				/* Compression method \"cvid\" 						*/
+	Uint32		height;				/* Width [pixel]						*/
+	Uint32		width;				/* Width [pixel] 						*/
+	Uint8		color;				/* Number of colors [bit] 						*/
+	Uint8		sound_channel;		/* Number of channels 							*/
+	Uint8		sound_smpling_bit;	/* Sampling Bits [bit] 			*/
+	Uint8		sound_compress;		/* Compression 00h: None 01h:ADPCM 				*/
+	Uint32		sound_smpling_rate;	/* Sampling rate [Hz] lower 2byte is a decimal number 	*/
+	Uint32		ckey;				/* Chroma key information	 					*/
 	/* FilmSampleTable */
 	Uint32		stab;				/* "STAB" 								*/
-	Uint32		size_stab;			/* STABƒTƒCƒY (‘»İÌßÙ”+1)*16[byte] 	*/
-	Uint32		time_scale_film;	/* ƒ^ƒCƒ€ƒXƒP[ƒ‹ 						*/
-	Uint32		sample_total;		/* ‘ƒTƒ“ƒvƒ‹” 						*/
-	CpkFilmSample sample[1];		/* ƒTƒ“ƒvƒ‹ƒe[ƒuƒ‹ ”CˆÓƒTƒCƒY 			*/
+	Uint32		size_stab;			/* STAB size (total samples + 1)*16[byte] 	*/
+	Uint32		time_scale_film;	/* Timescale 						*/
+	Uint32		sample_total;		/* Total number of samples 						*/
+	CpkFilmSample sample[1];		/* Sample table arbitrary size 			*/
 } CpkHeader;
 
-/* ƒGƒ‰[“o˜^ŠÖ” */
+/* Error Registration function */
 typedef void (*CpkErrFunc)(void *obj, Sint32 err_code);
 
 
-/* ƒpƒ‰ƒ[ƒ^ */
+/* Parameters */
 typedef struct {
-	Uint32		AddrBuf;		/* ƒoƒbƒtƒ@ŠJnˆÊ’uBƒVƒ€‚Ìê‡ 0x4000000 	*/
-	Uint32		SizeBuf;		/* ƒoƒbƒtƒ@ƒTƒCƒYB@ƒVƒ€‚Ìê‡ 0x1000000 	*/
-	Uint32		size_trigger;	/* Ä¶ŠJnƒgƒŠƒKƒTƒCƒY						*/
-	Uint32		AddrVram;		/* ‰æ‘œo—ÍƒAƒhƒŒƒX 						*/
-	Uint32		SizeVramLine;	/* ‰æ‘œo—Íƒoƒbƒtƒ@sƒTƒCƒY[byte]			*/
-	/* ƒTƒEƒ“ƒhƒhƒ‰ƒCƒoŠÖ˜A */
-	Uint32		play_pcm;		/* PCMÄ¶ƒtƒ‰ƒO 0:‰¹‚Ìˆ—‚È‚µ 1:Ä¶		*/
-	Uint32		command_blk_no;	/* ƒTƒEƒ“ƒhƒhƒ‰ƒCƒoƒRƒ}ƒ“ƒhƒuƒƒbƒN”Ô† 	*/
-	Uint32		pcm_stream_no;	/* PCMƒXƒgƒŠ[ƒ€Ä¶”Ô† 					*/
-	Uint16		*addr_pcmbuf;	/* »³İÄŞÒÓØ‚ÌPCMƒoƒbƒtƒ@ƒAƒhƒŒƒX 			*/
-	Uint32		size_pcmbuf;	/* »³İÄŞÒÓØ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY[sample/1ch] 	*/
+	Uint32		AddrBuf;		/* Buffer start position. 0x4000000 for shims 	*/
+	Uint32		SizeBuf;		/* Buffer size. 0x1000000 for shim 	*/
+	Uint32		size_trigger;	/* Start playback trigger size						*/
+	Uint32		AddrVram;		/* Image output address 						*/
+	Uint32		SizeVramLine;	/* Image output buffer line size [byte]			*/
+	/* Sound driver related */
+	Uint32		play_pcm;		/* PCM Play Flag 0: No sound processing 1: Play		*/
+	Uint32		command_blk_no;	/* Sound driver command block number 	*/
+	Uint32		pcm_stream_no;	/* PCM stream regeneration number 					*/
+	Uint16		*addr_pcmbuf;	/* PCM buffer address of the sound memory 			*/
+	Uint32		size_pcmbuf;	/* PCM buffer size for sound memory [sample/1ch] 	*/
 	Uint32		pcm_pan;		/* 0..31	*/
 	Uint32		pcm_level;		/* 0..7		*/
-	Uint32		frequency_vbl;	/* CPK_VblIn()‚ğƒR[ƒ‹‚·‚éü”g”[256*Hz] 	*/
+	Uint32		frequency_vbl;	/* Frequency to Call CPK_Vblin() [256*Hz] 	*/
 } CpkPara;
 
-/* DMA“]‘—î•ñ */
+/* DMA transfer information */
 typedef struct {
-	Uint32		dst;				/* “]‘—æƒAƒhƒŒƒX 						*/
-	Uint32		src;				/* “]‘—Œ³ƒAƒhƒŒƒX 						*/
-	Uint32		cnt;				/* “]‘—‰ñ” 							*/
+	Uint32		dst;				/* Destination address 						*/
+	Uint32		src;				/* Source address 						*/
+	Uint32		cnt;				/* Number of transfers 							*/
 } CpkDmaStock;
 
-/* Šeíó‘Ô */
+/* Various states */
 typedef struct {
-	/* ‘S‘Ì§Œäî•ñ */
-	Sint32		stat_start;			/* ƒXƒe[ƒ^ƒX‚ÌŠJn						*/
-	Sint32		play;				/* Ä¶ó‘Ô 							*/
-	Uint32		RequestDispFrame;	/* ƒtƒŒ[ƒ€•\¦—v‹ƒtƒ‰ƒO 				*/
-	Uint32		CntSample;			/* ƒTƒ“ƒvƒ‹ƒJƒEƒ“ƒ^ 					*/
-	Uint32		CntFrame;			/* ƒtƒŒ[ƒ€ƒJƒEƒ“ƒ^ 					*/
-	Uint32		offset_media;		/* ƒƒfƒBƒAŠJnˆÊ’u‚Ö‚ÌƒIƒtƒZƒbƒg		*/
-	Uint32		display_keyframe;	/* •\¦‰æ‘œƒL[ƒtƒŒ[ƒ€ƒtƒ‰ƒO 			*/
-	Uint32		standby_keyframe;	/* ‘Ò‹@‰æ‘œƒL[ƒtƒŒ[ƒ€ƒtƒ‰ƒO 			*/
-	Uint32		standby_video_flag;	/* •\¦‘Ò‹@‰æ‘œ‚ ‚èƒtƒ‰ƒO 				*/
-	Uint32		standby_time_display;/* ‘Ò‹@‰æ‘œ‚Ì•\¦					*/
-	Uint32		standby_time_duration;/* ‘Ò‹@‰æ‘œ‚Ì•\¦‘±ŠÔ				*/
+	/* Overall control information */
+	Sint32		stat_start;			/* Start of status						*/
+	Sint32		play;				/* Playback state 							*/
+	Uint32		RequestDispFrame;	/* Frame display request flag 				*/
+	Uint32		CntSample;			/* Sample counter 					*/
+	Uint32		CntFrame;			/* Frame counter 					*/
+	Uint32		offset_media;		/* Offset to media start position		*/
+	Uint32		display_keyframe;	/* Display image keyframe flag 			*/
+	Uint32		standby_keyframe;	/* Waiting image keyframe flag 			*/
+	Uint32		standby_video_flag;	/* Display Waiting Image present flag 				*/
+	Uint32		standby_time_display;/* Time the waited image was displayed					*/
+	Uint32		standby_time_duration;/* The display duration of the waiting image				*/
 	Uint32		only_audio;			/* flag that only audio sample 			*/
 	Uint32		only_video;			/* flag that only video sample 			*/
-	Uint32		color;				/* o—ÍF”[bit]B15 or 24				*/
-	Uint32		wait_keyframe_to_pause;/* ˆê’â~ˆ——p·°ÌÚ°Ñ‘Ò‚¿ƒtƒ‰ƒO 	*/
-	Uint32		wait_and_decode;	/* 1:•\¦‚ğ‘Ò‚Á‚Ä‚©‚çL’£‚·‚é		*/
-	Sint32		flag_prohibit_komaotoshi;/* 1:ƒRƒ}—‚Æ‚µkinnshiƒtƒ‰ƒO		*/
+	Uint32		color;				/* Output color depth [bit]. 15 or 24				*/
+	Uint32		wait_keyframe_to_pause;/* Pause key frame wait flag 	*/
+	Uint32		wait_and_decode;	/* 1: Wait for the display time and then stretch		*/
+	Sint32		flag_prohibit_komaotoshi;/* 1: Frame drop kinnshi flag		*/
 	Sint32		ckey_cutoff;		/* chroma key cutoff level 				*/
-	Sint32		final_audio_sample;	/* ÅŒã‚ÌƒI[ƒfƒBƒIƒTƒ“ƒvƒ‹ 			*/
-	Sint32		silence_rate;		/* –³‰¹—¦ [1/s]							*/
+	Sint32		final_audio_sample;	/* Last audio sample 			*/
+	Sint32		silence_rate;		/* Silence [1/s]							*/
 	
-	/* ƒŠƒ“ƒOƒoƒbƒtƒ@§Œäî•ñ */
-	Sint32		ring_start;			/* ‚ÌŠJn								*/
-	Uint32		OffsetWrite;		/* ƒoƒbƒtƒ@“Ç‚İE‘‚«ˆÊ’u[byte]			*/
-	Uint32		OffsetRead;			/* (ƒtƒ@ƒCƒ‹æ“ª‚©‚ç‚ÌƒIƒtƒZƒbƒg)		*/
-	Uint32		AddrWrite;			/* ƒoƒbƒtƒ@“Ç‚İE‘‚«ˆÊ’u(ƒAƒhƒŒƒX)		*/
+	/* Ring buffer control information */
+	Sint32		ring_start;			/* Start of								*/
+	Uint32		OffsetWrite;		/* Buffer read/write position [byte]			*/
+	Uint32		OffsetRead;			/* (Offset from beginning of file)		*/
+	Uint32		AddrWrite;			/* Buffer Read and Write Locations (addresses)		*/
 	Uint32		AddrRead;			/* 										*/
-	Uint32		AddrRing;			/* ƒŠƒ“ƒOƒoƒbƒtƒ@ŠJnƒAƒhƒŒƒX 			*/
-	Uint32		AddrRingEnd;		/* ƒŠƒ“ƒOƒoƒbƒtƒ@I—¹ƒAƒhƒŒƒX 			*/
-	Sint32		SizeHead;			/* ƒwƒbƒ_ƒoƒbƒtƒ@ƒTƒCƒY [byte] ¾¸À®””{ */
-	Uint32		SizeRing;			/* ƒŠƒ“ƒOƒoƒbƒtƒ@ƒTƒCƒY [byte] ¾¸À®””{ */
-	Uint32		SizeFlop;			/* ‚e‚k‚n‚oƒoƒbƒtƒ@ƒTƒCƒY [byte] 		*/
+	Uint32		AddrRing;			/* Ring buffer start address 			*/
+	Uint32		AddrRingEnd;		/* Ring buffer end address 			*/
+	Sint32		SizeHead;			/* Header buffer size [byte] sector integer times */
+	Uint32		SizeRing;			/* Ring buffer size [byte] sector integer times */
+	Uint32		SizeFlop;			/* Flow buffer size [byte] 		*/
 	
-	/* PCMÄ¶î•ñ */
-	Sint32		audio_start;		/* ‚ÌŠJn								*/
-	Uint32		play_pcm;			/* PCMÄ¶ƒtƒ‰ƒO 0:‰¹‚Ìˆ—‚È‚µ 1:Ä¶	*/
-	Uint32		bsize_pcmbuf;		/* »³İÄŞÒÓØ‚ÌPCMƒoƒbƒtƒ@ƒTƒCƒY[byte/1ch]*/
-	Uint16		*addr_pcmbuf_end;	/* PCMƒoƒbƒtƒ@I—¹ƒAƒhƒŒƒX 				*/
-	Uint16		*addr_pcm_write;	/* PCMƒoƒbƒtƒ@‘‚«‚İƒAƒhƒŒƒX 			*/
-	Uint32		smpling_rate;		/* »İÌßØİ¸ŞÚ°Ä[Hz] ‰ºˆÊ‚Pbyte‚Í¬” 	*/
-	Uint32		cnt_4ksample;		/* PCM play address 4k»İÌßÙ’PˆÊXV¶³İÀ */
-	Sint32		flag_fill_silence;	/* –³‰¹İ’èÏ‚İƒtƒ‰ƒO					*/
-	Sint32		sample_write;		/* ‹Ÿ‹‹ƒTƒ“ƒvƒ‹”[sample]				*/
-									/* (æ“ªÌ¨ÙÑ‚©‚ç‚ÌŒ»İ‚Ü‚Å‚Ì‘‹Ÿ‹‹—Ê)	*/
-	Sint32		sample_film_start;	/* ƒtƒBƒ‹ƒ€ŠJnƒTƒ“ƒvƒ‹”[sample]		*/
-									/* (æ“ªÌ¨ÙÑ‚©‚çŒ»İÌ¨ÙÑŠJn“_‚Ü‚Å‚Ì)	*/
-	Sint32		sample_pause;		/* ƒ|[ƒYƒTƒ“ƒvƒ‹”[sample]			*/
-									/* (æ“ªÌ¨ÙÑ‚©‚çÅ‹ß‚Ìƒ|[ƒY“_‚Ü‚Å‚Ì)	*/
-	Sint32		count_start;		/* ‚b‚o‚tƒNƒƒbƒNƒ^ƒCƒ}ŠJn 		*/
-									/* 						[CPU¸Û¯¸>>15] 	*/
-	Sint32		clock_scale;		/* ‚b‚o‚tƒNƒƒbƒNƒ^ƒCƒ}‚ÌƒXƒP[ƒ‹ 		*/
-	Sint32		dont_stop_pcm;		/* I—¹‚ÉPCMƒXƒgƒbƒv‚µ‚È‚¢ƒtƒ‰ƒO 		*/
+	/* PCM regeneration information */
+	Sint32		audio_start;		/* Start of								*/
+	Uint32		play_pcm;			/* PCM Play Flag 0: No sound processing 1: Play	*/
+	Uint32		bsize_pcmbuf;		/* PCM buffer size in sound memory [byte/1ch]*/
+	Uint16		*addr_pcmbuf_end;	/* PCM buffer end address 				*/
+	Uint16		*addr_pcm_write;	/* PCM buffer write address 			*/
+	Uint32		smpling_rate;		/* Sampling rate [Hz] lower 1byte is a decimal number 	*/
+	Uint32		cnt_4ksample;		/* PCM play address 4k per sample update counter */
+	Sint32		flag_fill_silence;	/* Silence-set flag					*/
+	Sint32		sample_write;		/* Number of samples supplied [sample]				*/
+									/* (Total current supply from the first film)	*/
+	Sint32		sample_film_start;	/* Sample number of samples at the start of the film		*/
+									/* (From the first film to the current film start)	*/
+	Sint32		sample_pause;		/* Sample number at pause [sample]			*/
+									/* (From the first film to the most recent pause)	*/
+	Sint32		count_start;		/* CPU clock timer start time 		*/
+									/* 						CPU Clock 15 	*/
+	Sint32		clock_scale;		/* CPU clock timer scale 		*/
+	Sint32		dont_stop_pcm;		/* Flag that does not stop PCM at the end. 		*/
 
-	/* Ÿƒ€[ƒr[ŠÇ—î•ñ */
-	Sint32		next_start;			/* ‚ÌŠJn								*/
-/*	CpkHn		hn_next;*/			/* Ÿƒnƒ“ƒhƒ‹(–¢“o˜^CŠJnŒã‚Í NULL) 	*/
-	CpkHn		hn_next_start;		/* Ÿƒnƒ“ƒhƒ‹(ŠJnŒã) 					*/
-	Sint32		dont_dec_video;		/* I—¹‚ÉPCMƒXƒgƒbƒv‚µ‚È‚¢ƒtƒ‰ƒO 		*/
+	/* Next Movie Management Information */
+	Sint32		next_start;			/* Start of								*/
+/*	CpkHn hn_next;*/			/* Next handle (not registered, null after start) 	*/
+	CpkHn		hn_next_start;		/* Next handle (after start) 					*/
+	Sint32		dont_dec_video;		/* Flag that does not stop PCM at the end. 		*/
 	
 	
-	/* PCMƒf[ƒ^‚Ì‚c‚l‚`“]‘—‚ÉŠÖ‚·‚éî•ñ */
-	Sint32		cppcm_start;		/* ‚ÌŠJn								*/
-	CpkTrMode	copy_mode_pcm;		/* ƒf[ƒ^‚Ì“]‘—•û® 					*/
-	Uint32		flag_dma_hold;		/* 1:‚±‚Ìƒ€[ƒr[‚ªDMA‘Œ¹‚ğ•Û‚µ‚Ä‚¢‚é*/
-	Uint32		pcm_renew_size;		/* DMAI—¹pcmÊŞ¯Ì§‘‚«‚İÎß²İÀXV»²½Ş*/
-	Uint32		buf_renew_size;		/* DMAI—¹ÊŞ¯Ì§“Ç‚İæ‚èÎß²İÀXV»²½Ş 	*/
-	Uint32		idx_dma_pcm_tbl;	/* dma_pcm_tbl ‚ÌƒCƒ“ƒfƒbƒNƒX 			*/
-	CpkDmaStock	dma_pcm_tbl[4];		/* DMA“]‘—î•ñƒGƒ“ƒgƒŠƒe[ƒuƒ‹ 			*/
+	/* Information about DMA transfers of PCM data */
+	Sint32		cppcm_start;		/* Start of								*/
+	CpkTrMode	copy_mode_pcm;		/* Method of data transfer 					*/
+	Uint32		flag_dma_hold;		/* 1: This movie has DMA resources*/
+	Uint32		pcm_renew_size;		/* Us\u003ethe PCM buffer write pointer update size at the end of DMA*/
+	Uint32		buf_renew_size;		/* DMA end-time buffer read pointer update size 	*/
+	Uint32		idx_dma_pcm_tbl;	/* Index of DMA_PCM_tbl 			*/
+	CpkDmaStock	dma_pcm_tbl[4];		/* DMA transfer information entry table 			*/
 	
-	/* ŠÔŠÇ—î•ñ(ƒrƒfƒI‚Ì‚İƒ€[ƒr[—p) */
-	Sint32		time_start;			/* ‚ÌŠJn								*/
-									/* 95-08-17 Y.T : CPK_SetSpeed ‘Î‰ 	*/
-									/*   Vbl¶³İÀ‚ğÊİÄŞÙ–ˆ‚É‚Â				*/
-	Sint32		cnt_vbl_in;			/* Vlb-In Š„‚è‚İƒJƒEƒ“ƒ^[vbl]			*/
-	Sint32		vblcnt_regulator;	/* Vlb-In ƒJƒEƒ“ƒ^Ä¶‘¬“x’²ßŠí		*/
-	Sint32		vbl_film_start;		/* ƒtƒBƒ‹ƒ€ŠJn[vbl] 				*/
-	Sint32		vbl_pause;			/* ƒ|[ƒYŠJn[vbl] 					*/
-	Sint32		vbl_pcm_start;		/* PCMŠJn[vbl]
-									 * Å‰‚Ì ‚É cnt_4ksample ‚ğŒë‚Á‚Ä¶³İÄ
-									 * ±¯Ìß‚µ‚È‚¢‚æ‚¤‚ÉB
+	/* Time Management Information (Video only movies) */
+	Sint32		time_start;			/* Start of								*/
+									/* 95-08-17 Y. TT : CPK_SetSpeed capable 	*/
+									/*   Have a Vbl counter per handle				*/
+	Sint32		cnt_vbl_in;			/* VLB-in Interrupt Counter [vbl]			*/
+	Sint32		vblcnt_regulator;	/* VLB-in counter regeneration speed regulator		*/
+	Sint32		vbl_film_start;		/* Film Start Time [vbl] 				*/
+	Sint32		vbl_pause;			/* Pause Start Time [vbl] 					*/
+	Sint32		vbl_pcm_start;		/* PCM start time
+									 * Accidentally counting cnt_4ksample at the beginning
+									 * Don't up.
 									 */
-	Sint32		time_frame;			/* •\¦‚µ‚½ƒtƒŒ[ƒ€‚Ì•\¦{‘±ŠÔ	*/
+	Sint32		time_frame;			/* The time displayed + duration of the displayed frame	*/
 
-	/* Ä¶‘¬“xŠÇ—î•ñ */
-	Sint32		speed;				/* Ä¶‘¬“x[‘Î“™‘¬”ä~1024] 			*/
-	Bool		audio_sw;			/* Ä¶‘¬“x•ÏX‚Ìµ°ÃŞ¨µo—Í½²¯Á		*/
+	/* Playback speed control information */
+	Sint32		speed;				/* Playback speed [Ratio to Constant Speed * 1024] 			*/
+	Bool		audio_sw;			/* Audio output switch when changing playback speed		*/
 
-	/* ƒGƒ‰[î•ñ */
-	Uint32		err_start;			/* ƒGƒ‰[î•ñ‚ÌŠJn                     */
-	Uint32		CntLossFrame;		/* ƒRƒ}—‚¿ƒJƒEƒ“ƒ^ 					*/
-	Uint32		CntPcmLoadMiss;		/* PCMƒ[ƒhƒ~ƒXƒJƒEƒ“ƒ^ 				*/
-	Uint32		CntCallTask;		/* ƒ^ƒXƒNƒR[ƒ‹ƒJƒEƒ“ƒ^ 				*/
-	Uint32		CntOverCallTask;	/* ‰ßèƒ^ƒXƒNƒR[ƒ‹ƒJƒEƒ“ƒ^ 			*/
-	Uint32		cnt_buf_empty;		/* ƒoƒbƒtƒ@‹óƒ^ƒXƒNƒJƒEƒ“ƒ^ 			*/
-	Uint32		max_late_time;		/* Å‘å’x‚êŠÔ[ƒtƒBƒ‹ƒ€ŠÔ’PˆÊ] 		*/
-	Uint32		max_late_frame;		/* Å‘å’x‚êƒtƒŒ[ƒ€”Ô†					*/
+	/* Error information */
+	Uint32		err_start;			/* Start error information                     */
+	Uint32		CntLossFrame;		/* Frame drop counter 					*/
+	Uint32		CntPcmLoadMiss;		/* PCM load miss counter 				*/
+	Uint32		CntCallTask;		/* Task call counters 				*/
+	Uint32		CntOverCallTask;	/* Excessive task call counters 			*/
+	Uint32		cnt_buf_empty;		/* Buffer empty task counter 			*/
+	Uint32		max_late_time;		/* Maximum Delay Time [Film Time Unit] 		*/
+	Uint32		max_late_frame;		/* Maximum delay frame number					*/
 } CpkStatus;
 
 
-/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXŠÖŒW */
+/* File access relationships */
 typedef struct {
-	GfsHn		gfs;			/* ƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹ */
-	Sint32		load_sect;		/* “]‘—Å‘åƒZƒNƒ^” */
-	Bool		called_cdread;	/* GFS_NwCdRead ‚ğƒR[ƒ‹‚µ‚½‚ç TRUE */
-	Bool		exec_one_state;	/* ExecOne Às’†‚È‚ç TRUE */
-	Sint32		exec_load_size;	/* ExecOne ‚Å“Ç‚İ‚ŞƒoƒCƒg” */
-	Sint32		now_load_size;	/* ExecOne ‚Å“Ç‚İ‚ñ‚Å‚¢‚éƒoƒCƒg” */
-	Sint32		load_total_sect;/* “Ç‚İ‚İ‘ƒZƒNƒ^” */
-	Sint32		file_sect;		/* ƒtƒ@ƒCƒ‹‚ÌƒZƒNƒ^” */
-	Sint32		tr_mode;		/* “]‘—ƒ‚[ƒh */
+	GfsHn		gfs;			/* File handle */
+	Sint32		load_sect;		/* Maximum number of sectors to transfer */
+	Bool		called_cdread;	/* True if calling GFS_NwCdRead */
+	Bool		exec_one_state;	/* True if ExecOne is running */
+	Sint32		exec_load_size;	/* Number of bytes read by ExecOne */
+	Sint32		now_load_size;	/* Number of bytes that ExecOne is reading */
+	Sint32		load_total_sect;/* Total number of sectors to read */
+	Sint32		file_sect;		/* Number of sectors in the file */
+	Sint32		tr_mode;		/* Transfer mode */
 } CpkFileGfsPara;
 
 typedef struct {
-	StmHn		stm;			/* ƒXƒgƒŠ[ƒ€ƒnƒ“ƒhƒ‹ */
-	Sint32		load_sect;		/* “]‘—Å‘åƒZƒNƒ^” */
-	Sint32		old_cd_buf_num;	/* ‘O‰ñ‚Ì‚b‚cƒoƒbƒtƒ@‚Ì” */
-	Bool		dma_state;		/* ‚c‚l‚`“]‘—‚µ‚Ä‚¢‚é‚È‚ç TRUE */
-	Sint32		dma_sect;		/* ‚c‚l‚`“]‘—‚·‚éƒZƒNƒ^” */
-	Uint32		*write_addr;	/* ‘‚«‚ŞƒAƒhƒŒƒX */
-	Sint32		buf_bsize;		/* ‹ó‚«ƒoƒbƒtƒ@‚ÌƒoƒCƒg” */
-	Sint32		write_bsize;	/* “]‘—‚µ‚½ƒoƒCƒg” */
-	Sint32		load_total_sect;/* “Ç‚İ‚İ‘ƒZƒNƒ^” */
-	StmTrFunc	load_func;		/* “]‘—ŠÖ” */
+	StmHn		stm;			/* Stream handle */
+	Sint32		load_sect;		/* Maximum number of sectors to transfer */
+	Sint32		old_cd_buf_num;	/* Number of previous CD buffers */
+	Bool		dma_state;		/* True if DMA transfer is in process */
+	Sint32		dma_sect;		/* Number of sectors to DMA transfer */
+	Uint32		*write_addr;	/* Address to write to */
+	Sint32		buf_bsize;		/* Number of bytes in the free buffer */
+	Sint32		write_bsize;	/* Number of bytes transferred */
+	Sint32		load_total_sect;/* Total number of sectors to read */
+	StmTrFunc	load_func;		/* Transfer function */
 } CpkFileStmPara;
 
 typedef struct {
-	Sint32		faccess_type;		/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXƒ^ƒCƒv */
-	/* ƒtƒ@ƒCƒ‹ƒ[ƒJƒ‹ƒf[ƒ^ */
+	Sint32		faccess_type;		/* File access type */
+	/* File local data */
 	union	{
 		CpkFileGfsPara	gfs;
 		CpkFileStmPara	stm;
 	} data;
 } CpkFilePara;
 
-/* ÀsŠÖ” */
+/* Execution functions */
 typedef struct {
 	void	(*start)(CpkHn cpk);
 	void	(*task)(CpkHn cpk);
@@ -499,206 +497,206 @@ typedef struct {
 
 
 typedef struct {
-	Sint32		work_start;				/* ƒ[ƒN‚ÌŠJn					*/
-	CpkPara 	para;					/* ‚b‚‰‚‚…‚‚‚‹‹N“®ƒpƒ‰ƒ[ƒ^ */
-	CpkStatus 	status;					/* Šeíó‘ÔiŒöŠJ•”•ªj 		*/
-	CpkHeader 	*header;				/* ƒtƒBƒ‹ƒ€ƒtƒ@ƒCƒ‹ƒwƒbƒ_ 		*/
-	CpkFilePara	filepara;				/* ƒtƒ@ƒCƒ‹ƒAƒNƒZƒXƒpƒ‰ƒ[ƒ^	*/
-	CpkExecFunc	execfunc;				/* ÀsŠÖ”						*/
+	Sint32		work_start;				/* Start work					*/
+	CpkPara 	para;					/* Cinepak startup parameters */
+	CpkStatus 	status;					/* Various states (public part) 		*/
+	CpkHeader 	*header;				/* Film file header 		*/
+	CpkFilePara	filepara;				/* File access parameters	*/
+	CpkExecFunc	execfunc;				/* Execution functions						*/
 #ifdef CPK_USE_CBTBL
-	Uint32		*cbtblp[4];				/* º°ÄŞÌŞ¯¸±ÄŞÚ½Ã°ÌŞÙ’†‰›Îß²İÀ 	*/
-	Uint32		cbtbl1a[256];			/* º°ÄŞÌŞ¯¸±ÄŞÚ½Ã°ÌŞÙ 			*/
+	Uint32		*cbtblp[4];				/* The central pointer to the code book address table 	*/
+	Uint32		cbtbl1a[256];			/* Code Book Address Table 			*/
 	Uint32		cbtbl2a[256];			/* 								*/
 	Uint32		cbtbl1b[256];			/* 								*/
 	Uint32		cbtbl2b[256];			/* 								*/
 #endif
 	Uint32 		code_book[4 * CPK_DSIZE_CODE1BOOK_FUL];
-										/* ã’i code1book, code2book	*/
-										/* ‰º’i code1book, code2book	*/
+										/* Upper code1book, code2book	*/
+										/* Lower code1book, code2book	*/
 } CpkWork;
 
 
-/* CPKDƒVƒXƒeƒ€\‘¢‘Ì */
+/* CPKD system structure */
 typedef struct {
-	Sint32 string[CPKD_STRING_LEN];	/* ¯•Ê•¶š—ñ */
-	Sint32 mode;					/* o—Íƒ‚[ƒh ‚OFo—Í‚µ‚È‚¢(ƒfƒtƒHƒ‹ƒg) */
-	Sint32 *start_addr;				/* o—ÍƒAƒhƒŒƒX‚Ìæ“ª */
-	Sint32 *end_addr;				/* o—ÍƒAƒhƒŒƒX‚Ì––”ö */
-	Sint32 *print_addr;				/* Œ»İ‚Ìo—ÍƒAƒhƒŒƒX */
-	Sint32 return_cnt;				/* Ü‚è•Ô‚µƒJƒEƒ“ƒ^ */
+	Sint32 string[CPKD_STRING_LEN];	/* Identification string */
+	Sint32 mode;					/* Output mode 0: No output (default) */
+	Sint32 *start_addr;				/* Beginning of the output address */
+	Sint32 *end_addr;				/* End of output address */
+	Sint32 *print_addr;				/* Current output address */
+	Sint32 return_cnt;				/* Fold-over counter */
 } CpkdSys;
 
 
-/*------------------------ sƒfƒoƒbƒO—péŒ¾t ------------------------*/
+/*------------------------ Declaration for Debugging ------------------------*/
 
-/* CPKDƒVƒXƒeƒ€\‘¢‘Ì */
+/* CPKD system structure */
 extern CpkdSys cpkd_sys;
 
-/* ƒfƒoƒbƒOo—Íƒ‚[ƒh‚Ìİ’è@0N:o—Í‚·‚é, OFF:o—Í‚µ‚È‚¢(ÃŞÌ«ÙÄ) */
+/* Setting debug output mode 0N:printing, off:not printing (default) */
 void CPKD_SetMode(Bool mode);
 
-/* ƒfƒoƒbƒOo—ÍƒAƒhƒŒƒX‚Ìİ’è */
+/* Setting the debug output address */
 void CPKD_SetPrintAddr(Sint32 *start, Sint32 *end);
 
-/* ƒfƒoƒbƒO•¶š—ñ‚Ìo—Í(•¶š—ñ’·‚Í‚S‚Ì®””{‚É‹KŠi‰»‚³‚ê‚é) */
+/* Debug string output (string length is standardized to an integer multiple of 4) */
 void CPKD_PrintStr(char *str);
 
-/* ƒfƒoƒbƒOƒf[ƒ^‚Ìo—Í(‚SƒoƒCƒg) */
+/* Debug Data Output (4 bytes) */
 void CPKD_PrintData(Sint32 data);
 
 
-/*-------------------------- sŠÖ”éŒ¾t --------------------------*/
+/*-------------------------- Function Declaration --------------------------*/
 
-/* ƒ‰ƒCƒuƒ‰ƒŠ‚Ì‰Šú‰» */
+/* Library initialization */
 Bool CPK_Init(void);
 
-/* ƒ‰ƒCƒuƒ‰ƒŠ‚ÌI—¹ˆ— */
+/* The process of closing the library */
 void CPK_Finish(void);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒƒ‚ƒŠj */
+/* Create handle (memory) */
 CpkHn CPK_CreateMemMovie(CpkCreatePara *para);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒƒ‚ƒŠj */
+/* Clear handle (memory) */
 void CPK_DestroyMemMovie(CpkHn cpk);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€j */
+/* Create handles (File System) */
 CpkHn CPK_CreateGfsMovie(CpkCreatePara *para, GfsHn gfs);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒtƒ@ƒCƒ‹ƒVƒXƒeƒ€j */
+/* Clear handles (File System) */
 void CPK_DestroyGfsMovie(CpkHn cpk);
 
-/* ƒnƒ“ƒhƒ‹‚Ìì¬iƒXƒgƒŠ[ƒ€ƒVƒXƒeƒ€j */
+/* Creating handles (Stream System) */
 CpkHn CPK_CreateStmMovie(CpkCreatePara *para, StmHn stm);
 
-/* ƒnƒ“ƒhƒ‹‚ÌÁ‹iƒXƒgƒŠ[ƒ€ƒVƒXƒeƒ€j */
+/* Clear handle (Stream System) */
 void CPK_DestroyStmMovie(CpkHn cpk);
 
-/* Ä¶ƒ^ƒXƒN */
+/* Playback task */
 void CPK_Task(CpkHn cpk);
 
-/* •\¦ƒ^ƒCƒ~ƒ“ƒO‚Ì”»’è */
+/* Determining display timing */
 Bool CPK_IsDispTime(CpkHn cpk);
 
-/* •\¦ƒtƒŒ[ƒ€í•Ê‚Ì”»’è */
+/* Determine the display frame type */
 Bool CPK_IsKeyframe(CpkHn cpk);
 
-/* •\¦Š®—¹‚Ì’Ê’m */
+/* Notification of completion of the display */
 void CPK_CompleteDisp(CpkHn cpk);
 
-/* ‚uƒuƒ‰ƒ“ƒN‚h‚mˆ—ŠÖ” */
+/* V blank in processing function */
 void CPK_VblIn(void);
 
-/* Ä¶ŠJn */
+/* Start playback */
 void CPK_Start(CpkHn cpk);
 
-/* Ä¶’â~ */
+/* Stop playback */
 void CPK_Stop(CpkHn cpk);
 
-/* ˆê’â~ */
+/* Pause */
 Bool CPK_Pause(CpkHn cpk, CpkPauseCmd cmd);
 
-/* Ÿ‚ÉÄ¶‚·‚éƒ€[ƒr‚Ì“o˜^ */
+/* Register the next movie to play */
 void CPK_EntryNext(CpkHn cpk);
 
-/* ƒ€[ƒr‚Ì‹­§Ø‚è‘Ö‚¦ */
+/* Force switch of the movement */
 void CPK_Change(void);
 
-/* ƒ€[ƒr‚ÌØ‚è‘Ö‚¦ó‘Ô‚Ìæ“¾ */
+/* Get the transition state of the movie */
 CpkChangeStatus CPK_CheckChange(void);
 
-/* w’èƒtƒŒ[ƒ€‚Ì“WŠJ */
+/* Expand the specified frame */
 void CPK_DecodeFrame(CpkHn cpk, Sint32 sample_no);
 
-/* w’èƒtƒŒ[ƒ€‚Ì“WŠJ(·•ªƒtƒŒ[ƒ€•ÛØ) */
+/* Expand specified Frames (Differential Frame Assurance) */
 void CPK_DecodeFrameSafety(CpkHn cpk, Sint32 sample_no);
 
-/* “WŠJæƒAƒhƒŒƒX‚Ìİ’è */
+/* Set destination address */
 void CPK_SetDecodeAddr(CpkHn cpk, void *dec_addr, Sint32 dec_line_size);
 
-/* •\¦F”‚Ìİ’è */
+/* Set the number of colors to display */
 void CPK_SetColor(CpkHn cpk, CpkColorType color);
 
-/* Å‘å“]‘—ƒZƒNƒ^”‚Ìİ’è */
+/* Set the maximum number of transmit sectors */
 void CPK_SetLoadNum(CpkHn cpk, Sint32 read_sct);
 
-/* Ä¶‚o‚`‚m‚Ìİ’è */
+/* Playback pan settings */
 void CPK_SetPan(CpkHn cpk, Sint32 pan);
 
-/* Ä¶ƒ{ƒŠƒ…[ƒ€‚Ìİ’è */
+/* Playback volume settings */
 void CPK_SetVolume(CpkHn cpk, Sint32 volume);
 
-/* Ä¶‘¬“x‚Ìİ’è */
+/* Set playback speed */
 void CPK_SetSpeed(CpkHn cpk, Sint32 speed, Bool audio_sw);
 
-/* ‚o‚b‚lƒRƒ}ƒ“ƒhƒuƒƒbƒN”Ô†‚Ìİ’è */
-/* void CPK_SetPcmCmdBlockNo(CpkHn cpk, Sint32 blk_no); */
+/* PCM command block number configuration */
+/* Void CPK_SetPcmCmdBlockNo(CpkHn cpk, Sint32 blk_no) */
 
-/* ‚o‚b‚lƒXƒgƒŠ[ƒ€”Ô†‚Ìİ’è */
+/* PCM stream number configuration */
 void CPK_SetPcmStreamNo(CpkHn cpk, Sint32 stream_no);
 
-/* ƒL[ƒAƒEƒgi“§–¾‚É‚·‚éFj”ÍˆÍ‚Ìİ’è */
+/* Setting the key-out (color to make transparent) range */
 void CPK_SetKeyOutRange(CpkHn cpk, Sint32 range);
 
-/* –³‰¹—¦‚Ìİ’è */
+/* Silence setting */
 void CPK_SetSilenceRate(CpkHn cpk, Sint32 silence_rate);
 
-/* ƒf[ƒ^‚Ì“]‘—•û®‚Ìİ’èi‚b‚cƒuƒƒbƒN¨ƒŠƒ“ƒOƒoƒbƒtƒ@j */
+/* Setting the method for transferring data (CD blocks â†’ ring buffers) */
 void CPK_SetTrModeCd(CpkHn cpk, CpkTrMode mode);
 
-/* ƒf[ƒ^‚Ì“]‘—•û®‚Ìİ’èiƒŠƒ“ƒOƒoƒbƒtƒ@¨‚o‚b‚lƒoƒbƒtƒ@j */
+/* Set the data transfer method (ring buffer â†’ PCM buffer) */
 void CPK_SetTrModePcm(CpkHn cpk, CpkTrMode mode);
 
-/* Ä¶ŠJnƒgƒŠƒKƒTƒCƒY‚Ìİ’è [byte] */
+/* Set the start playback trigger size [byte] */
 void CPK_SetStartTrgSize(CpkHn cpk, Sint32 bsize);
 
-/* ƒ^ƒCƒ€ƒXƒP[ƒ‹‚Ìæ“¾ */
+/* Get timescale */
 Sint32 CPK_GetTimeScale(CpkHn cpk);
 
-/* Ä¶‚Ìæ“¾ [timescale] */
+/* Get playback time [timescale] */
 Sint32 CPK_GetTime(CpkHn cpk);
 
-/* Ä¶ƒXƒe[ƒ^ƒX‚Ìæ“¾ */
+/* Get playback status */
 CpkPlayStatus CPK_GetPlayStatus(CpkHn cpk);
 
-/* ƒtƒBƒ‹ƒ€ƒwƒbƒ_‚ÌƒAƒhƒŒƒX‚Ìæ“¾ */
+/* Get film header address */
 CpkHeader *CPK_GetHeader(CpkHn cpk);
 
-/* ‘‚«‚İƒoƒbƒtƒ@ƒAƒhƒŒƒX‚Ìæ“¾ */
+/* Get write buffer address */
 Uint32 *CPK_GetWriteBuf(CpkHn cpk, Sint32 *free_size, Sint32 *free_total);
 
-/* ƒoƒbƒtƒ@‚Ö‚Ì‘‚«‚İƒTƒCƒY‚Ì’Ê’m */
+/* Notification of the write size to the buffer */
 void CPK_NotifyWriteSize(CpkHn cpk, Sint32 write_size);
 
-/* ƒƒ‚ƒŠ‚Éƒ€[ƒr‚ğ“Ç‚İ‚Ş */
+/* Reads a movie into memory */
 Sint32 CPK_PreloadMovie(CpkHn cpk, Sint32 size);
 
-/* ƒƒ‚ƒŠ‚ÉƒtƒBƒ‹ƒ€ƒwƒbƒ_‚ğ“Ç‚İ‚Ş */
+/* Load film headers into memory */
 Sint32 CPK_PreloadHeader(CpkHn cpk);
 
-/* ƒGƒ‰[ŠÖ”‚Ì“o˜^ */
+/* Register error function */
 void CPK_SetErrFunc(CpkErrFunc func, void *obj);
 
-/* ƒGƒ‰[î•ñ‚Ìæ“¾ */
+/* Get error information */
 CpkErrCode CPK_GetErr(void);
 
-/* SCU-DSP‘Œ¹‚ÌŠm•Û */
+/* SCU-DSP resource reserve */
 Sint32 CPK_AllocScuDsp(void);
 
-/* SCU-DSP‘Œ¹‚Ì‰ğ•ú */
+/* Release of SCU-DSP resources */
 void CPK_FreeScuDsp(void);
 
-/* ‚b‚o‚tg—pğŒ‚Ìİ’è */
+/* Setting CPU usage conditions */
 void CPK_SetCpu(CpkCpu cpu);
 
-/* ƒXƒgƒŠ[ƒ€ƒT[ƒoŠÖ”‚ÌƒR[ƒ‹‚Ìİ’è */
+/* Call settings for stream server functions */
 void CPK_SetStmServerCall(Bool mode);
 
-/* ƒf[ƒ^”õ’~—Ê‚Ìæ“¾ [byte] */
-/* ‚r‚f‚k‚Ì‚f‚e‚r‚Ìƒo[ƒWƒ‡ƒ“‚ª‚–‚…‚’‚PD‚Q‚PˆÈã‚Ìê‡‚Ì‚İg—p‰Â”\ */
+/* Get data storage [byte] */
+/* Only available if the GFS version of the SGL is version ver1.21 or higher */
 void CPK_GetStockSize(CpkHn cpk, Sint32 *ring_bsize, Sint32 *all_bsize);
 
-/* ƒf[ƒ^”õ’~—Ê‚Ìæ“¾ [timescale] */
-/* ‚r‚f‚k‚Ì‚f‚e‚r‚Ìƒo[ƒWƒ‡ƒ“‚ª‚–‚…‚’‚PD‚Q‚PˆÈã‚Ìê‡‚Ì‚İg—p‰Â”\ */
+/* Data storage capacity retrieval [timescale] */
+/* Only available if the GFS version of the SGL is version ver1.21 or higher */
 void CPK_GetStockTime(CpkHn cpk, Sint32 *ring_time, Sint32 *all_time);
 
 #endif /* SEGA_CPK_H */
