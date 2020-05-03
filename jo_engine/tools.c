@@ -159,6 +159,31 @@ void            jo_print(int x, int y, char * str)
 
 # define JO_BCD_INT(BCD)    (((BCD & 0xF0) >> 4) * 10 + (BCD & 0x0F))
 
+#if JO_COMPILE_USING_SGL
+
+void                    jo_getdate(jo_datetime *now)
+{
+    SmpcDateTime        *time;
+#ifdef JO_DEBUG
+   if (now == JO_NULL)
+   {
+	 	jo_core_error("now is null");
+	 	return;
+   }
+#endif
+	slGetStatus();
+    time = &(Smpc_Status->rtc);
+    now->year = (unsigned short)slDec2Hex(time->year);
+    now->month = (unsigned char)(time->month & 0x0f);
+    now->week = (unsigned char)(time->month >> 4);
+    now->day = (unsigned char)slDec2Hex(time->date);
+    now->hour = (unsigned char)slDec2Hex(time->hour);
+    now->minute = (unsigned char)slDec2Hex(time->minute);
+    now->second = (unsigned char)slDec2Hex(time->second);
+}
+
+#else
+
 void                        jo_getdate(jo_datetime *now)
 {
 #ifdef JO_DEBUG
@@ -186,6 +211,8 @@ void                        jo_getdate(jo_datetime *now)
     now->minute = JO_BCD_INT(jo_smpc_read_byte(OutputRegister6));
     now->second = JO_BCD_INT(jo_smpc_read_byte(OutputRegister7));
 }
+
+#endif
 
 jo_language     jo_get_current_language(void)
 {
