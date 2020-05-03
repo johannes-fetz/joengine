@@ -302,7 +302,7 @@ static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
  */
 static  __jo_force_inline void	jo_sprite_change_sprite_scale(const float scale)
 {
-    __jo_sprite_attributes.fixed_scale = (int)(scale * 65536.f);
+    __jo_sprite_attributes.fixed_scale = (int)(scale * 65535.f);
 }
 
 /** @brief Restore default scale for every sprite displayed after this call

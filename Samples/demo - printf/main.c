@@ -42,10 +42,13 @@ void			    my_draw(void)
     jo_printf(0, 3, "It works !!!");
     jo_set_printf_color_index(JO_COLOR_INDEX_Blue);
     jo_printf(0, 4, "Hex value of 42: %x", 42);
-    jo_set_printf_color_index(JO_COLOR_INDEX_Purple);
-    jo_printf(0, 5, "Dynamic memory usage: %d%%  ", jo_memory_usage_percent());
+    // Or you can use jo_printf_with_color()
+    jo_printf_with_color(0, 5, JO_COLOR_INDEX_Purple, "Dynamic memory usage: %d%%  ", jo_memory_usage_percent());
     // Use jo_font_printf if you want to use top-left screen coordinates
     jo_font_printf_centered(my_font, 0, 0, 1.0f, "SCORE = %d",  42);
+
+
+
 }
 
 void			jo_main(void)

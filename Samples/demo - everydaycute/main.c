@@ -40,7 +40,7 @@ void			    my_draw(void)
 	star_rotation += 3;
 
 	jo_sprite_draw3D(jo_get_anim_sprite(cats_anim_id), 0, 0, 490);
-    jo_printf(12, 22, "EverydayCute.com");
+    jo_printf(12, 21, "EverydayCute.com");
 }
 
 void			create_cats_animation()
