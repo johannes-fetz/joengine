@@ -73,13 +73,25 @@ char*			jo_fs_read_file_in_dir(const char *const filename, const char *const sub
  */
 char*			jo_fs_read_file(const char *const filename, int *len);
 
+/** @brief Read a file on the CD asynchronously and put the contents to "dest"
+ *  @param filename Filename (upper case and shorter as possible like "A.TXT")
+ *  @param callback Callback called when the file is loaded
+ *  @param optional_token User value to identify the file
+ *  @param dest Output
+ *  @return true if succeed
+ */
+bool            jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *dest);
+
 /** @brief Read a file on the CD asynchronously
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param callback Callback called when the file is loaded
  *  @param optional_token User value to identify the file
  *  @return true if succeed
  */
-bool            jo_fs_read_file_async(const char *const filename, jo_fs_async_read_callback callback, int optional_token);
+static  __jo_force_inline bool            jo_fs_read_file_async(const char *const filename, jo_fs_async_read_callback callback, int optional_token)
+{
+    return (jo_fs_read_file_async_ptr(filename, callback, optional_token, 0));
+}
 
 /** @brief Open a file
  *  @param file Pointer to an allocated jo_file struct

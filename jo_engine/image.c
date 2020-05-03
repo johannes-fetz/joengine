@@ -299,6 +299,7 @@ int							jo_sprite_add_image_pack(const char * const sub_dir, const char * cons
 
     first_id = -1;
     JO_ZERO(count);
+    JO_ZERO(res);
     if ((stream = jo_fs_read_file_in_dir(filename, sub_dir, 0)) == JO_NULL)
         return (-1);
     stream_begin = stream;

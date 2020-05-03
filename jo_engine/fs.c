@@ -54,13 +54,17 @@
 # define JO_SECTOR_SIZE                     (2048)
 
 /** @brief Max file opened at the same time
- *  @warning NEVER CHANGE THIS VALUE
  */
+
+#if JO_MAX_FS_BACKGROUND_JOBS > 0
+# define JO_OPEN_MAX						(JO_MAX_FS_BACKGROUND_JOBS)
+#else
 # define JO_OPEN_MAX						(1)
+#endif
 
 /** @brief Maximum sector fetched once (for jo_fs_read_file_async())
  */
-# define JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC     (1)
+# define JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC     (8)
 
 /** @brief Size of each read jo(for jo_fs_do_background_jobs())
  */
@@ -136,10 +140,11 @@ void                    jo_fs_do_background_jobs(void)
         }
         else
             __jo_fs_background_jobs[i].ptr += nbyte;
+        return ; //TODO
     }
 }
 
-bool                    jo_fs_read_file_async(const char *const filename, jo_fs_async_read_callback callback, int optional_token)
+bool                    jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *dest)
 {
     register int        i;
     int			        fid;
@@ -175,7 +180,9 @@ bool                    jo_fs_read_file_async(const char *const filename, jo_fs_
         }
         GFS_GetFileSize(__jo_fs_background_jobs[i].gfs, &sctsize, &nsct, &lastsize);
         __jo_fs_background_jobs[i].file_length = (sctsize * (nsct - 1) + lastsize);
-        if ((__jo_fs_background_jobs[i].contents = jo_malloc(sctsize * nsct + 1)) == JO_NULL)
+        if (dest != JO_NULL)
+            __jo_fs_background_jobs[i].contents = dest;
+        else if ((__jo_fs_background_jobs[i].contents = jo_malloc(sctsize * nsct + 1)) == JO_NULL)
         {
 #ifdef JO_DEBUG
             jo_core_error("%s: Out of memory", filename);
@@ -186,8 +193,10 @@ bool                    jo_fs_read_file_async(const char *const filename, jo_fs_
         __jo_fs_background_jobs[i].token = optional_token;
         __jo_fs_background_jobs[i].callback = callback;
         __jo_fs_background_jobs[i].ptr = __jo_fs_background_jobs[i].contents;
-        GFS_NwCdRead(__jo_fs_background_jobs[i].gfs, sctsize * nsct);
+        GFS_SetReadPara(__jo_fs_background_jobs[i].gfs, JO_READ_SIZE_ASYNC);
         GFS_SetTransPara(__jo_fs_background_jobs[i].gfs, JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC);
+        GFS_SetTmode(__jo_fs_background_jobs[i].gfs, GFS_TMODE_SCU);
+        GFS_NwCdRead(__jo_fs_background_jobs[i].gfs, sctsize * nsct);
         __jo_fs_background_jobs[i].active = true;
         ++__jo_fs_background_job_count;
         return (true);
