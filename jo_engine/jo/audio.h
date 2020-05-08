@@ -63,11 +63,11 @@ typedef struct
 # define JO_MIN_AUDIO_VOLUME        (0)
 
 /** @brief Play a track from the CD
- *  @param fromTrack First track index to play
- *  @param totrack Last track index to play
- *  @param loop 1 to enable repeat mode or 0
+ *  @param from_track First track index to play
+ *  @param to_track Last track index to play
+ *  @param repeat_infinitely Play tracks infinitely or not
  */
-void	jo_audio_play_cd_track(const int fromTrack, const int totrack, const int loop);
+void	jo_audio_play_cd_track(const int from_track, const int to_track, const bool repeat_infinitely);
 
 /** @brief Set the audio volume
  *  @param vol Volume level from 0 to 127

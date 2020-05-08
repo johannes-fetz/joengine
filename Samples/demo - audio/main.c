@@ -33,23 +33,30 @@ static jo_sound     blop;
 void			my_draw(void)
 {
     jo_printf(0, 0, jo_get_last_error());
-    jo_printf(0, 1, "Press A to play Blop sound");
-    jo_printf(0, 2, "Press B to play CD music");
 }
 
-void			my_gamepad(void)
+void			    my_gamepad(void)
 {
-    static int  is_cd_playing = 0;
+    static bool     is_cd_playing = false;
 
     if (!jo_is_pad1_available())
         return ;
-    if (jo_is_pad1_key_pressed(JO_KEY_A))
+    if (jo_is_pad1_key_down(JO_KEY_A))
         jo_audio_play_sound_on_channel(&blop, 0);
-    if (jo_is_pad1_key_pressed(JO_KEY_B) && !is_cd_playing)
+    if (jo_is_pad1_key_down(JO_KEY_B))
     {
-        /* the first track is reserved for the game binary so the first track is 2 */
-        jo_audio_play_cd_track(2, 2, 1);
-        is_cd_playing = 1;
+        if (!is_cd_playing)
+        {
+            /* The first two tracks in this demo are reserved so the first audio track is 3.
+               For more details you can open "sl_coff.cue" file with a notepad */
+            jo_audio_play_cd_track(3, 3, true);
+            is_cd_playing = true;
+        }
+        else
+        {
+            jo_audio_stop_cd();
+            is_cd_playing = false;
+        }
     }
 }
 
@@ -76,6 +83,8 @@ void			jo_main(void)
 {
 	jo_core_init(JO_COLOR_DarkGray);
 	load_blop_sound();
+    jo_printf(0, 1, "Press A to play Blop sound");
+    jo_printf(0, 2, "Press B to play CD music");
 	jo_core_add_callback(my_draw);
 	jo_core_add_callback(my_gamepad);
 	jo_core_run();

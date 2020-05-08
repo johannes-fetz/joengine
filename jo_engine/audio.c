@@ -45,6 +45,8 @@
 
 #ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
 
+# define CDC_PLY_PMODE_ENDLESS_REPEAT   (0x0f)
+
 static PCM             __jo_internal_pcm[JO_SOUND_MAX_CHANNEL] =
 {
     {(_Stereo | _PCM16Bit), 0, 127, 0, 0x0, 0, 0, 0, 0},
@@ -55,17 +57,28 @@ static PCM             __jo_internal_pcm[JO_SOUND_MAX_CHANNEL] =
     {(_Stereo | _PCM16Bit), 10, 127, 0, 0x0, 0, 0, 0, 0},
 };
 
-void			    jo_audio_play_cd_track(const int fromTrack, const int totrack, const int loop)
+void			    jo_audio_play_cd_track(const int from_track, const int to_track, const bool repeat_infinitely)
 {
     CdcPly		    plywk;
 
     CDC_PLY_STYPE(&plywk) = CDC_PTYPE_TNO;
-    CDC_PLY_STNO(&plywk) = fromTrack;
+    CDC_PLY_STNO(&plywk) = from_track;
     CDC_PLY_SIDX(&plywk) = 1;
+
     CDC_PLY_ETYPE(&plywk) = CDC_PTYPE_TNO;
-    CDC_PLY_ETNO(&plywk) = totrack;
-    CDC_PLY_EIDX(&plywk) = 99;
-    CDC_PLY_PMODE(&plywk) = CDC_PM_DFL + loop;
+    CDC_PLY_ETNO(&plywk) = to_track;
+    CDC_PLY_EIDX(&plywk) = 1;
+
+    /*
+        ST-38-R1-121093 page 24:
+
+        0x00       No repeat (plays only once)
+        0x01~0x0e  Maximum repeats (1~14 times)
+        0x0f       Endless repeat
+        0x7f       No change to the repeat mode
+    */
+    CDC_PLY_PMODE(&plywk) = repeat_infinitely ? CDC_PLY_PMODE_ENDLESS_REPEAT : CDC_PM_DFL;
+
     CDC_CdPlay(&plywk);
 }
 
