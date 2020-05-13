@@ -196,7 +196,7 @@ void			load_background(void)
     jo_img      bg;
 
     bg.data = JO_NULL;
-    jo_tga_loader(&bg, "BG", "BG.TGA", JO_COLOR_Transparent);
+    jo_bin_loader(&bg, "BG", "BG.BIN", JO_COLOR_Transparent);
     jo_set_background_sprite(&bg, 0, 0);
     jo_free_img(&bg);
 }

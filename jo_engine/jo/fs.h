@@ -40,11 +40,11 @@
 /*
 ** MACROS
 */
-/** @brief Specify the root directory (on the CD) for jo_fs_read_file(), jo_map_load_from_file(), etc.  */
+/** @brief Specify the root directory (on the CD) for jo_fs_read_file(), jo_map_load_from_file(), etc. */
 # define JO_ROOT_DIR				((const char *)0)
-/** @brief Specify the current directory (on the CD) for jo_fs_read_file(), jo_map_load_from_file(), etc.  */
+/** @brief Specify the current directory (on the CD) for jo_fs_read_file(), jo_map_load_from_file(), etc. */
 # define JO_CURRENT_DIR				((const char *)0)
-/** @brief Specify the root directory (on the CD) for jo_fs_read_file(), jo_map_load_from_file(), etc.  */
+/** @brief Specify the parent directory for jo_fs_read_file(), jo_map_load_from_file(), etc. */
 # define JO_PARENT_DIR				("..")
 
 /*

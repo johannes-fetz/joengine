@@ -76,71 +76,69 @@
 */
 
 # if defined(JO_NTSC_VERSION)
-# if defined(JO_480p)
-/** @brief Sega Saturn NTSC Screen resolution (internal use) */
-# define JO_TV_RES							(TV_704x480)
-/** @brief NTSC Screen width */
-# define JO_TV_WIDTH						(704)
-/** @brief NTSC Screen width divided by 2 (math optimization purpose) */
-# define JO_TV_WIDTH_2						(352)
-/** @brief NTSC Screen width divided by 4 (math optimization purpose) */
-# define JO_TV_WIDTH_4						(176)
-/** @brief NTSC Screen height */
-# define JO_TV_HEIGHT						(480)
-/** @brief NTSC Screen height divided by 2 (math optimization purpose) */
-# define JO_TV_HEIGHT_2						(240)
-/** @brief NTSC Screen height divided by 4 (math optimization purpose) */
-# define JO_TV_HEIGHT_4						(120)
-#else
-/** @brief Sega Saturn NTSC Screen resolution (internal use) */
-# define JO_TV_RES							(TV_320x240)
-/** @brief NTSC Screen width */
-# define JO_TV_WIDTH						(320)
-/** @brief NTSC Screen width divided by 2 (math optimization purpose) */
-# define JO_TV_WIDTH_2						(160)
-/** @brief NTSC Screen width divided by 4 (math optimization purpose) */
-# define JO_TV_WIDTH_4						(80)
-/** @brief NTSC Screen height */
-# define JO_TV_HEIGHT						(240)
-/** @brief NTSC Screen height divided by 2 (math optimization purpose) */
-# define JO_TV_HEIGHT_2						(120)
-/** @brief NTSC Screen height divided by 4 (math optimization purpose) */
-# define JO_TV_HEIGHT_4						(60)
-#endif
-
+    # if defined(JO_480p)
+        /** @brief Sega Saturn NTSC Screen resolution (internal use) */
+        # define JO_TV_RES							(TV_704x480)
+        /** @brief NTSC Screen width */
+        # define JO_TV_WIDTH						(704)
+        /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
+        # define JO_TV_WIDTH_2						(352)
+        /** @brief NTSC Screen width divided by 4 (math optimization purpose) */
+        # define JO_TV_WIDTH_4						(176)
+        /** @brief NTSC Screen height */
+        # define JO_TV_HEIGHT						(480)
+        /** @brief NTSC Screen height divided by 2 (math optimization purpose) */
+        # define JO_TV_HEIGHT_2						(240)
+        /** @brief NTSC Screen height divided by 4 (math optimization purpose) */
+        # define JO_TV_HEIGHT_4						(120)
+    #else
+        /** @brief Sega Saturn NTSC Screen resolution (internal use) */
+        # define JO_TV_RES							(TV_320x240)
+        /** @brief NTSC Screen width */
+        # define JO_TV_WIDTH						(320)
+        /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
+        # define JO_TV_WIDTH_2						(160)
+        /** @brief NTSC Screen width divided by 4 (math optimization purpose) */
+        # define JO_TV_WIDTH_4						(80)
+        /** @brief NTSC Screen height */
+        # define JO_TV_HEIGHT						(240)
+        /** @brief NTSC Screen height divided by 2 (math optimization purpose) */
+        # define JO_TV_HEIGHT_2						(120)
+        /** @brief NTSC Screen height divided by 4 (math optimization purpose) */
+        # define JO_TV_HEIGHT_4						(60)
+    #endif
 #else /* PAL Version */
-
-/** @brief Sega Saturn PAL Screen resolution (internal use) */
-# define JO_TV_RES							(TV_320x256)
-/** @brief PAL Screen width */
-# define JO_TV_WIDTH						(320)
-/** @brief PAL Screen width divided by 2 (math optimization purpose) */
-# define JO_TV_WIDTH_2						(160)
-/** @brief PAL Screen width divided by 4 (math optimization purpose) */
-# define JO_TV_WIDTH_4						(80)
-/** @brief PAL Screen height */
-# define JO_TV_HEIGHT						(256)
-/** @brief PAL Screen height divided by 2 (math optimization purpose) */
-# define JO_TV_HEIGHT_2						(128)
-/** @brief PAL Screen height divided by 4 (math optimization purpose) */
-# define JO_TV_HEIGHT_4						(64)
+    /** @brief Sega Saturn PAL Screen resolution (internal use) */
+    # define JO_TV_RES							(TV_320x256)
+    /** @brief PAL Screen width */
+    # define JO_TV_WIDTH						(320)
+    /** @brief PAL Screen width divided by 2 (math optimization purpose) */
+    # define JO_TV_WIDTH_2						(160)
+    /** @brief PAL Screen width divided by 4 (math optimization purpose) */
+    # define JO_TV_WIDTH_4						(80)
+    /** @brief PAL Screen height */
+    # define JO_TV_HEIGHT						(256)
+    /** @brief PAL Screen height divided by 2 (math optimization purpose) */
+    # define JO_TV_HEIGHT_2						(128)
+    /** @brief PAL Screen height divided by 4 (math optimization purpose) */
+    # define JO_TV_HEIGHT_4						(64)
 
 #endif
 
 # if defined (JO_480p)
-/** @brief VDP2 Background bitmap size */
-# define JO_VDP2_SIZE                       (BM_1024x512)
-/** @brief VDP2 Background bitmap width */
-# define JO_VDP2_WIDTH                      (1024)
-/** @brief VDP2 Background bitmap height */
-# define JO_VDP2_HEIGHT                     (512)
+    /** @brief VDP2 Background bitmap size */
+    # define JO_VDP2_SIZE                       (BM_1024x512)
+    /** @brief VDP2 Background bitmap width */
+    # define JO_VDP2_WIDTH                      (1024)
+    /** @brief VDP2 Background bitmap height */
+    # define JO_VDP2_HEIGHT                     (512)
 #else
-/** @brief VDP2 Background bitmap size */
-# define JO_VDP2_SIZE                       (BM_512x256)
-/** @brief VDP2 Background bitmap width */
-# define JO_VDP2_WIDTH                      (512)
-/** @brief VDP2 Background bitmap height */
-# define JO_VDP2_HEIGHT                     (256)
+    /** @brief VDP2 Background bitmap size */
+    # define JO_VDP2_SIZE                       (BM_512x256)
+    /** @brief VDP2 Background bitmap width */
+    # define JO_VDP2_WIDTH                      (512)
+    /** @brief VDP2 Background bitmap height */
+    # define JO_VDP2_HEIGHT                     (256)
 #endif
 
 /** @brief Max character in available in jo_printf() */

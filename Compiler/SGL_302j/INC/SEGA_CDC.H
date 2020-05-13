@@ -26,8 +26,8 @@
 *******************************************************************/
 
 /* Bit name of the interrupt factor register relationship (HIRQREQ, HIRQMSK) */
-#define CDC_HIRQ_CMOK   0x0001  /* Bit0—command-issue capable */
-#define CDC_HIRQ_DRDY   0x0002  /* Bit1—Data transfer ready */
+#define CDC_HIRQ_CMOK   0x0001  /* Bit0�command-issue capable */
+#define CDC_HIRQ_DRDY   0x0002  /* Bit1�Data transfer ready */
 #define CDC_HIRQ_CSCT   0x0004  /* Bit2: 1 sector read complete */
 #define CDC_HIRQ_BFUL   0x0008  /* Bit3: CD buffer full */
 #define CDC_HIRQ_PEND   0x0010  /* Bit4: End of CD play */
@@ -156,8 +156,8 @@ enum CdcPosType {
 
 /* Ready to transfer type (specified in Ready to transfer data) */
 enum CdcDrdyType {
-    CDC_DRDY_GET,           /* Eject data (CD block → host) */
-    CDC_DRDY_PUT,           /* Write data (Host → CD Block) */
+    CDC_DRDY_GET,           /* Eject data (CD block ? host) */
+    CDC_DRDY_PUT,           /* Write data (Host ? CD Block) */
 
     CDC_DRDY_END
 };

@@ -218,6 +218,7 @@ CMNDIR = $(COMPILER_DIR)/COMMON
 
 CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
 -Winline -Wlong-long -Wsign-compare -Wextra -Wno-strict-aliasing \
+-fno-common -ffast-math \
 --param max-inline-insns-single=50 -fms-extensions -std=gnu99 \
 -fmerge-all-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
 -fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -O2 -nodefaultlibs -nostdlib -fno-builtin \
