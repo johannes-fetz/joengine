@@ -1,0 +1,25 @@
+       ______       _______   _____________   ________     _________   ____ 
+      / / __ \     / ____/ | / / ____/  _/ | / / ____/    / ____/   | / __ \
+ __  / / / / /    / __/ /  |/ / / __ / //  |/ / __/      / /_  / /| |/ / / /
+/ /_/ / /_/ /    / /___/ /|  / /_/ // // /|  / /___     / __/ / ___ / /_/ / 
+\____/\____/    /_____/_/ |_/\____/___/_/ |_/_____/    /_/   /_/  |_\___\_\ 
+  
+Q:	My game crash, glitch, show "out of memory" message but why ?
+A:	There is a 90% chance that it comes from the memory space reserved for jo_malloc().
+	You can change this value in your makefile by adding:
+		JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC = 30000
+	The default value is 393216 bytes, but when your code grows or you have static data,
+	it may exceed the memory size available for your game.
+	Attention, jo_malloc () is also used internally.
+	
+Q:	What is the best format for images ?
+A:	Harcoded or Jo Engine Bin format that you can both export from Jo Map Editor.
+	More details here: https://forum.jo-engine.org/index.php?board=12.0
+
+Q:	The ratio of sprites displayed is not good. Why ?
+A:	Pay close attention to the difference between PAL / NTSC display.
+	By default, Jo Engine use NTSC screen resolution (320x240).
+	Therefore, if you start the game on a PAL television, the height of the sprites will appear wrong.
+	You can change the resolution to PAL in your makefile by adding:
+		JO_NTSC = 0
+	Note: Some emulators doesn't handle all resolution like SSF which uses 640x480 and 720x480 resolutions.

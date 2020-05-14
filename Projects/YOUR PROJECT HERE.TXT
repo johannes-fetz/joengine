@@ -1,0 +1,1 @@
+The easiest way is to copy and paste the "demo1" sample in this folder and then rename the folder
