@@ -54,14 +54,14 @@ void			    load_8bits_image(void)
 
 void			    set_8bits_image_palette(void)
 {
-    // Each component value (R, G and B) goes from 0 to 63
-    jo_set_palette_register(0xBB, JO_COLOR_RGB(0, 63, 0));
-    jo_set_palette_register(0xCC, JO_COLOR_RGB(63, 0, 0));
+    // Each component value (R, G and B) goes from 0 to 255
+    jo_set_palette_register(0xBB, JO_COLOR_RGB(0, 255, 0));
+    jo_set_palette_register(0xCC, JO_COLOR_RGB(255, 0, 0));
 }
 
 void			    jo_main(void)
 {
-	jo_core_init(JO_COLOR_Blue);
+	jo_core_init(JO_COLOR_White);
 	load_15bits_image();
 	load_8bits_image();
 	set_8bits_image_palette();

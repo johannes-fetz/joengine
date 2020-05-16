@@ -143,6 +143,34 @@ typedef struct
     void                *data;
 }                       jo_picture_definition;
 
+/** @brief 15 bits image struct */
+typedef struct
+{
+    jo_size;
+    jo_color        *data;
+}					jo_img;
+
+/** @brief 8 bits image struct */
+typedef struct
+{
+    jo_size;
+    unsigned char   *data;
+}					jo_img_8bits;
+
+/** @brief Raw image struct */
+typedef struct
+{
+    jo_size;
+    void            *data;
+}					jo_raw_img;
+
+/** @brief Struct of one tile (pos and size) */
+typedef struct
+{
+    jo_pos2D;
+    jo_size;
+}					jo_tile;
+
 /** @brief Sprite attributes */
 typedef struct
 {

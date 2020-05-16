@@ -40,31 +40,6 @@
  */
 # define JO_TILE_COUNT(TILE_TABLE)    (sizeof(TILE_TABLE) / sizeof(jo_tile))
 
-/** @brief 15 bits image struct */
-typedef struct
-{
-    unsigned short	width;
-    unsigned short	height;
-    jo_color        *data;
-}					jo_img;
-
-/** @brief 8 bits image struct */
-typedef struct
-{
-    unsigned short	width;
-    unsigned short	height;
-    unsigned char   *data;
-}					jo_img_8bits;
-
-/** @brief Struct of one tile (pos and size) */
-typedef struct
-{
-    unsigned short	x;
-    unsigned short	y;
-    unsigned short	width;
-    unsigned short	height;
-}					jo_tile;
-
 /** @brief Add a sprite
  *  @param img Pointer to an image struct
  *  @param src_color Color to replace

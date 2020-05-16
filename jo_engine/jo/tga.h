@@ -37,15 +37,6 @@
 
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
 
-#define TGA_HEADER_INDEX_WIDTH 12
-#define TGA_HEADER_INDEX_HEIGHT 14
-#define TGA_HEADER_INDEX_BITSPERPIXEL 16
-#define TGA_HEADER_INDEX_IMAGEDESCRIPTOR 17
-#define TGA_HEADER_SIZE 18
-
-#define TGA_IMAGEDESCRIPTOR_ROW_TOP 32
-#define TGA_IMAGEDESCRIPTOR_COL_RIGHT 16
-
 /** @brief tga error code */
 typedef enum
 {
@@ -88,7 +79,6 @@ int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, 
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
-
 
 /** @brief Add tileset sprites from a TGA file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)

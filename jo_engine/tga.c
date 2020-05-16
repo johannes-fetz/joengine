@@ -50,26 +50,50 @@
 /*
 ** INTERNAL MACROS
 */
-#define         JO_TGA_24_BITS                              (24)
-#define         JO_TGA_32_BITS                              (32)
-#define			JO_TGA_SUPPORTED_FORMAT(M)			        ((M) == JO_TGA_24_BITS || (M) == JO_TGA_32_BITS)
+#define TGA_IMAGEDESCRIPTOR_ROW_TOP                 (32)
 
-#define			JO_TGA_CONVERT_COLOR(TGA, IDX)		        JO_COLOR_SATURN(*((unsigned char *)(TGA + IDX)))
+#define JO_TGA_8_BITS                               (8)
+#define JO_TGA_24_BITS                              (24)
+#define JO_TGA_32_BITS                              (32)
+#define JO_TGA_SUPPORTED_FORMAT(M)			        ((M) == JO_TGA_8_BITS || (M) == JO_TGA_24_BITS || (M) == JO_TGA_32_BITS)
 
-#define			JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
+#define JO_TGA_CONVERT_COLOR(TGA, IDX)		        JO_COLOR_SATURN(*((unsigned char *)(TGA + IDX)))
+
+#define JO_TGA_8BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_TGA_CONVERT_COLOR(TGA, ((X) + ((Y) * WIDTH)))
+
+#define JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 1) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3)) + ((Y) * (WIDTH * 3))))
 
-#define			JO_TGA_32BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 2) + ((Y) * JO_MULT_BY_4(WIDTH))), \
+#define JO_TGA_32BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 2) + ((Y) * JO_MULT_BY_4(WIDTH))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 1) + ((Y) * JO_MULT_BY_4(WIDTH))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 0) + ((Y) * JO_MULT_BY_4(WIDTH))))
 
 extern int      __jo_hash_table[JO_MAX_SPRITE];
 
+typedef struct
+{
+    unsigned char   id_length;
+    unsigned char   color_map_type;
+    unsigned char   image_type;
+    short           color_map_origin;
+    short           color_map_length;
+    unsigned char   color_map_entry_depth;
+    short           origin_x;
+    short           origin_y;
+    short           width;
+    short           height;
+    unsigned char   image_pixel_size;
+    unsigned char   image_descriptor;
+
+} __attribute__((packed)) __jo_tga_header;
+
 static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
 {
     switch (bits)
     {
+    case JO_TGA_8_BITS:
+        return (JO_TGA_8BITS_GET_PIXEL(stream, x, y, width)) + 1;
     case JO_TGA_32_BITS:
         if (JO_TGA_CONVERT_COLOR(stream, (JO_MULT_BY_4(x) + 3) + ((y) * JO_MULT_BY_4(width))) <= 0)
             return (JO_COLOR_Transparent);
@@ -79,8 +103,10 @@ static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const r
     }
 }
 
-t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
+t_tga_error_code	__jo_tga_load(jo_raw_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
 {
+    __jo_tga_header     *header;
+
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
         *stream = jo_fs_read_file_in_dir(filename, sub_dir, JO_NULL);
@@ -91,9 +117,10 @@ t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const ch
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
     if (*stream == JO_NULL)
         return (JO_TGA_UNSUPPORTED_FORMAT);
-    img->width = jo_swap_endian_ushort( *((unsigned short *)(*stream + TGA_HEADER_INDEX_WIDTH)));
-    img->height = jo_swap_endian_ushort( *((unsigned short *)(*stream + TGA_HEADER_INDEX_HEIGHT)));
-    *bits = (int)(*stream)[TGA_HEADER_INDEX_BITSPERPIXEL];
+    header = (__jo_tga_header *)*stream;
+    img->width = jo_swap_endian_short(header->width);
+    img->height = jo_swap_endian_short(header->height);
+    *bits = header->image_pixel_size;
     if (!JO_TGA_SUPPORTED_FORMAT(*bits))
     {
 #ifdef JO_DEBUG
@@ -104,7 +131,7 @@ t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const ch
         return (JO_TGA_UNSUPPORTED_FORMAT);
     }
     if (img->data == JO_NULL)
-        img->data = (unsigned short *)jo_malloc_with_behaviour(img->height * img->width * sizeof(*img->data), JO_MALLOC_TRY_REUSE_BLOCK);
+        img->data = jo_malloc_with_behaviour(img->height * img->width * (*bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)), JO_MALLOC_TRY_REUSE_BLOCK);
     if (img->data == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -117,65 +144,99 @@ t_tga_error_code	__jo_tga_load(jo_img *img, const char * const sub_dir, const ch
     return (JO_TGA_OK);
 }
 
-static void             jo_tga_read_contents(jo_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
+static void             __jo_tga_read_contents(jo_raw_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
 {
-    register int		idx;
-    register int		x;
-    register int		y;
-    register int        delta;
-    register bool       row_top;
+    register int		                idx;
+    register int		                x;
+    register int		                y;
+    register int                        delta;
+    register bool                       row_top;
+    __jo_tga_header                     *header;
 
-    char image_descriptor = *(stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
-    row_top = (image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
-
-    stream += TGA_HEADER_SIZE; /* Jump header */
-
+    header = (__jo_tga_header *)stream;
+    row_top = (header->image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
+    stream += sizeof(*header); /* Jump header */
+    if (bits == JO_TGA_8_BITS)
+    {
+        //TODO extract the palette
+        /*jo_core_error("%d %d %d ", jo_swap_endian_short(header->color_map_origin),
+                       jo_swap_endian_short(header->color_map_length),
+                       header->color_map_entry_depth);*/
+        /*for (x = 0; x < jo_swap_endian_short(header->color_map_length); ++x)
+        {
+            jo_color c = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
+            jo_set_palette_register(x, c);
+            stream += 3;
+        }*/
+        stream += (jo_swap_endian_short(header->color_map_length) * (header->color_map_entry_depth / 8));
+    }
     for (JO_ZERO(y); y < img->height; ++y)
     {
         for (JO_ZERO(x); x < img->width; ++x)
         {
             delta = row_top ? y : (img->height - 1 - y);
             idx = x + delta * img->width;
-            img->data[idx] = jo_tga_get_pixel(stream, x, y, img->width, bits);
-            if (transparent_color != JO_COLOR_Transparent && img->data[idx] == transparent_color)
-                img->data[idx] = JO_COLOR_Transparent;
+            if (bits == JO_TGA_8_BITS)
+            {
+                ((jo_img_8bits *)img)->data[idx] = jo_tga_get_pixel(stream, x, y, img->width, bits);
+                if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)img)->data[idx] == (unsigned char)transparent_color)
+                    ((jo_img_8bits *)img)->data[idx] = 0x0f;
+            }
+            else
+            {
+                ((jo_img *)img)->data[idx] = jo_tga_get_pixel(stream, x, y, img->width, bits);
+                if (transparent_color != JO_COLOR_Transparent && ((jo_img *)img)->data[idx] == transparent_color)
+                    ((jo_img *)img)->data[idx] = JO_COLOR_Transparent;
+            }
         }
     }
 }
 
-t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color)
+t_tga_error_code		__jo_tga_any_loader_from_stream(jo_raw_img *img, char *stream, const jo_color transparent_color, int *bits)
 {
     t_tga_error_code	code;
+
+    if ((code = __jo_tga_load((jo_raw_img *)img, JO_NULL, JO_NULL, &stream, bits)) != JO_TGA_OK)
+        return (code);
+    __jo_tga_read_contents((jo_raw_img *)img, stream, transparent_color, *bits);
+    return (code);
+}
+
+t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color)
+{
     int                 bits;
 
-    if ((code = __jo_tga_load(img, JO_NULL, JO_NULL, &stream, &bits)) != JO_TGA_OK)
-        return (code);
-    jo_tga_read_contents(img, stream, transparent_color, bits);
-    return (code);
+    return (__jo_tga_any_loader_from_stream((jo_raw_img *)img, stream, transparent_color, &bits));
 }
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
-t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, const char * const filename, const jo_color transparent_color)
+t_tga_error_code		    __jo_tga_any_loader(jo_raw_img *img, const char * const sub_dir, const char * const filename, const jo_color transparent_color, int *bits)
 {
     char                    *stream;
     t_tga_error_code	    code;
-    int                     bits;
 
     stream = JO_NULL;
-    if ((code = __jo_tga_load(img, sub_dir, filename, &stream, &bits)) != JO_TGA_OK)
+    if ((code = __jo_tga_load(img, sub_dir, filename, &stream, bits)) != JO_TGA_OK)
         return (code);
-    jo_tga_read_contents(img, stream, transparent_color, bits);
+    __jo_tga_read_contents(img, stream, transparent_color, *bits);
     jo_free(stream);
     return (code);
+}
+
+t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, const char * const filename, const jo_color transparent_color)
+{
+    int                     bits;
+
+    return (__jo_tga_any_loader((jo_raw_img *)img, sub_dir, filename, transparent_color, &bits));
 }
 
 int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count)
 {
     char                    *stream;
     char                    *stream_begin;
-    jo_img                  full_image;
-    jo_img                  tile_image;
+    jo_raw_img              full_image;
+    jo_raw_img              tile_image;
     register int		    x;
     register int		    y;
     register int		    idx;
@@ -183,17 +244,15 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     int						first_id;
     int                     bits;
     int                     delta;
+    bool                    row_top;
 
     stream = JO_NULL;
     full_image.data = (unsigned short *)-1;/* Disable allocation in __jo_tga_load() */
     if (__jo_tga_load(&full_image, sub_dir, filename, &stream, &bits) != JO_TGA_OK)
         return (-1);
     stream_begin = stream;
-
-    char image_descriptor = *(stream + TGA_HEADER_INDEX_IMAGEDESCRIPTOR);
-    bool row_top = (image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
-
-    stream += TGA_HEADER_SIZE; /* Jump header */
+    row_top = (((__jo_tga_header *)stream)->image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
+    stream += sizeof(__jo_tga_header); /* Jump header */
     first_id = -1;
     for (JO_ZERO(i); i < tile_count; ++i)
     {
@@ -207,7 +266,7 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
 #endif
         tile_image.width = tileset[i].width;
         tile_image.height = tileset[i].height;
-        tile_image.data = (unsigned short *)jo_malloc(tile_image.height * tile_image.width * sizeof(*tile_image.data));
+        tile_image.data = jo_malloc_with_behaviour(tile_image.height * tile_image.width * (bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)), JO_FAST_ALLOCATION);
         if (tile_image.data == JO_NULL)
         {
 #ifdef JO_DEBUG
@@ -222,13 +281,23 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
             {
                 delta = row_top ? (tile_image.height - 1 - y) : y;
                 idx = x + delta * tile_image.width;
-                tile_image.data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (full_image.height - (y + tileset[i].y) - 1), full_image.width, bits);
-                if (transparent_color != JO_COLOR_Transparent && tile_image.data[idx] == transparent_color)
-                    tile_image.data[idx] = JO_COLOR_Transparent;
+
+                if (bits == JO_TGA_8_BITS)
+                {
+                    ((jo_img_8bits *)&tile_image)->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (full_image.height - (y + tileset[i].y) - 1), full_image.width, bits);
+                    if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)&tile_image)->data[idx] == (unsigned char)transparent_color)
+                        ((jo_img_8bits *)&tile_image)->data[idx] = 0x0f;
+                }
+                else
+                {
+                    ((jo_img *)&tile_image)->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (full_image.height - (y + tileset[i].y) - 1), full_image.width, bits);
+                    if (transparent_color != JO_COLOR_Transparent && ((jo_img *)&tile_image)->data[idx] == transparent_color)
+                        ((jo_img *)&tile_image)->data[idx] = JO_COLOR_Transparent;
+                }
             }
         }
-        x = jo_sprite_add(&tile_image);
-        jo_free_img(&tile_image);
+        x = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&tile_image) : jo_sprite_add((jo_img *)&tile_image));
+        jo_free(tile_image.data);
         if (first_id < 0)
             first_id = x;
     }
@@ -240,8 +309,9 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
 
 int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_color)
 {
-    jo_img				img;
+    jo_raw_img          img;
     int					id;
+    int                 bits;
 
 #ifdef JO_DEBUG
     if (stream == JO_NULL)
@@ -251,7 +321,7 @@ int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_
     }
 #endif
     img.data = JO_NULL;
-    if (jo_tga_loader_from_stream(&img, stream, transparent_color) != JO_TGA_OK)
+    if (__jo_tga_any_loader_from_stream(&img, stream, transparent_color, &bits) != JO_TGA_OK)
         return (-1);
 #ifdef JO_DEBUG
     if ((img.width % 8) != 0)
@@ -261,8 +331,8 @@ int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_
         return (-1);
     }
 #endif
-    id = jo_sprite_add(&img);
-    jo_free_img(&img);
+    id = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&img) : jo_sprite_add((jo_img *)&img));
+    jo_free(img.data);
     return (id);
 }
 
@@ -270,8 +340,9 @@ int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_
 
 int						jo_sprite_add_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color)
 {
-    jo_img				img;
+    jo_raw_img          img;
     int					id;
+    int                 bits;
 
 #ifdef JO_DEBUG
     if (filename == JO_NULL)
@@ -281,7 +352,7 @@ int						jo_sprite_add_tga(const char * const sub_dir, const char * const filena
     }
 #endif
     img.data = JO_NULL;
-    if (jo_tga_loader(&img, sub_dir, filename, transparent_color) != JO_TGA_OK)
+    if (__jo_tga_any_loader(&img, sub_dir, filename, transparent_color, &bits) != JO_TGA_OK)
         return (-1);
 #ifdef JO_DEBUG
     if ((img.width % 8) != 0)
@@ -291,8 +362,8 @@ int						jo_sprite_add_tga(const char * const sub_dir, const char * const filena
         return (-1);
     }
 #endif
-    id = jo_sprite_add(&img);
-    jo_free_img(&img);
+    id = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&img) : jo_sprite_add((jo_img *)&img));
+    jo_free(img.data);
     if (id >= 0)
         __jo_hash_table[id] = jo_4_char_hash(filename);
     return (id);

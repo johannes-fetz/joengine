@@ -40,6 +40,15 @@
 */
 #include "math.h"
 
+/** @brief Swap Short endian
+  * @param value Little or Big endian short
+  * @return Endian swapped short
+  */
+static  __jo_force_inline short        jo_swap_endian_short(short value)
+{
+    return ((((value) >> 8) & 0xff) | (((value) & 0xff) << 8));
+}
+
 /** @brief Swap Unsigned short endian
   * @param value Little or Big endian unsigned short
   * @return Endian swapped unsigned short
