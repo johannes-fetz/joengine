@@ -271,7 +271,7 @@ bool		                        jo_video_init(void)
 #ifdef JO_DEBUG
     CPK_SetErrFunc(__jo_cpk_error_handling, JO_NULL);
 #endif
-    slIntFunction(CPK_VblIn);
+    jo_core_add_vblank_callback(CPK_VblIn);
     return (true);
 }
 

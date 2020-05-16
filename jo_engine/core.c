@@ -105,18 +105,9 @@ void                                        jo_time_init(unsigned char mode);
 char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 #endif
 
+static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_list                             __slave_callbacks;
-
-static __jo_force_inline void jo_wait_vblank_out(void)
-{
-    while ((JO_VDP2_TVSTAT & 8) == 8);
-}
-
-static __jo_force_inline void jo_wait_vblank_in(void)
-{
-    while ((JO_VDP2_TVSTAT & 8) == 0);
-}
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
@@ -129,6 +120,30 @@ static  __jo_force_inline void              jo_set_a_bus_register(void)
 {
     *((int *)0x25fe0080) = 0x23301ff0;
     *((int *)0x25fe0033) = 0x00000013;
+}
+
+#endif
+
+static __jo_force_inline void __jo_call_event(jo_node *node)
+{
+    ((jo_event_callback)node->data.ptr)();
+}
+
+static void __jo_vblank_callbacks(void)
+{
+    jo_list_foreach(&__vblank_callbacks, __jo_call_event);
+}
+
+#if !JO_COMPILE_USING_SGL
+
+static __jo_force_inline void jo_wait_vblank_out(void)
+{
+    while ((JO_VDP2_TVSTAT & 8) == 8);
+}
+
+static __jo_force_inline void jo_wait_vblank_in(void)
+{
+    while ((JO_VDP2_TVSTAT & 8) == 0);
 }
 
 #endif
@@ -287,11 +302,6 @@ static	void	jo_core_init_vdp(const jo_color back_color)
 #endif
 }
 
-static __jo_force_inline void __jo_call_event(jo_node *node)
-{
-    ((jo_event_callback)node->data.ptr)();
-}
-
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 static void jo_slave_callbacks(void)
@@ -415,6 +425,7 @@ void			jo_core_init(const jo_color back_color)
     JO_ZERO(__jo_last_error[0]);
 #endif
     jo_init_memory();
+    jo_list_init(&__vblank_callbacks);
     jo_list_init(&__callbacks);
     jo_list_init(&__slave_callbacks);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
@@ -462,6 +473,43 @@ void			jo_core_init(const jo_color back_color)
 #endif
     jo_sprite_init();
     jo_time_init(JO_TIME_CKS_32_MODE);
+}
+
+inline int			jo_core_add_vblank_callback(const jo_event_callback callback)
+{
+    jo_node         *node;
+
+#ifdef JO_DEBUG
+    if (callback == JO_NULL)
+    {
+        jo_core_error("callback is null");
+        return (0);
+    }
+#endif
+    node = jo_list_add_ptr(&__vblank_callbacks, callback);
+    if (node == JO_NULL)
+        return (0);
+#if JO_COMPILE_USING_SGL
+    if (__vblank_callbacks.count == 1)
+        slIntFunction(__jo_vblank_callbacks);
+#endif // JO_COMPILE_USING_SGL
+    return (int)node;
+}
+
+inline void    jo_core_remove_vblank_callback(const int vblank_event_id)
+{
+#ifdef JO_DEBUG
+    if (vblank_event_id == 0)
+    {
+        jo_core_error("Invalid vblank_event_id (%d)", vblank_event_id);
+        return;
+    }
+#endif
+    jo_list_remove(&__vblank_callbacks, (jo_node *)vblank_event_id);
+#if JO_COMPILE_USING_SGL
+    if (__vblank_callbacks.count == 0)
+        slIntFunction(JO_NULL);
+#endif // JO_COMPILE_USING_SGL
 }
 
 inline int			jo_core_add_callback(const jo_event_callback callback)
@@ -658,6 +706,7 @@ void			        jo_core_run(void)
 #else
         jo_vdp1_flush();
         jo_wait_vblank_out();
+        __jo_vblank_callbacks();
         jo_wait_vblank_in();
         jo_input_update();
 #endif
