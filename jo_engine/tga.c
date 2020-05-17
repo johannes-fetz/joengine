@@ -165,28 +165,19 @@ static void                             __jo_tga_read_contents(jo_raw_img *img, 
     if (bits == JO_TGA_8_BITS)
     {
         jo_palette                      *palette;
-#ifdef JO_DEBUG
-        if (__jo_tga_palette_handling == JO_NULL)
-        {
-            jo_core_error("jo_set_tga_palette_handling() required");
-            return ;
-        }
-#endif
-        palette = __jo_tga_palette_handling();
-#ifdef JO_DEBUG
-        if (palette == JO_NULL)
-        {
-            jo_core_error("NULL is not a valid palette");
-            return ;
-        }
-#endif
         x = jo_swap_endian_short(header->color_map_length);
-        for (idx = 0; idx < x && idx < JO_PALETTE_MAX_COLORS; ++idx)
+        if (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL)
         {
-            jo_color c = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
-            palette->data[idx] = c;
+            for (idx = 0; idx < x && idx < JO_PALETTE_MAX_COLORS; ++idx)
+            {
+                jo_color c = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
+                palette->data[idx] = c;
+                stream += 3;
+            }
             stream += 3;
         }
+        else
+            stream += x * JO_DIV_BY_8(header->color_map_entry_depth);
     }
     for (JO_ZERO(y); y < img->height; ++y)
     {
