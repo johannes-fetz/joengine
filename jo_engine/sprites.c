@@ -293,7 +293,7 @@ static  __jo_force_inline void __jo_set_sprite_attributes(SPR_ATTR *attr, const 
     else
     {
         attr->atrb |= ((COLMODE_256 & 7) << 3);
-        attr->colno = ((Uint16)VDP2_COLRAM) >> 3;
+        attr->colno = __jo_sprite_attributes.color_table_index;
     }
     if (__jo_sprite_attributes.effect & 4)
         attr->gstb = 0xe000 + __jo_gouraud_shading_runtime_index;
@@ -312,7 +312,7 @@ static  __jo_force_inline void __jo_set_sprite_attributes(jo_vdp1_command * cons
     else
     {
         cmd->pmod |= ((COLMODE_256 & 7) << 3);
-        cmd->colr = ((Uint16)VDP2_COLRAM) >> 3;
+        cmd->colr = __jo_sprite_attributes.color_table_index;
     }
     cmd->srca = (unsigned int)(__jo_sprite_pic[sprite_id].data) >> 3;
     cmd->size = (((__jo_sprite_def[sprite_id].width >> 3) & 0x3F) << 8) |

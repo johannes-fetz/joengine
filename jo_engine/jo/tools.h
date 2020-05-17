@@ -118,15 +118,6 @@ void jo_print(int x, int y, char * str);
  */
 # define jo_printf_with_color(X, Y, COLOR_INDEX, ...)  do { jo_set_printf_color_index(COLOR_INDEX); jo_printf(X, Y, __VA_ARGS__); } while(0)
 
-/** @brief Set foreground palette color for the specific index
-  * @param index Palette index (0 and 1 are reserved)
-  * @param color Color (Example: JO_COLOR_Red)
-  */
-static  __jo_force_inline void        jo_set_printf_palette_color(const unsigned char index, const unsigned short color)
-{
-    *(((unsigned short *)JO_VDP2_CRAM) + 1 + JO_MULT_BY_256(index)) = color;
-}
-
 /** @brief Set printf foreground color index
   * @param index palette color index
   */

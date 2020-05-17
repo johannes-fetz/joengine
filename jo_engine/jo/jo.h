@@ -57,6 +57,7 @@
 #include "console.h"
 #include "fs.h"
 #include "audio.h"
+#include "palette.h"
 #include "image.h"
 #include "tga.h"
 #include "sprites.h"

@@ -42,6 +42,7 @@
 #include "jo/time.h"
 #include "jo/audio.h"
 #include "jo/colors.h"
+#include "jo/palette.h"
 #include "jo/sprites.h"
 #include "jo/input.h"
 #include "jo/console.h"

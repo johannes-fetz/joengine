@@ -39,6 +39,7 @@
 #include "jo/tools.h"
 #include "jo/malloc.h"
 #include "jo/fs.h"
+#include "jo/palette.h"
 #include "jo/image.h"
 #include "jo/tga.h"
 #include "jo/sprites.h"
@@ -59,8 +60,6 @@
 
 #define JO_TGA_CONVERT_COLOR(TGA, IDX)		        JO_COLOR_SATURN(*((unsigned char *)(TGA + IDX)))
 
-#define JO_TGA_8BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_TGA_CONVERT_COLOR(TGA, ((X) + ((Y) * WIDTH)))
-
 #define JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 1) + ((Y) * (WIDTH * 3))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (((X) * 3)) + ((Y) * (WIDTH * 3))))
@@ -70,6 +69,8 @@
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 0) + ((Y) * JO_MULT_BY_4(WIDTH))))
 
 extern int      __jo_hash_table[JO_MAX_SPRITE];
+
+static jo_tga_palette_handling_callback __jo_tga_palette_handling = JO_NULL;
 
 typedef struct
 {
@@ -88,12 +89,17 @@ typedef struct
 
 } __attribute__((packed)) __jo_tga_header;
 
+void                    jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback)
+{
+    __jo_tga_palette_handling = callback;
+}
+
 static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
 {
     switch (bits)
     {
     case JO_TGA_8_BITS:
-        return (JO_TGA_8BITS_GET_PIXEL(stream, x, y, width)) + 1;
+        return (jo_color)(*(stream + (x + (y * width))) + 1);
     case JO_TGA_32_BITS:
         if (JO_TGA_CONVERT_COLOR(stream, (JO_MULT_BY_4(x) + 3) + ((y) * JO_MULT_BY_4(width))) <= 0)
             return (JO_COLOR_Transparent);
@@ -144,7 +150,7 @@ t_tga_error_code	__jo_tga_load(jo_raw_img *img, const char * const sub_dir, cons
     return (JO_TGA_OK);
 }
 
-static void             __jo_tga_read_contents(jo_raw_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
+static void                             __jo_tga_read_contents(jo_raw_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
 {
     register int		                idx;
     register int		                x;
@@ -158,17 +164,29 @@ static void             __jo_tga_read_contents(jo_raw_img *img, char * restrict 
     stream += sizeof(*header); /* Jump header */
     if (bits == JO_TGA_8_BITS)
     {
-        //TODO extract the palette
-        /*jo_core_error("%d %d %d ", jo_swap_endian_short(header->color_map_origin),
-                       jo_swap_endian_short(header->color_map_length),
-                       header->color_map_entry_depth);*/
-        /*for (x = 0; x < jo_swap_endian_short(header->color_map_length); ++x)
+        jo_palette                      *palette;
+#ifdef JO_DEBUG
+        if (__jo_tga_palette_handling == JO_NULL)
+        {
+            jo_core_error("jo_set_tga_palette_handling() required");
+            return ;
+        }
+#endif
+        palette = __jo_tga_palette_handling();
+#ifdef JO_DEBUG
+        if (palette == JO_NULL)
+        {
+            jo_core_error("NULL is not a valid palette");
+            return ;
+        }
+#endif
+        x = jo_swap_endian_short(header->color_map_length);
+        for (idx = 0; idx < x && idx < JO_PALETTE_MAX_COLORS; ++idx)
         {
             jo_color c = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
-            jo_set_palette_register(x, c);
+            palette->data[idx] = c;
             stream += 3;
-        }*/
-        stream += (jo_swap_endian_short(header->color_map_length) * (header->color_map_entry_depth / 8));
+        }
     }
     for (JO_ZERO(y); y < img->height; ++y)
     {
@@ -180,7 +198,7 @@ static void             __jo_tga_read_contents(jo_raw_img *img, char * restrict 
             {
                 ((jo_img_8bits *)img)->data[idx] = jo_tga_get_pixel(stream, x, y, img->width, bits);
                 if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)img)->data[idx] == (unsigned char)transparent_color)
-                    ((jo_img_8bits *)img)->data[idx] = 0x0f;
+                    JO_ZERO(((jo_img_8bits *)img)->data[idx]);
             }
             else
             {
@@ -286,7 +304,7 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
                 {
                     ((jo_img_8bits *)&tile_image)->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (full_image.height - (y + tileset[i].y) - 1), full_image.width, bits);
                     if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)&tile_image)->data[idx] == (unsigned char)transparent_color)
-                        ((jo_img_8bits *)&tile_image)->data[idx] = 0x0f;
+                        JO_ZERO(((jo_img_8bits *)&tile_image)->data[idx]);
                 }
                 else
                 {

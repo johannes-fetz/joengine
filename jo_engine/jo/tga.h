@@ -37,6 +37,12 @@
 
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
 
+/*
+** TYPEDEFS
+*/
+/** @brief Function prototype for () */
+typedef jo_palette*	(*jo_tga_palette_handling_callback)(void);
+
 /** @brief tga error code */
 typedef enum
 {
@@ -46,10 +52,16 @@ typedef enum
     JO_TGA_OUT_OF_MEMORY = 3
 }					t_tga_error_code;
 
+/** @brief Set the callback to handle TGA palette for 8 bits image
+ *  @param callback The callback
+ *  @warning This function is mandatory if you use 8 bits TGA
+ */
+void                    jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback);
+
 /** @brief Load a TGA image from stream
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param stream Raw TGA contents
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color);
@@ -66,7 +78,7 @@ int     jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_c
 /** @brief Add a sprite from a TGA file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
  *  @return Sprite Id or -1 if failed
  */
 int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
@@ -75,7 +87,7 @@ int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, 
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
@@ -83,7 +95,7 @@ t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const c
 /** @brief Add tileset sprites from a TGA file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
  *  @param tileset Tileset definition
  *  @param tile_count Number of tile in the entire image
  *  @return Sprite Id of the first image or -1 if failed

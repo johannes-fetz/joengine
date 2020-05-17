@@ -130,7 +130,8 @@ typedef struct      __jo_size
   */
 typedef struct
 {
-    jo_size;
+    unsigned short	    width;
+    unsigned short	    height;
     unsigned short      adr;
     unsigned short      size;
 }                       jo_texture_definition;
@@ -146,29 +147,41 @@ typedef struct
 /** @brief 15 bits image struct */
 typedef struct
 {
-    jo_size;
+    unsigned short	width;
+    unsigned short	height;
     jo_color        *data;
 }					jo_img;
 
 /** @brief 8 bits image struct */
 typedef struct
 {
-    jo_size;
+    unsigned short	width;
+    unsigned short	height;
     unsigned char   *data;
 }					jo_img_8bits;
 
 /** @brief Raw image struct */
 typedef struct
 {
-    jo_size;
+    unsigned short	width;
+    unsigned short	height;
     void            *data;
 }					jo_raw_img;
+
+/** @brief Palette contents struct */
+typedef struct
+{
+    jo_color    *data;
+    int         id;
+}               jo_palette;
 
 /** @brief Struct of one tile (pos and size) */
 typedef struct
 {
-    jo_pos2D;
-    jo_size;
+    int                 x;
+    int                 y;
+    unsigned short	width;
+    unsigned short	height;
 }					jo_tile;
 
 /** @brief Sprite attributes */

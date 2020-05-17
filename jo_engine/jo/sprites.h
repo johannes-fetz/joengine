@@ -97,6 +97,7 @@ int		jo_sprite_add(const jo_img * const img);
 /** @brief Add a 8 bits sprite
  *  @param img Pointer to a 8 bits bits image struct
  *  @return Sprite Id or -1 if failed
+ *  @warning 255 colors maximum not 256 !
  */
 int     jo_sprite_add_8bits_image(const jo_img_8bits * const img);
 
@@ -136,14 +137,7 @@ int		jo_sprite_name2id(const char *const filename);
  */
 static  __jo_force_inline void	jo_sprite_enable_clipping(bool outside)
 {
-    if (outside)
-    {
-        __jo_sprite_attributes.clipping = Window_Out;
-    }
-    else
-    {
-        __jo_sprite_attributes.clipping = Window_In;
-    }
+    __jo_sprite_attributes.clipping = outside ? Window_Out : Window_In;
 }
 
 /** @brief Disable sprite clipping for every sprite displayed after this call
@@ -292,6 +286,17 @@ static  __jo_force_inline void	jo_sprite_enable_horizontal_flip(void)
 static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
 {
     __jo_sprite_attributes.direction &= ~(16);
+}
+
+/*
+** Palette
+*/
+/** @brief Change palette for every 8 bits sprite displayed after this call
+ *  @param palette_id Palette id from jo_create_palette()
+ */
+static  __jo_force_inline void	jo_sprite_set_palette_id(int palette_id)
+{
+    __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id);
 }
 
 /*

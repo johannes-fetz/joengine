@@ -90,6 +90,7 @@
 		<Unit filename="jo/map.h" />
 		<Unit filename="jo/math.h" />
 		<Unit filename="jo/mode7.h" />
+		<Unit filename="jo/palette.h" />
 		<Unit filename="jo/physics.h" />
 		<Unit filename="jo/sega_saturn.h" />
 		<Unit filename="jo/sgl_prototypes.h" />
@@ -119,6 +120,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="mode7.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="palette.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="physics.c">
@@ -152,9 +156,6 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Extensions>
-			<code_completion />
-			<envvars />
-			<debugger />
 			<lib_finder disable_auto="1" />
 		</Extensions>
 	</Project>

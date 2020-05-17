@@ -29,11 +29,15 @@
 #include "hardcoded_image.h"
 #include "hardcoded_8bits_image.h"
 
+jo_palette          my_palette;
+
 void			    my_draw(void)
 {
 	jo_printf(0, 0, jo_get_last_error());
 
 	jo_sprite_draw3D(0, 0, 0, 500);
+
+	jo_sprite_set_palette_id(my_palette.id); // set the current palette
 	jo_sprite_draw3D(1, 100, 0, 500);
 }
 
@@ -52,19 +56,16 @@ void			    load_8bits_image(void)
     jo_sprite_add_8bits_image(&img);
 }
 
-void			    set_8bits_image_palette(void)
-{
-    // Each component value (R, G and B) goes from 0 to 255
-    jo_set_palette_register(0xBB, JO_COLOR_RGB(0, 255, 0));
-    jo_set_palette_register(0xCC, JO_COLOR_RGB(255, 0, 0));
-}
-
 void			    jo_main(void)
 {
 	jo_core_init(JO_COLOR_White);
+
+    jo_create_palette(&my_palette);
+    my_palette.data[0] = JO_COLOR_RGB(0, 255, 0); // 0x01 in spaceship_image
+    my_palette.data[1] = JO_COLOR_RGB(255, 0, 0); // 0x02 in spaceship_image
+
 	load_15bits_image();
 	load_8bits_image();
-	set_8bits_image_palette();
 	jo_core_add_callback(my_draw);
 	jo_core_run();
 }

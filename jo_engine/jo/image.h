@@ -110,24 +110,6 @@ int     jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_c
  */
 void	jo_free_img(jo_img * const img);
 
-/** @brief Set palette index color
- *  @param palette_index palette Index from 1 to 255
- *  @param color Color example for green: JO_COLOR_RGB(0, 63, 63)
- */
-static  __jo_force_inline void        jo_set_palette_register(const unsigned char palette_index, const jo_color color)
-{
-    *(jo_color *)(VDP2_COLRAM + ((palette_index) << 1)) = color;
-}
-
-/** @brief Get palette color from index
- *  @param palette_index palette Index from 1 to 255
- *  @return color Color
- */
-static  __jo_force_inline jo_color    jo_get_palette_register(const unsigned char palette_index)
-{
-    return *(jo_color *)(VDP2_COLRAM + ((palette_index) << 1));
-}
-
 #endif /* !__JO_IMAGE_H__ */
 
 /*
