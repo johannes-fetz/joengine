@@ -294,7 +294,7 @@ static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
 /** @brief Change palette for every 8 bits sprite displayed after this call
  *  @param palette_id Palette id from jo_create_palette()
  */
-static  __jo_force_inline void	jo_sprite_set_palette_id(int palette_id)
+static  __jo_force_inline void	jo_sprite_set_palette(int palette_id)
 {
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id);
 }

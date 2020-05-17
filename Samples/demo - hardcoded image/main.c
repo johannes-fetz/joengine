@@ -37,7 +37,7 @@ void			    my_draw(void)
 
 	jo_sprite_draw3D(0, 0, 0, 500);
 
-	jo_sprite_set_palette_id(my_palette.id); // set the current palette
+	jo_sprite_set_palette(my_palette.id); // set the current palette
 	jo_sprite_draw3D(1, 100, 0, 500);
 }
 

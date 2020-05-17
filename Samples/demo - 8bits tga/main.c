@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2017, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@ static jo_palette      palette2;
 void			my_draw(void)
 {
     // Here you can specify the palette to use for 8 bits sprites.
-    jo_sprite_set_palette_id(palette1.id);
+    jo_sprite_set_palette(palette1.id);
 	jo_sprite_draw3D(0, 0, 0, 500);
 
-    jo_sprite_set_palette_id(palette2.id); // Here we use our custom palette
+    jo_sprite_set_palette(palette2.id); // Here we use our custom palette
 	jo_sprite_draw3D(1, 100, 0, 500);
 
     // Uncomment the code below and see what's happens ^^
