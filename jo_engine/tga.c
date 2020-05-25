@@ -45,6 +45,7 @@
 #include "jo/sprites.h"
 #include "jo/colors.h"
 #include "jo/math.h"
+#include "jo/background.h"
 
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
 
@@ -89,12 +90,12 @@ typedef struct
 
 } __attribute__((packed)) __jo_tga_header;
 
-void                    jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback)
+void                                        jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback)
 {
     __jo_tga_palette_handling = callback;
 }
 
-static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
+static  __jo_force_inline jo_color          jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
 {
     switch (bits)
     {
@@ -109,9 +110,9 @@ static  __jo_force_inline jo_color         jo_tga_get_pixel(const char * const r
     }
 }
 
-t_tga_error_code	__jo_tga_load(jo_raw_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
+t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
 {
-    __jo_tga_header     *header;
+    __jo_tga_header                         *header;
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
@@ -211,6 +212,13 @@ t_tga_error_code		__jo_tga_any_loader_from_stream(jo_raw_img *img, char *stream,
     return (code);
 }
 
+t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *stream, const int transparent_color_index_in_palette)
+{
+    int                 bits;
+
+    return (__jo_tga_any_loader_from_stream((jo_raw_img *)img, stream, transparent_color_index_in_palette, &bits));
+}
+
 t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color)
 {
     int                 bits;
@@ -231,6 +239,13 @@ t_tga_error_code		    __jo_tga_any_loader(jo_raw_img *img, const char * const su
     __jo_tga_read_contents(img, stream, transparent_color, *bits);
     jo_free(stream);
     return (code);
+}
+
+t_tga_error_code		    jo_tga_8bits_loader(jo_img_8bits *img, const char * const sub_dir, const char * const filename, const int transparent_color_index_in_palette)
+{
+    int                     bits;
+
+    return (__jo_tga_any_loader((jo_raw_img *)img, sub_dir, filename, transparent_color_index_in_palette, &bits));
 }
 
 t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, const char * const filename, const jo_color transparent_color)

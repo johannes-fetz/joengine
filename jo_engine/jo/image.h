@@ -106,9 +106,9 @@ bool        jo_bin_loader_from_stream(jo_img *img, char *stream, const jo_color 
 int     jo_sprite_add_bin_from_stream(char *stream, const jo_color transparent_color);
 
 /** @brief Free an image loaded from CD
- *  @param img Pointer to an image struct
+ *  @param img Pointer to an image struct (jo_img, jo_img_8bits or jo_raw_img)
  */
-void	jo_free_img(jo_img * const img);
+void	jo_free_img(void * const img);
 
 #endif /* !__JO_IMAGE_H__ */
 

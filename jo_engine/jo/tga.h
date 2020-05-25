@@ -92,6 +92,24 @@ int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, 
  */
 t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
 
+/** @brief Load a 8 bits 255 colors max TGA image
+ *  @param img Image (set data to NULL for dynamic allocation)
+ *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
+ *  @param filename Filename (upper case and shorter as possible like "A.TGA")
+ *  @param transparent_color_index_in_palette Transparent color in palette index. Use 0 by default
+ *  @return t_tga_error_code
+ */
+t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * const sub_dir, const char * const filename, const int transparent_color_index_in_palette);
+
+/** @brief Load a 8 bits 255 colors max TGA image
+ *  @param img Image (set data to NULL for dynamic allocation)
+ *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
+ *  @param filename Filename (upper case and shorter as possible like "A.TGA")
+ *  @param transparent_color_index_in_palette Transparent color in palette index. Use 0 by default
+ *  @return t_tga_error_code
+ */
+t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *stream, const int transparent_color_index_in_palette);
+
 /** @brief Add tileset sprites from a TGA file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")

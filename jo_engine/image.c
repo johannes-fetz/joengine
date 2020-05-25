@@ -72,7 +72,7 @@ unsigned short      *__jo_bin_load(jo_img *img, const char * const sub_dir, cons
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
-void	                jo_free_img(jo_img * const img)
+void	                jo_free_img(void * const img)
 {
 #ifdef JO_DEBUG
     if (img == JO_NULL)
@@ -81,8 +81,8 @@ void	                jo_free_img(jo_img * const img)
         return ;
     }
 #endif
-    jo_free(img->data);
-    img->data = JO_NULL;
+    jo_free(((jo_raw_img *)img)->data);
+    ((jo_raw_img *)img)->data = JO_NULL;
 }
 
 bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color)
