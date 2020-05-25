@@ -196,6 +196,7 @@ static	void	jo_core_init_vdp(const jo_color back_color)
     slBack1ColSet((void *)BACK_CRAM, back_color);
     slPriorityNbg0(7);
     slPriorityNbg1(6);
+    slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slCharNbg1(COL_TYPE_256, CHAR_SIZE_1x1);
     jo_set_vdp2_4k_default_color_palette();

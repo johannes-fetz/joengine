@@ -296,16 +296,6 @@ static  __jo_force_inline void        jo_spin_wait(int iterations)
 void    jo_map_to_vram(unsigned short * restrict data, unsigned short * restrict vram_addr,
                         unsigned short suuj, unsigned short suui, unsigned short palnum, unsigned int mapoff);
 
-/** @brief Copies the image palette data to CRAM
- *  @param data Data source
- *  @param cram_addr Color RAM address
- *  @param size Data size
- */
-static  __jo_force_inline void    jo_palette_to_cram(unsigned short * restrict data, unsigned short * restrict cram_addr, unsigned int size)
-{
-    while (size-- > 0) *(cram_addr++) = *(data++);
-}
-
 /** @brief Copies the image cel data to VRAM
  *  @param data Data source
  *  @param vram_addr VRAM address

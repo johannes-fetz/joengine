@@ -51,6 +51,28 @@
  */
 void                jo_create_palette(jo_palette * const output);
 
+/** @brief Copies the image palette data to CRAM
+ *  @param data Data source
+ *  @param cram_addr Color RAM address
+ *  @param size Data size
+ */
+static  __jo_force_inline void    jo_palette_to_cram(unsigned short * restrict data, unsigned short * restrict cram_addr, unsigned int size)
+{
+    while (size-- > 0) *(cram_addr++) = *(data++);
+}
+
+/** @brief Create a new palette from existing data
+ *  @param output The new palette
+ *  @param data Data source
+ *  @param size Data size
+ *  @details See also jo_sprite_set_palette_id()
+ */
+static  __jo_force_inline void        jo_create_palette_from(jo_palette * const output, unsigned short *data, unsigned int size)
+{
+    jo_create_palette(output);
+    jo_palette_to_cram(data, output->data, size);
+}
+
 /** @brief Set palette index color
  *  @param palette_index palette Index
  *  @param color Color

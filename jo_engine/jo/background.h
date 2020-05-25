@@ -137,6 +137,61 @@ static  __jo_force_inline void	jo_draw_background_square(const int x, const int 
     jo_draw_background_line(x, y + height, x, y, color);
 }
 
+/*
+** 3D PLANES
+**
+** - Two planes are available: A and B
+** - Each plane is 512 x 512 size
+*/
+
+/** @brief Enable 3D planes
+ *  @param background_color Color (ex: JO_COLOR_Red)
+ */
+void                            jo_enable_background_3d_plane(jo_color background_color);
+
+/** @brief Reset 3D planes if you wants to change setup A ou B
+ */
+void                            jo_reset_background_3d_plane(void);
+
+/** @brief Disable 3D planes
+ *  @param background_color Color (ex: JO_COLOR_Red)
+ */
+void                            jo_disable_background_3d_plane(jo_color background_color);
+
+/** @brief Setup plane A
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param repeat Repeat the plane infinitely.
+ *  @param vertical_flip Flip image vertically
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void                            jo_background_3d_plane_a_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
+
+/** @brief Setup plane B
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param repeat Repeat the plane infinitely.
+ *  @param vertical_flip Flip image vertically
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void                            jo_background_3d_plane_b_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
+
+/** @brief Draw plane A
+  * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ */
+static  __jo_force_inline void  jo_background_3d_plane_a_draw(const bool use_scroll_format_matrix)
+{
+    slCurRpara(RA); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
+}
+
+/** @brief Draw plane A
+  * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ */
+static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scroll_format_matrix)
+{
+    slCurRpara(RB); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
+}
+
 #endif /* !__JO_BACKGROUND_H__ */
 
 /*
