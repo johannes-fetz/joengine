@@ -137,6 +137,20 @@ static  __jo_force_inline void jo_core_enable_reset(void)
     jo_smpc_end_command(EnableReset);
 }
 
+/** @brief Turn OFF scroll drawing processing in the monitor
+ */
+static  __jo_force_inline void      jo_core_tv_off(void)
+{
+    slTVOff();
+}
+
+/** @brief Turn ON scroll drawing processing in the monitor
+ */
+static  __jo_force_inline void      jo_core_tv_on(void)
+{
+    slTVOn();
+}
+
 #ifdef JO_DEBUG
 
 /** @brief Get last error
