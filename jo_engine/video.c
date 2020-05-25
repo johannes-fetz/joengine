@@ -175,7 +175,7 @@ bool					jo_video_open_file(const char *const filename)
     CPK_PreloadHeader(__jo_video_cpk.cpk);
     header = CPK_GetHeader(__jo_video_cpk.cpk);
 #ifdef JO_DEBUG
-    if ((header->width % 8) != 0)
+    if (JO_MOD_POW2(header->width, 8) != 0)
     {
         jo_core_error("%s: Video width must be a multiple of 8", filename);
         jo_video_stop();

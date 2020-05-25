@@ -88,7 +88,7 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
     }
 #endif
     n += sizeof(*block);
-    while (n % 4)
+    while (JO_MOD_POW2(n, 4))
         ++n;
     for (JO_ZERO(zone); zone < __jo_memory_zone_index; ++zone)
     {
@@ -110,7 +110,7 @@ malloc_new_segment:
             if (block->zone == JO_BLOCK_FREE)
             {
 #ifdef JO_DEBUG
-                if (block->size == 0 || (block->size % 4) != 0)
+                if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
                 {
                     jo_core_error("Memory corrupt: Block size is null");
                     goto malloc_new_block;
@@ -155,7 +155,7 @@ inline void                    jo_free(const void * const p)
 #endif
     block = ((jo_memory_block *)p) - 1;
 #ifdef JO_DEBUG
-    if (block->size == 0 || (block->size % 4) != 0)
+    if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
     {
         jo_core_error("Bad pointer: %x", (unsigned int)p);
         return ;
@@ -189,7 +189,7 @@ int                     jo_memory_usage_percent(void)
             if (block->zone == JO_BLOCK_FREE)
             {
 #ifdef JO_DEBUG
-                if (block->size == 0 || (block->size % 4) != 0)
+                if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
                 {
                     jo_core_error("Memory corrupt: Block size is null");
                     break;
@@ -216,7 +216,7 @@ int                     jo_memory_fragmentation(void)
         while ((unsigned char *)block < memory_zones[zone].high)
         {
 #ifdef JO_DEBUG
-            if (block->size == 0 || (block->size % 4) != 0)
+            if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
             {
                 jo_core_error("Memory corrupt: Block size is null");
                 break;

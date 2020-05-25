@@ -409,8 +409,8 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     JO_UNUSED_ARG(billboard);
     jo_pos2D            rotation_origin;
     jo_pos2D            vertex;
-    register int        cos_theta;
-    register int        sin_theta;
+    register jo_fixed   cos_theta;
+    register jo_fixed   sin_theta;
     unsigned int        sprite_width;
     unsigned int        sprite_height;
 
@@ -442,23 +442,23 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
 
     vertex.x = (pos->x) - rotation_origin.x;
     vertex.y = (pos->y) - rotation_origin.y;
-    cmd->xa = (JO_DIV_BY_32768(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
-    cmd->ya = (JO_DIV_BY_32768(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
+    cmd->xa = (jo_fixed2int(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
+    cmd->ya = (jo_fixed2int(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
 
     vertex.x = (pos->x + sprite_width) - rotation_origin.x;
     vertex.y = (pos->y) - rotation_origin.y;
-    cmd->xb = (JO_DIV_BY_32768(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
-    cmd->yb = (JO_DIV_BY_32768(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
+    cmd->xb = (jo_fixed2int(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
+    cmd->yb = (jo_fixed2int(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
 
     vertex.x = (pos->x + sprite_width) - rotation_origin.x;
     vertex.y = (pos->y + sprite_height) - rotation_origin.y;
-    cmd->xc = (JO_DIV_BY_32768(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
-    cmd->yc = (JO_DIV_BY_32768(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
+    cmd->xc = (jo_fixed2int(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
+    cmd->yc = (jo_fixed2int(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
 
     vertex.x = (pos->x) - rotation_origin.x;
     vertex.y = (pos->y + sprite_height) - rotation_origin.y;
-    cmd->xd = (JO_DIV_BY_32768(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
-    cmd->yd = (JO_DIV_BY_32768(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
+    cmd->xd = (jo_fixed2int(vertex.x * cos_theta - vertex.y * sin_theta)) + rotation_origin.x;
+    cmd->yd = (jo_fixed2int(vertex.y * cos_theta + vertex.x * sin_theta)) + rotation_origin.y;
 
     if (centered_style_coordinates)
     {

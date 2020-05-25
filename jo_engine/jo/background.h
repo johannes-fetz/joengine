@@ -97,8 +97,8 @@ static  __jo_force_inline void	jo_zoom_background2(const float width_factor, con
     int fixed_height = jo_float2fixed(height_factor);
     JO_VDP2_ZMXIN1 = JO_DIV_BY_32768(fixed_width);
     JO_VDP2_ZMYIN1 = JO_DIV_BY_32768(fixed_height);
-    JO_VDP2_ZMXDN1 = (fixed_width % 32768) * 2; /*TODO : fix x2 */
-    JO_VDP2_ZMYDN1 = (fixed_height % 32768) * 2;
+    JO_VDP2_ZMXDN1 = JO_MOD_POW2(fixed_width, 32768) * 2; /*TODO : fix x2 */
+    JO_VDP2_ZMYDN1 = JO_MOD_POW2(fixed_height, 32768) * 2;
 #endif
 }
 

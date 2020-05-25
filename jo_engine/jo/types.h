@@ -38,6 +38,13 @@
 /** @brief 15 bits color type */
 typedef unsigned short jo_color;
 
+/** @brief Fixed point Q16.16 number
+ *  @remarks SGL compatible (FIXED)
+ *  @remarks Integer part is located in the upper 16 bits and a decimal part in the lower 16 bits
+ *  @remarks Valid range is -32767.99998 to 32767.99998
+ */
+typedef int             jo_fixed;
+
 /** @brief 2D position */
 typedef struct
 {
@@ -54,6 +61,33 @@ typedef struct
     int                 y;
     int                 z;
 }                       jo_pos3D;
+
+/** @brief 3D position using floating numbers
+  */
+typedef struct
+{
+    float               x;
+    float               y;
+    float               z;
+}                       jo_pos3Df;
+
+/** @brief 3D rotation angles
+  */
+typedef struct
+{
+    int                 rx;
+    int                 ry;
+    int                 rz;
+}                       jo_rot3D;
+
+/** @brief 3D rotation angles
+  */
+typedef struct
+{
+    float               rx;
+    float               ry;
+    float               rz;
+}                       jo_rot3Df;
 
 /** @brief Object for 2D manipulation (storyboard) using fixed number
   * @remarks Inherits from jo_pos3D (cast friendly)

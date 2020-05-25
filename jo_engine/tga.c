@@ -266,7 +266,7 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     for (JO_ZERO(i); i < tile_count; ++i)
     {
 #ifdef JO_DEBUG
-        if ((tileset[i].width % 8) != 0)
+        if (JO_MOD_POW2(tileset[i].width, 8) != 0)
         {
             jo_core_error("%s: Tile width must be multiple of 8", filename);
             jo_free(stream_begin);
@@ -333,7 +333,7 @@ int						jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_
     if (__jo_tga_any_loader_from_stream(&img, stream, transparent_color, &bits) != JO_TGA_OK)
         return (-1);
 #ifdef JO_DEBUG
-    if ((img.width % 8) != 0)
+    if (JO_MOD_POW2(img.width, 8) != 0)
     {
         jo_core_error("Image width must be a multiple of 8");
         jo_free(img.data);
@@ -364,7 +364,7 @@ int						jo_sprite_add_tga(const char * const sub_dir, const char * const filena
     if (__jo_tga_any_loader(&img, sub_dir, filename, transparent_color, &bits) != JO_TGA_OK)
         return (-1);
 #ifdef JO_DEBUG
-    if ((img.width % 8) != 0)
+    if (JO_MOD_POW2(img.width, 8) != 0)
     {
         jo_core_error("%s: Image width must be a multiple of 8", filename);
         jo_free(img.data);

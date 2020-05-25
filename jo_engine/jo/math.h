@@ -37,22 +37,8 @@
 
 /*
 ** ▲ NOTE ABOUT FIXED NUMBER ▲
-** Only values between -32768‬.0 and 32767.0 can be converted to fixed number.
+** Only values between -32767.99998 and 32767.99998 can be converted to fixed number.
 */
-
-#ifdef JO_COMPILE_WITH_SINUS_TABLE
-
-/** @brief Sinus lookup table (internal engine usage) use jo_sin() instead
- *  @warning MC Hammer: don't touch this
- */
-extern int JoSinLookupTable[360];
-
-#endif
-
-/** @brief Cosinus lookup table (internal engine usage) use jo_cos() instead
- *  @warning MC Hammer: don't touch this
- */
-extern int JoCosLookupTable[360];
 
 /** @brief Set a variable to zero
  *  @remarks faster than X = 0
@@ -77,15 +63,49 @@ extern int JoCosLookupTable[360];
 # define JO_FIXED_120				(7864320)
 /** @brief Fixed floating point value for 150 */
 # define JO_FIXED_150				(9830400)
+/** @brief Fixed floating point value for 180 */
+# define JO_FIXED_180				(11796480)
+/** @brief Fixed floating point value for 360 */
+# define JO_FIXED_360				(23592960)
+
+/** @brief Fixed floating point value for -32767.99998 */
+# define JO_FIXED_MIN				(-2147483647)
+/** @brief Fixed floating point value for +32767.99998 */
+# define JO_FIXED_MAX				(2147483647)
+
+/** @brief Jo Fixed minimum positive value */
+# define JO_FIXED_EPSILON           (1)
+/** @brief Indicate an overflow error */
+# define JO_FIXED_OVERFLOW          (0x80000000)
 
 /** @brief Float minimum positive value */
 # define JO_FLOAT_EPSILON           (0.00001f)
 
 /** @brief PI value */
 # define JO_PI                      (3.1415927)
+/** @brief Fixed value of PI */
+# define JO_FIXED_PI                (205887)
+/** @brief Fixed value of 2 PI */
+# define JO_FIXED_PI_2              (411775)
+/** @brief Fixed value of 180/PI */
+# define JO_FIXED_180_DIV_PI        (3754936)
+/** @brief Fixed value of PI/180 */
+# define JO_FIXED_PI_DIV_180        (1144)
+/** @brief Fixed value of PI/2 */
+# define JO_FIXED_PI_DIV_2          (102944)
+
+/** @brief Fixed value of 1/65536 */
+# define JO_FIXED_1_DIV             (1.0f / 65536.0f)
 
 /** @brief PI/2 value */
 # define JO_PI_2                    (1.5707963)
+
+/** @brief Fast modulo of a power of 2
+ *  @remarks faster than N % M
+ *  @param N Number
+ *  @param M Modulo
+ */
+# define    JO_MOD_POW2(N, M)       ((N) & ((M) - 1))
 
 /** @brief Multiply a variable by 2
  *  @remarks faster than X * 2
@@ -124,6 +144,18 @@ extern int JoCosLookupTable[360];
  *  @param X Variable name
  */
 # define JO_MULT_BY_1024(X)			((X) << 10)
+
+/** @brief Multiply a variable by 2048
+ *  @remarks faster than X * 2048
+ *  @param X Variable name
+ */
+# define JO_MULT_BY_2048(X)			((X) << 11)
+
+/** @brief Multiply a variable by 4096
+ *  @remarks faster than X * 4096
+ *  @param X Variable name
+ */
+# define JO_MULT_BY_4096(X)			((X) << 12)
 
 /** @brief Multiply a variable by 32768
  *  @remarks faster than X * 32768
@@ -179,6 +211,12 @@ extern int JoCosLookupTable[360];
  *  @param X Variable name
  */
 # define JO_DIV_BY_65536(X)			((X) >> 16)
+
+/** @brief Devide a variable by 2147483648
+ *  @remarks faster than X / 2147483648
+ *  @param X Variable name
+ */
+# define JO_DIV_BY_2147483648(X)    ((X) >> 31)
 
 /** @brief Get the absolute value of X
  *  @param X Variable name
@@ -250,28 +288,94 @@ extern int JoCosLookupTable[360];
  */
 # define JO_SQUARE(A)                       ((A) * (A))
 
+/** @brief Convert int to jo engine fixed
+ *  @param x Float to convert
+ *  @return Fixed value
+ */
+static __jo_force_inline jo_fixed       jo_int2fixed(const int x)
+{
+    return JO_MULT_BY_65536(x);
+}
+
+/** @brief Convert jo engine fixed to int
+ *  @param x Fixed
+ *  @return Integer value
+ */
+static __jo_force_inline int            jo_fixed2int(const jo_fixed x)
+{
+    return JO_DIV_BY_65536(x);
+}
+
 /** @brief Convert float to jo engine fixed (avoid usage of GCC Soft Float)
  *  @param x Float to convert
- *  @return Fixed value (int)(x * 32768.0f)
- *  @remarks result and point parameters can be the same pointer
+ *  @return Fixed value
  */
-static __jo_force_inline int    jo_float2fixed(const float x)
+static __jo_force_inline jo_fixed       jo_float2fixed(const float x)
 {
-    jo_IEEE754                  ieee754;
+    return ((jo_fixed)(x * (float)JO_FIXED_1));
+}
 
-    ieee754.f = x;
-    if (!ieee754.field.exponent)
-        return 0;
-    if (ieee754.field.sign)
-        return -((ieee754.field.mantissa | 0x800000) >> (135 - ieee754.field.exponent));
-    return ((ieee754.field.mantissa | 0x800000) >> (135 - ieee754.field.exponent));
+/** @brief Convert jo engine fixed to float
+ *  @param x Fixed to convert
+ *  @return Float value
+ */
+static __jo_force_inline float          jo_fixed2float(const jo_fixed x)
+{
+    return ((float)x * JO_FIXED_1_DIV);
+}
+
+/** @brief Wrap rad in [−pi pi]
+ *  @param Rad Fixed radian
+ *  @return rad wrapped in [−pi pi]
+ */
+static __jo_force_inline jo_fixed       jo_fixed_wrap_to_pi(jo_fixed rad)
+{
+    while (rad > JO_FIXED_PI) rad -= JO_FIXED_PI_2;
+    while (rad <= -JO_FIXED_PI) rad += JO_FIXED_PI_2;
+    return (rad);
+}
+
+/** @brief Wrap deg in [-180 180]
+ *  @param deg Fixed degree
+ *  @return deg wrapped in [-180 180]
+ */
+static __jo_force_inline jo_fixed       jo_fixed_wrap_to_180(jo_fixed deg)
+{
+    while (deg > JO_FIXED_180) deg -= JO_FIXED_360;
+    while (deg <= -JO_FIXED_PI) deg += JO_FIXED_360;
+    return (deg);
+}
+
+/** @brief Multiply to fixed number
+ *  @param x First operand
+ *  @param y Second operand
+ *  @return x * y
+ */
+jo_fixed                                jo_fixed_mult(jo_fixed x, jo_fixed y);
+
+/** @brief Convert fixed degree to fixed radian
+ *  @param deg Fixed angle in degree
+ *  @return Fixed angle in radian
+ */
+static __jo_force_inline jo_fixed       jo_fixed_deg2rad(const jo_fixed deg)
+{
+    return (jo_fixed_mult(jo_fixed_wrap_to_180(deg), JO_FIXED_PI_DIV_180));
+}
+
+/** @brief Convert fixed radian to fixed degree
+ *  @param deg Fixed angle in radian
+ *  @return Fixed angle in degree
+ */
+static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
+{
+    return (jo_fixed_mult(jo_fixed_wrap_to_pi(rad), JO_FIXED_180_DIV_PI));
 }
 
 /** @brief Check if float almost equals 0;
  *  @param f floating point number
  *  @return true if the float almost equals 0 otherwise false
  */
-static  __jo_force_inline bool	jo_is_float_equals_zero(float f)
+static  __jo_force_inline bool	jo_is_float_equals_zero(const float f)
 {
     return (JO_ABS(f) < 0.00000001f);
 }
@@ -329,133 +433,166 @@ static  __jo_force_inline float jo_sqrtf(float value)
 }
 
 /*
-** COSINUS COMPUTATION
+** SGL (Sega Graphic Library) COMPATIBILITY TOOLS
 */
 
-/** @brief Fast cosinus computation
- *  @param angle Angle in degree
- *  @return Cos(angle) * 32768
+/** @brief Convert fixed radian to SGL ANGLE
+ *  @param rad Jo Engine fixed radian
+ *  @return SGL ANGLE
  */
-static  __jo_force_inline int	jo_cos(const int angle)
+static  __jo_force_inline ANGLE     jo_fixed_rad2ANGLE(const jo_fixed rad)
 {
-    return (JoCosLookupTable[JO_ABS(angle) % 360]);
+    return (RADtoANG(jo_fixed2float(rad)));
 }
 
-/** @brief Cosinus computation
- *  @param angle Angle in degree
- *  @return Cos(angle) using floating number (slow)
- *  @warning slower than jo_cos() because it use floating point
+/** @brief Convert fixed degree to SGL ANGLE
+ *  @param rad Jo Engine fixed degree
+ *  @return SGL ANGLE
  */
-static  __jo_force_inline float	jo_cosf(const int angle)
+static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
 {
-    return (jo_cos(angle) / 32768.0f);
-}
-
-/** @brief Cosinus computation
- *  @param angle Angle in radian
- *  @return Cos(angle) * 32768
- *  @warning slower than jo_cos() because it use floating point
- */
-static  __jo_force_inline int	jo_cos_rad(const float angle)
-{
-    return jo_cos((int)(JO_RAD_TO_DEG(angle)));
-}
-
-/** @brief Cosinus computation
- *  @param angle Angle in radian
- *  @return Cos(angle) using floating number (slow)
- *  @warning slower than jo_cos_rad() because it use floating point
- */
-static  __jo_force_inline float	jo_cos_radf(const float angle)
-{
-    return jo_cos_rad(angle) / 32768.0f;
-}
-
-/** @brief Fast cosinus multiplication
- *  @param angle Angle in degree
- *  @param value Value
- *  @return value * Cos(angle)
- */
-static  __jo_force_inline int	jo_cos_mult(const int value, const int angle)
-{
-    return JO_DIV_BY_32768(value * jo_cos(angle));
-}
-
-/** @brief Fast cosinus multiplication
- *  @param angle Angle in degree
- *  @param value Value
- *  @return value * Cos(angle) using floating number (slow)
- */
-static  __jo_force_inline float	jo_cosf_mult(const float value, const int angle)
-{
-    return value * jo_cosf(angle);
+    return (DEGtoANG(jo_fixed2float(deg)));
 }
 
 /*
 ** SINUS COMPUTATION
 */
 
+/** @brief Fast sinus computation using fixed number
+ *  @param rad Fixed angle in radian
+ *  @return Sin(rad)
+ */
+jo_fixed                            jo_fixed_sin(jo_fixed rad);
+
 /** @brief Fast sinus computation
- *  @param angle Angle in degree
- *  @return Sin(angle) * 32768
+ *  @param deg Angle in degree
+ *  @return Fixed Sin(deg)
  */
-static  __jo_force_inline int	jo_sin(const int angle)
+static  __jo_force_inline jo_fixed	jo_sin(const int deg)
 {
-#ifdef JO_COMPILE_WITH_SINUS_TABLE
-    return (angle >= 0 ? JoSinLookupTable[JO_ABS(angle) % 360] : -JoSinLookupTable[JO_ABS(angle) % 360]);
-#else
-    return (jo_cos(angle - 90));
-#endif
+    return (jo_fixed_sin(jo_fixed_deg2rad(jo_int2fixed(deg))));
 }
 
 /** @brief Sinus computation
- *  @param angle Angle in degree
- *  @return Sin(angle) using floating number (slow)
+ *  @param deg Angle in degree
+ *  @return Sin(deg) using floating number (slow)
  *  @warning slower than jo_sin() because it use floating point
  */
-static  __jo_force_inline float	jo_sinf(const int angle)
+static  __jo_force_inline float	jo_sinf(const int deg)
 {
-    return (jo_sin(angle) / 32768.0f);
+    return (jo_fixed2float(jo_sin(deg)));
 }
 
 /** @brief Sinus computation
- *  @param angle Angle in radian
- *  @return Sin(angle) * 32768
+ *  @param rad Angle in radian
+ *  @return Fixed Sin(rad)
  *  @warning slower than jo_sin() because it use floating point
  */
-static  __jo_force_inline int	jo_sin_rad(const float angle)
+static  __jo_force_inline jo_fixed	jo_sin_rad(const float rad)
 {
-    return jo_sin((int)(JO_RAD_TO_DEG(angle)));
+    return (jo_fixed_sin(jo_float2fixed(rad)));
 }
 
 /** @brief Sinus computation
- *  @param angle Angle in radian
- *  @return Sin(angle) using floating number (slow)
+ *  @param rad Angle in radian
+ *  @return Sin(rad) using floating number (slow)
  *  @warning slower than jo_sin_rad() because it use floating point
  */
-static  __jo_force_inline float	jo_sin_radf(const float angle)
+static  __jo_force_inline float	jo_sin_radf(const float rad)
 {
-    return (jo_sin_rad(angle) / 32768.0f);
+    return (jo_fixed2float(jo_fixed_sin(jo_float2fixed(rad))));
 }
 
 /** @brief Fast sinus multiplication
- *  @param angle Angle in degree
+ *  @param deg Angle in degree
  *  @param value Value
- *  @return value * Sin(angle)
+ *  @return value * Sin(deg)
  */
-static  __jo_force_inline int	jo_sin_mult(const int value, const int angle)
+static  __jo_force_inline int	jo_sin_mult(const int value, const int deg)
 {
-    return JO_DIV_BY_32768(value * jo_sin(angle));
+    return (jo_fixed2int(value * jo_sin(deg)));
 }
 
 /** @brief Fast sinus multiplication
- *  @param angle Angle in degree
+ *  @param deg Angle in degree
  *  @param value Value
- *  @return value * Sin(angle) using floating number (slow)
+ *  @return value * Sin(deg) using floating number (slow)
  */
-static  __jo_force_inline float	jo_sinf_mult(const float value, const int angle)
+static  __jo_force_inline float	jo_sinf_mult(const float value, const int deg)
 {
-    return value * jo_sinf(angle);
+    return (value * jo_sinf(deg));
+}
+
+/*
+** COSINUS COMPUTATION
+*/
+
+/** @brief Fast cosinus computation using fixed number
+ *  @param rad Fixed angle in radian
+ *  @return Cos(rad)
+ */
+static  __jo_force_inline jo_fixed jo_fixed_cos(jo_fixed rad)
+{
+    return (jo_fixed_sin(rad + JO_FIXED_PI_DIV_2));
+}
+
+/** @brief Fast cosinus computation
+ *  @param deg Angle in degree
+ *  @return Fixed Cos(deg)
+ */
+static  __jo_force_inline jo_fixed	jo_cos(const int deg)
+{
+    return (jo_fixed_cos(jo_fixed_deg2rad(jo_int2fixed(deg))));
+}
+
+/** @brief Cosinus computation
+ *  @param deg Angle in degree
+ *  @return Cos(deg) using floating number (slow)
+ *  @warning slower than jo_sin() because it use floating point
+ */
+static  __jo_force_inline float	jo_cosf(const int deg)
+{
+    return (jo_fixed2float(jo_cos(deg)));
+}
+
+/** @brief Cosinus computation
+ *  @param rad Angle in radian
+ *  @return Fixed Cos(rad)
+ *  @warning slower than jo_sin() because it use floating point
+ */
+static  __jo_force_inline jo_fixed	jo_cos_rad(const float rad)
+{
+    return (jo_fixed_cos(jo_float2fixed(rad)));
+}
+
+/** @brief Cosinus computation
+ *  @param rad Angle in radian
+ *  @return Cos(rad) using floating number (slow)
+ *  @warning slower than jo_sin_rad() because it use floating point
+ */
+static  __jo_force_inline float	jo_cos_radf(const float rad)
+{
+    return (jo_fixed2float(jo_fixed_cos(jo_float2fixed(rad))));
+}
+
+/** @brief Fast cosinus multiplication
+ *  @param deg Angle in degree
+ *  @param value Value
+ *  @return value * Cos(deg)
+ */
+static  __jo_force_inline int	jo_cos_mult(const int value, const int deg)
+{
+    return (jo_fixed2int(value * jo_cos(deg)));
+}
+
+/** @brief Fast cosinus multiplication
+ *  @param deg Angle in degree
+ *  @param value Value
+ *  @return value * Cos(deg) using floating number (slow)
+ */
+static  __jo_force_inline float	jo_cosf_mult(const float value, const int deg)
+{
+    return (value * jo_cosf(deg));
 }
 
 /*
@@ -463,42 +600,42 @@ static  __jo_force_inline float	jo_sinf_mult(const float value, const int angle)
 */
 
 /** @brief Fast tangent computation
- *  @param angle Angle in degree
- *  @return Tan(angle) * 32768
+ *  @param deg Angle in degree
+ *  @return Fixed Tan(deg)
  */
-static __jo_force_inline int    jo_tan(const int angle)
+static __jo_force_inline jo_fixed    jo_tan(const int deg)
 {
-    return (jo_sin(angle) / jo_cos(angle));
+    return (jo_sin(deg) / jo_cos(deg));
 }
 
 /** @brief Tangent computation
- *  @param angle Angle in degree
- *  @return Tan(angle) using floating number (slow)
+ *  @param deg Angle in degree
+ *  @return Tan(deg) using floating number (slow)
  *  @warning slower than jo_tan() because it use floating point
  */
-static __jo_force_inline float    jo_tanf(const float angle)
+static __jo_force_inline float    jo_tanf(const float deg)
 {
-    return (jo_sinf(angle) / jo_cosf(angle));
+    return (jo_sinf(deg) / jo_cosf(deg));
 }
 
 /** @brief Tangent computation
- *  @param angle Angle in radian
- *  @return Tan(angle) * 32768
+ *  @param rad Angle in radian
+ *  @return Fixed Tan(rad)
  *  @warning slower than jo_tan() because it use floating point
  */
-static __jo_force_inline int    jo_tan_rad(const float angle)
+static __jo_force_inline jo_fixed    jo_tan_rad(const float rad)
 {
-    return (jo_sin_rad(angle) / jo_cos_rad(angle));
+    return (jo_sin_rad(rad) / jo_cos_rad(rad));
 }
 
 /** @brief Tangent computation
- *  @param angle Angle in radian
- *  @return Tan(angle) using floating number (slow)
+ *  @param rad Angle in radian
+ *  @return Tan(rad) using floating number (slow)
  *  @warning slower than jo_tan_rad() because it use floating point
  */
-static __jo_force_inline float  jo_tan_radf(const float angle)
+static __jo_force_inline float  jo_tan_radf(const float rad)
 {
-    return (jo_sin_radf(angle) / jo_cos_radf(angle));
+    return (jo_sin_radf(rad) / jo_cos_radf(rad));
 }
 
 /*

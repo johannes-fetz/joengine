@@ -468,9 +468,9 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_z(short z)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, float z)
 {
-    slRotX(toFIXED(x));
-    slRotY(toFIXED(y));
-    slRotZ(toFIXED(z));
+    slRotX(RADtoANG(x));
+    slRotY(RADtoANG(y));
+    slRotZ(RADtoANG(z));
 }
 
 /** @brief Rotate 3D matrix using radian (X axis)
@@ -478,7 +478,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, fl
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
 {
-    slRotX(toFIXED(x));
+    slRotX(RADtoANG(x));
 }
 
 /** @brief Rotate 3D matrix using radian (Y axis)
@@ -486,7 +486,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
 {
-    slRotY(toFIXED(y));
+    slRotY(RADtoANG(y));
 }
 
 /** @brief Rotate 3D matrix using radian (Z axis)
@@ -494,7 +494,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
 {
-    slRotZ(toFIXED(z));
+    slRotZ(RADtoANG(z));
 }
 
 /** @brief Translate 3D matrix (using floating numbers)
@@ -512,9 +512,19 @@ static  __jo_force_inline void      jo_3d_translate_matrixf(float x, float y, fl
  *  @param y Y Position
  *  @param z Z Position
  */
+static  __jo_force_inline void      jo_3d_translate_matrix_fixed(jo_fixed x, jo_fixed y, jo_fixed z)
+{
+    slTranslate(x, y, z);
+}
+
+/** @brief Translate 3D matrix
+ *  @param x X Position
+ *  @param y Y Position
+ *  @param z Z Position
+ */
 static  __jo_force_inline void      jo_3d_translate_matrix(int x, int y, int z)
 {
-    slTranslate(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y), JO_MULT_BY_65536(z));
+    slTranslate(jo_int2fixed(x), jo_int2fixed(y), jo_int2fixed(z));
 }
 
 /** @brief Translate 3D matrix (X axis)
@@ -522,7 +532,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix(int x, int y, int z)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_x(int x)
 {
-    slTranslate(JO_MULT_BY_65536(x), 0, 0);
+    slTranslate(jo_int2fixed(x), 0, 0);
 }
 
 /** @brief Translate 3D matrix (Y axis)
@@ -530,7 +540,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_x(int x)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_y(int y)
 {
-    slTranslate(0, JO_MULT_BY_65536(y), 0);
+    slTranslate(0, jo_int2fixed(y), 0);
 }
 
 /** @brief Translate 3D matrix (Z axis)
@@ -538,7 +548,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_y(int y)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_z(int z)
 {
-    slTranslate(0, 0, JO_MULT_BY_65536(z));
+    slTranslate(0, 0, jo_int2fixed(z));
 }
 
 /******************************************************
