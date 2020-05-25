@@ -103,8 +103,7 @@ t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * cons
 
 /** @brief Load a 8 bits 255 colors max TGA image
  *  @param img Image (set data to NULL for dynamic allocation)
- *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
- *  @param filename Filename (upper case and shorter as possible like "A.TGA")
+ *  @param stream Raw TGA contents
  *  @param transparent_color_index_in_palette Transparent color in palette index. Use 0 by default
  *  @return t_tga_error_code
  */

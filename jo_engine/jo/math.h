@@ -325,7 +325,7 @@ static __jo_force_inline float          jo_fixed2float(const jo_fixed x)
 }
 
 /** @brief Wrap rad in [−pi pi]
- *  @param Rad Fixed radian
+ *  @param rad Fixed radian
  *  @return rad wrapped in [−pi pi]
  */
 static __jo_force_inline jo_fixed       jo_fixed_wrap_to_pi(jo_fixed rad)
@@ -363,7 +363,7 @@ static __jo_force_inline jo_fixed       jo_fixed_deg2rad(const jo_fixed deg)
 }
 
 /** @brief Convert fixed radian to fixed degree
- *  @param deg Fixed angle in radian
+ *  @param rad Fixed angle in radian
  *  @return Fixed angle in degree
  */
 static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
@@ -446,7 +446,7 @@ static  __jo_force_inline ANGLE     jo_fixed_rad2ANGLE(const jo_fixed rad)
 }
 
 /** @brief Convert fixed degree to SGL ANGLE
- *  @param rad Jo Engine fixed degree
+ *  @param deg Jo Engine fixed degree
  *  @return SGL ANGLE
  */
 static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
