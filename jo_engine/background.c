@@ -87,12 +87,12 @@ void                            jo_background_3d_plane_add_img(const jo_img_8bit
         }
         if (JO_MOD_POW2(img->width, 8) != 0)
         {
-            jo_core_error("%s: Image width must be multiple of 8", filename);
+            jo_core_error("%s: Image width must be multiple of 8");
             return ;
         }
         if (JO_MOD_POW2(img->height, 8) != 0)
         {
-            jo_core_error("%s: Image height must be multiple of 8", filename);
+            jo_core_error("%s: Image height must be multiple of 8");
             return ;
         }
 #endif
