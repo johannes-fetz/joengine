@@ -16,3 +16,5 @@ Emulators/SSF/Setting/*
 /Emulators/SSF/SSF.ini
 /Emulators/nova/nova.ini
 /Projects/*/
+/Projects/*.zip
+/Projects/*.7z

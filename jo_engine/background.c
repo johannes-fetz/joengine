@@ -79,6 +79,23 @@ void                            jo_background_3d_plane_add_img(const jo_img_8bit
     register int                line_y;
     register int                i;
 
+#ifdef JO_DEBUG
+        if (img == JO_NULL)
+        {
+            jo_core_error("img is null");
+            return ;
+        }
+        if (JO_MOD_POW2(img->width, 8) != 0)
+        {
+            jo_core_error("%s: Image width must be multiple of 8", filename);
+            return ;
+        }
+        if (JO_MOD_POW2(img->height, 8) != 0)
+        {
+            jo_core_error("%s: Image height must be multiple of 8", filename);
+            return ;
+        }
+#endif
     for (JO_ZERO(x); x < img->width; x += CELL_WIDTH)
     {
         for (JO_ZERO(y), JO_ZERO(line_y); y < img->height; y += CELL_HEIGHT, line_y += JO_MULT_BY_8(img->width))
