@@ -103,7 +103,7 @@ void		        jo_audio_stop_cd(void)
 void		        jo_audio_init(void)
 {
 #if JO_COMPILE_USING_SGL
-    const char const	map[] = {0xff, 0xff, 0xff, 0xff};
+    const char	map[] = {0xff, 0xff, 0xff, 0xff};
 
     slInitSound((unsigned char *)sddrvstsk, sizeof(sddrvstsk), (unsigned char *)map, sizeof(map));
     *(volatile unsigned char *)(0x25a004e1) = 0x0;

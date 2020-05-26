@@ -267,6 +267,24 @@ typedef enum
     DOWN_RIGHT
 }               jo_8_directions;
 
+/** @brief Sega Saturn Scroll Screen Ids */
+typedef enum
+{
+    /* Technical Name */
+    JO_NBG0_SCREEN = (1<<0),
+    JO_NBG1_SCREEN = (1<<1),
+    JO_NBG2_SCREEN = (1<<2),
+    JO_NBG3_SCREEN = (1<<3),
+    JO_RGB0_SCREEN = (1<<4),
+    JO_BACK_SCREEN = (1<<5),
+    JO_SPRITE_SCREEN = (1<<6),
+    /* User friendly alias */
+    JO_VDP2_3D_PLANE_SCREEN = JO_RGB0_SCREEN,
+    JO_LNCL_SCREEN = JO_BACK_SCREEN,
+    /* Helper */
+    JO_ALL_SCROLL_SCREEN = JO_NBG0_SCREEN | JO_NBG1_SCREEN | JO_NBG2_SCREEN | JO_NBG3_SCREEN | JO_RGB0_SCREEN | JO_BACK_SCREEN | JO_SPRITE_SCREEN
+}               jo_scroll_screen;
+
 #endif /* !__JO_TYPES_H__ */
 
 /*
