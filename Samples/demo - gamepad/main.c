@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2013, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -27,34 +27,65 @@
 */
 #include <jo/jo.h>
 
-static int ship_sprite_id = 0;
-static int ship_pos_x = 0;
-static int ship_pos_y = 0;
+static int gamepad_sprite_id;
+static int arrow_sprite_id;
 
 void			my_draw(void)
 {
-	jo_printf(0, 0, "Use keyboard or gamepad to move the ship");
-	jo_sprite_draw3D(ship_sprite_id, ship_pos_x, ship_pos_y, 500);
+	jo_sprite_draw3D(gamepad_sprite_id, 0, 0, 500);
 }
 
 void			my_gamepad(void)
 {
-	if (!jo_is_pad1_available())
-		return ;
-	if (jo_is_pad1_key_pressed(JO_KEY_LEFT))
-		ship_pos_x -= 2;
-	if (jo_is_pad1_key_pressed(JO_KEY_RIGHT))
-		ship_pos_x += 2;
-	if (jo_is_pad1_key_pressed(JO_KEY_UP))
-		ship_pos_y -= 2;
-	if (jo_is_pad1_key_pressed(JO_KEY_DOWN))
-		ship_pos_y += 2;
+	if (!jo_is_input_available(0))
+    {
+        jo_set_screen_color_filter_a(JO_SPRITE_SCREEN, 255, 0, 0); // All sprite in red if the controller in not plugged in.
+        return ;
+    }
+    else
+        jo_disable_all_screen_color_filter();
+
+    // Note: You can also use jo_is_input_key_* for direction
+    switch (jo_get_input_direction_pressed(0))
+    {
+        case LEFT: jo_sprite_draw3D(arrow_sprite_id, -75, -3, 450); break;
+        case RIGHT: jo_sprite_draw3D(arrow_sprite_id, -45, -3, 450); break;
+        case UP: jo_sprite_draw3D(arrow_sprite_id, -60, -15, 450); break;
+        case DOWN: jo_sprite_draw3D(arrow_sprite_id, -60, 12, 450); break;
+        case UP_LEFT: jo_sprite_draw3D(arrow_sprite_id, -72, -12, 450); break;
+        case UP_RIGHT: jo_sprite_draw3D(arrow_sprite_id, -48, -12, 450); break;
+        case DOWN_LEFT: jo_sprite_draw3D(arrow_sprite_id, -72, 9, 450); break;
+        case DOWN_RIGHT: jo_sprite_draw3D(arrow_sprite_id, -48, 9, 450); break;
+        case NONE: break;
+    }
+    if (jo_is_input_key_pressed(0, JO_KEY_START))
+        jo_sprite_draw3D(arrow_sprite_id, 0, 17, 450);
+
+    if (jo_is_input_key_pressed(0, JO_KEY_L))
+        jo_sprite_draw3D(arrow_sprite_id, -50, -60, 450);
+    if (jo_is_input_key_pressed(0, JO_KEY_R))
+        jo_sprite_draw3D(arrow_sprite_id, 50, -60, 450);
+
+    if (jo_is_input_key_pressed(0, JO_KEY_A))
+        jo_sprite_draw3D(arrow_sprite_id, 41, 20, 450);
+    if (jo_is_input_key_pressed(0, JO_KEY_B))
+        jo_sprite_draw3D(arrow_sprite_id, 63, 4, 450);
+    if (jo_is_input_key_pressed(0, JO_KEY_C))
+        jo_sprite_draw3D(arrow_sprite_id, 88, -4, 450);
+
+    if (jo_is_input_key_pressed(0, JO_KEY_X))
+        jo_sprite_draw3D(arrow_sprite_id, 33, -7, 450);
+    if (jo_is_input_key_pressed(0, JO_KEY_Y))
+        jo_sprite_draw3D(arrow_sprite_id, 51, -20, 450);
+    if (jo_is_input_key_pressed(0, JO_KEY_Z))
+        jo_sprite_draw3D(arrow_sprite_id, 72, -28, 450);
 }
 
 void			jo_main(void)
 {
-	jo_core_init(JO_COLOR_Black);
-	ship_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "SHIP.TGA", JO_COLOR_Green);
+	jo_core_init(JO_COLOR_White);
+	gamepad_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "PAD.TGA", JO_COLOR_Green);
+	arrow_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "ARW.TGA", JO_COLOR_Green);
 	jo_core_add_callback(my_gamepad);
 	jo_core_add_callback(my_draw);
 	jo_core_run();
