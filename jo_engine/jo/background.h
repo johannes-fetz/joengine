@@ -192,6 +192,26 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
     slCurRpara(RB); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
 }
 
+/** @brief Enable mozaic effect for scroll screen
+ *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
+ *  @param x Horizontal mozaic size [1-16]
+ *  @param y Vertical mozaic size [1-16]
+ *  @warning Only JO_NBG0_SCREEN, JO_NBG1_SCREEN, JO_NBG2_SCREEN, JO_NBG3_SCREEN and JO_RBG0_SCREEN supports this feature
+ */
+static  __jo_force_inline void      jo_enable_screen_mozaic(jo_scroll_screen screens, short x, short y)
+{
+    slScrMosSize(x, y);
+    slScrMosaicOn(screens);
+}
+
+/** @brief Disable mozaic effect for all scroll screen
+ */
+static  __jo_force_inline void      jo_disable_all_screen_mozaic(void)
+{
+    slScrMosSize(1, 1);
+    slScrMosaicOn(0);
+}
+
 #endif /* !__JO_BACKGROUND_H__ */
 
 /*

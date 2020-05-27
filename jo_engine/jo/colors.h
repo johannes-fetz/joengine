@@ -138,9 +138,6 @@ static  __jo_force_inline void      jo_disable_all_screen_color_filter(void)
     jo_disable_screen_color_filter(JO_ALL_SCROLL_SCREEN);
 }
 
-
-
-
 #endif /* !__JO_COLORS_H__ */
 
 /*
