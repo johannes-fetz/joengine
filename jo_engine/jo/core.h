@@ -69,10 +69,6 @@ void	jo_core_init(const jo_color back_color);
  */
 void	jo_core_run(void);
 
-/** @brief Stop the execution until someone press Start
- */
-void    jo_core_suspend(void);
-
 /** @brief Add a callback during VBLANK interruption
  *  @param callback Function name with no parameters and no return value
  *  @return VBLANK Event Id (usefull for jo_core_remove_vblank_callback())
@@ -153,6 +149,10 @@ static  __jo_force_inline void      jo_core_tv_on(void)
 
 #ifdef JO_DEBUG
 
+/** @brief Stop the execution until someone press Start
+ */
+void    jo_core_suspend(void);
+
 /** @brief Get last error
  *  @return Formated error
  */
@@ -161,8 +161,6 @@ static  __jo_force_inline char * jo_get_last_error(void)
     return (__jo_last_error);
 }
 
-#ifdef JO_DEBUG
-
 /** @brief Dump VDP1 registers
  */
 void                jo_dump_vdp1_registers(void);
@@ -170,8 +168,6 @@ void                jo_dump_vdp1_registers(void);
 /** @brief Dump VDP2 registers
  */
 void                jo_dump_vdp2_registers(void);
-
-#endif
 
 #endif
 

@@ -74,13 +74,13 @@ void            apply_effect(void)
 void			my_gamepad(void)
 {
     if (jo_is_pad1_key_pressed(JO_KEY_UP))
-        rx -= 0.01f;
+        rx -= 0.05f;
     else if (jo_is_pad1_key_pressed(JO_KEY_DOWN))
-        rx += 0.01f;
+        rx += 0.05f;
     else if (jo_is_pad1_key_pressed(JO_KEY_LEFT))
-        ry += 0.01f;
+        ry += 0.05f;
     else if (jo_is_pad1_key_pressed(JO_KEY_RIGHT))
-        ry -= 0.01f;
+        ry -= 0.05f;
     if (jo_is_pad1_key_down(JO_KEY_A))
     {
         use_screen_doors ^= true;
