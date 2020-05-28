@@ -141,6 +141,10 @@ else
 	endif
 endif
 
+ifeq (1,${JO_COMPILE_WITH_SPRITE_HASHTABLE})
+	CCFLAGS += -DJO_COMPILE_WITH_SPRITE_HASHTABLE
+endif
+
 ifeq (${JO_480p},)
 else
 	CCFLAGS += -DJO_480p

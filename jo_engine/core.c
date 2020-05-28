@@ -149,7 +149,7 @@ static __jo_force_inline void jo_wait_vblank_in(void)
 
 #endif
 
-static void                 jo_init_memory(void)
+static bool                 jo_init_memory(void)
 {
     static unsigned char    global_memory[JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC];
 
@@ -175,9 +175,16 @@ static void                 jo_init_memory(void)
         jo_add_memory_zone((unsigned char *)0x2307ffff, 0x180000);
     }
 #endif
+#ifdef JO_DEBUG
+    // We check if the Work RAM for malloc is on the user RAM area
+    // It's not perfect but better than nothing
+    if (!JO_IS_ARRAY_INSIDE_USER_RAM_AREA(global_memory))
+        return (false);
+#endif
+    return (true);
 }
 
-static void     jo_set_vdp2_4k_default_color_palette(void)
+static void     jo_set_printf_palette(void)
 {
     jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Black, JO_COLOR_Black);
@@ -199,7 +206,7 @@ static	void	jo_core_init_vdp(const jo_color back_color)
     slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slCharNbg1(COL_TYPE_256, CHAR_SIZE_1x1);
-    jo_set_vdp2_4k_default_color_palette();
+    jo_set_printf_palette();
     jo_set_printf_color_index(0);
     slPageNbg1((void *)JO_VDP2_NBG1_MAP_ADR, 0, PNB_1WORD | CN_12BIT);
     slPlaneNbg1(PL_SIZE_1x1);
@@ -423,10 +430,12 @@ inline void                        jo_core_exec_on_slave(jo_slave_callback callb
 
 void			jo_core_init(const jo_color back_color)
 {
+    bool        is_memory_ok;
+
 #ifdef JO_DEBUG
     JO_ZERO(__jo_last_error[0]);
 #endif
-    jo_init_memory();
+    is_memory_ok = jo_init_memory();
     jo_list_init(&__vblank_callbacks);
     jo_list_init(&__callbacks);
     jo_list_init(&__slave_callbacks);
@@ -456,6 +465,10 @@ void			jo_core_init(const jo_color back_color)
 #else
     JO_VDP2_TVMD = 0x8120;
 #endif
+#endif
+#ifdef JO_DEBUG
+    if (!is_memory_ok)
+        jo_core_error("Please reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC");
 #endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (jo_fs_init() == 0)
@@ -740,9 +753,7 @@ void                jo_dump_vdp2_registers(void)
 int     main(void)
 {
 	jo_memset(&_bstart, 0, &_bend - &_bstart);
-#if JO_COMPILE_USING_SGL
-    jo_memset((void *)0x060ffc00, 0, 0x400);
-#endif
+    jo_memset((void *)JO_WORK_RAM_SYSTEM_WORK, 0, JO_WORK_RAM_SYSTEM_WORK_SIZE);
 	jo_main();
 	return (0);
 }

@@ -48,7 +48,7 @@
 
 #define	PCM_ADDR				((void*)0x25a20000)
 #define	PCM_SIZE				(4096L*16)
-#define	RING_BUF_SIZ			(1024L*100)//avant 400
+#define	RING_BUF_SIZ			(1024L*100)
 
 int __jo_video_sprite_id;
 

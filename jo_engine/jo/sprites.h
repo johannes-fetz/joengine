@@ -122,13 +122,14 @@ static  __jo_force_inline void	jo_sprite_free_all(void)
     jo_sprite_free_from(0);
 }
 
+# ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 /** @brief Retrive the Sprite Id from filename based on the four first character in the filename
  *  @param filename Filename (upper case and shorter as possible like "A.TEX")
  *  @warning Slow, use carefully
  *  @return Sprite Id of the first image or -1 if not found
  */
 int		jo_sprite_name2id(const char *const filename);
-
+#endif
 /*
 ** Sprite clipping
 */

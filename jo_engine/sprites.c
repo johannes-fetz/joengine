@@ -62,7 +62,9 @@ jo_pos3D                __jo_sprite_pos = {0, 0, 120};
 jo_texture_definition   __jo_sprite_def[JO_MAX_SPRITE];
 jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
 int                     __jo_gouraud_shading_runtime_index = -1;
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 int				        __jo_hash_table[JO_MAX_SPRITE];
+#endif
 static int				__jo_sprite_addr = 0;
 static int				__jo_sprite_id = -1;
 
@@ -94,13 +96,30 @@ int                     jo_get_last_sprite_id(void)
 
 void                    jo_sprite_init(void)
 {
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
     register int		i;
+#endif
 
+#ifdef JO_DEBUG
+    if (!JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_sprite_def) ||
+# ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
+        !JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_hash_table) ||
+# endif
+        !JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_sprite_pic))
+    {
+        jo_core_error("Please reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC");
+        jo_goto_boot_menu();
+        return ;
+    }
+#endif
     __jo_sprite_id = -1;
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
     for (JO_ZERO(i); i < JO_MAX_SPRITE; ++i)
         JO_ZERO(__jo_hash_table[i]);
+#endif
 }
 
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 int				jo_sprite_name2id(const char * const restrict filename)
 {
     register int		i;
@@ -119,6 +138,7 @@ int				jo_sprite_name2id(const char * const restrict filename)
             return (i);
     return (-1);
 }
+#endif
 
 int				            jo_sprite_replace(const jo_img * const img, const int sprite_id)
 {

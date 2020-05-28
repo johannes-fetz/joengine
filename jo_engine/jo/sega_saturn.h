@@ -383,6 +383,74 @@ bit->  /----15----|----14----|----13----|----12----|----11----|----10----|----09
 # define JO_VDP2_COBG        (*(volatile unsigned short *)0x25F8011C) // 0x0
 # define JO_VDP2_COBB        (*(volatile unsigned short *)0x25F8011E) // 0x0
 
+/*
+ __          ______  _____  _  __  _____            __  __
+ \ \        / / __ \|  __ \| |/ / |  __ \     /\   |  \/  |
+  \ \  /\  / / |  | | |__) | ' /  | |__) |   /  \  | \  / |
+   \ \/  \/ /| |  | |  _  /|  <   |  _  /   / /\ \ | |\/| |
+    \  /\  / | |__| | | \ \| . \  | | \ \  / ____ \| |  | |
+     \/  \/   \____/|_|  \_\_|\_\ |_|  \_\/_/    \_\_|  |_| (SGL)
+*/
+
+/** @brief ROM BIOS functions */
+# define JO_WORK_RAM_BOOT_ROM                   (0x06000000)
+/** @brief Slave CPU stack */
+# define JO_WORK_RAM_SLAVE_CPU_STACK_AREA       (0x06000800)
+/** @brief Master CPU stack */
+# define JO_WORK_RAM_MASTER_CPU_DEFAULT_STACK   (0x06001000)
+/** @brief TODO: UNKNOW USAGE, BUT CAN I USE IT ? */
+# define JO_WORK_RAM_UNKNOWN_USAGE              (0x06002000)
+/** @brief User area */
+# define JO_WORK_RAM_USER_PROGRAM_AND_DATA      (0x06004000)
+/** @brief Table buffer for DMA transfers of sprite control data (MAX_POLYGON+5)*3*4BYTE = 0x549C */
+# define JO_WORK_RAM_SORT_LIST                  (0x060C0000)
+/** @brief Alias to JO_WORK_RAM_SORT_LIST */
+# define JO_WORK_RAM_USER_PROGRAM_AND_DATA_END  (JO_WORK_RAM_SORT_LIST)
+/** @brief DMA control table for transfer requests during blanking MAX_TRANSFER*3*4BYTE = 0xF0 */
+# define JO_WORK_RAM_DMA_TRANSFERT_LIST         (0x060C549C)
+/** @brief Primary buffer for polygon sort (for window 0) 128*4 = 0x200 */
+# define JO_WORK_RAM_WINDOW_0_ZBUFFER           (0x060C558C)
+/** @brief Primary buffer 2 polygon sort (for window 1) 128*4 = 0x200 */
+# define JO_WORK_RAM_WINDOW_1_ZBUFFER           (0x060C578C)
+/** @brief Secondary buffer for polygon sort 256*4 = 0x400 */
+# define JO_WORK_RAM_POLYGON_SORT_ZBUFFER       (0x060C598C)
+/** @brief Sprite control data buffer (MAX_POSYGON+5)*36 = 0xFDD4 */
+# define JO_WORK_RAM_SPRITE_BUFFER_1            (0x060C5D8C)
+/** @brief Sprite control data buffer 2 (MAX_POSYGON+5)*36 = 0xFDD4 */
+# define JO_WORK_RAM_SPRITE_BUFFER_2            (0x060D5B60)
+/** @brief Vertex position buffer for polygon calculations MAX_VERTICES*16 = 0x9C40 */
+# define JO_WORK_RAM_POLYGON_VERTEX_CALC_BUFFER (0x060E5934)
+/** @brief Data table for colors generated due to light source effects 33*32 = 0x420 */
+# define JO_WORK_RAM_LIGHT_COLORS_BUFFER        (0x060EF574)
+/** @brief Command passing buffer from master to slave MAX_POLYGON*32 = 0xE100 */
+# define JO_WORK_RAM_COMMAND_BUFFER             (0x060EF994)
+/** @brief Stack area (0x216C) */
+# define JO_WORK_RAM_STACK_AREA                 (0x06FDA94)
+/** @brief System variable area (the GBR register always points here) 0x400byte */
+# define JO_WORK_RAM_SYSTEM_WORK                (0x06FFC00)
+# define JO_WORK_RAM_SYSTEM_WORK_SIZE           (0x400)
+
+/*
+  _    _ ______ _      _____  ______ _____   _____
+ | |  | |  ____| |    |  __ \|  ____|  __ \ / ____|
+ | |__| | |__  | |    | |__) | |__  | |__) | (___
+ |  __  |  __| | |    |  ___/|  __| |  _  / \___ \
+ | |  | | |____| |____| |    | |____| | \ \ ____) |
+ |_|  |_|______|______|_|    |______|_|  \_\_____/
+*/
+
+/** @brief Check if the pointer is inside user area WORK RAM
+ *  @param PTR Pointer
+ */
+# define JO_IS_PTR_INSIDE_USER_RAM_AREA(PTR)        (((unsigned int)(PTR)) >= JO_WORK_RAM_USER_PROGRAM_AND_DATA && \
+                                                    ((unsigned int)(PTR)) < JO_WORK_RAM_USER_PROGRAM_AND_DATA_END)
+
+/** @brief Check if the array is inside user area WORK RAM
+ *  @param ARRAY An array like char[256]
+ */
+# define JO_IS_ARRAY_INSIDE_USER_RAM_AREA(ARRAY)    (JO_IS_PTR_INSIDE_USER_RAM_AREA((unsigned char *)ARRAY) && \
+                                                    JO_IS_PTR_INSIDE_USER_RAM_AREA(((unsigned char *)ARRAY) + sizeof(ARRAY)))
+
 #endif /* !__JO_SEGA_SATURN_H__ */
 
 /*

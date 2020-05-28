@@ -59,10 +59,10 @@ typedef struct
 
 static jo_memory_zone   memory_zones[9/*MAIN RAM + 32MB RAM Extension*/];
 
-void                jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
+void                    jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
 {
-    register int    *tmp;
-    register int    *end;
+    register int        *tmp;
+    register int        *end;
 
     memory_zones[__jo_memory_zone_index].begin = ptr;
     memory_zones[__jo_memory_zone_index].high = ptr;

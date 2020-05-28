@@ -97,6 +97,15 @@ int								jo_fs_init()
 {
     register int                i;
 
+#ifdef JO_DEBUG
+    if (!JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_fs_work) ||
+        !JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_fs_dirname) ||
+        !JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_fs_background_jobs))
+    {
+        jo_core_error("Please reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC");
+        return (0);
+    }
+#endif
     JO_ZERO(__jo_fs_background_job_count);
     for (JO_ZERO(i); i < JO_MAX_FS_BACKGROUND_JOBS; ++i)
         __jo_fs_background_jobs[i].active = false;

@@ -48,6 +48,14 @@ jo_list                             __storyboards;
 
 void                                jo_init_storyboards(void)
 {
+#ifdef JO_DEBUG
+    if (!JO_IS_PTR_INSIDE_USER_RAM_AREA(&__storyboards))
+    {
+        jo_core_error("Please reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC");
+        jo_goto_boot_menu();
+        return ;
+    }
+#endif
     jo_list_init(&__storyboards);
     jo_list_set_allocation_behaviour(&__storyboards, JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
 }
