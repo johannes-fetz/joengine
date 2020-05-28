@@ -288,6 +288,16 @@
  */
 # define JO_SQUARE(A)                       ((A) * (A))
 
+/*
+███████╗██╗██╗  ██╗███████╗██████╗      ██████╗ ██████╗ ███╗   ██╗██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+██╔════╝██║╚██╗██╔╝██╔════╝██╔══██╗    ██╔════╝██╔═══██╗████╗  ██║██║   ██║██╔════╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+█████╗  ██║ ╚███╔╝ █████╗  ██║  ██║    ██║     ██║   ██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝   ██║   ██║██║   ██║██╔██╗ ██║
+██╔══╝  ██║ ██╔██╗ ██╔══╝  ██║  ██║    ██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗   ██║   ██║██║   ██║██║╚██╗██║
+██║     ██║██╔╝ ██╗███████╗██████╔╝    ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ███████╗██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+*/
+
 /** @brief Convert int to jo engine fixed
  *  @param x Float to convert
  *  @return Fixed value
@@ -371,31 +381,15 @@ static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
     return (jo_fixed_mult(jo_fixed_wrap_to_pi(rad), JO_FIXED_180_DIV_PI));
 }
 
-/** @brief Check if float almost equals 0;
- *  @param f floating point number
- *  @return true if the float almost equals 0 otherwise false
- */
-static  __jo_force_inline bool	jo_is_float_equals_zero(const float f)
-{
-    return (JO_ABS(f) < 0.00000001f);
-}
+/*
+██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗
+██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║
+██████╔╝███████║██╔██╗ ██║██║  ██║██║   ██║██╔████╔██║
+██╔══██╗██╔══██║██║╚██╗██║██║  ██║██║   ██║██║╚██╔╝██║
+██║  ██║██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║ ╚═╝ ██║
+╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
 
-/** @brief Fast method to get if two square intersects (HitBox processing)
- *  @param x1 Horizontal position of the first square
- *  @param y1 Vertical position of the first square
- *  @param w1 Width of the first square
- *  @param h1 Height of the first square
- *  @param x2 Horizontal position of the second square
- *  @param y2 Vertical position of the second square
- *  @param w2 Width of the second square
- *  @param h2 Height of the second square
- *  @return true if squares collides otherwise false
- */
-static  __jo_force_inline bool	jo_square_intersect(const int x1, const int y1, const int w1, const int h1,
-        const int x2, const int y2, const int w2, const int h2)
-{
-    return ((x1 < x2 + w2) && (x2 < x1 + w1)) && ((y1 < y2 + h2) && (y2 < y1 + h1));
-}
+*/
 
 /** @brief Get a random number
  *  @param max maximum value
@@ -412,6 +406,16 @@ static  __jo_force_inline int	jo_random_using_multiple(int max, int multiple)
 {
     return (jo_random(max) / multiple) * multiple;
 }
+
+/*
+███████╗ ██████╗ ██████╗ ████████╗
+██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝
+███████╗██║   ██║██████╔╝   ██║
+╚════██║██║▄▄ ██║██╔══██╗   ██║
+███████║╚██████╔╝██║  ██║   ██║
+╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
+
+*/
 
 /** @brief Fast square root
  *  @param value Value
@@ -433,7 +437,13 @@ static  __jo_force_inline float jo_sqrtf(float value)
 }
 
 /*
-** SGL (Sega Graphic Library) COMPATIBILITY TOOLS
+███████╗ ██████╗ ██╗         ██╗███╗   ██╗████████╗███████╗██████╗  ██████╗ ██████╗
+██╔════╝██╔════╝ ██║         ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗██╔═══██╗██╔══██╗
+███████╗██║  ███╗██║         ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝██║   ██║██████╔╝
+╚════██║██║   ██║██║         ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗██║   ██║██╔═══╝
+███████║╚██████╔╝███████╗    ██║██║ ╚████║   ██║   ███████╗██║  ██║╚██████╔╝██║
+╚══════╝ ╚═════╝ ╚══════╝    ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
+
 */
 
 /** @brief Convert fixed radian to SGL ANGLE
@@ -455,7 +465,13 @@ static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
 }
 
 /*
-** SINUS COMPUTATION
+███████╗██╗███╗   ██╗██╗   ██╗███████╗
+██╔════╝██║████╗  ██║██║   ██║██╔════╝
+███████╗██║██╔██╗ ██║██║   ██║███████╗
+╚════██║██║██║╚██╗██║██║   ██║╚════██║
+███████║██║██║ ╚████║╚██████╔╝███████║
+╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
+
 */
 
 /** @brief Fast sinus computation using fixed number
@@ -524,7 +540,13 @@ static  __jo_force_inline float	jo_sinf_mult(const float value, const int deg)
 }
 
 /*
-** COSINUS COMPUTATION
+ ██████╗ ██████╗ ███████╗██╗███╗   ██╗██╗   ██╗███████╗
+██╔════╝██╔═══██╗██╔════╝██║████╗  ██║██║   ██║██╔════╝
+██║     ██║   ██║███████╗██║██╔██╗ ██║██║   ██║███████╗
+██║     ██║   ██║╚════██║██║██║╚██╗██║██║   ██║╚════██║
+╚██████╗╚██████╔╝███████║██║██║ ╚████║╚██████╔╝███████║
+ ╚═════╝ ╚═════╝ ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
+
 */
 
 /** @brief Fast cosinus computation using fixed number
@@ -596,7 +618,13 @@ static  __jo_force_inline float	jo_cosf_mult(const float value, const int deg)
 }
 
 /*
-** TAN
+████████╗ █████╗ ███╗   ██╗ ██████╗ ███████╗███╗   ██╗████████╗
+╚══██╔══╝██╔══██╗████╗  ██║██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+   ██║   ███████║██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║   ██║
+   ██║   ██╔══██║██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║   ██║
+   ██║   ██║  ██║██║ ╚████║╚██████╔╝███████╗██║ ╚████║   ██║
+   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
+
 */
 
 /** @brief Fast tangent computation
@@ -639,7 +667,12 @@ static __jo_force_inline float  jo_tan_radf(const float rad)
 }
 
 /*
-** ACOS
+ █████╗  ██████╗ ██████╗ ███████╗
+██╔══██╗██╔════╝██╔═══██╗██╔════╝
+███████║██║     ██║   ██║███████╗
+██╔══██║██║     ██║   ██║╚════██║
+██║  ██║╚██████╗╚██████╔╝███████║
+╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
 */
 
 /** @brief Fast Arc Cosinus computation
@@ -652,7 +685,13 @@ static  __jo_force_inline float	jo_acos_radf(const float angle)
 }
 
 /*
-** ATAN2
+ █████╗ ████████╗ █████╗ ███╗   ██╗██████╗
+██╔══██╗╚══██╔══╝██╔══██╗████╗  ██║╚════██╗
+███████║   ██║   ███████║██╔██╗ ██║ █████╔╝
+██╔══██║   ██║   ██╔══██║██║╚██╗██║██╔═══╝
+██║  ██║   ██║   ██║  ██║██║ ╚████║███████╗
+╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝
+
 */
 
 /** @brief Fast ATAN2 computation in radian
@@ -675,7 +714,13 @@ static __jo_force_inline int    jo_atan2f(const float y, const float x)
 }
 
 /*
-** 3D VECTOR
+██╗   ██╗███████╗ ██████╗████████╗ ██████╗ ██████╗
+██║   ██║██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗
+██║   ██║█████╗  ██║        ██║   ██║   ██║██████╔╝
+╚██╗ ██╔╝██╔══╝  ██║        ██║   ██║   ██║██╔══██╗
+ ╚████╔╝ ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║
+  ╚═══╝  ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
+
 */
 
 /** @brief Add 2 vectors (using floating numbers)
@@ -857,7 +902,13 @@ static __jo_force_inline float jo_vectorf_angle_between_radf(const jo_vectorf * 
 }
 
 /*
-** 3D MATRIX 4x4
+██╗  ██╗██╗  ██╗██╗  ██╗    ███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗
+██║  ██║╚██╗██╔╝██║  ██║    ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝
+███████║ ╚███╔╝ ███████║    ██╔████╔██║███████║   ██║   ██████╔╝██║ ╚███╔╝
+╚════██║ ██╔██╗ ╚════██║    ██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗
+     ██║██╔╝ ██╗     ██║    ██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗
+     ╚═╝╚═╝  ╚═╝     ╚═╝    ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
+
 */
 
 /** @brief Creates the identity matrix (using floating numbers)
@@ -1174,8 +1225,40 @@ static __jo_force_inline void jo_matrixf_mul_dir(const jo_matrixf * const matrix
 }
 
 /*
-** MISC
+███╗   ███╗██╗███████╗ ██████╗
+████╗ ████║██║██╔════╝██╔════╝
+██╔████╔██║██║███████╗██║
+██║╚██╔╝██║██║╚════██║██║
+██║ ╚═╝ ██║██║███████║╚██████╗
+╚═╝     ╚═╝╚═╝╚══════╝ ╚═════╝
+
 */
+
+/** @brief Check if float almost equals 0;
+ *  @param f floating point number
+ *  @return true if the float almost equals 0 otherwise false
+ */
+static  __jo_force_inline bool	jo_is_float_equals_zero(const float f)
+{
+    return (JO_ABS(f) < 0.00000001f);
+}
+
+/** @brief Fast method to get if two square intersects (HitBox processing)
+ *  @param x1 Horizontal position of the first square
+ *  @param y1 Vertical position of the first square
+ *  @param w1 Width of the first square
+ *  @param h1 Height of the first square
+ *  @param x2 Horizontal position of the second square
+ *  @param y2 Vertical position of the second square
+ *  @param w2 Width of the second square
+ *  @param h2 Height of the second square
+ *  @return true if squares collides otherwise false
+ */
+static  __jo_force_inline bool	jo_square_intersect(const int x1, const int y1, const int w1, const int h1,
+        const int x2, const int y2, const int w2, const int h2)
+{
+    return ((x1 < x2 + w2) && (x2 < x1 + w1)) && ((y1 < y2 + h2) && (y2 < y1 + h1));
+}
 
 /** @brief Get the greatest common divisor
  *  @remarks PGCD in French

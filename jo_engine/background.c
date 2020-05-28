@@ -67,10 +67,12 @@
 #define RBG0_OVER_MODE_REPEAT   (0)
 #define RBG0_OVER_MODE_SINGLE   (3)
 
+#define LINE_TBL_ADR            (VDP2_VRAM_A1)
+
 static unsigned char            *__jo_cell_adr = (unsigned char *)RBG0_CEL_ADR;
 static int                      __jo_cell_mapoff = 0;
 
-void                            jo_background_3d_plane_add_img(const jo_img_8bits * const img, bool vertical_flip)
+void                            jo_img_to_vdp2_cells(const jo_img_8bits * const img, bool vertical_flip)
 {
     register int                x;
     register int                y;
@@ -158,7 +160,7 @@ void                            jo_background_3d_plane_begin_setup_a(bool repeat
 void                            jo_background_3d_plane_a_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
     jo_background_3d_plane_begin_setup_a(repeat);
-    jo_background_3d_plane_add_img(img, vertical_flip);
+    jo_img_to_vdp2_cells(img, vertical_flip);
 	__jo_create_map(img, (unsigned short *)RBG0RA_MAP_ADR, palette_id);
 }
 
@@ -173,7 +175,7 @@ void                            jo_background_3d_plane_begin_setup_b(bool repeat
 void                            jo_background_3d_plane_b_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
     jo_background_3d_plane_begin_setup_b(repeat);
-    jo_background_3d_plane_add_img(img, vertical_flip);
+    jo_img_to_vdp2_cells(img, vertical_flip);
 	__jo_create_map(img, (unsigned short *)RBG0RB_MAP_ADR, palette_id);
 }
 
@@ -251,12 +253,22 @@ void                            jo_clear_background(const jo_color color)
     }
 }
 
+void			                jo_set_background_8bits_sprite(jo_img_8bits *img, int palette_id, bool vertical_flip)
+{
+    __jo_cell_adr = (unsigned char *)JO_VDP2_NBG1_CEL_ADR;
+	slPageNbg1(__jo_cell_adr, 0, PNB_1WORD | CN_12BIT);
+    slCharNbg1(COL_TYPE_256, CHAR_SIZE_1x1);
+    jo_img_to_vdp2_cells(img, vertical_flip);
+	__jo_create_map(img, (unsigned short *)JO_VDP2_NBG1_MAP_ADR, palette_id);
+}
+
 void			                jo_set_background_sprite(const jo_img *const img, const unsigned short left, const unsigned short top)
 {
     register int                y;
     register jo_color           *vram_ptr;
     register jo_color           *img_ptr;
 
+    slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, (void *)VDP2_VRAM_A0);
     if (top)
         vram_ptr = ((jo_color *)VDP2_VRAM_A0) + (JO_VDP2_WIDTH * top);
     else
@@ -273,6 +285,29 @@ void			                jo_set_background_sprite(const jo_img *const img, const u
             vram_ptr += JO_VDP2_WIDTH;
         img_ptr += img->width;
     }
+}
+
+void                            jo_disable_background_horizontal_line_scroll(void)
+{
+    jo_memset((int *)LINE_TBL_ADR, 0, 2048);
+}
+
+void                            jo_compute_background_horizontal_line_scroll(unsigned short offset)
+{
+    int                         *scroll_table;
+
+    scroll_table = ((int *)LINE_TBL_ADR) + offset;
+    slLineScrollTable1(scroll_table);
+}
+
+int                             *jo_enable_background_horizontal_line_scroll(void)
+{
+    int                         *scroll_table;
+
+    scroll_table = (int *)LINE_TBL_ADR;
+    slLineScrollModeNbg1(lineSZ1 | lineHScroll);
+    slLineScrollTable1(scroll_table);
+    return (scroll_table);
 }
 
 /*

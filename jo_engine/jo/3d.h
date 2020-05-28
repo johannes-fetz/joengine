@@ -122,9 +122,15 @@ typedef struct
 extern jo_3d_quad *__jo_sprite_quad[JO_MAX_SPRITE];
 bool    jo_3d_create_sprite_quad(const int sprite_id);
 
-/******************************************************
-*                       CAMERA
-*******************************************************/
+/*
+ ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
+██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██╔══██╗
+██║     ███████║██╔████╔██║█████╗  ██████╔╝███████║
+██║     ██╔══██║██║╚██╔╝██║██╔══╝  ██╔══██╗██╔══██║
+╚██████╗██║  ██║██║ ╚═╝ ██║███████╗██║  ██║██║  ██║
+ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+
+*/
 
 /** @brief Set the viewpoint of the camera (where the cameraman is)
  *  @param cam Pointer to a camera struct
@@ -179,9 +185,15 @@ static  __jo_force_inline void      jo_3d_camera_look_at(jo_camera * const cam)
     slLookAt(cam->viewpoint, cam->target, cam->z_angle);
 }
 
-/******************************************************
-*                       STATISTICS
-*******************************************************/
+/*
+███████╗████████╗ █████╗ ████████╗██╗███████╗████████╗██╗ ██████╗███████╗
+██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔════╝╚══██╔══╝██║██╔════╝██╔════╝
+███████╗   ██║   ███████║   ██║   ██║███████╗   ██║   ██║██║     ███████╗
+╚════██║   ██║   ██╔══██║   ██║   ██║╚════██║   ██║   ██║██║     ╚════██║
+███████║   ██║   ██║  ██║   ██║   ██║███████║   ██║   ██║╚██████╗███████║
+╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝╚══════╝   ╚═╝   ╚═╝ ╚═════╝╚══════╝
+
+*/
 
 /** @brief Get polygon count (visible and not visible)
  *  @warning This function must be called after display polygons
@@ -213,9 +225,22 @@ static  __jo_force_inline unsigned int       jo_3d_get_displayed_polygon_count(v
     return DispPolygons;
 }
 
-/******************************************************
-*                 CREATE SIMPLE OBJECT
-*******************************************************/
+/*
+ ██████╗██████╗ ███████╗ █████╗ ████████╗███████╗    ███████╗██╗███╗   ███╗██████╗ ██╗     ███████╗
+██╔════╝██╔══██╗██╔════╝██╔══██╗╚══██╔══╝██╔════╝    ██╔════╝██║████╗ ████║██╔══██╗██║     ██╔════╝
+██║     ██████╔╝█████╗  ███████║   ██║   █████╗      ███████╗██║██╔████╔██║██████╔╝██║     █████╗
+██║     ██╔══██╗██╔══╝  ██╔══██║   ██║   ██╔══╝      ╚════██║██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+╚██████╗██║  ██║███████╗██║  ██║   ██║   ███████╗    ███████║██║██║ ╚═╝ ██║██║     ███████╗███████╗
+ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝    ╚══════╝╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
+
+ ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
+██╔═══██╗██╔══██╗     ██║██╔════╝██╔════╝╚══██╔══╝
+██║   ██║██████╔╝     ██║█████╗  ██║        ██║
+██║   ██║██╔══██╗██   ██║██╔══╝  ██║        ██║
+╚██████╔╝██████╔╝╚█████╔╝███████╗╚██████╗   ██║
+ ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
+
+*/
 
 /** @brief Create a four vertices polygon (Quadrilateral shape)
  *  @param quad Address to a jo_3d_quad allocated struct
@@ -249,22 +274,15 @@ static  __jo_force_inline jo_3d_quad    *jo_3d_get_sprite_quad(const int sprite_
  */
 void                                    jo_3d_free_sprite_quad(const int sprite_id);
 
-/******************************************************
-*                       MESH
-*******************************************************/
+/*
+███╗   ███╗███████╗███████╗██╗  ██╗    ████████╗███████╗██╗  ██╗████████╗██╗   ██╗██████╗ ███████╗
+████╗ ████║██╔════╝██╔════╝██║  ██║    ╚══██╔══╝██╔════╝╚██╗██╔╝╚══██╔══╝██║   ██║██╔══██╗██╔════╝
+██╔████╔██║█████╗  ███████╗███████║       ██║   █████╗   ╚███╔╝    ██║   ██║   ██║██████╔╝█████╗
+██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║       ██║   ██╔══╝   ██╔██╗    ██║   ██║   ██║██╔══██╗██╔══╝
+██║ ╚═╝ ██║███████╗███████║██║  ██║       ██║   ███████╗██╔╝ ██╗   ██║   ╚██████╔╝██║  ██║███████╗
+╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝       ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝
 
-/** @brief Get polygon count on the mesh
- *  @param mesh Address to a jo_3d_mesh allocated struct
- *  @return polygon count
- */
-static  __jo_force_inline unsigned int       jo_3d_get_mesh_polygon_count(jo_3d_mesh * const mesh)
-{
-    return mesh->data.nbPolygon;
-}
-
-/******************************************************
-*                       TEXTURE
-*******************************************************/
+*/
 
 /** @brief Set a texture on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
@@ -288,9 +306,15 @@ static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, c
     jo_3d_set_mesh_polygon_texture((jo_3d_mesh *)quad, sprite_id, 0);
 }
 
-/******************************************************
-*                       LIGHT
-*******************************************************/
+/*
+███╗   ███╗███████╗███████╗██╗  ██╗    ██╗     ██╗ ██████╗ ██╗  ██╗████████╗
+████╗ ████║██╔════╝██╔════╝██║  ██║    ██║     ██║██╔════╝ ██║  ██║╚══██╔══╝
+██╔████╔██║█████╗  ███████╗███████║    ██║     ██║██║  ███╗███████║   ██║
+██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║    ██║     ██║██║   ██║██╔══██║   ██║
+██║ ╚═╝ ██║███████╗███████║██║  ██║    ███████╗██║╚██████╔╝██║  ██║   ██║
+╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝    ╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+
+*/
 
 /** @brief Use a light source
  *  @param x X position of the light source
@@ -328,35 +352,15 @@ static  __jo_force_inline void      jo_3d_set_light(jo_3d_quad *const quad, cons
     jo_3d_set_mesh_polygon_light((jo_3d_mesh *)quad, enabled, 0);
 }
 
-/******************************************************
-*                       SCREEN DOORS
-*******************************************************/
+/*
+████████╗██████╗  █████╗ ███╗   ██╗███████╗██████╗  █████╗ ██████╗ ███████╗███╗   ██╗ ██████╗██╗   ██╗
+╚══██╔══╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝████╗  ██║██╔════╝╚██╗ ██╔╝
+   ██║   ██████╔╝███████║██╔██╗ ██║███████╗██████╔╝███████║██████╔╝█████╗  ██╔██╗ ██║██║      ╚████╔╝
+   ██║   ██╔══██╗██╔══██║██║╚██╗██║╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔══╝  ██║╚██╗██║██║       ╚██╔╝
+   ██║   ██║  ██║██║  ██║██║ ╚████║███████║██║     ██║  ██║██║  ██║███████╗██║ ╚████║╚██████╗   ██║
+   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝ ╚═════╝   ╚═╝
 
-/** @brief Enable/Disable screen doors transparency on one polygon on the mesh
- *  @param mesh Address to a jo_3d_mesh allocated struct
- *  @param enabled true to enable screen doors transparency
- *  @param index polygon index on the mesh
- */
-void                                jo_3d_set_mesh_polygon_screen_doors(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index);
-
-/** @brief Enable/Disable screen doors transparency on the mesh
- *  @param mesh Address to a jo_3d_mesh allocated struct
- *  @param enabled true to enable screen doors transparency
- */
-void                                jo_3d_set_mesh_screen_doors(jo_3d_mesh * const mesh, const bool enabled);
-
-/** @brief Enable/Disable screen doors transparency on the quad
- *  @param quad Address to a jo_3d_quad allocated struct
- *  @param enabled true to enable screen doors transparency
- */
-static  __jo_force_inline void      jo_3d_set_screen_doors(jo_3d_quad *const quad, const bool enabled)
-{
-    jo_3d_set_mesh_polygon_screen_doors((jo_3d_mesh *)quad, enabled, 0);
-}
-
-/******************************************************
-*                       TRANSPARENCY
-*******************************************************/
+*/
 
 /** @brief Enable/Disable transparency on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
@@ -381,8 +385,40 @@ static  __jo_force_inline void      jo_3d_set_transparency(jo_3d_quad *const qua
 }
 
 /******************************************************
-*                       COLOR
+*              SCREEN DOORS TRANSPARENCY
 *******************************************************/
+
+/** @brief Enable/Disable screen doors transparency on one polygon on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param enabled true to enable screen doors transparency
+ *  @param index polygon index on the mesh
+ */
+void                                jo_3d_set_mesh_polygon_screen_doors(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index);
+
+/** @brief Enable/Disable screen doors transparency on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param enabled true to enable screen doors transparency
+ */
+void                                jo_3d_set_mesh_screen_doors(jo_3d_mesh * const mesh, const bool enabled);
+
+/** @brief Enable/Disable screen doors transparency on the quad
+ *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param enabled true to enable screen doors transparency
+ */
+static  __jo_force_inline void      jo_3d_set_screen_doors(jo_3d_quad *const quad, const bool enabled)
+{
+    jo_3d_set_mesh_polygon_screen_doors((jo_3d_mesh *)quad, enabled, 0);
+}
+
+/*
+ ██████╗ ██████╗ ██╗      ██████╗ ██████╗ ███████╗
+██╔════╝██╔═══██╗██║     ██╔═══██╗██╔══██╗██╔════╝
+██║     ██║   ██║██║     ██║   ██║██████╔╝███████╗
+██║     ██║   ██║██║     ██║   ██║██╔══██╗╚════██║
+╚██████╗╚██████╔╝███████╗╚██████╔╝██║  ██║███████║
+ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
+
+*/
 
 /** @brief Set the color on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
@@ -406,10 +442,15 @@ static  __jo_force_inline void      jo_3d_set_color(jo_3d_quad * const quad, con
     jo_3d_set_mesh_polygon_color((jo_3d_mesh *)quad, color, 0);
 }
 
+/*
+███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗
+████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝
+██╔████╔██║███████║   ██║   ██████╔╝██║ ╚███╔╝
+██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗
+██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗
+╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 
-/******************************************************
-*                  MATRIX TRANSFORMATION
-*******************************************************/
+*/
 
 /** @brief Push 3D matrix
  */
@@ -424,6 +465,16 @@ static  __jo_force_inline void      jo_3d_pop_matrix(void)
 {
     slPopMatrix();
 }
+
+/*
+███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗    ██████╗  ██████╗ ████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝    ██╔══██╗██╔═══██╗╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+██╔████╔██║███████║   ██║   ██████╔╝██║ ╚███╔╝     ██████╔╝██║   ██║   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║
+██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗     ██╔══██╗██║   ██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
+██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗    ██║  ██║╚██████╔╝   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+*/
 
 /** @brief Rotate 3D matrix using degree
  *  @param x X Angle in degree
@@ -497,6 +548,16 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
     slRotZ(RADtoANG(z));
 }
 
+/*
+███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗    ████████╗██████╗  █████╗ ███╗   ██╗███████╗██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝    ╚══██╔══╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+██╔████╔██║███████║   ██║   ██████╔╝██║ ╚███╔╝        ██║   ██████╔╝███████║██╔██╗ ██║███████╗██║     ███████║   ██║   ██║██║   ██║██╔██╗ ██║
+██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗        ██║   ██╔══██╗██╔══██║██║╚██╗██║╚════██║██║     ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
+██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗       ██║   ██║  ██║██║  ██║██║ ╚████║███████║███████╗██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+*/
+
 /** @brief Translate 3D matrix (using floating numbers)
  *  @param x X Position
  *  @param y Y Position
@@ -551,9 +612,15 @@ static  __jo_force_inline void      jo_3d_translate_matrix_z(int z)
     slTranslate(0, 0, jo_int2fixed(z));
 }
 
-/******************************************************
-*                       DRAW
-*******************************************************/
+/*
+██████╗ ██████╗  █████╗ ██╗    ██╗██╗███╗   ██╗ ██████╗
+██╔══██╗██╔══██╗██╔══██╗██║    ██║██║████╗  ██║██╔════╝
+██║  ██║██████╔╝███████║██║ █╗ ██║██║██╔██╗ ██║██║  ███╗
+██║  ██║██╔══██╗██╔══██║██║███╗██║██║██║╚██╗██║██║   ██║
+██████╔╝██║  ██║██║  ██║╚███╔███╔╝██║██║ ╚████║╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
+*/
 
 /** @brief Draw a quadrilateral
  *  @param quad Address to a jo_3d_quad allocated struct
@@ -569,6 +636,15 @@ static  __jo_force_inline void      jo_3d_draw(jo_3d_quad *const quad)
 static  __jo_force_inline void      jo_3d_mesh_draw(jo_3d_mesh *const mesh)
 {
     slPutPolygon(&mesh->data);
+}
+
+/** @brief Get polygon count on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @return polygon count
+ */
+static  __jo_force_inline unsigned int       jo_3d_get_mesh_polygon_count(jo_3d_mesh * const mesh)
+{
+    return mesh->data.nbPolygon;
 }
 
 /** @brief Internal usage for polygon display
@@ -621,9 +697,48 @@ static  __jo_force_inline void      jo_3d_draw_sprite_at(const int sprite_id, co
     jo_3d_pop_matrix();
 }
 
-/******************************************************
-*                       SCALE
-*******************************************************/
+/** @brief Draw billboard
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @param x X coordinate
+ *  @param y Y coordinate
+ *  @param z Z coordinate
+ */
+static  __jo_force_inline void      jo_3d_draw_billboard(const int sprite_id, const int x, const int y, const int z)
+{
+    __internal_jo_sprite_set_position3D(x, y, z);
+    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
+}
+
+/** @brief Draw billboard with a specific scale
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @param x X coordinate
+ *  @param y Y coordinate
+ *  @param z Z coordinate
+ *  @param scale Scale
+ */
+static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite_id, const int x, const int y, const int z, const int scale)
+{
+    if (scale == 1)
+        jo_3d_draw_billboard(sprite_id, x, y, z);
+    else
+    {
+        __internal_jo_sprite_set_position3D(x, y, z);
+        unsigned int previous_scale = __jo_sprite_attributes.fixed_scale;
+        __jo_sprite_attributes.fixed_scale = JO_MULT_BY_65536(scale);
+        jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
+        __jo_sprite_attributes.fixed_scale = previous_scale;
+    }
+}
+
+/*
+███████╗ ██████╗ █████╗ ██╗     ███████╗
+██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
+███████╗██║     ███████║██║     █████╗
+╚════██║██║     ██╔══██║██║     ██╔══╝
+███████║╚██████╗██║  ██║███████╗███████╗
+╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+*/
 
 /** @brief Change scale using floating number
  *  @param x X Scale
@@ -645,9 +760,15 @@ static  __jo_force_inline void      jo_3d_set_scale(const int x, const int y, co
     slScale(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y), JO_MULT_BY_65536(z));
 }
 
-/******************************************************
-*                 WINDOW & PROJECTION
-*******************************************************/
+/*
+██╗    ██╗██╗███╗   ██╗██████╗  ██████╗ ██╗    ██╗       ██╗       ██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗
+██║    ██║██║████╗  ██║██╔══██╗██╔═══██╗██║    ██║       ██║       ██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║
+██║ █╗ ██║██║██╔██╗ ██║██║  ██║██║   ██║██║ █╗ ██║    ████████╗    ██████╔╝██████╔╝██║   ██║     ██║█████╗  ██║        ██║   ██║██║   ██║██╔██╗ ██║
+██║███╗██║██║██║╚██╗██║██║  ██║██║   ██║██║███╗██║    ██╔═██╔═╝    ██╔═══╝ ██╔══██╗██║   ██║██   ██║██╔══╝  ██║        ██║   ██║██║   ██║██║╚██╗██║
+╚███╔███╔╝██║██║ ╚████║██████╔╝╚██████╔╝╚███╔███╔╝    ██████║      ██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║
+ ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝  ╚══╝╚══╝     ╚═════╝      ╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+*/
 
 /** @brief Sets up a window region on the projection surface
  *  @param left
@@ -682,43 +803,6 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
 static  __jo_force_inline void      jo_3d_display_level(const unsigned short level)
 {
     slZdspLevel(level);
-}
-
-/******************************************************
-*                 TOOLS
-*******************************************************/
-
-/** @brief Draw billboard
- *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
- *  @param x X coordinate
- *  @param y Y coordinate
- *  @param z Z coordinate
- */
-static  __jo_force_inline void      jo_3d_draw_billboard(const int sprite_id, const int x, const int y, const int z)
-{
-    __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
-}
-
-/** @brief Draw billboard with a specific scale
- *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
- *  @param x X coordinate
- *  @param y Y coordinate
- *  @param z Z coordinate
- *  @param scale Scale
- */
-static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite_id, const int x, const int y, const int z, const int scale)
-{
-    if (scale == 1)
-        jo_3d_draw_billboard(sprite_id, x, y, z);
-    else
-    {
-        __internal_jo_sprite_set_position3D(x, y, z);
-        unsigned int previous_scale = __jo_sprite_attributes.fixed_scale;
-        __jo_sprite_attributes.fixed_scale = JO_MULT_BY_65536(scale);
-        jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
-        __jo_sprite_attributes.fixed_scale = previous_scale;
-    }
 }
 
 #endif /* !JO_COMPILE_WITH_3D_SUPPORT */

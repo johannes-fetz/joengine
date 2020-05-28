@@ -200,7 +200,6 @@ static	void	jo_core_init_vdp(const jo_color back_color)
     slPriorityNbg1(6);
     slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
-    slCharNbg1(COL_TYPE_256, CHAR_SIZE_1x1);
     jo_set_printf_palette();
     jo_set_printf_color_index(0);
     slPageNbg1((void *)JO_VDP2_NBG1_MAP_ADR, 0, PNB_1WORD | CN_12BIT);

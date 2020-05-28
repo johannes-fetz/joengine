@@ -39,36 +39,45 @@
 ** Background (VDP2)
 */
 
-/** @brief Draw a line using Bresenham's line algorithm
- *  @param x0 horizontal location of the beginning of the line
- *  @param y0 vertical location of the beginning of the line
- *  @param x1 horizontal location of the end of the line
- *  @param y1 vertical location of the end of the line
- *  @param color Color (ex: JO_COLOR_Red)
- */
-void        jo_draw_background_line(int x0, int y0, int x1, int y1, const jo_color color);
+/*
+██████╗ ██████╗  █████╗ ██╗    ██╗    ██╗███╗   ███╗ █████╗  ██████╗ ███████╗
+██╔══██╗██╔══██╗██╔══██╗██║    ██║    ██║████╗ ████║██╔══██╗██╔════╝ ██╔════╝
+██║  ██║██████╔╝███████║██║ █╗ ██║    ██║██╔████╔██║███████║██║  ███╗█████╗
+██║  ██║██╔══██╗██╔══██║██║███╗██║    ██║██║╚██╔╝██║██╔══██║██║   ██║██╔══╝
+██████╔╝██║  ██║██║  ██║╚███╔███╔╝    ██║██║ ╚═╝ ██║██║  ██║╚██████╔╝███████╗
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 
-/** @brief Put pixel in background using color
- *  @param x horizontal location
- *  @param y vertical location
- *  @param color Color (ex: JO_COLOR_Red)
- */
-static  __jo_force_inline void	jo_put_pixel_in_background(const int x, const int y, const jo_color color)
-{
-    *(((unsigned short *)VDP2_VRAM_A0) + x + y * JO_VDP2_WIDTH) = color;
-}
+*/
 
-/** @brief Put pixel in background using composite color
- *  @param x horizontal location
- *  @param y vertical location
- *  @param r Red color component
- *  @param g Green color component
- *  @param b Blue color component
+/** @brief Add 8 bits background sprite
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-static  __jo_force_inline void	jo_put_pixel_in_background_rgb(const int x, const int y, unsigned char r, unsigned char g, unsigned char b)
-{
-    jo_put_pixel_in_background(x, y, C_RGB(r, g, b));
-}
+void    jo_set_background_8bits_sprite(jo_img_8bits *img, int palette_id, bool vertical_flip);
+
+/** @brief Add background sprite
+ *  @param img Pointer to an image struct
+ *  @param left Left location
+ *  @param top Top location
+ */
+void	jo_set_background_sprite(const jo_img * const img, const unsigned short left, const unsigned short top);
+
+/** @brief Clear the background
+ *  @param color Clear color
+ */
+void    jo_clear_background(const jo_color color);
+
+/*
+███╗   ███╗ ██████╗ ██╗   ██╗███████╗       ██╗       ███████╗ ██████╗  ██████╗ ███╗   ███╗
+████╗ ████║██╔═══██╗██║   ██║██╔════╝       ██║       ╚══███╔╝██╔═══██╗██╔═══██╗████╗ ████║
+██╔████╔██║██║   ██║██║   ██║█████╗      ████████╗      ███╔╝ ██║   ██║██║   ██║██╔████╔██║
+██║╚██╔╝██║██║   ██║╚██╗ ██╔╝██╔══╝      ██╔═██╔═╝     ███╔╝  ██║   ██║██║   ██║██║╚██╔╝██║
+██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ███████╗    ██████║      ███████╗╚██████╔╝╚██████╔╝██║ ╚═╝ ██║
+╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚══════╝    ╚═════╝      ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝     ╚═╝
+
+*/
 
 /** @brief Move background (scrolling)
  *  @param x horizontal location
@@ -110,17 +119,23 @@ static  __jo_force_inline void	jo_zoom_background(const float factor)
     jo_zoom_background2(factor, factor);
 }
 
-/** @brief Add background sprite
- *  @param img Pointer to an image struct
- *  @param left Left location
- *  @param top Top location
- */
-void	jo_set_background_sprite(const jo_img * const img, const unsigned short left, const unsigned short top);
+/*
+██████╗  █████╗ ███████╗██╗ ██████╗    ██████╗ ██████╗  █████╗ ██╗    ██╗██╗███╗   ██╗ ██████╗
+██╔══██╗██╔══██╗██╔════╝██║██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██║    ██║██║████╗  ██║██╔════╝
+██████╔╝███████║███████╗██║██║         ██║  ██║██████╔╝███████║██║ █╗ ██║██║██╔██╗ ██║██║  ███╗
+██╔══██╗██╔══██║╚════██║██║██║         ██║  ██║██╔══██╗██╔══██║██║███╗██║██║██║╚██╗██║██║   ██║
+██████╔╝██║  ██║███████║██║╚██████╗    ██████╔╝██║  ██║██║  ██║╚███╔███╔╝██║██║ ╚████║╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
+*/
 
-/** @brief Clear the background
- *  @param color Clear color
+/** @brief Draw a line using Bresenham's line algorithm
+ *  @param x0 horizontal location of the beginning of the line
+ *  @param y0 vertical location of the beginning of the line
+ *  @param x1 horizontal location of the end of the line
+ *  @param y1 vertical location of the end of the line
+ *  @param color Color (ex: JO_COLOR_Red)
  */
-void    jo_clear_background(const jo_color color);
+void        jo_draw_background_line(int x0, int y0, int x1, int y1, const jo_color color);
 
 /** @brief Draw a square on the background
  *  @param x Square horizontal location
@@ -137,9 +152,35 @@ static  __jo_force_inline void	jo_draw_background_square(const int x, const int 
     jo_draw_background_line(x, y + height, x, y, color);
 }
 
+/** @brief Put pixel in background using color
+ *  @param x horizontal location
+ *  @param y vertical location
+ *  @param color Color (ex: JO_COLOR_Red)
+ */
+static  __jo_force_inline void	jo_put_pixel_in_background(const int x, const int y, const jo_color color)
+{
+    *(((unsigned short *)VDP2_VRAM_A0) + x + y * JO_VDP2_WIDTH) = color;
+}
+
+/** @brief Put pixel in background using composite color
+ *  @param x horizontal location
+ *  @param y vertical location
+ *  @param r Red color component
+ *  @param g Green color component
+ *  @param b Blue color component
+ */
+static  __jo_force_inline void	jo_put_pixel_in_background_rgb(const int x, const int y, unsigned char r, unsigned char g, unsigned char b)
+{
+    jo_put_pixel_in_background(x, y, C_RGB(r, g, b));
+}
+
 /*
-** 3D PLANES
-**
+██████╗ ██████╗     ██████╗ ██╗      █████╗ ███╗   ██╗███████╗███████╗
+╚════██╗██╔══██╗    ██╔══██╗██║     ██╔══██╗████╗  ██║██╔════╝██╔════╝
+ █████╔╝██║  ██║    ██████╔╝██║     ███████║██╔██╗ ██║█████╗  ███████╗
+ ╚═══██╗██║  ██║    ██╔═══╝ ██║     ██╔══██║██║╚██╗██║██╔══╝  ╚════██║
+██████╔╝██████╔╝    ██║     ███████╗██║  ██║██║ ╚████║███████╗███████║
+╚═════╝ ╚═════╝     ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 ** - Two planes are available: A and B
 ** - Each plane is 512 x 512 size
 */
@@ -192,6 +233,15 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
     slCurRpara(RB); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
 }
 
+/*
+███╗   ███╗ ██████╗ ███████╗ █████╗ ██╗ ██████╗
+████╗ ████║██╔═══██╗╚══███╔╝██╔══██╗██║██╔════╝
+██╔████╔██║██║   ██║  ███╔╝ ███████║██║██║
+██║╚██╔╝██║██║   ██║ ███╔╝  ██╔══██║██║██║
+██║ ╚═╝ ██║╚██████╔╝███████╗██║  ██║██║╚██████╗
+╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
+*/
+
 /** @brief Enable mozaic effect for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
  *  @param x Horizontal mozaic size [1-16]
@@ -211,6 +261,44 @@ static  __jo_force_inline void      jo_disable_all_screen_mozaic(void)
     slScrMosSize(1, 1);
     slScrMosaicOn(0);
 }
+
+/*
+██╗  ██╗ ██████╗ ██████╗ ██╗███████╗ ██████╗ ███╗   ██╗████████╗ █████╗ ██╗
+██║  ██║██╔═══██╗██╔══██╗██║╚══███╔╝██╔═══██╗████╗  ██║╚══██╔══╝██╔══██╗██║
+███████║██║   ██║██████╔╝██║  ███╔╝ ██║   ██║██╔██╗ ██║   ██║   ███████║██║
+██╔══██║██║   ██║██╔══██╗██║ ███╔╝  ██║   ██║██║╚██╗██║   ██║   ██╔══██║██║
+██║  ██║╚██████╔╝██║  ██║██║███████╗╚██████╔╝██║ ╚████║   ██║   ██║  ██║███████╗
+╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝
+
+██╗     ██╗███╗   ██╗███████╗    ███████╗ ██████╗██████╗  ██████╗ ██╗     ██╗
+██║     ██║████╗  ██║██╔════╝    ██╔════╝██╔════╝██╔══██╗██╔═══██╗██║     ██║
+██║     ██║██╔██╗ ██║█████╗      ███████╗██║     ██████╔╝██║   ██║██║     ██║
+██║     ██║██║╚██╗██║██╔══╝      ╚════██║██║     ██╔══██╗██║   ██║██║     ██║
+███████╗██║██║ ╚████║███████╗    ███████║╚██████╗██║  ██║╚██████╔╝███████╗███████╗
+╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
+
+▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUH jo_set_background_8bits_sprite() ▲
+  OTHERWISE IT MAY GLITCH
+*/
+
+/** @brief 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
+ */
+# define JO_SCROLL_TABLE_SIZE       (512)
+
+/** @brief Enable horizontal line scroll effect
+ *  @return An array of 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
+ *  @warning Only works with 8 bits background image
+ */
+int                                 *jo_enable_background_horizontal_line_scroll(void);
+
+/** @brief Disable horizontal line scroll effect
+ */
+void                                jo_disable_background_horizontal_line_scroll(void);
+
+/** @brief Compute horizontal line scroll effect using specific offset
+ *  @param offset Offset in scroll table returned by jo_enable_background_horizontal_line_scroll()
+ */
+void                                jo_compute_background_horizontal_line_scroll(unsigned short offset);
 
 #endif /* !__JO_BACKGROUND_H__ */
 
