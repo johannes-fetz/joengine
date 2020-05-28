@@ -69,7 +69,9 @@
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 1) + ((Y) * JO_MULT_BY_4(WIDTH))), \
                                                                 JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 0) + ((Y) * JO_MULT_BY_4(WIDTH))))
 
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 extern int      __jo_hash_table[JO_MAX_SPRITE];
+#endif
 
 static jo_tga_palette_handling_callback __jo_tga_palette_handling = JO_NULL;
 
@@ -388,8 +390,10 @@ int						jo_sprite_add_tga(const char * const sub_dir, const char * const filena
 #endif
     id = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&img) : jo_sprite_add((jo_img *)&img));
     jo_free(img.data);
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
     if (id >= 0)
         __jo_hash_table[id] = jo_4_char_hash(filename);
+#endif
     return (id);
 }
 

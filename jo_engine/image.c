@@ -44,7 +44,9 @@
 #include "jo/colors.h"
 #include "jo/sprites.h"
 
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 extern int      __jo_hash_table[JO_MAX_SPRITE];
+#endif
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
@@ -250,8 +252,10 @@ int						jo_sprite_add_bin(const char * const sub_dir, const char * const filena
 #endif
     id = jo_sprite_add(&img);
     jo_free_img(&img);
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
     if (id >= 0)
         __jo_hash_table[id] = jo_4_char_hash(filename);
+#endif
     return (id);
 }
 

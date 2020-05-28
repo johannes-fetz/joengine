@@ -367,8 +367,10 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
         }
         if (sprite[0] == '@')
             __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), jo_tools_atoi(sprite + 1), true, attribute_value);
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
         else
             __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), jo_sprite_name2id(sprite), false, attribute_value);
+#endif
     }
     jo_free(stream_begin);
     return (true);
