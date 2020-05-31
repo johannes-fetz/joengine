@@ -43,6 +43,7 @@
 #include "jo/sprites.h"
 #include "jo/background.h"
 #include "jo/math.h"
+#include "jo/palette.h"
 
 /*
 ** MACROS
@@ -71,6 +72,34 @@
 
 static unsigned char            *__jo_cell_adr = (unsigned char *)RBG0_CEL_ADR;
 static int                      __jo_cell_mapoff = 0;
+
+static void                     jo_set_printf_palette(void)
+{
+    jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Black, JO_COLOR_Black);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Red, JO_COLOR_Red);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Green, JO_COLOR_Green);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Yellow, JO_COLOR_Yellow);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Blue, JO_COLOR_Blue);
+    jo_set_printf_palette_color(JO_COLOR_INDEX_Purple, JO_COLOR_Purple);
+}
+
+/*
+** Default Jo Engine screen priority : NBG0 > SPR0 > SPR1 > RBG0 > NBG1 > NBG2 > NBG3
+**                                        7      6      5      4      3      2      1
+*/
+void                            __jo_init_vdp2(const jo_color back_color)
+{
+    //NBG0 (printf)
+    slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
+    jo_set_printf_palette();
+    jo_set_printf_color_index(0);
+    //NBG1
+    slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, (void *)VDP2_VRAM_A0);
+
+    slBack1ColSet((void *)BACK_CRAM, back_color);
+    slScrAutoDisp(NBG0ON | NBG1ON);
+}
 
 void                            jo_img_to_vdp2_cells(const jo_img_8bits * const img, bool vertical_flip)
 {
@@ -187,12 +216,13 @@ void                            jo_reset_background_3d_plane(void)
 void                            jo_enable_background_3d_plane(jo_color background_color)
 {
     jo_reset_background_3d_plane();
-	slRparaInitSet((void *)RBG0_PRA_ADR);
-	slMakeKtable((void *)RBG0_KTB_ADR);
-	slPageRbg0(__jo_cell_adr, 0, PNB_1WORD | CN_12BIT);
-	slRparaMode(K_CHANGE);
-	slBack1ColSet((void *)BACK_COL_ADR, background_color);
-	slScrAutoDisp(NBG0ON | RBG0ON);
+    slRparaInitSet((void *)RBG0_PRA_ADR);
+    slMakeKtable((void *)RBG0_KTB_ADR);
+    slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
+    slPageRbg0(__jo_cell_adr, 0, PNB_1WORD | CN_12BIT);
+    slRparaMode(K_CHANGE);
+    slBack1ColSet((void *)BACK_COL_ADR, background_color);
+    slScrAutoDisp(NBG0ON | NBG1ON | RBG0ON);
 }
 
 void                            jo_disable_background_3d_plane(jo_color background_color)

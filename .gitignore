@@ -18,3 +18,4 @@ Emulators/SSF/Setting/*
 /Projects/*/
 /Projects/*.zip
 /Projects/*.7z
+/Emulators/SSF/Backup/InternalBackup/*.bin

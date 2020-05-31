@@ -65,6 +65,7 @@ extern unsigned int                         __jo_fs_background_job_count;
 extern unsigned int                         _bstart;
 extern unsigned int                         _bend;
 extern void                                 jo_main(void);
+void                                        __jo_init_vdp2(const jo_color back_color);
 
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
 extern jo_list                              __storyboards;
@@ -179,35 +180,12 @@ static bool                 jo_init_memory(void)
     return (true);
 }
 
-static void     jo_set_printf_palette(void)
-{
-    jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Black, JO_COLOR_Black);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Red, JO_COLOR_Red);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Green, JO_COLOR_Green);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Yellow, JO_COLOR_Yellow);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Blue, JO_COLOR_Blue);
-    jo_set_printf_palette_color(JO_COLOR_INDEX_Purple, JO_COLOR_Purple);
-}
-
-static	void	jo_core_init_vdp(const jo_color back_color)
+static void         jo_core_init_vdp(const jo_color back_color)
 {
 #if JO_COMPILE_USING_SGL
     slInitSystem(JO_TV_RES, (TEXTURE *)__jo_sprite_def, JO_FRAMERATE/*Real frame rate = (60 / JO_FRAMERATE)*/);
     slTVOff();
-    slBack1ColSet((void *)BACK_CRAM, back_color);
-    slPriorityNbg0(7);
-    slPriorityNbg1(6);
-    slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
-    slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
-    jo_set_printf_palette();
-    jo_set_printf_color_index(0);
-    slPageNbg1((void *)JO_VDP2_NBG1_MAP_ADR, 0, PNB_1WORD | CN_12BIT);
-    slPlaneNbg1(PL_SIZE_1x1);
-    slMapNbg1((void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR);
-    slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, (void *)VDP2_VRAM_A0);
-    slZoomNbg1(JO_FIXED_1, JO_FIXED_1);
-    slScrAutoDisp(NBG0ON | NBG1ON);
+    __jo_init_vdp2(back_color);
 #else
     slInitSystem(0, 0, 0); // TODO fix nosgl.linker script
 
