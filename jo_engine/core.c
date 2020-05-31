@@ -283,9 +283,10 @@ static void         jo_core_init_vdp(const jo_color back_color)
 #endif
 }
 
-void			jo_core_init(const jo_color back_color)
+void			    jo_core_init(const jo_color back_color)
 {
-    bool        is_memory_ok;
+    bool            is_memory_ok;
+    jo_datetime     dt;
 
 #ifdef JO_DEBUG
     JO_ZERO(__jo_last_error[0]);
@@ -342,6 +343,15 @@ void			jo_core_init(const jo_color back_color)
 #endif
     jo_sprite_init();
     jo_time_init(JO_TIME_CKS_32_MODE);
+    // random seed initialization
+    jo_getdate(&dt);
+    jo_random_seed = JO_MULT_BY_4096(dt.second) +
+                    JO_MULT_BY_1024(dt.minute) +
+                    JO_MULT_BY_65536(dt.hour) +
+                    JO_MULT_BY_2048(dt.week) -
+                    JO_MULT_BY_32(dt.year) -
+                    JO_MULT_BY_256(dt.month) -
+                    JO_MULT_BY_16(dt.day);
 }
 
 inline int			jo_core_add_vblank_callback(const jo_event_callback callback)

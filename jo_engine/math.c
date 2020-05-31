@@ -209,14 +209,14 @@ void                        jo_planar_rotate(const jo_pos2D * const point, const
 #define JO_RANDOM_Q             (JO_RANDOM_M / JO_RANDOM_A)
 #define JO_RANDOM_R             (JO_RANDOM_M % JO_RANDOM_A)
 
+int                             jo_random_seed = 1;
+
 int                             jo_random(int max)
 {
-    static int                  __jo_seed = 1;
-
-    __jo_seed = JO_RANDOM_A * (__jo_seed % JO_RANDOM_Q) - JO_RANDOM_R * (__jo_seed / JO_RANDOM_Q);
-    if (__jo_seed <= 0)
-        __jo_seed += JO_RANDOM_M;
-    return __jo_seed % max + 1;
+    jo_random_seed = JO_RANDOM_A * (jo_random_seed % JO_RANDOM_Q) - JO_RANDOM_R * (jo_random_seed / JO_RANDOM_Q);
+    if (jo_random_seed <= 0)
+        jo_random_seed += JO_RANDOM_M;
+    return jo_random_seed % max + 1;
 }
 
 /*

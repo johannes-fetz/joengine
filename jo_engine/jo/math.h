@@ -391,6 +391,10 @@ static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
 
 */
 
+/** @brief Get or set current random seed
+ */
+extern int                      jo_random_seed;
+
 /** @brief Get a random number
  *  @param max maximum value
  *  @return 1 to max
