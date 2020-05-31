@@ -44,25 +44,34 @@
 ** FIXED Q16.16 Number
 */
 
-//Dear Johannes,
-//I cannot let this crime against performant code stand.
-//Allow me this *one* transgression?
-// - Ponut64
 jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
+    int                 a;
+    int                 c;
+    int                 ac;
+    int                 adcb;
+    int                 mulH;
+    unsigned int        b;
+    unsigned int        d;
+    unsigned int        bd;
+    unsigned int        tmp;
+    unsigned int        mulL;
 
-	register int rtval;
-	asm(
-	"dmuls.l %[d1],%[d2];" // `dmuls.l % , %` -- dmuls.l being double-word multplication, inputs as longword from variable register (%)
-	"sts MACH,r1;"		// `sts` - store system register MACH at explicit general-purpose register r1 // (dmuls result -> MACH & MACL)
-	"sts MACL,%[out];"	// `sts` - store system register MACL at variable register (%)
-	"xtrct r1,%[out];" 	// `xtrct gpr0,gpr1` - extract the lower 16-bits of gpr0 (r1) and upper 16-bits of gpr1 (%), result to gpr1 (%)
-    :    [out] "=r" (rtval)       		 //OUT
-    :    [d1] "r" (d1), [d2] "r" (d2)    //IN
-	:		"r1"						//CLOBBERS
-	);
-	return (jo_fixed)rtval;
-    
+    a = JO_DIV_BY_65536(x);
+    c = JO_DIV_BY_65536(y);
+    b = (x & 0xFFFF);
+    d = (y & 0xFFFF);
+    ac = a * c;
+    adcb = a * d + c * b;
+    bd = b * d;
+    mulH = ac + JO_DIV_BY_65536(adcb);
+    tmp = JO_MULT_BY_65536(adcb);
+    mulL = bd + tmp;
+    if (mulL < bd)
+        ++mulH;
+    if (JO_DIV_BY_2147483648(mulH) == JO_DIV_BY_32768(mulH))
+        return (JO_MULT_BY_65536(mulH) | JO_DIV_BY_65536(mulL));
+    return (JO_FIXED_OVERFLOW);
 }
 
 /* Taylor series approximation */
