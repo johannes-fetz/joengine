@@ -3,11 +3,11 @@
 #
 
 ifeq (${JO_ENGINE_SRC_DIR},)
-	JO_ENGINE_SRC_DIR=../jo_engine
+	JO_ENGINE_SRC_DIR=../../jo_engine
 endif
 
 ifeq (${COMPILER_DIR},)
-	COMPILER_DIR=../Compiler
+	COMPILER_DIR=../../Compiler
 endif
 
 ifeq (${JO_FRAMERATE},)
@@ -204,7 +204,7 @@ OBJS = $(SRCS:.c=.o)
 ifeq ($(OS), Windows_NT)
 	CC=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-gcc.exe
 	CONV=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-objcopy.exe
-	CUE_MAKER=$(COMPILER_DIR)/TOOLS/JoEngineCueMaker.exe
+	CUE_MAKER=JoEngineCueMaker.exe
 else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
