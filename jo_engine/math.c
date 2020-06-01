@@ -44,7 +44,7 @@
 ** FIXED Q16.16 Number
 */
 
-//i am very sorry my lord. I did not change the variables to match the function. it will compile now
+// Thanks Ponut64 for optimized this method !
 jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
 	register jo_fixed rtval;
