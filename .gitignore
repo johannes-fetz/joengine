@@ -10,7 +10,9 @@ game.elf
 game.iso
 game.cue
 game.map
-*.o
+/jo_engine/*.o
+/Projects/*/*.o
+/Samples/*/*.o
 *.layout
 bios.bin
 logs.txt
