@@ -1,3 +1,4 @@
+OUTPUT_FORMAT(coff-sh)
 SECTIONS {		
 	SLSTART 0x06004000 : {	
 		___Start = .;	
@@ -7,12 +8,13 @@ SECTIONS {
 	{			
 		* (.text)			
 		*(.strings)			
-		__etext = .;			
+		*("SEGA_P")		
+	
+		*(.eh_frame_hdr)
+		*(.eh_frame)		
+        __etext = .;    			
 	}			
-	.rodata ALIGN(0x20) :			
-	{			
-		*(.rodata)			
-	}			
+			
 	SLPROG ALIGN(0x20): {	
 		__slprog_start = .;	
 		*(SLPROG)	
@@ -31,7 +33,11 @@ SECTIONS {
 	{			
 		* (.data)			
 		__edata = . ;			
-	}			
+	}	
+	.rodata ALIGN(0x20) :			
+	{			
+		*(.rodata)			
+	}
 	.bss ALIGN(0x10) (NOLOAD):			
 	{			
 		__bstart = . ;			

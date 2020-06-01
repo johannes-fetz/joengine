@@ -4,6 +4,12 @@ sl_coff.coff
 sl_coff.iso
 sl_coff.cue
 sl_coff.map
+game.bin
+game.coff
+game.elf
+game.iso
+game.cue
+game.map
 *.o
 *.layout
 bios.bin
