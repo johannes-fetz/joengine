@@ -208,7 +208,7 @@ ifeq ($(OS), Windows_NT)
 else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
-	CUE_MAKER=$(COMPILER_DIR)/TOOLS/CueMaker
+	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/CueMaker"
 endif
 
 ASSETS_DIR=./cd
@@ -217,7 +217,7 @@ RM = rm -rf
 
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
-	SGLDIR = $(COMPILER_DIR)/SGL_302j
+	SGLDIR = $(COMPILER_DIR)/COMMON/SGL_302j
 	SGLIDR = $(SGLDIR)/INC
 	SGLLDR = $(SGLDIR)/LIB_ELF
 #endif
