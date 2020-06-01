@@ -206,8 +206,8 @@ ifeq ($(OS), Windows_NT)
 	CONV=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-objcopy.exe
 	CUE_MAKER=$(COMPILER_DIR)/TOOLS/JoEngineCueMaker.exe
 else
-	CC=$(COMPILER_DIR)/SH_NONE_ELF/bin/sh-none-elf-gcc-8.2.0
-	CONV=$(COMPILER_DIR)/SH_NONE_ELF/bin/sh-none-elf-objcopy
+	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
+	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
 	CUE_MAKER=$(COMPILER_DIR)/TOOLS/CueMaker
 endif
 
@@ -249,7 +249,7 @@ LDFLAGS = -m2
 LDFLAGS +=-Xlinker --format=elf32-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
 ifneq ($(OS), Windows_NT)
-LIBS += -L.$(COMPILER_DIR)/SH_COFF/sh-elf/sh-elf/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
+LIBS += -L.$(COMPILER_DIR)/LINUX/sh-elf/sh-elf/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
 endif
 DFLAGS =
 
