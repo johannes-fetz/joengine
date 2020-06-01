@@ -44,34 +44,20 @@
 ** FIXED Q16.16 Number
 */
 
+//i am very sorry my lord. I did not change the variables to match the function. it will compile now
 jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
-    int                 a;
-    int                 c;
-    int                 ac;
-    int                 adcb;
-    int                 mulH;
-    unsigned int        b;
-    unsigned int        d;
-    unsigned int        bd;
-    unsigned int        tmp;
-    unsigned int        mulL;
-
-    a = JO_DIV_BY_65536(x);
-    c = JO_DIV_BY_65536(y);
-    b = (x & 0xFFFF);
-    d = (y & 0xFFFF);
-    ac = a * c;
-    adcb = a * d + c * b;
-    bd = b * d;
-    mulH = ac + JO_DIV_BY_65536(adcb);
-    tmp = JO_MULT_BY_65536(adcb);
-    mulL = bd + tmp;
-    if (mulL < bd)
-        ++mulH;
-    if (JO_DIV_BY_2147483648(mulH) == JO_DIV_BY_32768(mulH))
-        return (JO_MULT_BY_65536(mulH) | JO_DIV_BY_65536(mulL));
-    return (JO_FIXED_OVERFLOW);
+	register jo_fixed rtval;
+	asm(
+	"dmuls.l %[d1],%[d2];" // `dmuls.l % , %` -- dmuls.l being double-word multplication, inputs as longword from variable register (%)
+	"sts MACH,r1;"		// `sts` - store system register MACH at explicit general-purpose register r1
+	"sts MACL,%[out];"	// `sts` - store system register MACL at variable register (%)
+	"xtrct r1,%[out];" 	// `xtrct gpr0,gpr1` - extract the lower 16-bits of gpr0 (r1) and upper 16-bits of gpr1 (%), result to gpr1 (%)
+    :    [out] "=r" (rtval)       		 //OUT
+    :    [d1] "r" (x), [d2] "r" (y)    //IN
+	:		"r1"						//CLOBBERS
+	);
+	return rtval;
 }
 
 /* Taylor series approximation */
