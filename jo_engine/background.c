@@ -95,6 +95,9 @@ void                            __jo_init_vdp2(const jo_color back_color)
     jo_set_printf_palette();
     jo_set_printf_color_index(0);
     //NBG1
+    slPageNbg1((void *)JO_VDP2_NBG1_MAP_ADR, 0, PNB_1WORD | CN_12BIT);
+    slPlaneNbg1(PL_SIZE_1x1);
+    slMapNbg1((void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR, (void *)JO_VDP2_NBG1_MAP_ADR);
     slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, (void *)VDP2_VRAM_A0);
 
     slBack1ColSet((void *)BACK_CRAM, back_color);
