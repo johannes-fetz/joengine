@@ -93,6 +93,7 @@ void                                        jo_fs_do_background_jobs(void);
 void                                        jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes);
 void                                        jo_sprite_init(void);
 void                                        jo_time_init(unsigned char mode);
+void                                        jo_get_inputs_vblank(void);
 
 #ifdef JO_DEBUG
 char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
@@ -298,6 +299,7 @@ void			    jo_core_init(const jo_color back_color)
     jo_core_slave_init();
 #endif
     jo_core_init_vdp(back_color);
+    jo_core_add_vblank_callback(jo_get_inputs_vblank);
 #if !JO_COMPILE_USING_SGL
     jo_input_init();
 #endif

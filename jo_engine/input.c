@@ -78,9 +78,9 @@ static unsigned short       jo_read_input(const jo_smpc_memory_address port)
     return (temp ^ 0x8FFF);
 }
 
-void                jo_input_update(void)
+void                            jo_get_inputs_vblank(void)
 {
-    unsigned short  previous;
+    unsigned short              previous;
 
     previous = jo_inputs[0].pressed;
     jo_inputs[0].id = PER_ID_StnPad; /* TODO */
@@ -94,16 +94,27 @@ void                jo_input_update(void)
     jo_inputs[1].on_keydown = (jo_inputs[1].pressed ^ previous) & jo_inputs[1].pressed;
     jo_inputs[1].on_keyup = (previous ^ jo_inputs[1].pressed) & previous;
 }
+#else
+PerDigital                      jo_inputs[JO_INPUT_MAX_DEVICE];
 
+void                            jo_get_inputs_vblank(void)
+{
+    register unsigned int       i;
+    register unsigned int       size;
+    unsigned int                *src;
+    unsigned int                *dest;
+
+    size = sizeof(jo_inputs) / sizeof(*src);
+    src = (unsigned int *)Smpc_Peripheral;
+    dest = (unsigned int *)&jo_inputs[0];
+    for (JO_ZERO(i); i < size; ++i)
+        *dest++ = *src++;
+}
 #endif
 
 jo_gamepad_type                 jo_get_input_type(const int port)
 {
-#if JO_COMPILE_USING_SGL
-    switch (Smpc_Peripheral[port].id)
-#else
     switch (jo_inputs[port].id)
-#endif
     {
     case PER_ID_NotConnect:
         return (JoNotConnectedGamepad);

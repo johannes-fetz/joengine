@@ -39,7 +39,8 @@
 # define JO_INPUT_MAX_DEVICE        (8)
 
 #if JO_COMPILE_USING_SGL
-# define __JO_KEY_PRESSED(PORT, KEY)    ((Smpc_Peripheral[PORT].data & KEY) == 0)
+extern PerDigital                       jo_inputs[JO_INPUT_MAX_DEVICE];
+# define __JO_KEY_PRESSED(PORT, KEY)    ((jo_inputs[PORT].data & KEY) == 0)
 #else
 # define __JO_KEY_PRESSED(PORT, KEY)    ((jo_inputs[PORT].pressed & KEY) == KEY)
 #endif
@@ -137,7 +138,7 @@ jo_gamepad_type                 jo_get_input_type(const int port);
 static  __jo_force_inline bool	jo_is_input_available(const int port)
 {
 #if JO_COMPILE_USING_SGL
-    return (Smpc_Peripheral[port].id != PER_ID_NotConnect);
+    return (jo_inputs[port].id != PER_ID_NotConnect);
 #else
     return (jo_inputs[port].id != PER_ID_NotConnect);
 #endif
@@ -189,7 +190,7 @@ static  __jo_force_inline jo_8_directions	jo_get_input_direction_pressed(const i
 static  __jo_force_inline unsigned short	jo_get_raw_input_key_pressed(const int port)
 {
 #if JO_COMPILE_USING_SGL
-    return ((unsigned short)Smpc_Peripheral[port].data);
+    return ((unsigned short)jo_inputs[port].data);
 #else
     return ((unsigned short)jo_inputs[port].pressed);
 #endif
@@ -203,7 +204,7 @@ static  __jo_force_inline unsigned short	jo_get_raw_input_key_pressed(const int 
 static  __jo_force_inline bool	jo_is_input_key_down(const int port, const jo_gamepad_keys key)
 {
 #if JO_COMPILE_USING_SGL
-    return ((Smpc_Peripheral[port].push & key) == 0);
+    return ((jo_inputs[port].push & key) == 0);
 #else
     return ((jo_inputs[port].on_keydown & key) == key);
 #endif
@@ -228,7 +229,7 @@ static  __jo_force_inline bool	jo_is_input_key_up(const int port, const jo_gamep
  */
 static  __jo_force_inline int	jo_get_mouse_pos_x(const int port)
 {
-    return (JO_DIV_BY_65536(Smpc_Peripheral[port].dummy2[0]));
+    return (JO_DIV_BY_65536(jo_inputs[port].dummy2[0]));
 }
 
 /** @brief Get mouse Y position
@@ -237,7 +238,7 @@ static  __jo_force_inline int	jo_get_mouse_pos_x(const int port)
  */
 static  __jo_force_inline int	jo_get_mouse_pos_y(const int port)
 {
-    return (JO_DIV_BY_65536((JO_MULT_BY_65536(Smpc_Peripheral[port].dummy2[0]))));
+    return (JO_DIV_BY_65536((JO_MULT_BY_65536(jo_inputs[port].dummy2[0]))));
 }
 
 /*
