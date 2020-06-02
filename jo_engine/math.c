@@ -44,9 +44,22 @@
 ** FIXED Q16.16 Number
 */
 
-// Thanks Ponut64 for optimized this method !
-// Johannes : demo - 2D storyboard doesn't work well because of overflow in computation I guess
-/*jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
+/*
+** Thanks Ponut64 for optimized this method !
+**
+** Note: -O2 optimisation is temporarily disabled for this function because it cause unexpected behaviour
+**
+** History:
+**
+**  - https://github.com/johannes-fetz/joengine/pull/15
+**  - https://github.com/johannes-fetz/joengine/pull/17
+**  - https://github.com/johannes-fetz/joengine/pull/19
+**
+*/
+#pragma GCC push_options
+#pragma GCC optimize ("Os")
+
+jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
 	register jo_fixed rtval;
 	asm(
@@ -59,37 +72,9 @@
 	:		"r1"						//CLOBBERS
 	);
 	return rtval;
-}*/
-
-jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
-{
-	int                 a;
-    int                 c;
-    int                 ac;
-    int                 adcb;
-    int                 mulH;
-    unsigned int        b;
-    unsigned int        d;
-    unsigned int        bd;
-    unsigned int        tmp;
-    unsigned int        mulL;
-
-    a = JO_DIV_BY_65536(x);
-    c = JO_DIV_BY_65536(y);
-    b = (x & 0xFFFF);
-    d = (y & 0xFFFF);
-    ac = a * c;
-    adcb = a * d + c * b;
-    bd = b * d;
-    mulH = ac + JO_DIV_BY_65536(adcb);
-    tmp = JO_MULT_BY_65536(adcb);
-    mulL = bd + tmp;
-    if (mulL < bd)
-        ++mulH;
-    if (JO_DIV_BY_2147483648(mulH) == JO_DIV_BY_32768(mulH))
-        return (JO_MULT_BY_65536(mulH) | JO_DIV_BY_65536(mulL));
-    return (JO_FIXED_OVERFLOW);
 }
+
+#pragma GCC pop_options
 
 /* Taylor series approximation */
 jo_fixed                jo_fixed_sin(jo_fixed rad)
