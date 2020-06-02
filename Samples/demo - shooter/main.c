@@ -78,7 +78,7 @@ static inline bool         check_if_laser_hit_enemy(jo_node *enemy, void *extra)
     return true;
 }
 
-static inline void         draw_laser_blast(jo_node *node)
+static void         draw_laser_blast(jo_node *node)
 {
     jo_sprite_draw3D(blast_sprite_id, node->data.coord.x, node->data.coord.y, 520);
     node->data.coord.y -= 4;
@@ -88,7 +88,7 @@ static inline void         draw_laser_blast(jo_node *node)
         jo_list_remove(&laser_blast_list, node);
 }
 
-static inline void         draw_enemy(jo_node *node)
+static void         draw_enemy(jo_node *node)
 {
     jo_sprite_draw3D(enemy_sprite_id, node->data.coord.x, node->data.coord.y, 520);
     node->data.coord.y += 2;
@@ -178,7 +178,7 @@ void			my_gamepad(void)
         return ;
     if (jo_is_pad1_key_down(JO_KEY_A))
         shoot();
-	if (jo_is_pad1_key_pressed(JO_KEY_LEFT) && ship.x > -(JO_TV_WIDTH_2 - 16))
+    if (jo_is_pad1_key_pressed(JO_KEY_LEFT) && ship.x > -(JO_TV_WIDTH_2 - 16))
     {
         /* If the ship doesn't move or on the opposite side */
         if ((!ship.is_moving_horizontaly && jo_is_sprite_anim_stopped(ship.anim_id)) || (ship.is_moving_horizontaly && ship.move == SHIP_MOVE_RIGHT))
