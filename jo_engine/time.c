@@ -69,6 +69,58 @@ unsigned int                jo_get_ticks(void)
     return (ticks);
 }
 
+/**Work by Emerald Nova**/
+// Pointer to SH2 Registers, found by Johannes Fetz, contributed by Ponut64
+// High Free Running Counter Register (FCR), counts up to 255, then iterates FCR Low
+Uint8 * SH2FRCHigh = (Uint8 *)0xfffffe12;
+// Low Free Running Counter Register (FCR), increases every time FCR high reaches 256
+Uint8 * SH2FRCLow = (Uint8 *)0xfffffe13;
+// Time Control Register (TCR)
+Uint8 * SH2TCR = (Uint8 *)0xfffffe16;
+// System clock
+unsigned int * SysClockReg = (unsigned int*)0x6000324;
+//	Time tracking in seconds
+jo_fixed time_in_seconds = 0;
+jo_fixed oldtime = 0;
+jo_fixed delta_time = 0;
+
+//	JO Engine sourced timer adaptation
+//	System variable "Time" will count up in seconds if the function "timer" is run.
+//	System variable "delta_time" will express the delta time between frames, in fixed-point seconds.
+void jo_fixed_point_time(void)
+{
+	//	Set old time for iteration
+	oldtime = time_in_seconds;
+	
+	// Get System Clock Value
+	unsigned int SysClock = (*(unsigned int*)0x6000324);
+	
+	
+	jo_fixed time_add =
+		(
+		//	Clock speed from framerate based on resolution register and NSTC vs PAL
+		(((*(Uint16 *)0x25f80004 & 0x1) == 0x1) ?
+			((SysClock == 0) ? (float)0.037470726 : (float)0.035164835 ) :
+			((SysClock == 0) ? (float)0.037210548 : (float)0.03492059 ))
+			*
+		//	Get Free Running Counter value
+		((*(unsigned char *)SH2FRCHigh) << 8 | (*(unsigned char *)SH2FRCLow))
+		*
+		//	Determine if clock is on 1/8, 1/32, or 1/128 of count
+		(8 << (((*(unsigned char *)RegisterTCR) & 3) << 1)) /
+		//	Set to s
+		1000000) * (65536.0);
+
+	//	Set new time_in_seconds
+	time_in_seconds += time_add;
+	delta_time = time_in_seconds - oldtime;
+	
+	//	Reset FRC's
+	(*(unsigned char *)SH2FRCHigh) = 0 >> 8;
+	(*(unsigned char *)SH2FRCLow) = 0;
+}
+
+
 /*
 ** END OF FILE
 */
