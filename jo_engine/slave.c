@@ -100,7 +100,11 @@ static __jo_force_inline void      jo_core_slave_bootstrap(void *param)
 
 inline void                        jo_core_wait_for_slave(void)
 {
-    while (!*((volatile bool *)(&__jo_slave_done_flag + 0x20000000)));
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic push
+    while (!*((volatile bool *)(&__jo_slave_done_flag + 0x20000000)))
+        ;
+#pragma GCC diagnostic pop
     __jo_slave_done_flag = false;
     slCashPurge();
 }

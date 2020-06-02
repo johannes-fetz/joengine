@@ -1,5 +1,5 @@
 # /!\ THIS SCRIPT DOESN'T WORK TODAY BECAUSE OF SSF /!\
-$isoPath = Join-Path $pwd.Path sl_coff.iso
+$isoPath = Join-Path $pwd.Path game.iso
 $ssfDirectory = Join-Path $pwd.Path "..\..\Emulators\SSF\"
 Write-Host "Mounting image..."
 Mount-DiskImage -StorageType ISO -ImagePath $isoPath

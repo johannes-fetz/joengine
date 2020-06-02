@@ -4,6 +4,20 @@
 / /_/ / /_/ /    / /___/ /|  / /_/ // // /|  / /___     / __/ / ___ / /_/ / 
 \____/\____/    /_____/_/ |_/\____/___/_/ |_/_____/    /_/   /_/  |_\___\_\ 
   
+Q:	I updated Jo Engine and now under Windows I got a message about make is an unknown command
+A:	Just update take the following files from demo1 sample and copy them on your project :
+		clean.bat
+		clean.sh
+		compile.bat
+		run_with_daemon_tools_and_ssf.bat
+		run_with_mednafen.bat
+		run_with_nova.bat
+		run_with_powershell_and_ssf.ps1
+		run_with_virtual_clone_drive_and_ssf.bat
+		run_with_yabaSanshiro.bat
+		run_with_yabause.bat
+		run_with_yabause.sh
+
 Q:	My game crash, glitch, show "out of memory" message but why ?
 A:	There is a 90% chance that it comes from the memory space reserved for jo_malloc().
 	You can change this value in your makefile by adding:
@@ -23,3 +37,4 @@ A:	Pay close attention to the difference between PAL / NTSC display.
 	You can change the resolution to PAL in your makefile by adding:
 		JO_NTSC = 0
 	Note: Some emulators doesn't handle all resolution like SSF which uses 640x480 and 720x480 resolutions.
+

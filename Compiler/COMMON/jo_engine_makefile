@@ -3,11 +3,11 @@
 #
 
 ifeq (${JO_ENGINE_SRC_DIR},)
-	JO_ENGINE_SRC_DIR=../jo_engine
+	JO_ENGINE_SRC_DIR=../../jo_engine
 endif
 
 ifeq (${COMPILER_DIR},)
-	COMPILER_DIR=../Compiler
+	COMPILER_DIR=../../Compiler
 endif
 
 ifeq (${JO_FRAMERATE},)
@@ -202,15 +202,13 @@ OBJS = $(SRCS:.c=.o)
 #endif
 
 ifeq ($(OS), Windows_NT)
-	SH_COFF_BIN=$(COMPILER_DIR)/SH_COFF/sh-coff/bin
-	CC=$(SH_COFF_BIN)/sh-coff-gcc.exe
-	CONV=$(SH_COFF_BIN)/sh-coff-objcopy.exe
-	CUE_MAKER=$(COMPILER_DIR)/TOOLS/JoEngineCueMaker.exe
+	CC=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-gcc.exe
+	CONV=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-objcopy.exe
+	CUE_MAKER=JoEngineCueMaker.exe
 else
-	SH_COFF_BIN=$(COMPILER_DIR)/SH_NONE_ELF/bin
-	CC=$(SH_COFF_BIN)/sh-none-elf-gcc-8.2.0
-	CONV=$(SH_COFF_BIN)/sh-none-elf-objcopy
-	CUE_MAKER=$(COMPILER_DIR)/TOOLS/CueMaker
+	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
+	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
+	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/CueMaker"
 endif
 
 ASSETS_DIR=./cd
@@ -219,9 +217,9 @@ RM = rm -rf
 
 # remove the comment below when nosgl.linker is fixed
 #ifeq (1,${JO_COMPILE_USING_SGL})
-	SGLDIR = $(COMPILER_DIR)/SGL_302j
+	SGLDIR = $(COMPILER_DIR)/COMMON/SGL_302j
 	SGLIDR = $(SGLDIR)/INC
-	SGLLDR = $(SGLDIR)/LIB_COFF
+	SGLLDR = $(SGLDIR)/LIB_ELF
 #endif
 
 CMNDIR = $(COMPILER_DIR)/COMMON
@@ -248,18 +246,18 @@ LDFLAGS = -m2
 #ifeq (1,${JO_COMPILE_USING_SGL})
 	LDFLAGS += -L$(SGLLDR)
 #endif
-LDFLAGS +=-Xlinker --format=coff-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
+LDFLAGS +=-Xlinker --format=elf32-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
 ifneq ($(OS), Windows_NT)
-LIBS += -L.$(COMPILER_DIR)/SH_COFF/sh-coff/sh-coff/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
+LIBS += -L.$(COMPILER_DIR)/LINUX/sh-elf/sh-elf/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
 endif
 DFLAGS =
 
-TARGET   = sl_coff.coff
-TARGET1  = $(TARGET:.coff=.bin)
-TARGET2  = $(TARGET:.coff=.iso)
-TARGET3  = $(TARGET:.coff=.cue)
-MPFILE   = $(TARGET:.coff=.map)
+TARGET   = game.elf
+TARGET1  = $(TARGET:.elf=.bin)
+TARGET2  = $(TARGET:.elf=.iso)
+TARGET3  = $(TARGET:.elf=.cue)
+MPFILE   = $(TARGET:.elf=.map)
 IPFILE   = $(CMNDIR)/IP.BIN
 ifeq (1,${JO_COMPILE_USING_SGL})
 	LDFILE   = $(CMNDIR)/sgl.linker

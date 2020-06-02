@@ -4,7 +4,15 @@ sl_coff.coff
 sl_coff.iso
 sl_coff.cue
 sl_coff.map
-*.o
+game.bin
+game.coff
+game.elf
+game.iso
+game.cue
+game.map
+/jo_engine/*.o
+/Projects/*/*.o
+/Samples/*/*.o
 *.layout
 bios.bin
 logs.txt
