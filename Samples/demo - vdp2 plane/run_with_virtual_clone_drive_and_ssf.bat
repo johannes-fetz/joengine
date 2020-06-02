@@ -2,9 +2,9 @@
 SET EMULATOR_DIR=..\..\Emulators
 SET VCD_DIR=C:\Program Files (x86)\Elaborate Bytes\VirtualCloneDrive
 
-if exist sl_coff.iso (
+if exist game.iso (
 echo Mounting image...
-"%VCD_DIR%\vcdmount.exe" sl_coff.iso
+"%VCD_DIR%\vcdmount.exe" game.iso
 cd "%EMULATOR_DIR%\SSF\"
 echo Running SSF...
 "SSF.exe"

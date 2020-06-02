@@ -1,2 +1,9 @@
 @ECHO Off
-echo Sorry, Yabause doesn't support cue file
+SET EMULATOR_DIR=..\..\Emulators
+
+if exist game.iso (
+echo CD Audio Track doesn't work with this emulator because it doesn't support CUE file
+"%EMULATOR_DIR%\yabause\yabause.exe" -a -i game.iso
+) else (
+echo Please compile first !
+)
