@@ -5,7 +5,7 @@
 \____/\____/    /_____/_/ |_/\____/___/_/ |_/_____/    /_/   /_/  |_\___\_\ 
   
 Q:	I updated Jo Engine and now under Windows I got a message about make is an unknown command
-A:	Just update take the following files from demo1 sample and copy them on your project :
+A:	Just update and take the following files from demo1 sample and copy them on your project :
 		clean.bat
 		clean.sh
 		compile.bat
