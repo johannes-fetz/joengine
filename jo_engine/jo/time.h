@@ -70,10 +70,35 @@ static  __jo_force_inline void jo_time_set_frc(unsigned char reg)
     jo_time_poke_byte(RegisterLowFRC, reg);
 }
 
+// Pointer to SH2 Registers, found by Johannes Fetz, contributed by Ponut64
+// High Free Running Counter Register (FCR), counts up to 255, then iterates FCR Low
+extern Uint8 * SH2FRCHigh;
+// Low Free Running Counter Register (FCR), increases every time FCR high reaches 256
+extern Uint8 * SH2FRCLow;
+// Time Control Register (TCR)
+extern Uint8 * SH2TCR;
+// System clock
+extern unsigned int * SysClockReg;
+//	Time tracking in seconds
+extern jo_fixed time_in_seconds;
+extern jo_fixed oldtime;
+extern jo_fixed delta_time;
+
+
+
 /** @brief get ticks count
  *  @return ticks count from jo_core_run()
  */
 unsigned int    jo_get_ticks(void);
+
+
+/** @brief get ticks count
+ *  @return void
+ * 	system variable "time" will increment fixed-point 1 every second since starting jo_fixed_point_time
+ *	system variable "delta_time" will represent the delta time (in fixed-point seconds) between each frame
+ *	@warning run only once per frame!
+ */
+void			 jo_fixed_point_time(void);
 
 #endif /* !__JO_TIME_H__ */
 
