@@ -150,8 +150,11 @@
 /** @brief VDP2 Color RAM (4 kilobytes) */
 # define JO_VDP2_CRAM               (0x25F00000)
 
+# define JO_VDP2_NBG0_CEL_ADR       (VDP2_VRAM_A1)
+# define JO_VDP2_NBG0_MAP_ADR       (VDP2_VRAM_B1)
 # define JO_VDP2_NBG1_CEL_ADR       (VDP2_VRAM_A0)
 # define JO_VDP2_NBG1_MAP_ADR       (VDP2_VRAM_B0)
+
 
 /* 180002 - r/w - EXTEN - External Signal Enable Register
  bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\

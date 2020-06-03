@@ -30,7 +30,7 @@
  *
  *  @brief Jo Engine Gamepad functions
  *  @bug No known bugs.
- *  @todo analog gamepad, wheel, gun and keyboard
+ *  @todo analog gamepad, wheel, gun
  */
 
 #ifndef __JO_INPUT_H__

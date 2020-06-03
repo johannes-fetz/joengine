@@ -73,8 +73,10 @@
 static unsigned char            *__jo_cell_adr = (unsigned char *)RBG0_CEL_ADR;
 static int                      __jo_cell_mapoff = 0;
 
-static void                     jo_set_printf_palette(void)
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+static void                     jo_init_nbg0_printf(void)
 {
+    slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Black, JO_COLOR_Black);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Red, JO_COLOR_Red);
@@ -82,7 +84,9 @@ static void                     jo_set_printf_palette(void)
     jo_set_printf_palette_color(JO_COLOR_INDEX_Yellow, JO_COLOR_Yellow);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Blue, JO_COLOR_Blue);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Purple, JO_COLOR_Purple);
+    jo_set_printf_color_index(0);
 }
+#endif
 
 /*
 ** Default Jo Engine screen priority : NBG0 > SPR0 > SPR1 > RBG0 > NBG1 > NBG2 > NBG3
@@ -90,10 +94,15 @@ static void                     jo_set_printf_palette(void)
 */
 void                            __jo_init_vdp2(const jo_color back_color)
 {
-    //NBG0 (printf)
-    slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
-    jo_set_printf_palette();
-    jo_set_printf_color_index(0);
+    //NBG0
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+    jo_init_nbg0_printf();
+#else
+    slPageNbg0((void *)JO_VDP2_NBG0_MAP_ADR, 0, PNB_1WORD | CN_12BIT);
+    slPlaneNbg0(PL_SIZE_1x1);
+    slMapNbg0((void *)JO_VDP2_NBG0_MAP_ADR, (void *)JO_VDP2_NBG0_MAP_ADR, (void *)JO_VDP2_NBG0_MAP_ADR, (void *)JO_VDP2_NBG0_MAP_ADR);
+    jo_memset((void *)JO_VDP2_NBG0_MAP_ADR, 0, 0x00020000);
+#endif
     //NBG1
     slPageNbg1((void *)JO_VDP2_NBG1_MAP_ADR, 0, PNB_1WORD | CN_12BIT);
     slPlaneNbg1(PL_SIZE_1x1);

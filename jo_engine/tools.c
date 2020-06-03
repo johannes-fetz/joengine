@@ -48,6 +48,8 @@
 */
 char			            __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+
 #if !JO_COMPILE_USING_SGL
 
 unsigned char               __jo_printf_current_palette_index = JO_COLOR_INDEX_Black;
@@ -157,7 +159,29 @@ void            jo_print(int x, int y, char * str)
 #endif
 }
 
-# define JO_BCD_INT(BCD)    (((BCD & 0xF0) >> 4) * 10 + (BCD & 0x0F))
+void                    jo_clear_screen_line(const int y)
+{
+    register int        x;
+
+    for (JO_ZERO(x); x < 40; ++x)
+    {
+#if JO_COMPILE_USING_SGL
+        slPrint(" ", slLocate(x, y));
+#else
+        jo_putchar(x, y, ' ', JO_COLOR_Transparent);
+#endif
+    }
+}
+
+void                    jo_clear_screen(void)
+{
+    register int        y;
+
+    for (JO_ZERO(y); y < 30; ++y)
+        jo_clear_screen_line(y);
+}
+
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 
 #if JO_COMPILE_USING_SGL
 
@@ -235,28 +259,6 @@ jo_language     jo_get_current_language(void)
 #else
     return English;
 #endif
-}
-
-void                    jo_clear_screen_line(const int y)
-{
-    register int        x;
-
-    for (JO_ZERO(x); x < 40; ++x)
-    {
-#if JO_COMPILE_USING_SGL
-        slPrint(" ", slLocate(x, y));
-#else
-        jo_putchar(x, y, ' ', JO_COLOR_Transparent);
-#endif
-    }
-}
-
-void                    jo_clear_screen(void)
-{
-    register int        y;
-
-    for (JO_ZERO(y); y < 30; ++y)
-        jo_clear_screen_line(y);
 }
 
 /*

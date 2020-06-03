@@ -85,6 +85,8 @@ void                jo_set_palette_register(const unsigned short palette_index, 
  */
 jo_color            jo_get_palette_register(const unsigned short palette_index);
 
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+
 /** @brief Set foreground palette color for the specific index
   * @param index Palette index (0 and 1 are reserved)
   * @param color Color (Example: JO_COLOR_Red)
@@ -93,6 +95,8 @@ static  __jo_force_inline void        jo_set_printf_palette_color(const unsigned
 {
     jo_set_palette_register(1 + JO_MULT_BY_256(index), color);
 }
+
+#endif
 
 #endif /* !__JO_PALETTE_H__ */
 

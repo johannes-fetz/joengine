@@ -433,6 +433,7 @@ void            jo_goto_boot_menu(void)
 
 void            __jo_core_error(char *message, const char *function)
 {
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     int         usage;
 
     jo_clear_background(JO_COLOR_Blue);
@@ -458,6 +459,12 @@ void            __jo_core_error(char *message, const char *function)
     jo_printf(2, 27, "Press [START] to continue...");
     jo_core_suspend();
     jo_clear_screen();
+#else
+    JO_UNUSED_ARG(message);
+    JO_UNUSED_ARG(function);
+    jo_clear_background(JO_COLOR_Red);
+    jo_core_suspend();
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 }
 
 #endif
@@ -470,6 +477,7 @@ void            jo_core_suspend(void)
 
     for (JO_ZERO(frame), JO_ZERO(wait_cursor);; ++frame)
     {
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
         if (frame > 4)
         {
             switch (wait_cursor)
@@ -490,6 +498,7 @@ void            jo_core_suspend(void)
                 ++wait_cursor;
             JO_ZERO(frame);
         }
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 #if JO_COMPILE_USING_SGL
         slSynch();
 #else
@@ -503,7 +512,9 @@ void            jo_core_suspend(void)
 #endif // JO_COMPILE_WITH_KEYBOARD_SUPPORT
                                        ))
         {
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
             jo_printf(0, 27, " ");
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
             return ;
         }
     }

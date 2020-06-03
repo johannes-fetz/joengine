@@ -97,6 +97,9 @@ int				sprintf(char* str, const char* format, ...);
  *  @warning MC Hammer: don't touch this
  */
 extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
+
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+
 #if !JO_COMPILE_USING_SGL
 extern unsigned char    __jo_printf_current_palette_index;
 #endif
@@ -129,6 +132,19 @@ static  __jo_force_inline void        jo_set_printf_color_index(const unsigned c
     __jo_printf_current_palette_index = index;
 #endif
 }
+
+/** @brief Clear screen (usefull for printf)
+ *  @warning Try to not use it by adding some whitespace at the end of jo_printf
+ */
+void            jo_clear_screen(void);
+
+/** @brief Clear single screen line (usefull for printf)
+ *  @param y Vertical line index
+ *  @warning Try to not use it by adding some whitespace at the end of jo_printf
+ */
+void            jo_clear_screen_line(const int y);
+
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 
 /** @brief DMA copy
   * @param src Data source
@@ -209,17 +225,6 @@ typedef enum
  *  @return The language
  */
 jo_language     jo_get_current_language(void);
-
-/** @brief Clear screen (usefull for printf)
- *  @warning Try to not use it by adding some whitespace at the end of jo_printf
- */
-void            jo_clear_screen(void);
-
-/** @brief Clear single screen line (usefull for printf)
- *  @param y Vertical line index
- *  @warning Try to not use it by adding some whitespace at the end of jo_printf
- */
-void            jo_clear_screen_line(const int y);
 
 /** @brief get current date and time
  *  @param now result
