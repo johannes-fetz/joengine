@@ -40,65 +40,81 @@
 
 typedef enum
 {
-    /** @brief FRC H register */
+    /** @brief High Free Running Counter Register (FCR), counts up to 255, then iterates FCR Low */
     RegisterHighFRC = 0xfffffe12,
-    /** @brief FRC L register */
+    /** @brief Low Free Running Counter Register (FCR), increases every time FCR high reaches 256 */
     RegisterLowFRC = 0xfffffe13,
-    /** @brief TCR register */
+    /** @brief Time Control Register (TCR) */
     RegisterTCR = 0xfffffe16,
+    /** @brief System clock register */
+    RegisterSysClock = 0x6000324
 }               jo_time_memory_address;
 
 static  __jo_force_inline void jo_time_poke_byte(jo_time_memory_address addr, unsigned char data)
 {
     (*(volatile unsigned char *)(addr)) = data;
 }
+
 static  __jo_force_inline unsigned char jo_time_peek_byte(jo_time_memory_address addr)
 {
     return (*(volatile unsigned char *)(addr));
 }
-static  __jo_force_inline unsigned int jo_time_get_sys_clock_value(void)
+
+static  __jo_force_inline void jo_time_poke_int(jo_time_memory_address addr, unsigned int data)
 {
-    return (*(volatile unsigned int*)0x6000324);
+    (*(volatile unsigned int *)(addr)) = data;
 }
+
+static  __jo_force_inline unsigned int jo_time_peek_int(jo_time_memory_address addr)
+{
+    return (*(volatile unsigned int *)(addr));
+}
+
+/** @brief Get Free Running Counter value */
 static  __jo_force_inline int jo_time_get_frc(void)
 {
     return (jo_time_peek_byte(RegisterHighFRC) << 8 | jo_time_peek_byte(RegisterLowFRC));
 }
+
 static  __jo_force_inline void jo_time_set_frc(unsigned char reg)
 {
     jo_time_poke_byte(RegisterHighFRC, reg >> 8);
     jo_time_poke_byte(RegisterLowFRC, reg);
 }
 
-// Pointer to SH2 Registers, found by Johannes Fetz, contributed by Ponut64
-// High Free Running Counter Register (FCR), counts up to 255, then iterates FCR Low
-extern Uint8 * SH2FRCHigh;
-// Low Free Running Counter Register (FCR), increases every time FCR high reaches 256
-extern Uint8 * SH2FRCLow;
-// Time Control Register (TCR)
-extern Uint8 * SH2TCR;
-// System clock
-extern unsigned int * SysClockReg;
-//	Time tracking in seconds
-extern jo_fixed time_in_seconds;
-extern jo_fixed oldtime;
-extern jo_fixed delta_time;
-
-
-
 /** @brief get ticks count
  *  @return ticks count from jo_core_run()
  */
 unsigned int    jo_get_ticks(void);
 
+/*
+████████╗██╗███╗   ███╗███████╗    ████████╗██████╗  █████╗  ██████╗██╗  ██╗██╗███╗   ██╗ ██████╗
+╚══██╔══╝██║████╗ ████║██╔════╝    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██║████╗  ██║██╔════╝
+   ██║   ██║██╔████╔██║█████╗         ██║   ██████╔╝███████║██║     █████╔╝ ██║██╔██╗ ██║██║  ███╗
+   ██║   ██║██║╚██╔╝██║██╔══╝         ██║   ██╔══██╗██╔══██║██║     ██╔═██╗ ██║██║╚██╗██║██║   ██║
+   ██║   ██║██║ ╚═╝ ██║███████╗       ██║   ██║  ██║██║  ██║╚██████╗██║  ██╗██║██║ ╚████║╚██████╔╝
+   ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
+
+██╗███╗   ██╗    ███████╗██╗██╗  ██╗███████╗██████╗     ███████╗███████╗ ██████╗ ██████╗ ███╗   ██╗██████╗ ███████╗
+██║████╗  ██║    ██╔════╝██║╚██╗██╔╝██╔════╝██╔══██╗    ██╔════╝██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔══██╗██╔════╝
+██║██╔██╗ ██║    █████╗  ██║ ╚███╔╝ █████╗  ██║  ██║    ███████╗█████╗  ██║     ██║   ██║██╔██╗ ██║██║  ██║███████╗
+██║██║╚██╗██║    ██╔══╝  ██║ ██╔██╗ ██╔══╝  ██║  ██║    ╚════██║██╔══╝  ██║     ██║   ██║██║╚██╗██║██║  ██║╚════██║
+██║██║ ╚████║    ██║     ██║██╔╝ ██╗███████╗██████╔╝    ███████║███████╗╚██████╗╚██████╔╝██║ ╚████║██████╔╝███████║
+╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝     ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝
+
+Contributed by Ponut64: https://github.com/johannes-fetz/joengine/pull/21 & Emerald Nova
+*/
+
+/** @brief Will increment fixed-point 1 every second since starting jo_fixed_point_time() */
+extern jo_fixed     time_in_seconds;
+
+/** @brief Represent the delta time (in fixed-point seconds) between each frame */
+extern jo_fixed     delta_time;
 
 /** @brief get ticks count
- *  @return void
- * 	system variable "time" will increment fixed-point 1 every second since starting jo_fixed_point_time
- *	system variable "delta_time" will represent the delta time (in fixed-point seconds) between each frame
  *	@warning run only once per frame!
  */
-void			 jo_fixed_point_time(void);
+void			    jo_fixed_point_time(void);
 
 #endif /* !__JO_TIME_H__ */
 
