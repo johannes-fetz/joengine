@@ -36,7 +36,7 @@
 #ifndef __JO_INPUT_H__
 # define __JO_INPUT_H__
 
-# define JO_INPUT_MAX_DEVICE        (8)
+# define JO_INPUT_MAX_DEVICE            (12)
 
 #if JO_COMPILE_USING_SGL
 extern PerDigital                       jo_inputs[JO_INPUT_MAX_DEVICE];
@@ -137,12 +137,13 @@ jo_gamepad_type                 jo_get_input_type(const int port);
  */
 static  __jo_force_inline bool	jo_is_input_available(const int port)
 {
-#if JO_COMPILE_USING_SGL
     return (jo_inputs[port].id != PER_ID_NotConnect);
-#else
-    return (jo_inputs[port].id != PER_ID_NotConnect);
-#endif
 }
+
+/** @brief Get the number of input available
+ *  @return Input count
+ */
+int                             jo_get_input_count(void);
 
 /** @brief Check if the key is pressed for the given port
  *  @param port Gamepad port

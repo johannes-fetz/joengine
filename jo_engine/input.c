@@ -97,17 +97,24 @@ void                            jo_get_inputs_vblank(void)
 #else
 PerDigital                      jo_inputs[JO_INPUT_MAX_DEVICE];
 
+#define __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT        (36)
+#define __JO_SECOND_MULTITAP_OFFSET                         (54)
+
 void                            jo_get_inputs_vblank(void)
 {
     register unsigned int       i;
-    register unsigned int       size;
     unsigned int                *src;
     unsigned int                *dest;
 
-    size = sizeof(jo_inputs) / sizeof(*src);
+    //We get the first 6 inputs
     src = (unsigned int *)Smpc_Peripheral;
     dest = (unsigned int *)&jo_inputs[0];
-    for (JO_ZERO(i); i < size; ++i)
+    for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
+        *dest++ = *src++;
+    //Then, we get the last 6 inputs for the second multitap
+    //Thanks Slinga: https://github.com/johannes-fetz/joengine/issues/23
+    src += __JO_SECOND_MULTITAP_OFFSET;
+    for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
         *dest++ = *src++;
 }
 #endif
@@ -129,6 +136,19 @@ jo_gamepad_type                 jo_get_input_type(const int port)
     default:
         return (JoUnsupportedGamepad);
     }
+}
+
+int                             jo_get_input_count(void)
+{
+    register unsigned int       i;
+    register unsigned int       count;
+
+    for (JO_ZERO(i), JO_ZERO(count); i < JO_INPUT_MAX_DEVICE; ++i)
+    {
+        if (jo_get_input_type(i) != JoNotConnectedGamepad)
+            ++count;
+    }
+    return (count);
 }
 
 /*
