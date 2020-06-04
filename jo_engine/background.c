@@ -130,12 +130,12 @@ void                            jo_img_to_vdp2_cells(const jo_img_8bits * const 
         }
         if (JO_MOD_POW2(img->width, 8) != 0)
         {
-            jo_core_error("%s: Image width must be multiple of 8");
+            jo_core_error("Image width must be multiple of 8");
             return ;
         }
         if (JO_MOD_POW2(img->height, 8) != 0)
         {
-            jo_core_error("%s: Image height must be multiple of 8");
+            jo_core_error("Image height must be multiple of 8");
             return ;
         }
 #endif
@@ -159,6 +159,13 @@ void                            jo_img_to_vdp2_cells(const jo_img_8bits * const 
             }
         }
     }
+#ifdef JO_DEBUG
+    if ((__jo_cell_adr - (unsigned char *)RBG0_CEL_ADR) > JO_VDP2_BANK_SIZE)
+    {
+        jo_core_error("Too many cells. Please Reduce image size");
+        return ;
+    }
+#endif
 }
 
 static void                     __jo_create_map(const jo_img_8bits * const img, unsigned short *map, unsigned short palnum)
@@ -187,7 +194,7 @@ static void                     __jo_create_map(const jo_img_8bits * const img, 
         if (y2 >= y)
             JO_ZERO(y2);
     }
-    __jo_cell_mapoff += JO_DIV_BY_32(__jo_cell_adr - ((unsigned char *)RBG0_CEL_ADR));
+    __jo_cell_mapoff += JO_DIV_BY_32(img->width * img->height);
 }
 
 void                            jo_background_3d_plane_begin_setup_a(bool repeat)

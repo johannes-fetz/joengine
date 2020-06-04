@@ -149,6 +149,8 @@
 # define JO_VDP2_VRAM_B1            (0x25E60000)
 /** @brief VDP2 Color RAM (4 kilobytes) */
 # define JO_VDP2_CRAM               (0x25F00000)
+/** @brief VDP2 VRAM Bank size (128 kilobytes) */
+# define JO_VDP2_BANK_SIZE          (0x20000)
 
 # define JO_VDP2_NBG0_CEL_ADR       (VDP2_VRAM_A1)
 # define JO_VDP2_NBG0_MAP_ADR       (VDP2_VRAM_B1)
