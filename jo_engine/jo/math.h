@@ -368,6 +368,22 @@ static __jo_force_inline jo_fixed       jo_fixed_wrap_to_180(jo_fixed deg)
  */
 jo_fixed                                jo_fixed_mult(jo_fixed x, jo_fixed y);
 
+/** @brief Dot product two fixed 3D points
+ *  @param ptA Point A (first operand)
+ *  @param ptB	Point B (second operand)
+ *	@warning Will overflow easily with values >(147<<16)
+ *  @return ptA · ptB
+ */
+jo_fixed								jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]);
+
+/** @brief Divide fixed-point numbers (expresses dividend / divisor)
+ *  @param dividend (first operand)
+ *  @param divisor  (second operand)
+ *	@warning speculative real-hardware delay and unit testing?
+ *  @return dividend / divisor
+ */
+jo_fixed								jo_fixed_div(jo_fixed dividend, jo_fixed divisor);
+
 /** @brief Convert fixed degree to fixed radian
  *  @param deg Fixed angle in degree
  *  @return Fixed angle in radian
