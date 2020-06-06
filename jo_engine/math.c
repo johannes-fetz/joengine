@@ -74,6 +74,64 @@ jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 	return rtval;
 }
 
+
+jo_fixed	jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal instruction execution... I wonder why... fxm does not
+{
+	register jo_fixed rtval;
+	asm(
+		"clrmac;"
+		"mac.l @%[ptr1]+,@%[ptr2]+;"
+		"mac.l @%[ptr1]+,@%[ptr2]+;"
+		"mac.l @%[ptr1]+,@%[ptr2]+;" //Expresses (ptA[X] * ptB[X]) + (ptA[Y] * ptB[Y]) + (ptA[Z] * ptB[Z])
+		"sts MACH,r1;"
+		"sts MACL,%[ox];"
+		"xtrct r1,%[ox];"			//Extracts to fixed-point
+		: 	[ox] "=r" (rtval)											//OUT
+		:	[ptr1] "r" (ptA) , [ptr2] "r" (ptB)							//IN
+		:	"r1"														//CLOBBERS
+	);
+	return rtval;
+}
+
+
+jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
+{
+	
+const int * DVSR = ( int*)0xFFFFFF00;
+const int * DVDNTH = ( int*)0xFFFFFF10;
+const int * DVDNTL = ( int*)0xFFFFFF14;
+
+/*
+SH7604 Note
+Saturn special CPU has a division unit. We use it here.
+Our assembler is not aware of its existence, so we must address it via pointers.
+When a value is placed in DVDNTL register, (64 bit / 32 bit) division begins,
+ with DVDNTH and DVDNTL represening the high and low 32 bits of the 64 bit dividend.
+The divisor register (DVSR) is just 32-bit.
+
+Now, this *should* take 39 cycles to complete. It appears the SH7604 will just wait if you try and access it early.
+But check with real hardware first, you know?
+*/
+
+register jo_fixed quotient;
+	asm(
+	"mov.l %[dvs], @%[dvsr];"
+	"mov %[dvd], r1;" //Move the dividend to a general-purpose register, to prevent weird misreading of data.
+	"shlr16 r1;"
+	"mov.l r1, @%[nth];" //Expresses "*DVDNTH = dividend>>16"
+	"mov %[dvd], r1;" 
+	"shll16 r1;"
+	"mov.l r1, @%[ntl];" //Expresses *DVDNTL = dividend<<16";
+	"mov.l @%[ntl], %[out];" //Get result.
+		: 	[out] "=r" (quotient)											//OUT
+		:	[dvs] "r" (divisor) , [dvd] "r" (dividend) ,					//IN
+			[dvsr] "r" (DVSR) ,	[nth] "r" (DVDNTH) , [ntl] "r" (DVDNTL)		//IN
+		:	"r1"															//CLOBBERS
+	);
+	return quotient;
+}
+
+
 #pragma GCC pop_options
 
 /* Taylor series approximation */
