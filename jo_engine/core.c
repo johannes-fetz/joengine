@@ -102,6 +102,7 @@ char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
+static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
@@ -563,6 +564,11 @@ void            jo_core_suspend(void)
 }
 #endif
 
+void    jo_core_set_restart_game_callback(const jo_event_callback callback)
+{
+    __jo_restart_game_callback = callback;
+}
+
 void			        jo_core_run(void)
 {
     for (;;)
@@ -593,9 +599,9 @@ void			        jo_core_run(void)
         if (__slave_callbacks.count)
             jo_list_foreach(&__slave_callbacks, __jo_call_event);
 #endif
-        if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
-                jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START))
-            break;
+        if (jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
+                jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START) && __jo_restart_game_callback != JO_NULL)
+            __jo_restart_game_callback();
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
         if (__jo_fs_background_job_count)
             jo_fs_do_background_jobs();

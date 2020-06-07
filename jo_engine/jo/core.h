@@ -104,6 +104,11 @@ int     jo_core_add_slave_callback(const jo_event_callback callback);
  */
 void    jo_core_remove_slave_callback(const int event_id);
 
+/** @brief Add a callback when A+B+C+Start is pressed on the first control pad
+ *  @param callback Function name with no parameters and no return value
+ */
+void    jo_core_set_restart_game_callback(const jo_event_callback callback);
+
 /** @brief Return to the boot menu
  */
 void    jo_goto_boot_menu(void);
