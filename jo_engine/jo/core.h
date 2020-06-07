@@ -147,6 +147,13 @@ static  __jo_force_inline void      jo_core_tv_on(void)
     slTVOn();
 }
 
+/** @brief Set scroll screen order between them
+ *  @param screen1 First screen (high priority)
+ *  @param args Other screens
+ *  @remarks Default Jo Engine screen priority : NBG0 > SPR0 > SPR1 > RBG0 > NBG1 > NBG2 > NBG3
+ */
+#define                             jo_core_set_screens_order(screen1, args...) __jo_core_set_screens_order(screen1, ## args, ~0);
+
 #ifdef JO_DEBUG
 
 /** @brief Stop the execution until someone press Start
@@ -170,6 +177,11 @@ void                jo_dump_vdp1_registers(void);
 void                jo_dump_vdp2_registers(void);
 
 #endif
+
+/** @brief Screen order (Internal usage)
+ *  @warning Use jo_core_set_screens_order instead
+ */
+void                                __jo_core_set_screens_order(jo_scroll_screen screen1, ...);
 
 #endif /* !__JO_CORE_H__ */
 

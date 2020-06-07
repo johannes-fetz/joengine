@@ -45,7 +45,7 @@
 #include "jo/sprites.h"
 #include "jo/colors.h"
 #include "jo/math.h"
-#include "jo/background.h"
+#include "jo/vdp2.h"
 
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
 

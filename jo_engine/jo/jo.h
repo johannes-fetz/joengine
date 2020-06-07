@@ -61,6 +61,8 @@
 #include "image.h"
 #include "tga.h"
 #include "sprites.h"
+#include "vdp2_malloc.h"
+#include "vdp2.h"
 #include "background.h"
 #include "hitbox.h"
 #include "sprite_animator.h"

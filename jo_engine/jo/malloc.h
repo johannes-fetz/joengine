@@ -87,7 +87,8 @@ static  __jo_force_inline void	*jo_malloc(unsigned int n)
     return jo_malloc_with_behaviour(n, JO_FAST_ALLOCATION);
 }
 
-/** @brief function frees the memory space pointed to by ptr, which must have been returned by a previous call to jo_malloc()
+/** @brief function frees the memory space pointed to by p
+ *  @param p pointer that must have been returned by a previous call to jo_malloc()
  */
 void	        jo_free(const void * const p);
 

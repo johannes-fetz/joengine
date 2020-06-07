@@ -44,8 +44,9 @@
 #include "jo/colors.h"
 #include "jo/sprites.h"
 #include "jo/palette.h"
+#include "jo/vdp2_malloc.h"
 
-static int          __jo_current_palette_id = 0;
+extern int          __jo_current_palette_id;
 
 void                jo_create_palette(jo_palette * const output)
 {
@@ -55,14 +56,9 @@ void                jo_create_palette(jo_palette * const output)
         jo_core_error("output is null");
         return ;
     }
-    if ((__jo_current_palette_id + 1) >= JO_PALETTE_MAX)
-    {
-        jo_core_error("too many palettes");
-        return ;
-    }
 #endif
-    output->id = __jo_current_palette_id++;
-    output->data =  (((jo_color *)JO_VDP2_CRAM) + 1 + JO_MULT_BY_256(output->id));
+    output->data = jo_vdp2_malloc_autosize(JO_VDP2_RAM_COLOR);
+    output->id = __jo_current_palette_id;
 }
 
 void        jo_set_palette_register(const unsigned short palette_index, const jo_color color)

@@ -40,7 +40,7 @@
 #include "jo/sprites.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
-#include "jo/background.h"
+#include "jo/vdp2.h"
 #include "jo/math.h"
 #include "jo/fs.h"
 #include "jo/hitbox.h"
@@ -212,7 +212,7 @@ void						jo_map_draw_background(const unsigned int layer, const short x, const 
         img.width = current_tile->width;
         img.height =  current_tile->height;
         img.data = __jo_sprite_pic[current_tile->sprite_or_anim_id].data;
-        jo_set_background_sprite(&img,
+        jo_vdp2_set_nbg1_image(&img,
                                  x + current_tile->real_x,
                                  y + current_tile->real_y);
     }

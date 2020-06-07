@@ -38,9 +38,6 @@
 		<Unit filename="audio.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="background.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Unit filename="backup.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -103,6 +100,8 @@
 		<Unit filename="jo/tools.h" />
 		<Unit filename="jo/types.h" />
 		<Unit filename="jo/vdp1_command_pipeline.h" />
+		<Unit filename="jo/vdp2.h" />
+		<Unit filename="jo/vdp2_malloc.h" />
 		<Unit filename="jo/video.h" />
 		<Unit filename="keyboard.c">
 			<Option compilerVar="CC" />
@@ -153,6 +152,12 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="vdp1_command_pipeline.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="vdp2.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="vdp2_malloc.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="video.c">

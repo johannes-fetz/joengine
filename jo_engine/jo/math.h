@@ -36,76 +36,28 @@
 # define __JO_MATH_H__
 
 /*
-** ▲ NOTE ABOUT FIXED NUMBER ▲
-** Only values between -32767.99998 and 32767.99998 can be converted to fixed number.
+███╗   ███╗ █████╗ ████████╗██╗  ██╗     ██████╗ ██████╗ ███╗   ██╗███████╗████████╗███████╗
+████╗ ████║██╔══██╗╚══██╔══╝██║  ██║    ██╔════╝██╔═══██╗████╗  ██║██╔════╝╚══██╔══╝██╔════╝
+██╔████╔██║███████║   ██║   ███████║    ██║     ██║   ██║██╔██╗ ██║███████╗   ██║   ███████╗
+██║╚██╔╝██║██╔══██║   ██║   ██╔══██║    ██║     ██║   ██║██║╚██╗██║╚════██║   ██║   ╚════██║
+██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║    ╚██████╗╚██████╔╝██║ ╚████║███████║   ██║   ███████║
+╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚══════╝
 */
-
-/** @brief Set a variable to zero
- *  @remarks faster than X = 0
- *  @param X Variable name
- */
-# define JO_ZERO(X)					X ^= X
-/** @brief Fixed floating point value for 0 */
-# define JO_FIXED_0					(0)
-/** @brief Fixed floating point value for 1 */
-# define JO_FIXED_1					(65536)
-/** @brief Fixed floating point value for 2 */
-# define JO_FIXED_2                 (‭131072‬)
-/** @brief Fixed floating point value for 4 */
-# define JO_FIXED_4                 (‭262144‬)
-/** @brief Fixed floating point value for 8 */
-# define JO_FIXED_8                 (‭524288‬)
-/** @brief Fixed floating point value for 16 */
-# define JO_FIXED_16                (‭1048576‬)
-/** @brief Fixed floating point value for 32 */
-# define JO_FIXED_32                (2097152)
-/** @brief Fixed floating point value for 120 */
-# define JO_FIXED_120				(7864320)
-/** @brief Fixed floating point value for 150 */
-# define JO_FIXED_150				(9830400)
-/** @brief Fixed floating point value for 180 */
-# define JO_FIXED_180				(11796480)
-/** @brief Fixed floating point value for 360 */
-# define JO_FIXED_360				(23592960)
-
-/** @brief Fixed floating point value for -32767.99998 */
-# define JO_FIXED_MIN				(-2147483647)
-/** @brief Fixed floating point value for +32767.99998 */
-# define JO_FIXED_MAX				(2147483647)
-
-/** @brief Jo Fixed minimum positive value */
-# define JO_FIXED_EPSILON           (1)
-/** @brief Indicate an overflow error */
-# define JO_FIXED_OVERFLOW          (0x80000000)
-
-/** @brief Float minimum positive value */
-# define JO_FLOAT_EPSILON           (0.00001f)
 
 /** @brief PI value */
 # define JO_PI                      (3.1415927)
-/** @brief Fixed value of PI */
-# define JO_FIXED_PI                (205887)
-/** @brief Fixed value of 2 PI */
-# define JO_FIXED_PI_2              (411775)
-/** @brief Fixed value of 180/PI */
-# define JO_FIXED_180_DIV_PI        (3754936)
-/** @brief Fixed value of PI/180 */
-# define JO_FIXED_PI_DIV_180        (1144)
-/** @brief Fixed value of PI/2 */
-# define JO_FIXED_PI_DIV_2          (102944)
-
-/** @brief Fixed value of 1/65536 */
-# define JO_FIXED_1_DIV             (1.0f / 65536.0f)
 
 /** @brief PI/2 value */
 # define JO_PI_2                    (1.5707963)
 
-/** @brief Fast modulo of a power of 2
- *  @remarks faster than N % M
- *  @param N Number
- *  @param M Modulo
- */
-# define    JO_MOD_POW2(N, M)       ((N) & ((M) - 1))
+/*
+███╗   ███╗██╗   ██╗██╗  ████████╗ ██╗██████╗ ██╗██╗   ██╗
+████╗ ████║██║   ██║██║  ╚══██╔══╝██╔╝██╔══██╗██║██║   ██║
+██╔████╔██║██║   ██║██║     ██║  ██╔╝ ██║  ██║██║██║   ██║
+██║╚██╔╝██║██║   ██║██║     ██║ ██╔╝  ██║  ██║██║╚██╗ ██╔╝
+██║ ╚═╝ ██║╚██████╔╝███████╗██║██╔╝   ██████╔╝██║ ╚████╔╝
+╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝╚═╝    ╚═════╝ ╚═╝  ╚═══╝
+*/
 
 /** @brief Multiply a variable by 2
  *  @remarks faster than X * 2
@@ -218,6 +170,28 @@
  */
 # define JO_DIV_BY_2147483648(X)    ((X) >> 31)
 
+/*
+████████╗ ██████╗  ██████╗ ██╗     ███████╗
+╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝
+   ██║   ██║   ██║██║   ██║██║     ███████╗
+   ██║   ██║   ██║██║   ██║██║     ╚════██║
+   ██║   ╚██████╔╝╚██████╔╝███████╗███████║
+   ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
+*/
+
+/** @brief Set a variable to zero
+ *  @remarks faster than X = 0
+ *  @param X Variable name
+ */
+# define JO_ZERO(X)                 X ^= X
+
+/** @brief Fast modulo of a power of 2
+ *  @remarks faster than N % M
+ *  @param N Number
+ *  @param M Modulo
+ */
+# define JO_MOD_POW2(N, M)          ((N) & ((M) - 1))
+
 /** @brief Get the absolute value of X
  *  @param X Variable name
  */
@@ -226,7 +200,7 @@
 /** @brief Get the absolute value of X
  *  @param X Variable name
  */
-# define JO_FABS(X)                  ((X) < 0.0f ? -(X) : (X))
+# define JO_FABS(X)                 ((X) < 0.0f ? -(X) : (X))
 
 /** @brief Get the smaller value between A and B
  *  @param A First operand
@@ -244,6 +218,9 @@
  *  @param X Variable name
  */
 # define JO_CHANGE_SIGN(X)          (-(X))
+
+/** @brief Float minimum positive value */
+# define JO_FLOAT_EPSILON           (0.00001f)
 
 /** @brief Check if A and B is nearly the same value
  *  @param A First operand
@@ -291,7 +268,50 @@
 /** @brief BCD to integer
  *  @param BCD BCD
  */
-# define JO_BCD_INT(BCD)    (((BCD & 0xF0) >> 4) * 10 + (BCD & 0x0F))
+# define JO_BCD_INT(BCD)                    (((BCD & 0xF0) >> 4) * 10 + (BCD & 0x0F))
+
+/*
+██████╗ ██╗   ██╗████████╗███████╗███████╗██╗███████╗██╗     ██████╗
+██╔══██╗╚██╗ ██╔╝╚══██╔══╝██╔════╝██╔════╝██║██╔════╝██║     ██╔══██╗
+██████╔╝ ╚████╔╝    ██║   █████╗  █████╗  ██║█████╗  ██║     ██║  ██║
+██╔══██╗  ╚██╔╝     ██║   ██╔══╝  ██╔══╝  ██║██╔══╝  ██║     ██║  ██║
+██████╔╝   ██║      ██║   ███████╗██║     ██║███████╗███████╗██████╔╝
+╚═════╝    ╚═╝      ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝╚═════╝
+*/
+
+/** @brief Set flags in bytefield
+ *  @param BYTEFIELD Bytefield
+ *  @param FLAGS Flags
+ */
+# define JO_SET_FLAGS(BYTEFIELD, FLAGS)         BYTEFIELD = (FLAGS)
+
+/** @brief Set all flags in bytefield
+ *  @param BYTEFIELD Bytefield
+ */
+# define JO_SET_ALL_FLAGS(BYTEFIELD)            BYTEFIELD = (~0)
+
+/** @brief Add flag in bytefield
+ *  @param BYTEFIELD Bytefield
+ *  @param FLAG Flag
+ */
+# define JO_ADD_FLAG(BYTEFIELD, FLAG)           BYTEFIELD |= (FLAG)
+
+/** @brief Remove flag in bytefield
+ *  @param BYTEFIELD Bytefield
+ *  @param FLAG Flag
+ */
+# define JO_REMOVE_FLAG(BYTEFIELD, FLAG)        BYTEFIELD &= ~(FLAG)
+
+/** @brief Remove all flags in bytefield
+ *  @param BYTEFIELD Bytefield
+ */
+# define JO_REMOVE_ALL_FLAGS(BYTEFIELD)         BYTEFIELD = 0
+
+/** @brief Check if flag is checked in bytefield
+ *  @param BYTEFIELD Bytefield
+ *  @param FLAG Flag
+ */
+# define JO_HAS_FLAG(BYTEFIELD, FLAG)           ((BYTEFIELD & FLAG) == FLAG)
 
 /*
 ███████╗██╗██╗  ██╗███████╗██████╗      ██████╗ ██████╗ ███╗   ██╗██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗ ███╗   ██╗
@@ -301,7 +321,55 @@
 ██║     ██║██╔╝ ██╗███████╗██████╔╝    ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ███████╗██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
 ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 
+ ▲ NOTE ABOUT FIXED NUMBER ▲
+ Only values between -32767.99998 and 32767.99998 can be converted to fixed number.
+
 */
+
+/** @brief Fixed floating point value for 0 */
+# define JO_FIXED_0					(0)
+/** @brief Fixed floating point value for 1 */
+# define JO_FIXED_1					(65536)
+/** @brief Fixed floating point value for 2 */
+# define JO_FIXED_2                 (‭131072‬)
+/** @brief Fixed floating point value for 4 */
+# define JO_FIXED_4                 (‭262144‬)
+/** @brief Fixed floating point value for 8 */
+# define JO_FIXED_8                 (‭524288‬)
+/** @brief Fixed floating point value for 16 */
+# define JO_FIXED_16                (‭1048576‬)
+/** @brief Fixed floating point value for 32 */
+# define JO_FIXED_32                (2097152)
+/** @brief Fixed floating point value for 120 */
+# define JO_FIXED_120				(7864320)
+/** @brief Fixed floating point value for 150 */
+# define JO_FIXED_150				(9830400)
+/** @brief Fixed floating point value for 180 */
+# define JO_FIXED_180				(11796480)
+/** @brief Fixed floating point value for 360 */
+# define JO_FIXED_360				(23592960)
+
+/** @brief Fixed floating point value for -32767.99998 */
+# define JO_FIXED_MIN				(-2147483647)
+/** @brief Fixed floating point value for +32767.99998 */
+# define JO_FIXED_MAX				(2147483647)
+/** @brief Jo Fixed minimum positive value */
+# define JO_FIXED_EPSILON           (1)
+/** @brief Indicate an overflow error */
+# define JO_FIXED_OVERFLOW          (0x80000000)
+/** @brief Fixed value of PI */
+# define JO_FIXED_PI                (205887)
+/** @brief Fixed value of 2 PI */
+# define JO_FIXED_PI_2              (411775)
+/** @brief Fixed value of 180/PI */
+# define JO_FIXED_180_DIV_PI        (3754936)
+/** @brief Fixed value of PI/180 */
+# define JO_FIXED_PI_DIV_180        (1144)
+/** @brief Fixed value of PI/2 */
+# define JO_FIXED_PI_DIV_2          (102944)
+/** @brief Fixed value of 1/65536 */
+# define JO_FIXED_1_DIV             (1.0f / 65536.0f)
+
 
 /** @brief Convert int to jo engine fixed
  *  @param x Float to convert

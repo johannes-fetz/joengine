@@ -193,7 +193,8 @@ endif
 SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC_DIR)/physics.c $(JO_ENGINE_SRC_DIR)/core.c \
 		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/tools.c $(JO_ENGINE_SRC_DIR)/palette.c \
 		$(JO_ENGINE_SRC_DIR)/sprites.c $(JO_ENGINE_SRC_DIR)/map.c $(JO_ENGINE_SRC_DIR)/list.c $(JO_ENGINE_SRC_DIR)/sprite_animator.c \
-		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/background.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c
+		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/vdp2.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c \
+		$(JO_ENGINE_SRC_DIR)/vdp2_malloc.c
 
 SYSOBJS =
 

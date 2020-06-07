@@ -120,9 +120,9 @@ void                        jo_3d_set_mesh_polygon_transparency(jo_3d_mesh * con
     }
 #endif
     if (enabled)
-        mesh->data.attbl[index].atrb |= CL_Trans;
+        JO_ADD_FLAG(mesh->data.attbl[index].atrb, CL_Trans);
     else
-        mesh->data.attbl[index].atrb &= ~(CL_Trans);
+        JO_REMOVE_FLAG(mesh->data.attbl[index].atrb, CL_Trans);
 }
 
 
@@ -156,9 +156,9 @@ void                        jo_3d_set_mesh_polygon_screen_doors(jo_3d_mesh * con
     }
 #endif
     if (enabled)
-        mesh->data.attbl[index].atrb |= MESHon;
+        JO_ADD_FLAG(mesh->data.attbl[index].atrb, MESHon);
     else
-        mesh->data.attbl[index].atrb &= ~(MESHon);
+        JO_REMOVE_FLAG(mesh->data.attbl[index].atrb, MESHon);
 }
 
 void                        jo_3d_set_mesh_screen_doors(jo_3d_mesh * const mesh, const bool enabled)
@@ -191,9 +191,9 @@ void                        jo_3d_set_mesh_polygon_light(jo_3d_mesh * const mesh
     }
 #endif
     if (enabled)
-        mesh->data.attbl[index].sort |= UseLight;
+        JO_ADD_FLAG(mesh->data.attbl[index].sort, UseLight);
     else
-        mesh->data.attbl[index].sort &= ~(UseLight);
+        JO_REMOVE_FLAG(mesh->data.attbl[index].sort, UseLight);
 }
 
 void                        jo_3d_set_mesh_light(jo_3d_mesh * const mesh, const bool enabled)
@@ -232,11 +232,11 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
     use_screen_doors = (mesh->data.attbl[index].atrb & MESHon) != 0;
     mesh->data.attbl[index].sort = (SORT_CEN) | (((sprNoflip) >> 16) & 0x1c) | (No_Option);
     if (use_light)
-        mesh->data.attbl[index].sort |= UseLight;
+        JO_ADD_FLAG(mesh->data.attbl[index].sort, UseLight);
     mesh->data.attbl[index].texno = sprite_id;
     mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((sprNoflip) >> 24) & 0xc0);
     if (use_screen_doors)
-        mesh->data.attbl[index].atrb |= MESHon;
+        JO_ADD_FLAG(mesh->data.attbl[index].atrb, MESHon);
     mesh->data.attbl[index].colno = No_Palet;
     mesh->data.attbl[index].dir = (sprNoflip) & 0x3f;
 }
@@ -277,11 +277,11 @@ void                        jo_3d_set_mesh_polygon_color(jo_3d_mesh * const mesh
     use_screen_doors = (mesh->data.attbl[index].atrb & MESHon) != 0;
     mesh->data.attbl[index].sort = (SORT_CEN) | (((sprPolygon) >> 16) & 0x1c) | (No_Option);
     if (use_light)
-        mesh->data.attbl[index].sort |= UseLight;
+        JO_ADD_FLAG(mesh->data.attbl[index].sort, UseLight);
     mesh->data.attbl[index].texno = No_Texture;
     mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((sprPolygon) >> 24) & 0xc0);
     if (use_screen_doors)
-        mesh->data.attbl[index].atrb |= MESHon;
+        JO_ADD_FLAG(mesh->data.attbl[index].atrb, MESHon);
     mesh->data.attbl[index].colno = color;
     mesh->data.attbl[index].dir = (sprPolygon) & 0x3f;
 }

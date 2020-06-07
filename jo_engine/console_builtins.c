@@ -47,7 +47,7 @@
 #include "jo/fs.h"
 #include "jo/image.h"
 #include "jo/sprites.h"
-#include "jo/background.h"
+#include "jo/vdp2.h"
 #include "jo/console_builtins.h"
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
@@ -92,7 +92,7 @@ static __jo_force_inline void               __jo_console_builtins_background(int
         jo_printf_with_color(0, vertical_output + 1, JO_COLOR_INDEX_Red, "Usage: bkg <colorname>");
         return ;
     }
-    jo_clear_background(__jo_console_builtins_parse_color(argv[1]));
+    jo_vdp2_clear_bitmap_nbg1(__jo_console_builtins_parse_color(argv[1]));
     jo_printf_with_color(0, vertical_output, JO_COLOR_INDEX_Green, "Done.");
 }
 

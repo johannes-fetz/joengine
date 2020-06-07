@@ -41,7 +41,7 @@
 #include "jo/math.h"
 #include "jo/colors.h"
 #include "jo/image.h"
-#include "jo/background.h"
+#include "jo/vdp2.h"
 
 /*
 ** GLOBALS
@@ -132,7 +132,7 @@ static              void jo_putchar(const int x, const int y, const char v, cons
     {
         b = __jo_font[JO_MULT_BY_8(v) | r];
         for (c = 0; c < 8; c++)
-            jo_put_pixel_in_background(((x * 8) | c), ((y * 8) | r), (b & (0x80 >> c) ? text_color : JO_COLOR_Transparent));
+            jo_vdp2_put_pixel_bitmap_nbg1(((x * 8) | c), ((y * 8) | r), (b & (0x80 >> c) ? text_color : JO_COLOR_Transparent));
     }
 }
 

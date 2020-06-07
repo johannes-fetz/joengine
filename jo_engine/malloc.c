@@ -61,17 +61,10 @@ static jo_memory_zone   memory_zones[9/*MAIN RAM + 32MB RAM Extension*/];
 
 void                    jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
 {
-    register int        *tmp;
-    register int        *end;
-
     memory_zones[__jo_memory_zone_index].begin = ptr;
     memory_zones[__jo_memory_zone_index].high = ptr;
     memory_zones[__jo_memory_zone_index].end = ptr + size_in_bytes;
-
-    // Clear memory 4 bytes at the same time
-    end = (int *)memory_zones[__jo_memory_zone_index].end;
-    for (tmp = (int *)ptr; tmp < end; ++tmp)
-        JO_ZERO(*tmp);
+    jo_memset(ptr, 0, size_in_bytes);
     ++__jo_memory_zone_index;
 }
 
@@ -135,7 +128,7 @@ malloc_new_segment:
         if (behaviour != JO_FAST_ALLOCATION)
             goto malloc_new_segment;
     }
-    return JO_NULL;
+    return (JO_NULL);
 malloc_new_block:
     block->zone = zone;
     block->size = n;

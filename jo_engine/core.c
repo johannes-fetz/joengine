@@ -30,6 +30,7 @@
 ** INCLUDES
 */
 #include <stdbool.h>
+#include <stdarg.h>
 #include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
@@ -49,7 +50,7 @@
 #include "jo/malloc.h"
 #include "jo/video.h"
 #include "jo/list.h"
-#include "jo/background.h"
+#include "jo/vdp2.h"
 #include "jo/storyboard.h"
 #include "jo/keyboard.h"
 
@@ -278,10 +279,51 @@ static void         jo_core_init_vdp(const jo_color back_color)
     JO_VDP2_PRINB = 0x102;
     JO_VDP2_PRIR = 0x4;
 
-    jo_clear_background(back_color);
+    jo_vdp2_clear_bitmap_nbg1(back_color);
     jo_set_vdp2_4k_default_color_palette();
     jo_set_printf_color_index(0);
 #endif
+}
+
+void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ...)
+{
+#if JO_COMPILE_USING_SGL
+    va_list             va;
+    int                 priority;
+    jo_scroll_screen    screen;
+
+    va_start(va, screen1);
+    priority = 7;
+    screen = screen1;
+    do
+    {
+        switch (screen)
+        {
+            case JO_NBG0_SCREEN: slPriorityNbg0(priority); break;
+            case JO_NBG1_SCREEN: slPriorityNbg1(priority); break;
+            case JO_NBG2_SCREEN: slPriorityNbg2(priority); break;
+            case JO_NBG3_SCREEN: slPriorityNbg3(priority); break;
+            case JO_RBG0_SCREEN: slPriorityRbg0(priority); break;
+            case JO_SPRITE_SCREEN:
+                slPrioritySpr0(priority);
+                slPrioritySpr1(priority);
+                slPrioritySpr2(priority);
+                slPrioritySpr3(priority);
+                slPrioritySpr4(priority);
+                slPrioritySpr5(priority);
+                slPrioritySpr6(priority);
+                slPrioritySpr7(priority);
+                break;
+            default: break;
+        }
+        screen = va_arg(va, jo_scroll_screen);
+        --priority;
+    } while (screen != ((jo_scroll_screen)~0));
+    va_end(va);
+#else
+    JO_UNUSED_ARG(screen1);
+    //TODO
+#endif // JO_COMPILE_USING_SGL
 }
 
 void			    jo_core_init(const jo_color back_color)
@@ -436,7 +478,7 @@ void            __jo_core_error(char *message, const char *function)
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     int         usage;
 
-    jo_clear_background(JO_COLOR_Blue);
+    jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Blue);
     jo_set_printf_color_index(0);
     jo_printf(0, 13, "   >>> Jo Engine error handler <<<");
     usage = jo_memory_usage_percent();
@@ -462,7 +504,7 @@ void            __jo_core_error(char *message, const char *function)
 #else
     JO_UNUSED_ARG(message);
     JO_UNUSED_ARG(function);
-    jo_clear_background(JO_COLOR_Red);
+    jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Red);
     jo_core_suspend();
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 }

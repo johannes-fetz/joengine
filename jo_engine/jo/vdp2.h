@@ -25,18 +25,24 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/** @file background.h
+/** @file vdp2.h
  *  @author Johannes Fetz
  *
- *  @brief Jo Engine Background definition and tools
+ *  @brief Jo Engine VDP2 definition and tools
  *  @bug No known bugs.
  */
 
-// ▲ IF YOUR ARE FAMILIAR WITH SEGA SATURN HARDWARE, USE vdp2.h FUNCTIONS INSTEAD ▲
-// IT'S JUST A WRAPPER FOR THOSE WHO DON'T CARE ABOUT SCREEN SCROLL AND VDP2 USAGE
+#ifndef __JO_VDP2_H__
+# define __JO_VDP2_H__
 
-#ifndef __JO_BACKGROUND_H__
-# define __JO_BACKGROUND_H__
+/*
+** VDP2
+*/
+
+/** @brief Set default background color
+ *  @param background_color Color
+ */
+void            jo_set_default_background_color(const jo_color background_color);
 
 /*
 ██████╗ ██████╗  █████╗ ██╗    ██╗    ██╗███╗   ███╗ █████╗  ██████╗ ███████╗
@@ -48,34 +54,35 @@
 
 */
 
-/** @brief Add 8 bits background sprite
+/** @brief Add 8 bits NBG1 image
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
  *  @param palette_id palette id from TGA (see also jo_palette)
  *  @param vertical_flip Flip image vertically
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-static  __jo_force_inline void    jo_set_background_8bits_sprite(jo_img_8bits *img, int palette_id, bool vertical_flip)
-{
-    jo_vdp2_set_nbg1_8bits_image(img, palette_id, vertical_flip);
-}
+void    jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip);
 
-/** @brief Add background sprite
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
+/** @brief Set 8 bits NBG0 image
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void    jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip);
+#endif
+
+/** @brief Set NBG1 bitmap image
  *  @param img Pointer to an image struct
  *  @param left Left location
  *  @param top Top location
  */
-static  __jo_force_inline void	jo_set_background_sprite(const jo_img * const img, const unsigned short left, const unsigned short top)
-{
-    jo_vdp2_set_nbg1_image(img, left, top);
-}
+void	jo_vdp2_set_nbg1_image(const jo_img * const img, const unsigned short left, const unsigned short top);
 
-/** @brief Clear the background
+/** @brief Clear NBG1 bitmap
  *  @param color Clear color
  */
-static  __jo_force_inline void    jo_clear_background(const jo_color color)
-{
-    jo_vdp2_clear_bitmap_nbg1(color);
-}
+void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
 
 /*
 ███╗   ███╗ ██████╗ ██╗   ██╗███████╗       ██╗       ███████╗ ██████╗  ██████╗ ███╗   ███╗
@@ -87,30 +94,84 @@ static  __jo_force_inline void    jo_clear_background(const jo_color color)
 
 */
 
-/** @brief Move background (scrolling)
+/** @brief Move NBG1 (scrolling)
  *  @param x horizontal location
  *  @param y vertical location
  */
-static  __jo_force_inline void	jo_move_background(const int x, const int y)
+static  __jo_force_inline void	jo_vdp2_move_nbg1(const int x, const int y)
 {
-    jo_vdp2_move_nbg1(x, y);
+#if JO_COMPILE_USING_SGL
+    slScrPosNbg1(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y));
+#else
+    JO_VDP2_SCXIN1 = x;
+    JO_VDP2_SCYIN1 = y;
+#endif
 }
 
-/** @brief Zoom background width and height independently
+/** @brief Zoom NBG1 width and height independently
  *  @param width_factor Width zoom factor
  *  @param height_factor Height zoom factor
  */
-static  __jo_force_inline void	jo_zoom_background2(const float width_factor, const float height_factor)
+static  __jo_force_inline void	jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor)
 {
-    jo_vdp2_zoom_nbg1f(width_factor, height_factor);
+#if JO_COMPILE_USING_SGL
+    slZoomNbg1(toFIXED(width_factor), toFIXED(height_factor));
+#else
+    int fixed_width = jo_float2fixed(width_factor);
+    int fixed_height = jo_float2fixed(height_factor);
+    JO_VDP2_ZMXIN1 = JO_DIV_BY_32768(fixed_width);
+    JO_VDP2_ZMYIN1 = JO_DIV_BY_32768(fixed_height);
+    JO_VDP2_ZMXDN1 = JO_MOD_POW2(fixed_width, 32768) * 2; /*TODO : fix x2 */
+    JO_VDP2_ZMYDN1 = JO_MOD_POW2(fixed_height, 32768) * 2;
+#endif
 }
 
-/** @brief Zoom background
+/** @brief Zoom NBG1
  *  @param factor Zoom factor
  */
-static  __jo_force_inline void	jo_zoom_background(const float factor)
+static  __jo_force_inline void	jo_vdp2_zoom_nbg1(const float factor)
 {
     jo_vdp2_zoom_nbg1f(factor, factor);
+}
+
+/** @brief Move NBG0 (scrolling)
+ *  @param x horizontal location
+ *  @param y vertical location
+ */
+static  __jo_force_inline void	jo_vdp2_move_nbg0(const int x, const int y)
+{
+#if JO_COMPILE_USING_SGL
+    slScrPosNbg0(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y));
+#else
+    JO_VDP2_SCXIN0 = x;
+    JO_VDP2_SCYIN0 = y;
+#endif
+}
+
+/** @brief Zoom NBG0 width and height independently
+ *  @param width_factor Width zoom factor
+ *  @param height_factor Height zoom factor
+ */
+static  __jo_force_inline void	jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor)
+{
+#if JO_COMPILE_USING_SGL
+    slZoomNbg0(toFIXED(width_factor), toFIXED(height_factor));
+#else
+    int fixed_width = jo_float2fixed(width_factor);
+    int fixed_height = jo_float2fixed(height_factor);
+    JO_VDP2_ZMXIN0 = JO_DIV_BY_32768(fixed_width);
+    JO_VDP2_ZMYIN0 = JO_DIV_BY_32768(fixed_height);
+    JO_VDP2_ZMXDN0 = JO_MOD_POW2(fixed_width, 32768) * 2; /*TODO : fix x2 */
+    JO_VDP2_ZMYDN0 = JO_MOD_POW2(fixed_height, 32768) * 2;
+#endif
+}
+
+/** @brief Zoom NBG0
+ *  @param factor Zoom factor
+ */
+static  __jo_force_inline void	jo_vdp2_zoom_nbg0(const float factor)
+{
+    jo_vdp2_zoom_nbg0f(factor, factor);
 }
 
 /*
@@ -124,50 +185,50 @@ static  __jo_force_inline void	jo_zoom_background(const float factor)
 ** ▲ ONLY WORKS IN BITMAP MODE
 */
 
-/** @brief Draw a line using Bresenham's line algorithm
+/** @brief Draw a NBG1 line using Bresenham's line algorithm
  *  @param x0 horizontal location of the beginning of the line
  *  @param y0 vertical location of the beginning of the line
  *  @param x1 horizontal location of the end of the line
  *  @param y1 vertical location of the end of the line
  *  @param color Color (ex: JO_COLOR_Red)
  */
-static  __jo_force_inline void        jo_draw_background_line(int x0, int y0, int x1, int y1, const jo_color color)
-{
-    jo_vdp2_draw_bitmap_nbg1_line(x0, y0, x1, y1, color);
-}
+void        jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, int x1, int y1, const jo_color color);
 
-/** @brief Draw a square on the background
+/** @brief Draw a square on NBG1
  *  @param x Square horizontal location
  *  @param y Square vertical location
  *  @param width Square width
  *  @param height Square height
  *  @param color Color (ex: JO_COLOR_Red)
  */
-static  __jo_force_inline void	jo_draw_background_square(const int x, const int y, const short width, const short height, const jo_color color)
+static  __jo_force_inline void	jo_vdp2_draw_bitmap_nbg1_square(const int x, const int y, const short width, const short height, const jo_color color)
 {
-    jo_vdp2_draw_bitmap_nbg1_square(x, y, width, height, color);
+    jo_vdp2_draw_bitmap_nbg1_line(x, y, x + width, y, color);
+    jo_vdp2_draw_bitmap_nbg1_line(x + width, y + height, x + width, y, color);
+    jo_vdp2_draw_bitmap_nbg1_line(x, y + height, x + width, y + height, color);
+    jo_vdp2_draw_bitmap_nbg1_line(x, y + height, x, y, color);
 }
 
-/** @brief Put pixel in background using color
+/** @brief Put pixel in NBG1 using color
  *  @param x horizontal location
  *  @param y vertical location
  *  @param color Color (ex: JO_COLOR_Red)
  */
-static  __jo_force_inline void	jo_put_pixel_in_background(const int x, const int y, const jo_color color)
+static  __jo_force_inline void	jo_vdp2_put_pixel_bitmap_nbg1(const int x, const int y, const jo_color color)
 {
-    jo_vdp2_put_pixel_bitmap_nbg1(x, y, color);
+    *(((unsigned short *)VDP2_VRAM_A0) + x + y * JO_VDP2_WIDTH) = color;
 }
 
-/** @brief Put pixel in background using composite color
+/** @brief Put pixel in NBG1 using composite color
  *  @param x horizontal location
  *  @param y vertical location
  *  @param r Red color component
  *  @param g Green color component
  *  @param b Blue color component
  */
-static  __jo_force_inline void	jo_put_pixel_in_background_rgb(const int x, const int y, unsigned char r, unsigned char g, unsigned char b)
+static  __jo_force_inline void	jo_vdp2_put_pixel_bitmap_nbg1_rgb(const int x, const int y, unsigned char r, unsigned char g, unsigned char b)
 {
-    jo_vdp2_put_pixel_bitmap_nbg1_rgb(x, y, r, g, b);
+    jo_vdp2_put_pixel_bitmap_nbg1(x, y, C_RGB(r, g, b));
 }
 
 /*
@@ -184,20 +245,12 @@ static  __jo_force_inline void	jo_put_pixel_in_background_rgb(const int x, const
 /** @brief Enable 3D planes
  *  @param background_color Color (ex: JO_COLOR_Red)
  */
-static  __jo_force_inline void                            jo_enable_background_3d_plane(jo_color background_color)
-{
-    jo_vdp2_enable_rbg0();
-    jo_set_default_background_color(background_color);
-}
+void                            jo_vdp2_enable_rbg0(void);
 
 /** @brief Disable 3D planes
  *  @param background_color Color (ex: JO_COLOR_Red)
  */
-static  __jo_force_inline void                            jo_disable_background_3d_plane(jo_color background_color)
-{
-    jo_vdp2_disable_rbg0();
-    jo_set_default_background_color(background_color);
-}
+void                            jo_vdp2_disable_rbg0(void);
 
 /** @brief Setup plane A
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
@@ -206,10 +259,7 @@ static  __jo_force_inline void                            jo_disable_background_
  *  @param vertical_flip Flip image vertically
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-static  __jo_force_inline void                            jo_background_3d_plane_a_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
-{
-    jo_vdp2_set_rbg0_plane_a_8bits_image(img, palette_id, repeat, vertical_flip);
-}
+void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
 
 /** @brief Setup plane B
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
@@ -218,25 +268,51 @@ static  __jo_force_inline void                            jo_background_3d_plane
  *  @param vertical_flip Flip image vertically
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-static  __jo_force_inline void                            jo_background_3d_plane_b_img(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
+void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
+
+/** @brief Draw plane A
+  * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ */
+static  __jo_force_inline void  jo_vdp2_draw_rbg0_plane_a(const bool use_scroll_format_matrix)
 {
-    jo_vdp2_set_rbg0_plane_b_8bits_image(img, palette_id, repeat, vertical_flip);
+    slCurRpara(RA); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
 }
 
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
  */
-static  __jo_force_inline void  jo_background_3d_plane_a_draw(const bool use_scroll_format_matrix)
+static  __jo_force_inline void  jo_vdp2_draw_rbg0_plane_b(const bool use_scroll_format_matrix)
 {
-    jo_vdp2_draw_rbg0_plane_a(use_scroll_format_matrix);
+    slCurRpara(RB); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
 }
 
-/** @brief Draw plane A
-  * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+/*
+███╗   ███╗ ██████╗ ███████╗ █████╗ ██╗ ██████╗
+████╗ ████║██╔═══██╗╚══███╔╝██╔══██╗██║██╔════╝
+██╔████╔██║██║   ██║  ███╔╝ ███████║██║██║
+██║╚██╔╝██║██║   ██║ ███╔╝  ██╔══██║██║██║
+██║ ╚═╝ ██║╚██████╔╝███████╗██║  ██║██║╚██████╗
+╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
+*/
+
+/** @brief Enable mozaic effect for scroll screen
+ *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
+ *  @param x Horizontal mozaic size [1-16]
+ *  @param y Vertical mozaic size [1-16]
+ *  @warning Only JO_NBG0_SCREEN, JO_NBG1_SCREEN, JO_NBG2_SCREEN, JO_NBG3_SCREEN and JO_RBG0_SCREEN supports this feature
  */
-static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scroll_format_matrix)
+static  __jo_force_inline void      jo_enable_screen_mozaic(const jo_scroll_screen screens, const short x, const short y)
 {
-    jo_vdp2_draw_rbg0_plane_b(use_scroll_format_matrix);
+    slScrMosSize(x, y);
+    slScrMosaicOn(screens);
+}
+
+/** @brief Disable mozaic effect for all scroll screen
+ */
+static  __jo_force_inline void      jo_disable_all_screen_mozaic(void)
+{
+    slScrMosSize(1, 1);
+    slScrMosaicOn(0);
 }
 
 /*
@@ -254,39 +330,69 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
 ███████╗██║██║ ╚████║███████╗    ███████║╚██████╗██║  ██║╚██████╔╝███████╗███████╗
 ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
 
-▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUH jo_set_background_8bits_sprite() ▲
+▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUH jo_vdp2_set_nbg1_8bits_image() ▲
   OTHERWISE IT MAY GLITCH
 */
 
 /** @brief 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
  */
-# define JO_SCROLL_TABLE_SIZE       JO_NBG1_SCROLL_TABLE_SIZE
+# define JO_NBG1_SCROLL_TABLE_SIZE       (512)
 
-/** @brief Enable horizontal line scroll effect
+/** @brief Enable NBG1 horizontal line scroll effect
  *  @return An array of 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
  *  @warning Only works with 8 bits background image
  */
-static  __jo_force_inline int                                 *jo_enable_background_horizontal_line_scroll(void)
-{
-    return (jo_vdp2_enable_nbg1_line_scroll());
-}
+int                                 *jo_vdp2_enable_nbg1_line_scroll(void);
 
-/** @brief Disable horizontal line scroll effect
+/** @brief Disable NBG1 horizontal line scroll effect
  */
-static  __jo_force_inline void                                jo_disable_background_horizontal_line_scroll(void)
-{
-    jo_vdp2_disable_nbg1_line_scroll();
-}
+void                                jo_vdp2_disable_nbg1_line_scroll(void);
 
-/** @brief Compute horizontal line scroll effect using specific offset
- *  @param offset Offset in scroll table returned by jo_enable_background_horizontal_line_scroll()
+/** @brief Compute NBG1 horizontal line scroll effect using specific offset
+ *  @param offset Offset in scroll table returned by jo_vdp2_enable_nbg1_line_scroll()
  */
-static  __jo_force_inline void                                jo_compute_background_horizontal_line_scroll(unsigned short offset)
-{
-    jo_vdp2_compute_nbg1_line_scroll(offset);
-}
+void                                jo_vdp2_compute_nbg1_line_scroll(unsigned short offset);
 
-#endif /* !__JO_BACKGROUND_H__ */
+/** @brief 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
+ */
+# define JO_NBG0_SCROLL_TABLE_SIZE       (512)
+
+/** @brief Enable NBG0 horizontal line scroll effect
+ *  @return An array of 512 entries. One offset for each line because the background size is a 512x512 pixels by default.
+ *  @warning Only works with 8 bits background image
+ */
+int                                 *jo_vdp2_enable_nbg0_line_scroll(void);
+
+/** @brief Disable NBG0 horizontal line scroll effect
+ */
+void                                jo_vdp2_disable_nbg0_line_scroll(void);
+
+/** @brief Compute NBG0 horizontal line scroll effect using specific offset
+ *  @param offset Offset in scroll table returned by jo_vdp2_enable_nbg1_line_scroll()
+ */
+void                                jo_vdp2_compute_nbg0_line_scroll(unsigned short offset);
+
+/*
+████████╗██████╗  █████╗ ███╗   ██╗███████╗██████╗  █████╗ ██████╗ ███████╗███╗   ██╗ ██████╗██╗   ██╗
+╚══██╔══╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝████╗  ██║██╔════╝╚██╗ ██╔╝
+   ██║   ██████╔╝███████║██╔██╗ ██║███████╗██████╔╝███████║██████╔╝█████╗  ██╔██╗ ██║██║      ╚████╔╝
+   ██║   ██╔══██╗██╔══██║██║╚██╗██║╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔══╝  ██║╚██╗██║██║       ╚██╔╝
+   ██║   ██║  ██║██║  ██║██║ ╚████║███████║██║     ██║  ██║██║  ██║███████╗██║ ╚████║╚██████╗   ██║
+   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝ ╚═════╝   ╚═╝
+
+*/
+
+/** @brief Disable all screens transparency
+ */
+void      jo_disable_all_screens_transparency(void);
+
+/** @brief Enable screen transparency
+ *  @param screen Scroll screen
+ *  @param transparency_level Transparency Level 0 (fully visible) to 31 (almost invisible)
+ */
+void      jo_enable_screen_transparency(const jo_scroll_screen screen, const unsigned short transparency_level);
+
+#endif /* !__JO_VDP2_H__ */
 
 /*
 ** END OF FILE
