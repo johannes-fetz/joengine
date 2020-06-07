@@ -329,13 +329,16 @@ void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ..
 
 void			    jo_core_init(const jo_color back_color)
 {
+#ifdef JO_DEBUG
     bool            is_memory_ok;
+#endif
     jo_datetime     dt;
 
 #ifdef JO_DEBUG
     JO_ZERO(__jo_last_error[0]);
+    is_memory_ok =
 #endif
-    is_memory_ok = jo_init_memory();
+    jo_init_memory();
     jo_list_init(&__vblank_callbacks);
     jo_list_init(&__callbacks);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT

@@ -161,7 +161,9 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
                     return (__jo_b1_segments[i].ptr);
                 }
             }
+#ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
+#endif
             return (JO_NULL);
         case JO_VDP2_RAM_MAP:
             for (JO_ZERO(i); i < B0_SEGMENT_COUNT; ++i)
@@ -180,7 +182,9 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
                     return (__jo_b0_segments[i].ptr);
                 }
             }
+#ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
+#endif
             return (JO_NULL);
         case JO_VDP2_RAM_BITMAP:
         case JO_VDP2_RAM_LINE_SCROLL:
@@ -201,7 +205,9 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
                     return (__jo_a0_segments[i].ptr);
                 }
             }
+#ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
+#endif
             return (JO_NULL);
         case JO_VDP2_RAM_COLOR:
 #ifdef JO_DEBUG
@@ -216,7 +222,9 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
             __jo_cram += CRAM_PALETTE_SIZE;
             return (ptr);
         default:
+#ifdef JO_DEBUG
             jo_core_error("Unsupported usage %d", usage);
+#endif
             return (JO_NULL);
     }
 }
