@@ -143,8 +143,12 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
             return ((void*)__jo_rbg0_r_table);
         case JO_VDP2_RAM_KTABLE:
             return ((void*)__jo_rbg0_k_table);
-        case JO_VDP2_RAM_MAP2:
-        case JO_VDP2_RAM_CELL2:
+        case JO_VDP2_RAM_MAP_NBG0:
+        case JO_VDP2_RAM_MAP_NBG2:
+        case JO_VDP2_RAM_MAP_NBG3:
+        case JO_VDP2_RAM_CELL_NBG0:
+        case JO_VDP2_RAM_CELL_NBG2:
+        case JO_VDP2_RAM_CELL_NBG3:
             for (JO_ZERO(i); i < B1_SEGMENT_COUNT; ++i)
             {
                 if (__jo_b1_segments[i].size == 0)
@@ -165,7 +169,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
             jo_core_error("Out of VDP2 memory");
 #endif
             return (JO_NULL);
-        case JO_VDP2_RAM_MAP:
+        case JO_VDP2_RAM_MAP_NBG1:
+        case JO_VDP2_RAM_MAP_RBG0:
             for (JO_ZERO(i); i < B0_SEGMENT_COUNT; ++i)
             {
                 if (__jo_b0_segments[i].size == 0)
@@ -186,9 +191,11 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
             jo_core_error("Out of VDP2 memory");
 #endif
             return (JO_NULL);
-        case JO_VDP2_RAM_BITMAP:
+        case JO_VDP2_RAM_BITMAP_NBG0:
+        case JO_VDP2_RAM_BITMAP_NBG1:
         case JO_VDP2_RAM_LINE_SCROLL:
-        case JO_VDP2_RAM_CELL:
+        case JO_VDP2_RAM_CELL_NBG1:
+        case JO_VDP2_RAM_CELL_RBG0:
             for (JO_ZERO(i); i < A0_SEGMENT_COUNT; ++i)
             {
                 if (__jo_a0_segments[i].size == 0)

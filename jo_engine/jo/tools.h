@@ -76,7 +76,6 @@ static  __jo_force_inline int        jo_swap_endian_int(int value)
     return ((((value) & 0xff000000) >> 24) | (((value) & 0x00ff0000) >>  8) | (((value) & 0x0000ff00) <<  8) | (((value) & 0x000000ff) << 24));
 }
 
-
 /** @brief sprintf prototypes
  *  @param str String
  *  @param format Format string
@@ -104,6 +103,11 @@ extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 extern unsigned char    __jo_printf_current_palette_index;
 #endif
 
+/** @brief Print implementation
+ *  @param x Horizontal position from top left screen corner
+ *  @param y Vertical position from top left screen corner
+ *  @param str String
+ */
 void jo_print(int x, int y, char * str);
 
 /** @brief printf implementation

@@ -64,26 +64,42 @@
  *  @param X Variable name
  */
 # define JO_MULT_BY_2(X)			((X) << 1)
+
 /** @brief Multiply a variable by 4
  *  @remarks faster than X * 4
  *  @param X Variable name
  */
 # define JO_MULT_BY_4(X)			((X) << 2)
+
 /** @brief Multiply a variable by 8
  *  @remarks faster than X * 8
  *  @param X Variable name
  */
 # define JO_MULT_BY_8(X)			((X) << 3)
+
 /** @brief Multiply a variable by 16
  *  @remarks faster than X * 16
  *  @param X Variable name
  */
 # define JO_MULT_BY_16(X)			((X) << 4)
+
 /** @brief Multiply a variable by 32
  *  @remarks faster than X * 32
  *  @param X Variable name
  */
 # define JO_MULT_BY_32(X)			((X) << 5)
+
+/** @brief Multiply a variable by 64
+ *  @remarks faster than X * 64
+ *  @param X Variable name
+ */
+# define JO_MULT_BY_64(X)			((X) << 6)
+
+/** @brief Multiply a variable by 128
+ *  @remarks faster than X * 128
+ *  @param X Variable name
+ */
+# define JO_MULT_BY_128(X)			((X) << 7)
 
 /** @brief Multiply a variable by 256
  *  @remarks faster than X * 256
@@ -126,26 +142,37 @@
  *  @param X Variable name
  */
 # define JO_DIV_BY_2(X)				((X) >> 1)
+
 /** @brief Devide a variable by 4
  *  @remarks faster than X / 4
  *  @param X Variable name
  */
 # define JO_DIV_BY_4(X)				((X) >> 2)
+
 /** @brief Devide a variable by 8
  *  @remarks faster than X / 8
  *  @param X Variable name
  */
 # define JO_DIV_BY_8(X)				((X) >> 3)
+
 /** @brief Devide a variable by 16
  *  @remarks faster than X / 16
  *  @param X Variable name
  */
 # define JO_DIV_BY_16(X)			((X) >> 4)
+
 /** @brief Devide a variable by 32
  *  @remarks faster than X / 32
  *  @param X Variable name
  */
 # define JO_DIV_BY_32(X)			((X) >> 5)
+
+/** @brief Devide a variable by 64
+ *  @remarks faster than X / 64
+ *  @param X Variable name
+ */
+# define JO_DIV_BY_64(X)			((X) >> 6)
+
 /** @brief Devide a variable by 1024
  *  @remarks faster than X / 1024
  *  @param X Variable name

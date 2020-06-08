@@ -35,14 +35,93 @@
 #ifndef __JO_VDP2_H__
 # define __JO_VDP2_H__
 
-/*
-** VDP2
-*/
+/** @brief sprintf prototypes
+ *  @param str String
+ *  @param format Format string
+ *  @param ... Arguments
+ *  @return If successful, the total number of characters written is returned excluding the null-character appended at the end of the string, otherwise a negative number is returned in case of failure.
+ */
+int				sprintf(char* str, const char* format, ...);
+
+/** @brief Internal sprintf buffer
+ *  @warning MC Hammer: don't touch this
+ */
+extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
+
+/** @brief Set displayed screens
+ *  @param scroll_screen_flags Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
+ */
+void            jo_set_displayed_screens(const jo_scroll_screen scroll_screen_flags);
 
 /** @brief Set default background color
  *  @param background_color Color
  */
 void            jo_set_default_background_color(const jo_color background_color);
+
+/*
+███╗   ██╗██████╗  ██████╗ ██████╗     ██╗██████╗     ███████╗ ██████╗ ███╗   ██╗████████╗
+████╗  ██║██╔══██╗██╔════╝ ╚════██╗   ██╔╝╚════██╗    ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝
+██╔██╗ ██║██████╔╝██║  ███╗ █████╔╝  ██╔╝  █████╔╝    █████╗  ██║   ██║██╔██╗ ██║   ██║
+██║╚██╗██║██╔══██╗██║   ██║██╔═══╝  ██╔╝   ╚═══██╗    ██╔══╝  ██║   ██║██║╚██╗██║   ██║
+██║ ╚████║██████╔╝╚██████╔╝███████╗██╔╝   ██████╔╝    ██║     ╚██████╔╝██║ ╚████║   ██║
+╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚══════╝╚═╝    ╚═════╝     ╚═╝      ╚═════╝ ╚═╝  ╚═══╝   ╚═╝
+*/
+
+/** @brief NBG2 Print implementation
+ *  @param x Horizontal position from top left screen corner
+ *  @param y Vertical position from top left screen corner
+ *  @param str String
+ */
+void    jo_nbg2_print(int x, int y, char * str);
+
+/** @brief NBG2 printf implementation (jo_set_nbg2_8bits_font must be called before)
+ *  @param X Horizontal position from top left screen corner
+ *  @param Y Vertical position from top left screen corner
+ *  @param ... Arguments
+ */
+# define jo_nbg2_printf(X, Y, ...)		do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_nbg2_print(X, Y, __jo_sprintf_buf); } while(0)
+
+/** @brief Set 8 bits NBG2 font image
+ *  @param img 8 bits 255 colors max image. (height must be a multiple of 8). Width must be 8.
+ *  @param mapping Image pattern : " 0123456789ABCDEFGH...". The first character must be an empty space.
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @param enabled Display NBG2 now
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void    jo_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
+
+/** @brief Clear NBG2
+ */
+void    jo_nbg2_clear(void);
+
+/** @brief NBG3 Print implementation
+ *  @param x Horizontal position from top left screen corner
+ *  @param y Vertical position from top left screen corner
+ *  @param str String
+ */
+void    jo_nbg3_print(int x, int y, char * str);
+
+/** @brief NBG3 printf implementation (jo_set_nbg3_8bits_font must be called before)
+ *  @param X Horizontal position from top left screen corner
+ *  @param Y Vertical position from top left screen corner
+ *  @param ... Arguments
+ */
+# define jo_nbg3_printf(X, Y, ...)		do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_nbg3_print(X, Y, __jo_sprintf_buf); } while(0)
+
+/** @brief Set 8 bits NBG3 font image
+ *  @param img 8 bits 255 colors max image. (height must be a multiple of 8). Width must be 8
+ *  @param mapping Image pattern : "0123456789ABCDEFGH...". The first character must be an empty space.
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @param enabled Display NBG2 now
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void    jo_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
+
+/** @brief Clear NBG3
+ */
+void    jo_nbg3_clear(void);
 
 /*
 ██████╗ ██████╗  █████╗ ██╗    ██╗    ██╗███╗   ███╗ █████╗  ██████╗ ███████╗
@@ -67,10 +146,29 @@ void    jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
  *  @param palette_id palette id from TGA (see also jo_palette)
  *  @param vertical_flip Flip image vertically
+ *  @param enabled Display NBG0 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip);
+void    jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 #endif
+
+/** @brief Set 8 bits NBG2 image
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @param enabled Display NBG2 now
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void    jo_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
+
+/** @brief Set 8 bits NBG3 image
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @param enabled Display NBG3 now
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void    jo_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
 /** @brief Set NBG1 bitmap image
  *  @param img Pointer to an image struct

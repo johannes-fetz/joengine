@@ -48,23 +48,28 @@ typedef enum
     /** @brief For user */
     JO_VDP2_RAM_USER,
     /** @brief MAP (for sl1MapRA, slMapNbg1, etc) */
-    JO_VDP2_RAM_MAP,
-    /** @brief MAP (for slMapNbg0, etc) */
-    JO_VDP2_RAM_MAP2,
+    JO_VDP2_RAM_MAP_NBG0,
+    JO_VDP2_RAM_MAP_NBG1,
+    JO_VDP2_RAM_MAP_NBG2,
+    JO_VDP2_RAM_MAP_NBG3,
+    JO_VDP2_RAM_MAP_RBG0,
     /** @brief KTABLE (for slMakeKtable) */
     JO_VDP2_RAM_KTABLE,
     /** @brief Rotation table (for slRparaInitSet) */
     JO_VDP2_RAM_RTABLE,
     /** @brief CELL (for slPageRbg0, slPageNbg1, etc) */
-    JO_VDP2_RAM_CELL,
-    /** @brief CELL (for slPageNbg0, etc) */
-    JO_VDP2_RAM_CELL2,
+    JO_VDP2_RAM_CELL_NBG0,
+    JO_VDP2_RAM_CELL_NBG1,
+    JO_VDP2_RAM_CELL_NBG2,
+    JO_VDP2_RAM_CELL_NBG3,
+    JO_VDP2_RAM_CELL_RBG0,
     /** @brief Back color (for slBack1ColSet) */
     JO_VDP2_RAM_BACK_COLOR,
     /** @brief Line Scroll table (for slLineScrollTable0 and slLineScrollTable1) */
     JO_VDP2_RAM_LINE_SCROLL,
     /** @brief CELL (for slBitMapNbg0, slBitMapNbg1, etc) */
-    JO_VDP2_RAM_BITMAP,
+    JO_VDP2_RAM_BITMAP_NBG0,
+    JO_VDP2_RAM_BITMAP_NBG1,
     /** @brief Color RAM for Palette, etc */
     JO_VDP2_RAM_COLOR
 }                               jo_vdp2_ram_usage;
