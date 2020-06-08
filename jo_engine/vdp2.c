@@ -51,12 +51,12 @@ void                                jo_init_nbg0_printf(void);
 #endif
 void                                jo_vdp2_malloc_init(void);
 
-#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 //NBG0
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 static unsigned short               *nbg0_map = JO_NULL;
 static unsigned char                *nbg0_cell = JO_NULL;
-static int                          *nbg0_scroll_table = JO_NULL;
 #endif
+static int                          *nbg0_scroll_table = JO_NULL;
 //NBG1
 static jo_color                     *nbg1_bitmap = JO_NULL;
 static unsigned short               *nbg1_map = JO_NULL;
@@ -339,7 +339,7 @@ void                            jo_vdp2_disable_rbg0(void)
 */
 
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
-static void                     jo_init_nbg0_printf(void)
+void                     jo_init_nbg0_printf(void)
 {
     slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
@@ -520,11 +520,11 @@ void                            jo_vdp2_compute_nbg1_line_scroll(unsigned short 
 int                             *jo_vdp2_enable_nbg1_line_scroll(void)
 {
     __jo_switch_to_8bits_mode();
-    if (nbg0_scroll_table == JO_NULL)
-        nbg0_scroll_table = jo_vdp2_malloc(JO_VDP2_RAM_LINE_SCROLL, JO_NBG1_SCROLL_TABLE_SIZE * sizeof(int));
+    if (nbg1_scroll_table == JO_NULL)
+        nbg1_scroll_table = jo_vdp2_malloc(JO_VDP2_RAM_LINE_SCROLL, JO_NBG1_SCROLL_TABLE_SIZE * sizeof(int));
     slLineScrollModeNbg1(lineSZ1 | lineHScroll);
-    slLineScrollTable1(nbg0_scroll_table);
-    return (nbg0_scroll_table);
+    slLineScrollTable1(nbg1_scroll_table);
+    return (nbg1_scroll_table);
 }
 
 /*
