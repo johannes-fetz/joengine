@@ -62,6 +62,7 @@ static jo_color                     *nbg1_bitmap = JO_NULL;
 static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
 static int                          *nbg1_scroll_table = JO_NULL;
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 //NBG2
 static unsigned short               *nbg2_map = JO_NULL;
 static unsigned char                *nbg2_cell = JO_NULL;
@@ -74,6 +75,7 @@ static unsigned char                *nbg3_cell = JO_NULL;
 static char                         *nbg3_font_str = JO_NULL;
 static unsigned short               nbg3_font_paloff = 0;
 static int                          nbg3_font_map_offset = 0;
+#endif
 //RBG0
 static unsigned char                *rbg0_cell_a = JO_NULL;
 static unsigned char                *rbg0_cell_b = JO_NULL;
@@ -527,6 +529,8 @@ int                             *jo_vdp2_enable_nbg1_line_scroll(void)
     return (nbg1_scroll_table);
 }
 
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
+
 /*
 ███╗   ██╗██████╗  ██████╗ ██████╗
 ████╗  ██║██╔══██╗██╔════╝ ╚════██╗
@@ -727,6 +731,7 @@ void			                jo_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id
     }
 }
 
+#endif
 
 /*
 ███████╗ ██████╗██████╗  ██████╗ ██╗     ██╗         ███████╗ ██████╗██████╗ ███████╗███████╗███╗   ██╗███████╗

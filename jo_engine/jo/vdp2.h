@@ -67,6 +67,8 @@ void            jo_set_default_background_color(const jo_color background_color)
 ╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚══════╝╚═╝    ╚═════╝     ╚═╝      ╚═════╝ ╚═╝  ╚═══╝   ╚═╝
 */
 
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
+
 /** @brief NBG2 Print implementation
  *  @param x Horizontal position from top left screen corner
  *  @param y Vertical position from top left screen corner
@@ -122,6 +124,8 @@ void    jo_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id,
 /** @brief Clear NBG3
  */
 void    jo_nbg3_clear(void);
+
+#endif
 
 /*
 ██████╗ ██████╗  █████╗ ██╗    ██╗    ██╗███╗   ███╗ █████╗  ██████╗ ███████╗
