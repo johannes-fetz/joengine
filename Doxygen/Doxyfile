@@ -38,7 +38,7 @@ PROJECT_NAME           = "Jo Engine"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = 2020.05.29
+PROJECT_NUMBER         = 2020.06.08
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -2202,7 +2202,6 @@ INCLUDE_FILE_PATTERNS  =
 PREDEFINED             = JO_COMPILE_WITH_AUDIO_SUPPORT \
                          JO_NTSC_VERSION \
                          JO_DEBUG \
-                         JO_COMPILE_WITH_PRINTF_SUPPORT \
                          JO_COMPILE_WITH_SPRITE_HASHTABLE \
                          JO_COMPILE_WITH_DUAL_CPU_SUPPORT \
                          JO_COMPILE_WITH_3D_SUPPORT \

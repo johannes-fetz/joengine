@@ -354,7 +354,7 @@ void                     jo_init_nbg0_printf(void)
     jo_set_printf_color_index(0);
 }
 #else
-void			                jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
+void			                jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
     __jo_switch_to_8bits_mode();
     if (nbg0_cell != JO_NULL)
@@ -599,7 +599,7 @@ void                            jo_nbg2_print(int x, int y, char * str)
     }
 }
 
-void			                jo_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
+void			                jo_vdp2_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
 {
 #ifdef JO_DEBUG
     if (img->width != 8)
@@ -620,7 +620,7 @@ void			                jo_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, 
     }
 }
 
-void			                jo_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
+void			                jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
     __jo_set_nbg2_8bits_image(img, vertical_flip);
 	__jo_create_map(img, nbg2_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg2_cell));
@@ -699,7 +699,7 @@ void                            jo_nbg3_print(int x, int y, char * str)
     }
 }
 
-void			                jo_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
+void			                jo_vdp2_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
 {
 #ifdef JO_DEBUG
     if (img->width != 8)
@@ -720,7 +720,7 @@ void			                jo_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, 
     }
 }
 
-void			                jo_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
+void			                jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
     __jo_set_nbg3_8bits_image(img, vertical_flip);
 	__jo_create_map(img, nbg3_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg3_cell));

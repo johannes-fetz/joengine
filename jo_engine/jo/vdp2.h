@@ -91,7 +91,7 @@ void    jo_nbg2_print(int x, int y, char * str);
  *  @param enabled Display NBG2 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
+void    jo_vdp2_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
 
 /** @brief Clear NBG2
  */
@@ -119,7 +119,7 @@ void    jo_nbg3_print(int x, int y, char * str);
  *  @param enabled Display NBG2 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
+void    jo_vdp2_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled);
 
 /** @brief Clear NBG3
  */
@@ -153,7 +153,7 @@ void    jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @param enabled Display NBG0 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
+void    jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 #endif
 
 /** @brief Set 8 bits NBG2 image
@@ -163,7 +163,7 @@ void    jo_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical
  *  @param enabled Display NBG2 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
+void    jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
 /** @brief Set 8 bits NBG3 image
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
@@ -172,7 +172,7 @@ void    jo_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical
  *  @param enabled Display NBG3 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
-void    jo_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
+void    jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
 /** @brief Set NBG1 bitmap image
  *  @param img Pointer to an image struct
@@ -345,12 +345,10 @@ static  __jo_force_inline void	jo_vdp2_put_pixel_bitmap_nbg1_rgb(const int x, co
 */
 
 /** @brief Enable 3D planes
- *  @param background_color Color (ex: JO_COLOR_Red)
  */
 void                            jo_vdp2_enable_rbg0(void);
 
 /** @brief Disable 3D planes
- *  @param background_color Color (ex: JO_COLOR_Red)
  */
 void                            jo_vdp2_disable_rbg0(void);
 
