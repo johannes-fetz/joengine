@@ -70,6 +70,7 @@ void                                        __jo_init_vdp2(const jo_color back_c
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 extern jo_list                              __slave_callbacks;
 void                                        jo_core_slave_init(void);
+void                                        jo_core_exec_on_slave(jo_slave_callback callback);
 #endif
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
 extern jo_list                              __storyboards;
@@ -131,6 +132,13 @@ __jo_force_inline void __jo_call_event(jo_node *node)
 {
     ((jo_event_callback)node->data.ptr)();
 }
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+static void jo_slave_callbacks(void)
+{
+    jo_list_foreach(&__slave_callbacks, __jo_call_event);
+}
+#endif
 
 static void __jo_vblank_callbacks(void)
 {
@@ -603,7 +611,7 @@ void			        jo_core_run(void)
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)
-            jo_list_foreach(&__slave_callbacks, __jo_call_event);
+            jo_core_exec_on_slave(jo_slave_callbacks);
 #endif
         if (jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
                 jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START) && __jo_restart_game_callback != JO_NULL)

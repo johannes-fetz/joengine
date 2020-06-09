@@ -47,7 +47,7 @@ void    __jo_core_error(char *message, const char *function);
 #endif
 
 /** @brief Jo Engine Version */
-# define JO_ENGINE_VERSION  (9.0)
+# define JO_ENGINE_VERSION  (10.0)
 
 /*
 ** TYPEDEFS
@@ -55,8 +55,12 @@ void    __jo_core_error(char *message, const char *function);
 /** @brief Function prototype for jo_core_add_callback() */
 typedef void	(*jo_event_callback)(void);
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
 /** @brief Function prototype for jo_core_exec_on_slave() */
 typedef void	(*jo_slave_callback)(void);
+
+#endif
 
 /** @brief Init the engine
  *  @param back_color Default background color (colors.h)
@@ -92,6 +96,8 @@ int     jo_core_add_callback(const jo_event_callback callback);
  */
 void    jo_core_remove_callback(const int event_id);
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
 /** @brief Add a callback in the game loop on slave CPU
  *  @param callback Function name with no parameters and no return value
  *  @warning Must be called before jo_core_run()
@@ -104,6 +110,8 @@ int     jo_core_add_slave_callback(const jo_event_callback callback);
  */
 void    jo_core_remove_slave_callback(const int event_id);
 
+#endif
+
 /** @brief Add a callback when A+B+C+Start is pressed on the first control pad
  *  @param callback Function name with no parameters and no return value
  */
@@ -113,6 +121,8 @@ void    jo_core_set_restart_game_callback(const jo_event_callback callback);
  */
 void    jo_goto_boot_menu(void);
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
 /** @brief Execute a callback on the slave CPU
  *  @param callback Function name with no parameters and no return value
  */
@@ -121,6 +131,8 @@ void    jo_core_exec_on_slave(jo_slave_callback callback);
 /** @brief Wait until slave callback is completed
  */
 void    jo_core_wait_for_slave(void);
+
+#endif
 
 /** @brief Disable reset button
  */

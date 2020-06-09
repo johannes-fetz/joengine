@@ -85,7 +85,7 @@ inline void    jo_core_remove_slave_callback(const int event_id)
 
 #if JO_COMPILE_USING_SGL
 
-bool __jo_slave_done_flag = false;
+volatile bool __jo_slave_done_flag = false;
 
 void                                jo_core_slave_init(void)
 {
@@ -181,19 +181,5 @@ static __jo_force_inline void       jo_core_slave_init(void)
 }
 
 #endif
-
-#else
-
-inline void                        jo_core_exec_on_slave(jo_slave_callback callback)
-{
-#ifdef JO_DEBUG
-    if (callback == JO_NULL)
-    {
-        jo_core_error("callback is null");
-        return ;
-    }
-#endif
-    callback();
-}
 
 #endif //!JO_COMPILE_WITH_DUAL_CPU_SUPPORT
