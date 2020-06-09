@@ -67,7 +67,10 @@ extern unsigned int                         _bstart;
 extern unsigned int                         _bend;
 extern void                                 jo_main(void);
 void                                        __jo_init_vdp2(const jo_color back_color);
-
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+extern jo_list                              __slave_callbacks;
+void                                        jo_core_slave_init(void);
+#endif
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
 extern jo_list                              __storyboards;
 void                                        jo_execute_storyboards(void);
