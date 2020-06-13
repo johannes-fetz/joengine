@@ -723,10 +723,13 @@ static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite
     else
     {
         __internal_jo_sprite_set_position3D(x, y, z);
-        unsigned int previous_scale = __jo_sprite_attributes.fixed_scale;
-        __jo_sprite_attributes.fixed_scale = JO_MULT_BY_65536(scale);
+        jo_fixed previous_scale_x = __jo_sprite_attributes.fixed_scale_x;
+        jo_fixed previous_scale_y = __jo_sprite_attributes.fixed_scale_y;
+        __jo_sprite_attributes.fixed_scale_x = jo_int2fixed(scale);
+        __jo_sprite_attributes.fixed_scale_y = jo_int2fixed(scale);
         jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
-        __jo_sprite_attributes.fixed_scale = previous_scale;
+        __jo_sprite_attributes.fixed_scale_x = previous_scale_x;
+        __jo_sprite_attributes.fixed_scale_y = previous_scale_y;
     }
 }
 

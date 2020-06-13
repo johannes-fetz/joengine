@@ -242,7 +242,8 @@ typedef struct
     unsigned short      direction;
     unsigned int        color_table_index;
     unsigned int        gouraud_shading_index;
-    unsigned int        fixed_scale;
+    jo_fixed            fixed_scale_x;
+    jo_fixed            fixed_scale_y;
     unsigned int        clipping;
 }                       jo_sprite_attributes;
 

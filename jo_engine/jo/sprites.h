@@ -308,14 +308,36 @@ static  __jo_force_inline void	jo_sprite_set_palette(int palette_id)
  */
 static  __jo_force_inline void	jo_sprite_change_sprite_scale(const float scale)
 {
-    __jo_sprite_attributes.fixed_scale = (int)(scale * 65535.f);
+    __jo_sprite_attributes.fixed_scale_x = jo_float2fixed(scale);
+    __jo_sprite_attributes.fixed_scale_y = __jo_sprite_attributes.fixed_scale_x;
+}
+
+/** @brief Change scale for every sprite displayed after this call
+ *  @param scale_x Horizontal sprite scale
+ *  @param scale_y Vertical sprite scale
+ */
+static  __jo_force_inline void	jo_sprite_change_sprite_scale_xy(const float scale_x, const float scale_y)
+{
+    __jo_sprite_attributes.fixed_scale_x = jo_float2fixed(scale_x);
+    __jo_sprite_attributes.fixed_scale_y = jo_float2fixed(scale_y);
+}
+
+/** @brief Change scale for every sprite displayed after this call using fixed number
+ *  @param scale_x Horizontal sprite scale
+ *  @param scale_y Vertical sprite scale
+ */
+static  __jo_force_inline void	jo_sprite_change_sprite_scale_xy_fixed(const jo_fixed scale_x, const jo_fixed scale_y)
+{
+    __jo_sprite_attributes.fixed_scale_x = scale_x;
+    __jo_sprite_attributes.fixed_scale_y = scale_y;
 }
 
 /** @brief Restore default scale for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
 {
-    __jo_sprite_attributes.fixed_scale = JO_NO_ZOOM;
+    __jo_sprite_attributes.fixed_scale_x = JO_NO_ZOOM;
+    __jo_sprite_attributes.fixed_scale_y = JO_NO_ZOOM;
 }
 
 /** @brief Set user clipping area
