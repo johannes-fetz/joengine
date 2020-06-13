@@ -92,6 +92,11 @@ static  __jo_force_inline void	*jo_malloc(unsigned int n)
  */
 void	        jo_free(const void * const p);
 
+/** @brief Reduce memory fragmentation for faster memory allocation
+ *  @remarks This function can be slow
+ */
+void            jo_reduce_memory_fragmentation(void);
+
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
 /** @brief Get the extended RAM cartridge type if available
@@ -114,7 +119,7 @@ int             jo_memory_usage_percent(void);
 
 /** @brief Get memory fragmentation (Number of fragment in memory)
  *  @return Memory fragmentation
- *  @remarks jo_printf(0, 0, "Dynamic memory fragmentation: %d%%  ", jo_memory_fragmentation());
+ *  @remarks jo_printf(0, 0, "Dynamic memory fragmentation count: %d  ", jo_memory_fragmentation());
  */
 int             jo_memory_fragmentation(void);
 

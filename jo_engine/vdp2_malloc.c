@@ -62,12 +62,12 @@ static jo_color                 *__jo_cram = ((jo_color *)JO_VDP2_CRAM) + CRAM_P
 static unsigned char            *__jo_a0 = (unsigned char *)VDP2_VRAM_A0;
 static jo_vdp2_memory_segment   __jo_a0_segments[6];
 // A1
-# define KTABLE_SIZE                    (0x1FE00)
+# define KTABLE_SIZE            (0x1FE00)
 static const unsigned char      *__jo_rbg0_k_table = (unsigned char *)VDP2_VRAM_A1;
-# define ROTATION_TABLE_SIZE            (0x00080)
+# define ROTATION_TABLE_SIZE    (0x00080)
 static const unsigned char      *__jo_rbg0_r_table = (unsigned char *)(VDP2_VRAM_A1 + KTABLE_SIZE);
-//# define REMAING_SPACE_IN_A1            (0x1FC)
-//static unsigned char            *__jo_remaing_spaceA1 = (unsigned char *)(VDP2_VRAM_A1 + KTABLE_SIZE + ROTATION_TABLE_SIZE);
+//# define REMAING_SPACE_IN_A1  (0x1FC)
+//static unsigned char          *__jo_remaing_spaceA1 = (unsigned char *)(VDP2_VRAM_A1 + KTABLE_SIZE + ROTATION_TABLE_SIZE);
 static const unsigned char      *__jo_back_color = (unsigned char *)(VDP2_VRAM_A1 + 0x1fffe); // The two last bytes in A1 Bank is for background color
 // B0
 # define B0_SEGMENT_COUNT       (6)

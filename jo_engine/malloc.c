@@ -135,7 +135,32 @@ malloc_new_block:
     return (block + 1);
 }
 
-inline void                    jo_free(const void * const p)
+void                            jo_reduce_memory_fragmentation(void)
+{
+    register int                zone;
+    unsigned char               *ptr;
+    jo_memory_block             *block;
+    jo_memory_block             *last_free_block;
+
+    for (JO_ZERO(zone); zone < __jo_memory_zone_index; ++zone)
+    {
+        ptr = memory_zones[zone].begin;
+        last_free_block = JO_NULL;
+        while (ptr < memory_zones[zone].high)
+        {
+            block = (jo_memory_block *)ptr;
+            if (block->zone != JO_BLOCK_FREE)
+                last_free_block = JO_NULL;
+            if (block->zone == JO_BLOCK_FREE && last_free_block == JO_NULL)
+                last_free_block = block;
+            ptr += block->size;
+        }
+        if (last_free_block != JO_NULL)
+            memory_zones[zone].high = (unsigned char *)last_free_block;
+    }
+}
+
+inline void                     jo_free(const void * const p)
 {
     jo_memory_block             *block;
 
