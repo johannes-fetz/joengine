@@ -31,10 +31,46 @@ static int cursor_sprite_id = 0;
 static int cursor_pos_x = 50;
 static int cursor_pos_y = 50;
 
+void                    draw_bezier_curve(void)
+{
+    jo_vector_fixed     p0;
+    jo_vector_fixed     p1;
+    jo_vector_fixed     p2;
+    jo_vector_fixed     p3;
+    jo_vector_fixed     p;
+    jo_fixed            t;
+
+    p0.x = jo_int2fixed(15);
+    p0.y = jo_int2fixed(50);
+    p0.z = JO_FIXED_0;
+
+    p1.x = jo_int2fixed(200);
+    p1.y = jo_int2fixed(100);
+    p1.z = JO_FIXED_0;
+
+    p2.x = jo_int2fixed(300);
+    p2.y = jo_int2fixed(200);
+    p2.z = JO_FIXED_0;
+
+    p3.x = jo_int2fixed(150);
+    p3.y = jo_int2fixed(180);
+    p3.z = JO_FIXED_0;
+
+    for (t = JO_FIXED_0; t <= JO_FIXED_1; t += 100)
+    {
+        p.x = JO_FIXED_0;
+        p.y = JO_FIXED_0;
+        p.z = JO_FIXED_0;
+        jo_vector_fixed_compute_bezier_point(t, p0, p1, p2, p3, &p);
+        jo_put_pixel_in_background(jo_fixed2int(p.x), jo_fixed2int(p.y), JO_COLOR_Green);
+    }
+}
+
 void			my_draw(void)
 {
     jo_printf(0, 0, "Press A to draw and Start to erase all");
     jo_printf(0, 1, "Press B to draw a circle");
+    jo_printf(0, 2, "Press C to draw a bezier curve");
     jo_printf(0, 28, "Cursor: %d %d   ", cursor_pos_x, cursor_pos_y);
 
     /* jo_sprite_draw3D2 is different from jo_sprite_draw3D() because position (0,0) is at the top left corner of the screen */
@@ -67,6 +103,8 @@ void			my_gamepad(void)
         jo_put_pixel_in_background(cursor_pos_x, cursor_pos_y, JO_COLOR_Red);
     if (jo_is_pad1_key_down(JO_KEY_B))
         draw_circle_at_cursor_pos(40);
+    if (jo_is_pad1_key_down(JO_KEY_C))
+        draw_bezier_curve();
     if (jo_is_pad1_key_pressed(JO_KEY_START))
         jo_clear_background(JO_COLOR_White);
 }

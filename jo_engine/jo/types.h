@@ -71,6 +71,15 @@ typedef struct
     float               z;
 }                       jo_pos3Df;
 
+/** @brief 3D position using fixed numbers
+  */
+typedef struct
+{
+    jo_fixed            x;
+    jo_fixed            y;
+    jo_fixed            z;
+}                       jo_pos3D_fixed;
+
 /** @brief 3D rotation angles
   */
 typedef struct
@@ -116,13 +125,21 @@ typedef struct
     float               z;
 }                       jo_vectorf;
 
-/** @brief Vector for 3D computation using fixed number
+/** @brief Vector for 3D computation using integer
   * @remarks Inherits from jo_pos3D (cast friendly)
   */
 typedef struct
 {
     jo_pos3D;
 }                       jo_vector;
+
+/** @brief Vector for 3D computation using fixed number
+  * @remarks Inherits from jo_pos3D_fixed (cast friendly)
+  */
+typedef struct
+{
+    jo_pos3D_fixed;
+}                       jo_vector_fixed;
 
 /** @brief 4x4 MATRIX for 3D computation using floating numbers */
 typedef union

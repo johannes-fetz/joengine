@@ -456,6 +456,13 @@ static __jo_force_inline jo_fixed       jo_fixed_wrap_to_180(jo_fixed deg)
     return (deg);
 }
 
+/** @brief x raised to the power of the integer part of y
+ *  @param x First operand
+ *  @param y Second operand
+ *  @return x^y
+ */
+jo_fixed                                jo_fixed_pow(jo_fixed x, jo_fixed y);
+
 /** @brief Multiply to fixed number
  *  @param x First operand
  *  @param y Second operand
@@ -504,7 +511,6 @@ static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
 ██╔══██╗██╔══██║██║╚██╗██║██║  ██║██║   ██║██║╚██╔╝██║
 ██║  ██║██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║ ╚═╝ ██║
 ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
-
 */
 
 /** @brief Get or set current random seed
@@ -840,8 +846,71 @@ static __jo_force_inline int    jo_atan2f(const float y, const float x)
 ╚██╗ ██╔╝██╔══╝  ██║        ██║   ██║   ██║██╔══██╗
  ╚████╔╝ ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║
   ╚═══╝  ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
+*/
+
+/*
+    _______               __   _   __                __
+   / ____(_)  _____  ____/ /  / | / /_  ______ ___  / /_  ___  _____
+  / /_  / / |/_/ _ \/ __  /  /  |/ / / / / __ `__ \/ __ \/ _ \/ ___/
+ / __/ / />  </  __/ /_/ /  / /|  / /_/ / / / / / / /_/ /  __/ /
+/_/   /_/_/|_|\___/\__,_/  /_/ |_/\__,_/_/ /_/ /_/_.___/\___/_/
 
 */
+
+/** @brief Compute cubic bezier curve point for vectors (using fixed numbers)
+ *  @param t Value of the function on the curve [0 to JO_FIXED_1]
+ *  @param p0 First vector
+ *  @param p1 Second vector
+ *  @param p3 Third vector
+ *  @param p4 Fourth vector
+ *  @param result output vector
+ */
+void    jo_vector_fixed_compute_bezier_point(const jo_fixed t, jo_vector_fixed p0, jo_vector_fixed p1, jo_vector_fixed p2, jo_vector_fixed p3, jo_vector_fixed *result);
+
+/** @brief Add 2 vectors (using fixed numbers)
+ *  @param a First vector
+ *  @param b Second vector
+ *  @param result output vector
+ *  @remarks You can pass a or b address for result parameter
+ */
+static __jo_force_inline void jo_vector_fixed_add(const jo_vector_fixed * const a, const jo_vector_fixed * const b, jo_vector_fixed * const result)
+{
+    result->x = a->x + b->x;
+    result->y = a->y + b->y;
+    result->z = a->z + b->z;
+}
+
+/** @brief Multiply value to vector (using fixed numbers)
+ *  @param a Vector
+ *  @param s Constant
+ *  @param result output vector
+ *  @remarks You can pass a address for result parameter
+ */
+static __jo_force_inline void jo_vector_fixed_muls(const jo_vector_fixed * const a, const jo_fixed s, jo_vector_fixed * const result)
+{
+    result->x = jo_fixed_mult(a->x, s);
+    result->y = jo_fixed_mult(a->y, s);
+    result->z = jo_fixed_mult(a->z, s);
+}
+
+/*
+    ________            __  _                _   __                __
+   / ____/ /___  ____ _/ /_(_)___  ____ _   / | / /_  ______ ___  / /_  ___  _____
+  / /_  / / __ \/ __ `/ __/ / __ \/ __ `/  /  |/ / / / / __ `__ \/ __ \/ _ \/ ___/
+ / __/ / / /_/ / /_/ / /_/ / / / / /_/ /  / /|  / /_/ / / / / / / /_/ /  __/ /
+/_/   /_/\____/\__,_/\__/_/_/ /_/\__, /  /_/ |_/\__,_/_/ /_/ /_/_.___/\___/_/
+                                /____/
+*/
+
+/** @brief Compute cubic bezier curve point for vectors (using floating numbers)
+ *  @param t Value of the function on the curve [0.0f to 1.0f]
+ *  @param p0 First vector
+ *  @param p1 Second vector
+ *  @param p3 Third vector
+ *  @param p4 Fourth vector
+ *  @param result output vector
+ */
+void    jo_vectorf_compute_bezier_point(const float t, jo_vectorf p0, jo_vectorf p1, jo_vectorf p2, jo_vectorf p3, jo_vectorf *result);
 
 /** @brief Add 2 vectors (using floating numbers)
  *  @param a First vector

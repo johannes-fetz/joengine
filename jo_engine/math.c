@@ -74,7 +74,6 @@ jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 	return rtval;
 }
 
-
 jo_fixed	jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal instruction execution... I wonder why... fxm does not
 {
 	register jo_fixed rtval;
@@ -93,10 +92,28 @@ jo_fixed	jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal
 	return rtval;
 }
 
+jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
+{
+    jo_fixed        result;
+    jo_fixed        n;
+
+    n = JO_DIV_BY_65536(y);
+    if (n == 0)
+        return (JO_FIXED_1);
+    if (n == JO_FIXED_1)
+        return (x);
+    for (result = JO_FIXED_1; n >= 0; --n)
+    {
+        result = jo_fixed_mult(x, result);
+        if (result == (jo_fixed)JO_FIXED_OVERFLOW)
+            return (result);
+    }
+    return (result);
+}
 
 jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 {
-	
+
 const int * DVSR = ( int*)0xFFFFFF00;
 const int * DVDNTH = ( int*)0xFFFFFF10;
 const int * DVDNTL = ( int*)0xFFFFFF14;
@@ -119,7 +136,7 @@ register jo_fixed quotient;
 	"mov %[dvd], r1;" //Move the dividend to a general-purpose register, to prevent weird misreading of data.
 	"shlr16 r1;"
 	"mov.l r1, @%[nth];" //Expresses "*DVDNTH = dividend>>16"
-	"mov %[dvd], r1;" 
+	"mov %[dvd], r1;"
 	"shll16 r1;"
 	"mov.l r1, @%[ntl];" //Expresses *DVDNTL = dividend<<16";
 	"mov.l @%[ntl], %[out];" //Get result.
@@ -262,6 +279,15 @@ void                        jo_planar_rotate(const jo_pos2D * const point, const
     result->y = (jo_fixed2int(dy * cos_theta) + jo_fixed2int(dx * sin_theta)) + origin->y;
 }
 
+/*
+██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗
+██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║
+██████╔╝███████║██╔██╗ ██║██║  ██║██║   ██║██╔████╔██║
+██╔══██╗██╔══██║██║╚██╗██║██║  ██║██║   ██║██║╚██╔╝██║
+██║  ██║██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║ ╚═╝ ██║
+╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
+*/
+
 /* single phase linear congruential random integer generator */
 
 #define JO_RANDOM_M             (2147483647)
@@ -277,6 +303,53 @@ int                             jo_random(int max)
     if (jo_random_seed <= 0)
         jo_random_seed += JO_RANDOM_M;
     return jo_random_seed % max + 1;
+}
+
+/*
+██╗   ██╗███████╗ ██████╗████████╗ ██████╗ ██████╗
+██║   ██║██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗
+██║   ██║█████╗  ██║        ██║   ██║   ██║██████╔╝
+╚██╗ ██╔╝██╔══╝  ██║        ██║   ██║   ██║██╔══██╗
+ ╚████╔╝ ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║
+  ╚═══╝  ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
+*/
+
+void            jo_vector_fixed_compute_bezier_point(const jo_fixed t, jo_vector_fixed p0, jo_vector_fixed p1, jo_vector_fixed p2, jo_vector_fixed p3, jo_vector_fixed *result)
+{
+    jo_fixed    tt = jo_fixed_mult(t, t);
+    jo_fixed    u = JO_FIXED_1 - t;
+    jo_fixed    uu = jo_fixed_mult(u, u);
+
+    // first term
+    jo_vector_fixed_muls(&p0, jo_fixed_mult(uu, u), result);
+    // second term
+    jo_vector_fixed_muls(&p1, jo_fixed_mult(196608, jo_fixed_mult(uu, t)), &p1);
+    jo_vector_fixed_add(result, &p1, result);
+    // third term
+    jo_vector_fixed_muls(&p2, jo_fixed_mult(196608, jo_fixed_mult(u, tt)), &p2);
+    jo_vector_fixed_add(result, &p2, result);
+    // fourth term
+    jo_vector_fixed_muls(&p3, jo_fixed_mult(tt, t), &p3);
+    jo_vector_fixed_add(result, &p3, result);
+}
+
+void            jo_vectorf_compute_bezier_point(const float t, jo_vectorf p0, jo_vectorf p1, jo_vectorf p2, jo_vectorf p3, jo_vectorf *result)
+{
+    float       tt = t * t;
+    float       u = 1.0f - t;
+    float       uu = u * u;
+
+    // first term
+    jo_vectorf_muls(&p0, uu * u, result);
+    // second term
+    jo_vectorf_muls(&p1, 3 * uu * t, &p1);
+    jo_vectorf_add(result, &p1, result);
+    // third term
+    jo_vectorf_muls(&p2, 3 * u * tt, &p2);
+    jo_vectorf_add(result, &p2, result);
+    // fourth term
+    jo_vectorf_muls(&p3, tt * t, &p3);
+    jo_vectorf_add(result, &p3, result);
 }
 
 /*
