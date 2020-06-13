@@ -705,6 +705,7 @@ static  __jo_force_inline void      jo_3d_draw_sprite_at(const int sprite_id, co
  */
 static  __jo_force_inline void      jo_3d_draw_billboard(const int sprite_id, const int x, const int y, const int z)
 {
+    extern jo_pos3D __jo_sprite_pos;
     __internal_jo_sprite_set_position3D(x, y, z);
     jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, true);
 }
@@ -722,6 +723,7 @@ static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite
         jo_3d_draw_billboard(sprite_id, x, y, z);
     else
     {
+        extern jo_pos3D __jo_sprite_pos;
         __internal_jo_sprite_set_position3D(x, y, z);
         jo_fixed previous_scale_x = __jo_sprite_attributes.fixed_scale_x;
         jo_fixed previous_scale_y = __jo_sprite_attributes.fixed_scale_y;

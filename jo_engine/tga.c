@@ -42,6 +42,7 @@
 #include "jo/palette.h"
 #include "jo/image.h"
 #include "jo/tga.h"
+#include "jo/colors.h"
 #include "jo/sprites.h"
 #include "jo/colors.h"
 #include "jo/math.h"

@@ -38,6 +38,7 @@
 #include "jo/core.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
+#include "jo/colors.h"
 #include "jo/sprites.h"
 #include "jo/fs.h"
 #include "jo/math.h"

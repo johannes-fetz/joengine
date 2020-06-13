@@ -42,6 +42,7 @@
 #include "jo/tga.h"
 #include "jo/malloc.h"
 #include "jo/math.h"
+#include "jo/colors.h"
 #include "jo/sprites.h"
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT

@@ -40,9 +40,10 @@
 #include "jo/malloc.h"
 #include "jo/fs.h"
 #include "jo/image.h"
+#include "jo/math.h"
+#include "jo/colors.h"
 #include "jo/sprites.h"
 #include "jo/vdp2.h"
-#include "jo/math.h"
 #include "jo/palette.h"
 #include "jo/vdp2_malloc.h"
 

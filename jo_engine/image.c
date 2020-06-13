@@ -43,6 +43,7 @@
 #include "jo/math.h"
 #include "jo/colors.h"
 #include "jo/sprites.h"
+#include "jo/tga.h"
 
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 extern int      __jo_hash_table[JO_MAX_SPRITE];
