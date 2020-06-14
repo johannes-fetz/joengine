@@ -342,25 +342,61 @@ static  __jo_force_inline void __jo_set_sprite_attributes(jo_vdp1_command * cons
 }
 #endif
 
+void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates)
+{
+#if JO_COMPILE_USING_SGL
+    FIXED               sgl_4p[4][2];
+    jo_pos2D_fixed      delta;
+    SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
+
+    sgl_4p[0][0] = four_points[0].x;
+    sgl_4p[0][1] = four_points[0].y;
+    sgl_4p[1][0] = four_points[1].x;
+    sgl_4p[1][1] = four_points[1].y;
+    sgl_4p[2][0] = four_points[2].x;
+    sgl_4p[2][1] = four_points[2].y;
+    sgl_4p[3][0] = four_points[3].x;
+    sgl_4p[3][1] = four_points[3].y;
+
+    if (!centered_style_coordinates)
+    {
+        delta.x = jo_int2fixed(JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+        delta.y = jo_int2fixed(JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+        sgl_4p[0][0] -= delta.x;
+        sgl_4p[0][1] -= delta.y;
+        sgl_4p[1][0] -= delta.x;
+        sgl_4p[1][1] -= delta.y;
+        sgl_4p[2][0] -= delta.x;
+        sgl_4p[2][1] -= delta.y;
+        sgl_4p[3][0] -= delta.x;
+        sgl_4p[3][1] -= delta.y;
+    }
+    __jo_set_sprite_attributes(&attr, sprite_id);
+    slDispSprite4P((FIXED *)sgl_4p, (FIXED)z, &attr);
+#else
+    jo_core_error("Not implemented");
+#endif
+}
+
 void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates, const bool billboard)
 {
 #if JO_COMPILE_USING_SGL
     FIXED               sgl_pos[5];
     SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
 
-    sgl_pos[2] = JO_MULT_BY_65536(pos->z);
+    sgl_pos[2] = jo_int2fixed(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale_x;
     if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
         sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
     if (centered_style_coordinates)
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x);
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y);
+        sgl_pos[0] = jo_int2fixed(pos->x);
+        sgl_pos[1] = jo_int2fixed(pos->y);
     }
     else
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+        sgl_pos[0] = jo_int2fixed(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+        sgl_pos[1] = jo_int2fixed(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)
@@ -412,19 +448,19 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     FIXED               sgl_pos[5];
     SPR_ATTR            attr = SPR_ATTRIBUTE(0, No_Palet, No_Gouraud, ECdis, sprNoflip | FUNC_Sprite);
 
-    sgl_pos[2] = JO_MULT_BY_65536(pos->z);
+    sgl_pos[2] = jo_int2fixed(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale_x;
     if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
         sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
     if (centered_style_coordinates)
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x);
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y);
+        sgl_pos[0] = jo_int2fixed(pos->x);
+        sgl_pos[1] = jo_int2fixed(pos->y);
     }
     else
     {
-        sgl_pos[0] = JO_MULT_BY_65536(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-        sgl_pos[1] = JO_MULT_BY_65536(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+        sgl_pos[0] = jo_int2fixed(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+        sgl_pos[1] = jo_int2fixed(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)

@@ -417,6 +417,8 @@ static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int 
     jo_sprite_draw(sprite_id, &__jo_sprite_pos, false, false);
 }
 
+void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates);
+
 /*
  ██████╗██╗     ██╗██████╗ ██████╗ ██╗███╗   ██╗ ██████╗
 ██╔════╝██║     ██║██╔══██╗██╔══██╗██║████╗  ██║██╔════╝

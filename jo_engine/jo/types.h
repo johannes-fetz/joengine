@@ -52,6 +52,13 @@ typedef struct
     int                 y;
 }                       jo_pos2D;
 
+/** @brief 2D position using fixed number */
+typedef struct
+{
+    jo_fixed            x;
+    jo_fixed            y;
+}                       jo_pos2D_fixed;
+
 /** @brief 3D position
   * @remarks Inherits from jo_pos2D (cast friendly)
   */
