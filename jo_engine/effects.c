@@ -45,43 +45,98 @@
 
 #ifdef JO_COMPILE_WITH_EFFECTS_SUPPORT
 
-void        jo_effect_laser(int x0, int y0, int x1, int y1, int pertubation, int sprite_id)
+void                    jo_init_homing_laser(jo_homing_laser * const homing_laser, const int sprite_id, const unsigned short thickness, const int z, const unsigned short nb_sections)
 {
-    int                         dx;
-    int                         sx;
-    int                         dy;
-    int                         sy;
-    int                         err;
-    int                         e2;
-
-    x0 -= JO_DIV_BY_2(pertubation);
-    y0 -= JO_DIV_BY_2(pertubation);
-    x1 -= JO_DIV_BY_2(pertubation);
-    y1 -= JO_DIV_BY_2(pertubation);
-    dx = JO_ABS(x1 - x0);
-    sx = x0 < x1 ? 1 : -1;
-    dy = JO_ABS(y1 - y0);
-    sy = y0 < y1 ? 1 : -1;
-    err = JO_DIV_BY_2(dx > dy ? dx : -dy);
-    while (42)
+#ifdef JO_DEBUG
+    if (thickness < 1)
     {
-        if (pertubation > 1)
-            jo_sprite_draw3D(sprite_id, x0 + jo_random(pertubation), y0 + jo_random(pertubation), 600);
-        else
-            jo_sprite_draw3D(sprite_id, x0, y0, 600);
-        if (x0 == x1 && y0 == y1)
-            break;
-        e2 = err;
-        if (e2 > -dx)
+        jo_core_error("thickness < 1");
+        return ;
+    }
+    if (nb_sections < 4)
+    {
+        jo_core_error("nb_sections < 4");
+        return ;
+    }
+    if (nb_sections > 64)
+    {
+        jo_core_error("nb_sections > 64");
+        return ;
+    }
+    if (JO_MOD_POW2(nb_sections, 2) != 0)
+    {
+        jo_core_error("nb_sections must be a multiple of 2");
+        return ;
+    }
+#endif
+
+    JO_ZERO(homing_laser->source.x);
+    JO_ZERO(homing_laser->source.y);
+    homing_laser->source.z = jo_int2fixed(z);
+
+    JO_ZERO(homing_laser->intermediate_point_a.x);
+    JO_ZERO(homing_laser->intermediate_point_a.y);
+    homing_laser->intermediate_point_a.z = homing_laser->source.z;
+    homing_laser->use_intermediate_point_a = true;
+
+    JO_ZERO(homing_laser->intermediate_point_b.x);
+    JO_ZERO(homing_laser->intermediate_point_b.y);
+    homing_laser->intermediate_point_b.z = homing_laser->source.z;
+    homing_laser->use_intermediate_point_b = true;
+
+    JO_ZERO(homing_laser->target.x);
+    JO_ZERO(homing_laser->target.y);
+    homing_laser->target.z = homing_laser->source.z;
+
+    JO_ZERO(homing_laser->length);
+    homing_laser->sprite_id = sprite_id;
+    homing_laser->horizontal_thickness = jo_int2fixed(thickness);
+    JO_ZERO(homing_laser->vertical_thickness);
+    homing_laser->section_step = JO_FIXED_1 / nb_sections;
+    homing_laser->center_sprites_according_to_thickness = true;
+}
+
+void                    jo_draw_homing_laser(jo_homing_laser * const homing_laser)
+{
+    jo_pos2D_fixed      sp[4];
+    jo_fixed            t;
+    jo_fixed            horizontal_thickness_div2;
+    jo_fixed            vertical_thickness_div2;
+
+    if (homing_laser->length <= 0)
+        return ;
+    sp[0].x = homing_laser->source.x;
+    sp[0].y = homing_laser->source.y;
+    sp[1].x = homing_laser->source.x;
+    sp[1].y = homing_laser->source.y;
+    horizontal_thickness_div2 = JO_DIV_BY_2(homing_laser->horizontal_thickness);
+    vertical_thickness_div2 = JO_DIV_BY_2(homing_laser->vertical_thickness);
+    for (JO_ZERO(t); t <= homing_laser->length && t <= JO_FIXED_1; t += homing_laser->section_step)
+    {
+        jo_vector_fixed_compute_bezier_point(t,
+                                             homing_laser->source,
+                                             homing_laser->use_intermediate_point_a ? homing_laser->intermediate_point_a : homing_laser->source,
+                                             homing_laser->use_intermediate_point_b ? homing_laser->intermediate_point_b : homing_laser->target,
+                                             homing_laser->target,
+                                             (jo_vector_fixed *)&sp[2]/* Dirty optimization ^^ */);
+
+        sp[3].x = sp[2].x + homing_laser->horizontal_thickness;
+        sp[3].y = sp[2].y + homing_laser->vertical_thickness;
+
+        if (homing_laser->center_sprites_according_to_thickness)
         {
-            err -= dy;
-            x0 += sx;
+            sp[2].x -= horizontal_thickness_div2;
+            sp[3].x -= horizontal_thickness_div2;
+            sp[2].y -= vertical_thickness_div2;
+            sp[3].y -= vertical_thickness_div2;
         }
-        if (e2 < dy)
-        {
-            err += dx;
-            y0 += sy;
-        }
+
+        jo_sprite_draw_4p_fixed(homing_laser->sprite_id, sp, homing_laser->source.z, true);
+
+        JO_SWAP(sp[0].x, sp[3].x);
+        JO_SWAP(sp[0].y, sp[3].y);
+        JO_SWAP(sp[1].x, sp[2].x);
+        JO_SWAP(sp[1].y, sp[2].y);
     }
 }
 
