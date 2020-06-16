@@ -274,27 +274,27 @@ void     jo_set_gouraud_shading_brightness(const unsigned char brightness);
  */
 static  __jo_force_inline void	jo_sprite_enable_vertical_flip(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x20);
+    JO_ADD_FLAG(__jo_sprite_attributes.direction, 0x20);
 }
 
 /** @brief Disable vertical flip for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_vertical_flip(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x20);
+    JO_REMOVE_FLAG(__jo_sprite_attributes.direction, 0x20);
 }
 
 /** @brief Activate horizontal flip for every sprite displayed after this call */
 static  __jo_force_inline void	jo_sprite_enable_horizontal_flip(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x10);
+    JO_ADD_FLAG(__jo_sprite_attributes.direction, 0x10);
 }
 
 /** @brief Disable horizontal flip for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x10);
+    JO_REMOVE_FLAG(__jo_sprite_attributes.direction, 0x10);
 }
 
 /*
