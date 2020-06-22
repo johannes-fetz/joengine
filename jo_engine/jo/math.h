@@ -861,8 +861,8 @@ static __jo_force_inline int    jo_atan2f(const float y, const float x)
  *  @param t Value of the function on the curve [0 to JO_FIXED_1]
  *  @param p0 First vector
  *  @param p1 Second vector
- *  @param p3 Third vector
- *  @param p4 Fourth vector
+ *  @param p2 Third vector
+ *  @param p3 Fourth vector
  *  @param result output vector
  */
 void    jo_vector_fixed_compute_bezier_point(const jo_fixed t, jo_vector_fixed p0, jo_vector_fixed p1, jo_vector_fixed p2, jo_vector_fixed p3, jo_vector_fixed *result);
@@ -906,8 +906,8 @@ static __jo_force_inline void jo_vector_fixed_muls(const jo_vector_fixed * const
  *  @param t Value of the function on the curve [0.0f to 1.0f]
  *  @param p0 First vector
  *  @param p1 Second vector
- *  @param p3 Third vector
- *  @param p4 Fourth vector
+ *  @param p2 Third vector
+ *  @param p3 Fourth vector
  *  @param result output vector
  */
 void    jo_vectorf_compute_bezier_point(const float t, jo_vectorf p0, jo_vectorf p1, jo_vectorf p2, jo_vectorf p3, jo_vectorf *result);
