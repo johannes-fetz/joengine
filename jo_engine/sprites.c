@@ -386,8 +386,7 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
 
     sgl_pos[2] = jo_int2fixed(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale_x;
-    if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
-        sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
+    sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
     if (centered_style_coordinates)
     {
         sgl_pos[0] = jo_int2fixed(pos->x);
@@ -401,8 +400,8 @@ void                    jo_sprite_draw(const int sprite_id, const jo_pos3D * con
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)
         slPutSprite(sgl_pos, &attr, 0);
-    else if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
-        slDispSpriteHV(sgl_pos, &attr, 0);
+    else if (sgl_pos[3] != sgl_pos[4])
+        slDispSpriteHV(sgl_pos, &attr, 1/* SGL bug: doesn't work properly if angle is null */);
     else
         slDispSprite(sgl_pos, &attr, 0);
 #else
@@ -450,8 +449,7 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
 
     sgl_pos[2] = jo_int2fixed(pos->z);
     sgl_pos[3] = __jo_sprite_attributes.fixed_scale_x;
-    if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
-        sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
+    sgl_pos[4] = __jo_sprite_attributes.fixed_scale_y;
     if (centered_style_coordinates)
     {
         sgl_pos[0] = jo_int2fixed(pos->x);
@@ -465,8 +463,12 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)
         slPutSprite(sgl_pos, &attr, DEGtoANG(angle));
-    else if (__jo_sprite_attributes.fixed_scale_y !=  __jo_sprite_attributes.fixed_scale_x)
-        slDispSpriteHV(sgl_pos, &attr, DEGtoANG(angle));
+    else if (sgl_pos[3] != sgl_pos[4])
+    {
+        ANGLE sgl_patch_hv = DEGtoANG(angle);
+        /* SGL bug: doesn't work properly if angle is null */
+        slDispSpriteHV(sgl_pos, &attr, sgl_patch_hv == 0 ? 1 : sgl_patch_hv);
+    }
     else
         slDispSprite(sgl_pos, &attr, DEGtoANG(angle));
 #else
