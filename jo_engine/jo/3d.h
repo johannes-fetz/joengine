@@ -765,6 +765,23 @@ static  __jo_force_inline void      jo_3d_set_scale(const int x, const int y, co
     slScale(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y), JO_MULT_BY_65536(z));
 }
 
+/** @brief Change scale using fixed number
+ *  @param x X Scale
+ *  @param y Y Scale
+ *  @param z Z Scale
+ */
+static  __jo_force_inline void      jo_3d_set_scale_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z)
+{
+    slScale(x, y, z);
+}
+
+/** @brief Restore default scale for every 3d model displayed after this call
+ */
+static  __jo_force_inline void	jo_3d_restore_scale(void)
+{
+    slScale(JO_NO_ZOOM, JO_NO_ZOOM, JO_NO_ZOOM);
+}
+
 /*
 ██╗    ██╗██╗███╗   ██╗██████╗  ██████╗ ██╗    ██╗       ██╗       ██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗
 ██║    ██║██║████╗  ██║██╔══██╗██╔═══██╗██║    ██║       ██║       ██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║
