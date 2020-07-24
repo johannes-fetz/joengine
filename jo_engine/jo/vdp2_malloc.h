@@ -71,7 +71,9 @@ typedef enum
     JO_VDP2_RAM_BITMAP_NBG0,
     JO_VDP2_RAM_BITMAP_NBG1,
     /** @brief Color RAM for Palette, etc */
-    JO_VDP2_RAM_COLOR
+    JO_VDP2_RAM_COLOR,
+    /** @brief Line color table (for slLineColTable) */
+    JO_VDP2_LINE_COLOR_TABLE
 }                               jo_vdp2_ram_usage;
 
 /** @brief Dynamic VDP2 memory allocator

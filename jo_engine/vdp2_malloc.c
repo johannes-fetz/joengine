@@ -150,6 +150,7 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, c
         case JO_VDP2_RAM_CELL_NBG0:
         case JO_VDP2_RAM_CELL_NBG2:
         case JO_VDP2_RAM_CELL_NBG3:
+        case JO_VDP2_LINE_COLOR_TABLE:
             for (JO_ZERO(i); i < B1_SEGMENT_COUNT; ++i)
             {
                 if (__jo_b1_segments[i].size == 0)
