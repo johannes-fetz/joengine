@@ -151,6 +151,15 @@ typedef struct
     jo_pos3D_fixed;
 }                       jo_vector_fixed;
 
+/** @brief Vector4 for 3D computation using fixed number
+  * @remarks Inherits from jo_pos3D_fixed (cast friendly)
+  */
+typedef struct
+{
+    jo_pos3D_fixed;
+    jo_fixed            w;
+}                       jo_vector4_fixed;
+
 /** @brief 4x4 MATRIX for 3D computation using floating numbers */
 typedef union
 {

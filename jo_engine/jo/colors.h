@@ -90,6 +90,10 @@
 # define JO_COLOR_SATURN(C)         (JO_DIV_BY_8(C) & 0x1f)
 /** @brief Internal, you should not use this macro. */
 # define JO_COLOR_SATURN_RGB(R,G,B)	((jo_color)(0x8000 | ((B) << 10) | ((G) << 5) | (R)))
+/** @brief Internal, you should not use this macro. */
+# define JO_COLOR_SATURN_GET_R(C)   ((C) & 0x1f)
+# define JO_COLOR_SATURN_GET_G(C)   (((C) >> 5) & 0x1f)
+# define JO_COLOR_SATURN_GET_B(C)   (((C) >> 10) & 0x1f)
 
 /** @brief Get jo_color type from RGB additive color model
  *  @param R Red [0, 255]

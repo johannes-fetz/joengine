@@ -65,7 +65,7 @@ jo_node             *jo_list_insert_at(jo_list * const list, const jo_list_data 
 #ifdef JO_DEBUG
         jo_core_error("Out of memory");
 #endif
-        return node;
+        return (node);
     }
     ++list->count;
     node->data = data;
@@ -81,7 +81,7 @@ jo_node             *jo_list_insert_at(jo_list * const list, const jo_list_data 
     }
     node->next = next_node;
     next_node->prev = node;
-    return node;
+    return (node);
 }
 
 jo_node             *jo_list_add(jo_list * const list, const jo_list_data data)
@@ -94,7 +94,7 @@ jo_node             *jo_list_add(jo_list * const list, const jo_list_data data)
 #ifdef JO_DEBUG
         jo_core_error("Out of memory");
 #endif
-        return node;
+        return (node);
     }
     node->data = data;
     if (list->last == JO_NULL)
@@ -112,7 +112,7 @@ jo_node             *jo_list_add(jo_list * const list, const jo_list_data data)
         list->last = node;
     }
     ++list->count;
-    return node;
+    return (node);
 }
 
 void            jo_list_remove(jo_list * const list, const jo_node * const node_to_delete)

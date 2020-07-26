@@ -75,6 +75,7 @@
 #include "effects.h"
 #include "font.h"
 #include "storyboard.h"
+#include "software_renderer.h"
 
 #endif /* !__JO_H__ */
 

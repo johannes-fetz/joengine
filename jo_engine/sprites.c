@@ -186,11 +186,6 @@ static int                  __internal_jo_sprite_add(void * const data, const un
     jo_picture_definition   *picture;
 
 #ifdef JO_DEBUG
-    if (data == JO_NULL)
-    {
-        jo_core_error("data is null");
-        return (-1);
-    }
     if ((__jo_sprite_id + 1) >= JO_MAX_SPRITE)
     {
         jo_core_error("Too many sprites");
@@ -221,7 +216,8 @@ static int                  __internal_jo_sprite_add(void * const data, const un
     picture->index = __jo_sprite_id;
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
 
-    jo_dma_copy(data, picture->data, (unsigned int)((JO_MULT_BY_4(width * height)) >> cmode));
+    if (data != JO_NULL)
+        jo_dma_copy(data, picture->data, (unsigned int)((JO_MULT_BY_4(width * height)) >> cmode));
 
     return (__jo_sprite_id);
 }

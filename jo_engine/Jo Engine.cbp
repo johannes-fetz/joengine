@@ -92,6 +92,7 @@
 		<Unit filename="jo/sega_saturn.h" />
 		<Unit filename="jo/sgl_prototypes.h" />
 		<Unit filename="jo/smpc.h" />
+		<Unit filename="jo/software_renderer.h" />
 		<Unit filename="jo/sprite_animator.h" />
 		<Unit filename="jo/sprites.h" />
 		<Unit filename="jo/storyboard.h" />
@@ -131,6 +132,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="smpc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="software_renderer.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="sprite_animator.c">

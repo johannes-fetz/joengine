@@ -59,7 +59,7 @@ static unsigned char                *nbg0_cell = JO_NULL;
 #endif
 static int                          *nbg0_scroll_table = JO_NULL;
 //NBG1
-static jo_color                     *nbg1_bitmap = JO_NULL;
+jo_color                            *nbg1_bitmap = JO_NULL;
 static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
 static int                          *nbg1_scroll_table = JO_NULL;
@@ -488,6 +488,8 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
     if (nbg1_bitmap == JO_NULL)
         nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
     slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, nbg1_bitmap);
+    if (img->data == JO_NULL)
+        return ;
     if (top)
         vram_ptr = nbg1_bitmap + (JO_VDP2_WIDTH * top);
     else
