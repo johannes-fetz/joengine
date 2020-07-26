@@ -150,9 +150,6 @@
 /** @brief Max file available in the entire file system (on the CD of course) */
 # define JO_FS_MAX_FILES					(256)
 
-/** @brief force inline attribute (and prevent Doxygen prototype parsing bug) */
-# define __jo_force_inline                  __attribute__((always_inline)) inline
-
 #if JO_FRAMERATE < 1
 # error "JO_FRAMERATE must be greater than zero"
 #endif

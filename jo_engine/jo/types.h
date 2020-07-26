@@ -35,6 +35,9 @@
 #ifndef __JO_TYPES_H__
 # define __JO_TYPES_H__
 
+/** @brief force inline attribute (and prevent Doxygen prototype parsing bug) */
+# define __jo_force_inline                  __attribute__((always_inline)) inline
+
 /** @brief 15 bits color type */
 typedef unsigned short jo_color;
 

@@ -355,6 +355,8 @@
 
 /** @brief Fixed floating point value for 0 */
 # define JO_FIXED_0					(0)
+/** @brief Fixed floating point value for 0.5 */
+# define JO_FIXED_1_DIV_2           (32768)
 /** @brief Fixed floating point value for 1 */
 # define JO_FIXED_1					(65536)
 /** @brief Fixed floating point value for 2 */
@@ -540,8 +542,13 @@ static  __jo_force_inline int	jo_random_using_multiple(int max, int multiple)
 ╚════██║██║▄▄ ██║██╔══██╗   ██║
 ███████║╚██████╔╝██║  ██║   ██║
 ╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
-
 */
+
+/** @brief Fast Square root using fixed number
+ *  @param value Value
+ *  @return Sqrt(value)
+ */
+jo_fixed                        jo_fixed_sqrt(jo_fixed value);
 
 /** @brief Fast square root
  *  @param value Value
@@ -561,6 +568,28 @@ static  __jo_force_inline float jo_sqrtf(float value)
     i >>= 1;
     return *(float*)(void *)&i;
 }
+
+/*
+██╗███╗   ██╗██╗   ██╗███████╗██████╗ ███████╗███████╗    ███████╗ ██████╗ ██████╗ ████████╗
+██║████╗  ██║██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝    ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝
+██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝███████╗█████╗      ███████╗██║   ██║██████╔╝   ██║
+██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝      ╚════██║██║▄▄ ██║██╔══██╗   ██║
+██║██║ ╚████║ ╚████╔╝ ███████╗██║  ██║███████║███████╗    ███████║╚██████╔╝██║  ██║   ██║
+╚═╝╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
+AKA RECIPROCAL SQUARE ROOT
+*/
+
+/** @brief Fast Reciprocal Square root using fixed number
+ *  @param value Value
+ *  @return RSqrt(value)
+ */
+jo_fixed        jo_fixed_rsqrt(jo_fixed value);
+
+/** @brief Fast Reciprocal Square root using floating number
+ *  @param value Value
+ *  @return RSqrt(value)
+ */
+float           jo_rsqrt(float value);
 
 /*
 ███████╗ ██████╗ ██╗         ██╗███╗   ██╗████████╗███████╗██████╗  ██████╗ ██████╗
@@ -597,7 +626,6 @@ static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
 ╚════██║██║██║╚██╗██║██║   ██║╚════██║
 ███████║██║██║ ╚████║╚██████╔╝███████║
 ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
-
 */
 
 /** @brief Fast sinus computation using fixed number

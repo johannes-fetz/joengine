@@ -148,7 +148,6 @@ register jo_fixed quotient;
 	return quotient;
 }
 
-
 #pragma GCC pop_options
 
 /* Taylor series approximation */
@@ -178,34 +177,6 @@ jo_fixed                jo_fixed_sin(jo_fixed rad)
 /*
 ** OTHER
 */
-
-unsigned int        jo_sqrt(unsigned int value)
-{
-    unsigned int    start;
-    unsigned int    end;
-    unsigned int    res;
-    unsigned int    mid;
-
-    if (value == 0 || value == 1)
-        return (value);
-    JO_ZERO(res);
-    start = 1;
-    end = value;
-    while (start <= end)
-    {
-        mid = JO_DIV_BY_2(start + end);
-        if (mid * mid == value)
-            return (mid);
-        if (mid * mid < value)
-        {
-            start = mid + 1;
-            res = mid;
-        }
-        else
-            end = mid - 1;
-    }
-    return (res);
-}
 
 int     jo_gcd(int a, int b)
 {
@@ -350,6 +321,185 @@ void            jo_vectorf_compute_bezier_point(const float t, jo_vectorf p0, jo
     // fourth term
     jo_vectorf_muls(&p3, tt * t, &p3);
     jo_vectorf_add(result, &p3, result);
+}
+
+/*
+███████╗ ██████╗ ██████╗ ████████╗
+██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝
+███████╗██║   ██║██████╔╝   ██║
+╚════██║██║▄▄ ██║██╔══██╗   ██║
+███████║╚██████╔╝██║  ██║   ██║
+╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
+*/
+
+/*
+** Based on http://en.wikipedia.org/wiki/Methods_of_computing_square_roots
+*/
+jo_fixed                jo_fixed_sqrt(jo_fixed value)
+{
+    unsigned int        bit;
+    unsigned char       n;
+    unsigned int        result;
+
+    if (value < 0)
+        return (JO_FIXED_OVERFLOW);
+    bit = (value & 0xFFF00000)? (unsigned int)1 << 30 : (unsigned int)1 << 18;
+    while (bit > (unsigned int)value)
+        bit >>= 2;
+    JO_ZERO(result);
+    for (n = 0u; n < 2u; ++n)
+    {
+        while (bit)
+        {
+            if (result + bit < (unsigned int)value)
+            {
+                value -= result + bit;
+                result = (result >> 1) + bit;
+            }
+            else
+                result = (result >> 1);
+            bit >>= 2;
+        }
+        if (n != 0u)
+            continue;
+        if (value > 65535)
+        {
+            value -= result;
+            value = (value << 16) - JO_FIXED_1_DIV_2;
+            result = (result << 16) + JO_FIXED_1_DIV_2;
+        }
+        else
+        {
+            value <<= 16;
+            result <<= 16;
+        }
+        bit = (1 << 14);
+    }
+    return ((jo_fixed)result);
+}
+
+unsigned int        jo_sqrt(unsigned int value)
+{
+    unsigned int    start;
+    unsigned int    end;
+    unsigned int    res;
+    unsigned int    mid;
+
+    if (value == 0 || value == 1)
+        return (value);
+    JO_ZERO(res);
+    start = 1;
+    end = value;
+    while (start <= end)
+    {
+        mid = JO_DIV_BY_2(start + end);
+        if (mid * mid == value)
+            return (mid);
+        if (mid * mid < value)
+        {
+            start = mid + 1;
+            res = mid;
+        }
+        else
+            end = mid - 1;
+    }
+    return (res);
+}
+
+/*
+██╗███╗   ██╗██╗   ██╗███████╗██████╗ ███████╗███████╗    ███████╗ ██████╗ ██████╗ ████████╗
+██║████╗  ██║██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝    ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝
+██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝███████╗█████╗      ███████╗██║   ██║██████╔╝   ██║
+██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝      ╚════██║██║▄▄ ██║██╔══██╗   ██║
+██║██║ ╚████║ ╚████╔╝ ███████╗██║  ██║███████║███████╗    ███████║╚██████╔╝██║  ██║   ██║
+╚═╝╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
+AKA RECIPROCAL SQUARE ROOT
+*/
+
+/*
+** Based on trenki2 implementation and adapted for the Jo Engine
+*/
+
+static __jo_force_inline unsigned int   __jo_fixed_inv_sqrt_leading_zeros(unsigned int x)
+{
+    unsigned int                        exp = 31;
+
+    if (x & 0xffff0000)
+    {
+        exp -= 16;
+        x >>= 16;
+    }
+    if (x & 0xff00)
+    {
+        exp -= 8;
+        x >>= 8;
+    }
+    if (x & 0xf0)
+    {
+        exp -= 4;
+        x >>= 4;
+    }
+    if (x & 0xc)
+    {
+        exp -= 2;
+        x >>= 2;
+    }
+    if (x & 0x2)
+        exp -= 1;
+    return (exp);
+}
+
+jo_fixed        jo_fixed_rsqrt(jo_fixed value)
+{
+    static const unsigned short rsq_tab[] =
+    {
+        /* domain 0.5 .. 1.0-1/16 */
+		0xb504, 0xaaaa, 0xa1e8, 0x9a5f, 0x93cd, 0x8e00, 0x88d6, 0x8432,
+    };
+    jo_fixed    result;
+    int         i;
+    int         exp;
+
+    if (value == 0)
+        return (JO_FIXED_MAX);
+    if (value == JO_FIXED_1)
+        return (value);
+    exp = __jo_fixed_inv_sqrt_leading_zeros(value);
+    result = rsq_tab[(value >> (28 - exp)) & 0x7] << 1;
+	exp -= 16;
+    if (exp <= 0)
+		result >>= -exp >> 1;
+    else
+		result <<= (exp >> 1) + (exp & 1);
+    if (exp & 1)
+        result = jo_fixed_mult(result, rsq_tab[0]);
+    /* newton-raphson : x = x/2*(3-(a*x)*x) */
+    i = 0;
+    do
+    {
+		result = jo_fixed_mult((result >> 1), (JO_FIXED_1 * 3 - jo_fixed_mult(jo_fixed_mult(value, result), result)));
+    } while(++i < 3);
+    return (result);
+}
+
+/*
+** Wikipedia implementation : https://en.wikipedia.org/wiki/Fast_inverse_square_root
+*/
+float               jo_rsqrt(float value)
+{
+    int             i;
+    float           x2;
+    float           y;
+    const float     threehalfs = 1.5f;
+
+    x2 = value * 0.5f;
+    y = value;
+    i = *(int *)&y;
+    i = 0x5f3759df - (i >> 1);
+    y = *(float *)&i;
+    y = y * (threehalfs - (x2 * y * y));
+    y = y * (threehalfs - (x2 * y * y));
+    return (y);
 }
 
 /*
