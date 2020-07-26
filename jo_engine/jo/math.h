@@ -1451,7 +1451,18 @@ static __jo_force_inline void jo_matrixf_mul_dir(const jo_matrixf * const matrix
 
 */
 
-/** @brief Check if float almost equals 0;
+/** @brief Linear interpolation which guarantees v = v1 when t = 1
+ *  @param v0 First value
+ *  @param v1 Second value
+ *  @param t T [0, 1]
+ *  @return Interpolation between two inputs (v0, v1) for a parameter (t) in the closed unit interval [0, 1].
+ */
+static __jo_force_inline jo_fixed           jo_lerp(const jo_fixed v0, const jo_fixed v1, const jo_fixed t)
+{
+    return (jo_fixed_mult((JO_FIXED_1 - t), v0) + jo_fixed_mult(t, v1));
+}
+
+/** @brief Check if float almost equals 0
  *  @param f floating point number
  *  @return true if the float almost equals 0 otherwise false
  */
