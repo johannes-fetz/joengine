@@ -3,7 +3,7 @@
 SET EMULATOR_DIR=..\..\Emulators
 SET DT_DIR=C:\Program Files (x86)\DAEMON Tools Lite
 
-if exist sl_coff.iso (
+if exist game.iso (
 echo Mounting image...
 "%DT_DIR%\DTLite.exe" -mount 0,sl_coff.cue
 cd "%EMULATOR_DIR%\SSF\"

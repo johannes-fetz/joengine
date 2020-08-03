@@ -11,7 +11,7 @@ if not exist %NOVA_BIOS_PATH% (
 	exit
 )
 
-if exist sl_coff.iso (
+if exist game.iso (
 "%EMULATOR_DIR%\nova\nova.exe" "%cd%\sl_coff.cue"
 ) else (
 echo Please compile first !
