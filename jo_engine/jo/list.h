@@ -57,6 +57,7 @@ typedef union
     char            str[4];
     bool            booleans[4];
     void            *ptr;
+    char            *ch_arr;
     int             integer;
 }                   jo_list_data;
 

@@ -38,6 +38,12 @@
 
 # ifdef JO_COMPILE_WITH_BACKUP_SUPPORT
 
+/** @brief Max backup filename length */
+# define JO_BACKUP_MAX_FILENAME_LENGTH      (12)
+
+/** @brief Max backup file in device */
+# define JO_BACKUP_MAX_FILE                 (32)
+
 /** @brief Backup device type
   * @warning If you change these values, the program will crash
  */
@@ -71,6 +77,13 @@ bool                jo_backup_mount(const jo_backup_device backup_device);
  *  @return true if succeed
  */
 bool                jo_backup_unmount(const jo_backup_device backup_device);
+
+/** @brief Read backup device
+ *  @param backup_device Backup device
+ *  @param filenames Output filenames. the list must be initialized (jo_list_init)
+ *  @return true if succeed
+ */
+bool                jo_backup_read_device(const jo_backup_device backup_device, jo_list * const filenames);
 
 /** @brief Check if file exists
  *  @param backup_device Backup device

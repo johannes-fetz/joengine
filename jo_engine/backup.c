@@ -39,6 +39,7 @@
 #include "jo/math.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
+#include "jo/list.h"
 #include "jo/backup.h"
 
 # ifdef JO_COMPILE_WITH_BACKUP_SUPPORT
@@ -155,7 +156,7 @@ typedef	struct
 /** @brief Internal backup file struct */
 typedef struct
 {
-    unsigned char	filename[12];
+    unsigned char	filename[JO_BACKUP_MAX_FILENAME_LENGTH];
     unsigned char	comment[11];
     unsigned char	language;
     unsigned int	date;
@@ -269,6 +270,41 @@ bool                        jo_backup_mount(const jo_backup_device backup_device
         return (false);
     }
     return (__jo_backup_devices[backup_device].is_mounted);
+}
+
+bool                    jo_backup_read_device(const jo_backup_device backup_device, jo_list * const filenames)
+{
+    register int        i;
+    register int        j;
+    jo_backup_file      dir[JO_BACKUP_MAX_FILE];
+    char                *str;
+
+    if (!__jo_backup_devices[backup_device].is_mounted)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Device not mounted");
+#endif
+        return (false);
+    }
+    for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE; ++i)
+        JO_ZERO(dir[i].filename[0]);
+    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, JO_NULL, JO_BACKUP_MAX_FILE, dir);
+    for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE && dir[i].filename[0] != '\0'; ++i)
+    {
+        if ((str = (char *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILENAME_LENGTH * sizeof(*str), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("Out of memory #2");
+#endif
+            jo_list_free_and_clear(filenames);
+            return (false);
+        }
+        for (JO_ZERO(j); dir[i].filename[j] != '\0'; ++j)
+            str[j] = dir[i].filename[j];
+        JO_ZERO(str[j]);
+        jo_list_add_ptr(filenames, str);
+    }
+    return (true);
 }
 
 bool                jo_backup_file_exists(const jo_backup_device backup_device, const char * const fname)
