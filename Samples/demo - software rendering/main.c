@@ -48,7 +48,7 @@ void			                        my_soft_render_for_gfx1(void)
 {
     jo_software_renderer_triangle       tri;
 
-    // It's not necessary to clear the buffer in our because nothing moves.
+    // It's not necessary to clear the buffer in our case because nothing moves.
     jo_software_renderer_clear(gfx1, JO_COLOR_Black);
 
 /*

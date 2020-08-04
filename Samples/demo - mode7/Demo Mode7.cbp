@@ -36,7 +36,8 @@
 			<Add option="-DJO_COMPILE_WITH_STORYBOARD_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_KEYBOARD_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_CONSOLE_SUPPORT" />
-			<Add directory="../../jo_engine/" />
+			<Add option="-DJO_COMPILE_WITH_SPRITE_HASHTABLE" />
+			<Add option="-DJO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT" />
 		</Compiler>
 		<Unit filename="background_image.h" />
 		<Unit filename="main.c">
@@ -46,9 +47,9 @@
 		</Unit>
 		<Unit filename="makefile" />
 		<Extensions>
-			<code_completion />
-			<envvars />
-			<debugger />
+			<code_completion>
+				<search_path add="..\..\jo_engine" />
+			</code_completion>
 			<lib_finder disable_auto="1" />
 		</Extensions>
 	</Project>
