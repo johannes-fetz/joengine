@@ -288,7 +288,7 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
     }
     for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE; ++i)
         JO_ZERO(dir[i].filename[0]);
-    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, JO_NULL, JO_BACKUP_MAX_FILE, dir);
+    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, "", JO_BACKUP_MAX_FILE, dir);
     for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE && dir[i].filename[0] != '\0'; ++i)
     {
         if ((str = (char *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILENAME_LENGTH * sizeof(*str), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
@@ -522,6 +522,40 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
         datetime->day = bdate.day;
         datetime->hour = bdate.time;
         datetime->minute = bdate.min;
+        return (true);
+    }
+    return (false);
+}
+
+bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* num_bytes, unsigned int* num_blocks)
+{
+    jo_backup_file  dir;
+
+    if (num_bytes == JO_NULL && num_blocks == NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("num_bytes and num_blocks can't both be null");
+#endif
+        return (false);
+    }
+    if (!__jo_backup_devices[backup_device].is_mounted)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Device not mounted");
+#endif
+        return (false);
+    }
+    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
+    {
+        if(num_bytes)
+        {
+            *num_bytes = dir.datasize;
+        }
+
+        if(num_blocks)
+        {
+            *num_blocks = dir.blocksize;
+        }
         return (true);
     }
     return (false);
