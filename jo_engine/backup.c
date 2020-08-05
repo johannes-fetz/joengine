@@ -288,7 +288,7 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
     }
     for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE; ++i)
         JO_ZERO(dir[i].filename[0]);
-    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, "", JO_BACKUP_MAX_FILE, dir);
+    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (unsigned char*)"", JO_BACKUP_MAX_FILE, dir);
     for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE && dir[i].filename[0] != '\0'; ++i)
     {
         if ((str = (char *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILENAME_LENGTH * sizeof(*str), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
