@@ -130,7 +130,7 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
  *  @param num_blocks Output file size in blocks
  *  @return true if succeed
  */
-bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* num_bytes, unsigned int* num_blocks);
+bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks);
 
 /** @brief Load file contents from the backup device
  *  @param backup_device Backup device

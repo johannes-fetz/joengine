@@ -527,7 +527,7 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
     return (false);
 }
 
-bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* num_bytes, unsigned int* num_blocks)
+bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
     jo_backup_file  dir;
 
@@ -547,15 +547,10 @@ bool                jo_backup_get_file_size(const jo_backup_device backup_device
     }
     if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
     {
-        if(num_bytes)
-        {
+        if (num_bytes != JO_NULL)
             *num_bytes = dir.datasize;
-        }
-
-        if(num_blocks)
-        {
+        if (num_blocks != JO_NULL)
             *num_blocks = dir.blocksize;
-        }
         return (true);
     }
     return (false);
