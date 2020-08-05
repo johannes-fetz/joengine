@@ -123,6 +123,15 @@ bool                jo_backup_delete_file(const jo_backup_device backup_device, 
  */
 bool                jo_backup_get_file_last_modified_date(const jo_backup_device backup_device, const char * const fname, jo_datetime *datetime);
 
+/** @brief Get file size in bytes and blocks
+ *  @param backup_device Backup device
+ *  @param fname File name (max 11 characters not NULL)
+ *  @param num_bytes Output file size in bytes
+ *  @param num_blocks Output file size in blocks
+ *  @return true if succeed
+ */
+bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* num_bytes, unsigned int* num_blocks);
+
 /** @brief Load file contents from the backup device
  *  @param backup_device Backup device
  *  @param fname File name (max 11 characters not NULL)
