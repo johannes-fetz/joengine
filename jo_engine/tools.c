@@ -362,6 +362,9 @@ void                        jo_memset(const void * const restrict ptr, const int
     unsigned int            tail;
     unsigned int            x;
     unsigned char           xx;
+	
+    if(num == 0)
+        return;
 
     x = value & 0xff;
     xx = value & 0xff;
