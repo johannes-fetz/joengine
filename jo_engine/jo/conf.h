@@ -79,7 +79,7 @@
 */
 
 # if defined(JO_NTSC_VERSION)
-    # if defined(JO_480p)
+    # if defined(JO_480i)
         /** @brief Sega Saturn NTSC Screen resolution (internal use) */
         # define JO_TV_RES							(TV_704x480)
         /** @brief NTSC Screen width */
@@ -128,7 +128,7 @@
 
 #endif
 
-# if defined (JO_480p)
+# if defined (JO_480i)
     /** @brief VDP2 Background bitmap size */
     # define JO_VDP2_SIZE                       (BM_1024x512)
     /** @brief VDP2 Background bitmap width */
