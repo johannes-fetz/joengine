@@ -57,10 +57,17 @@ typedef struct
     unsigned char       *end;
 }                       jo_memory_zone;
 
-static jo_memory_zone   memory_zones[9/*MAIN RAM + 32MB RAM Extension*/];
+static jo_memory_zone   memory_zones[JO_MALLOC_MAX_MEMORY_ZONE];
 
 void                    jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
 {
+#ifdef JO_DEBUG
+    if (__jo_memory_zone_index >= (JO_MALLOC_MAX_MEMORY_ZONE - 1))
+    {
+        jo_core_error("Too many memory zone");
+        return ;
+    }
+#endif
     memory_zones[__jo_memory_zone_index].begin = ptr;
     memory_zones[__jo_memory_zone_index].high = ptr;
     memory_zones[__jo_memory_zone_index].end = ptr + size_in_bytes;

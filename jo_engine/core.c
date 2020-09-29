@@ -95,7 +95,6 @@ void                                        jo_input_init(void);
 int						                    jo_fs_init(void);
 #endif
 void                                        jo_fs_do_background_jobs(void);
-void                                        jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes);
 void                                        jo_sprite_init(void);
 void                                        jo_time_init(unsigned char mode);
 void                                        jo_get_inputs_vblank(void);

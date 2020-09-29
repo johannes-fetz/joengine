@@ -35,6 +35,12 @@
 #ifndef __JO_MALLOC_H__
 # define __JO_MALLOC_H__
 
+/** @brief Define the total of memory zone available through jo_add_memory_zone()
+  * @remarks MAIN RAM + 32MB RAM Extension
+  * @warning Minimum is 9 for the engine with all modules
+*/
+#define JO_MALLOC_MAX_MEMORY_ZONE       (9)
+
 /** @brief Extended RAM cartridge type */
 typedef enum
 {
@@ -96,6 +102,13 @@ void	        jo_free(const void * const p);
  *  @remarks This function can be slow
  */
 void            jo_reduce_memory_fragmentation(void);
+
+/** @brief Register a memory segment for jo_malloc() usage
+ *  @param ptr Pointer to the beginning of the memory segment
+ *  @param size_in_bytes Size of the memory segment in bytes
+ *  @remarks See also JO_MALLOC_MAX_MEMORY_ZONE
+ */
+void            jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes);
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
