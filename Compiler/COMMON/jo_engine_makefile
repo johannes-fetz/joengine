@@ -162,9 +162,9 @@ else
 	endif
 endif
 
-ifeq (${JO_480p},)
+ifeq (${JO_480i},)
 else
-	CCFLAGS += -DJO_480p
+	CCFLAGS += -DJO_480i
 endif
 
 ifeq (${JO_NTSC},)
