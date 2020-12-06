@@ -322,7 +322,7 @@ bool                jo_backup_file_exists(const jo_backup_device backup_device, 
     return (__jo_backup_devices[backup_device].status == 1);
 }
 
-bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned short content_size)
+bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned int content_size)
 {
     jo_backup_date  date;
     jo_backup_file  dir;
