@@ -135,8 +135,9 @@ register jo_fixed quotient;
 	"mov.l %[dvs], @%[dvsr];"
 	"mov %[dvd], r1;" //Move the dividend to a general-purpose register, to prevent weird misreading of data.
 	"shlr16 r1;"
+	"exts.w r1, r1;" //Sign extension in case value is negative
 	"mov.l r1, @%[nth];" //Expresses "*DVDNTH = dividend>>16"
-	"mov %[dvd], r1;"
+	"mov %[dvd], r1;" 
 	"shll16 r1;"
 	"mov.l r1, @%[ntl];" //Expresses *DVDNTL = dividend<<16";
 	"mov.l @%[ntl], %[out];" //Get result.
