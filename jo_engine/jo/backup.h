@@ -42,7 +42,7 @@
 # define JO_BACKUP_MAX_FILENAME_LENGTH      (12)
 
 /** @brief Max backup file in device */
-# define JO_BACKUP_MAX_FILE                 (32)
+# define JO_BACKUP_MAX_FILE                 (255)
 
 /** @brief Backup device type
   * @warning If you change these values, the program will crash
