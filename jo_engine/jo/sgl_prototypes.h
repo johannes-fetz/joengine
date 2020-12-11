@@ -69,7 +69,6 @@
 
 #define	    toFIXED(a)		((FIXED)(65536.0 * (a)))
 #define	    POStoFIXED(x,y,z)	{toFIXED(x),toFIXED(y),toFIXED(z)}
-#define	    DEGtoANG(d)		((ANGLE)((65536.0 * (d)) / 360.0))
 #define	NORMAL(x,y,z)		{POStoFIXED(x,y,z)
 #define	VERTICES(v0,v1,v2,v3)	{v0 , v1 , v2 , v3}}
 #define	C_RGB(r,g,b)		(((b)&0x1f)<<10|((g)&0x1f)<<5|((r)&0x1f)|0x8000)

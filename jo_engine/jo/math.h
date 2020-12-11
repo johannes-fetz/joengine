@@ -601,6 +601,35 @@ float           jo_rsqrt(float value);
 
 */
 
+/** @brief See https://github.com/johannes-fetz/joengine/issues/42 */
+# define __JO_DEG_TO_ANGLE_MAGIC    (182)
+
+/** @brief Replacement for DEGtoANG using floating number
+ *  @param deg Degree
+ *  @return SGL ANGLE
+ */
+static  __jo_force_inline ANGLE     jo_DEGtoANG(const float deg)
+{
+#ifdef JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
+    return ((ANGLE)(__JO_DEG_TO_ANGLE_MAGIC * (deg)));
+#else
+    return ((ANGLE)((65536.0 * (deg)) / 360.0));
+#endif
+}
+
+/** @brief Replacement for DEGtoANG using interger
+ *  @param deg Degree
+ *  @return SGL ANGLE
+ */
+static  __jo_force_inline ANGLE     jo_DEGtoANG_int(const int deg)
+{
+#ifdef JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
+    return ((ANGLE)(__JO_DEG_TO_ANGLE_MAGIC * (deg)));
+#else
+    return ((ANGLE)(JO_MULT_BY_65536(deg) / 360.0));
+#endif
+}
+
 /** @brief Convert fixed radian to SGL ANGLE
  *  @param rad Jo Engine fixed radian
  *  @return SGL ANGLE
@@ -616,7 +645,7 @@ static  __jo_force_inline ANGLE     jo_fixed_rad2ANGLE(const jo_fixed rad)
  */
 static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
 {
-    return (DEGtoANG(jo_fixed2float(deg)));
+    return (jo_DEGtoANG(jo_fixed2float(deg)));
 }
 
 /*

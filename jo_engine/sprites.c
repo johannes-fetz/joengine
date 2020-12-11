@@ -458,15 +458,15 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     }
     __jo_set_sprite_attributes(&attr, sprite_id);
     if (billboard)
-        slPutSprite(sgl_pos, &attr, DEGtoANG(angle));
+        slPutSprite(sgl_pos, &attr, jo_DEGtoANG_int(angle));
     else if (sgl_pos[3] != sgl_pos[4])
     {
-        ANGLE sgl_patch_hv = DEGtoANG(angle);
+        ANGLE sgl_patch_hv = jo_DEGtoANG_int(angle);
         /* SGL bug: doesn't work properly if angle is null */
         slDispSpriteHV(sgl_pos, &attr, sgl_patch_hv == 0 ? 1 : sgl_patch_hv);
     }
     else
-        slDispSprite(sgl_pos, &attr, DEGtoANG(angle));
+        slDispSprite(sgl_pos, &attr, jo_DEGtoANG_int(angle));
 #else
     JO_UNUSED_ARG(billboard);
     jo_pos2D            rotation_origin;

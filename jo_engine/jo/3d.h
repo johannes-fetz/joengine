@@ -162,9 +162,9 @@ static  __jo_force_inline void      jo_3d_camera_set_target(jo_camera * const ca
  *  @param cam Pointer to a camera struct
  *  @param angle Z-angle in degree
  */
-static  __jo_force_inline void      jo_3d_camera_set_z_angle(jo_camera * const cam, const int angle )
+static  __jo_force_inline void      jo_3d_camera_set_z_angle(jo_camera * const cam, const int angle)
 {
-    cam->z_angle = DEGtoANG(angle);
+    cam->z_angle = jo_DEGtoANG_int(angle);
 }
 
 /** @brief Initialize the camera with default values
@@ -483,9 +483,9 @@ static  __jo_force_inline void      jo_3d_pop_matrix(void)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix(short x, short y, short z)
 {
-    slRotX(JO_MULT_BY_65536(x) / 360.0);
-    slRotY(JO_MULT_BY_65536(y) / 360.0);
-    slRotZ(JO_MULT_BY_65536(z) / 360.0);
+    slRotX(jo_DEGtoANG_int(x));
+    slRotY(jo_DEGtoANG_int(y));
+    slRotZ(jo_DEGtoANG_int(z));
 }
 
 /** @brief Rotate 3D matrix using degree (X axis)
@@ -493,7 +493,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix(short x, short y, short 
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_x(short x)
 {
-    slRotX(JO_MULT_BY_65536(x) / 360.0);
+    slRotX(jo_DEGtoANG_int(x));
 }
 
 /** @brief Rotate 3D matrix using degree (Y axis)
@@ -501,7 +501,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_x(short x)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_y(short y)
 {
-    slRotY(JO_MULT_BY_65536(y) / 360.0);
+    slRotY(jo_DEGtoANG_int(y));
 }
 
 /** @brief Rotate 3D matrix using degree (Z axis)
@@ -509,7 +509,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_y(short y)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_z(short z)
 {
-    slRotZ(JO_MULT_BY_65536(z) / 360.0);
+    slRotZ(jo_DEGtoANG_int(z));
 }
 
 /** @brief Rotate 3D matrix using radian
@@ -816,7 +816,7 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
     if (angle < 10 || angle > 160)
         jo_core_error("Valid angle range is 10 to 160");
 #endif
-    slPerspective(DEGtoANG(angle));
+    slPerspective(jo_DEGtoANG_int(angle));
 }
 
 /** @brief Set the display level of the viewing volume
