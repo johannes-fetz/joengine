@@ -164,6 +164,15 @@ static  __jo_force_inline void      jo_core_tv_on(void)
     slTVOn();
 }
 
+/** @brief Restart the Saturn
+ *  @warning Works but I didn't found documentation about it
+ *  @todo Investigate and give feedback to https://segaxtreme.net/threads/best-way-to-debug-saturn-bios.18644/
+ */
+static  __jo_force_inline void jo_core_restart_saturn(void)
+{
+    (**(volatile void(**)(void))0x600026C)();
+}
+
 /** @brief Set scroll screen order between them
  *  @param screen1 First screen (high priority)
  *  @param args Other screens
