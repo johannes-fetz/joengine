@@ -276,13 +276,20 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
 {
     register int        i;
     register int        j;
-    jo_backup_file      dir[JO_BACKUP_MAX_FILE];
+    jo_backup_file      *dir;
     char                *str;
 
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
 #ifdef JO_DEBUG
         jo_core_error("Device not mounted");
+#endif
+        return (false);
+    }
+    if ((dir = (jo_backup_file *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILE * sizeof(*dir), JO_FAST_ALLOCATION)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory #1");
 #endif
         return (false);
     }
@@ -296,6 +303,7 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
 #ifdef JO_DEBUG
             jo_core_error("Out of memory #2");
 #endif
+            jo_free(dir);
             jo_list_free_and_clear(filenames);
             return (false);
         }
@@ -304,6 +312,7 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
         JO_ZERO(str[j]);
         jo_list_add_ptr(filenames, str);
     }
+    jo_free(dir);
     return (true);
 }
 
