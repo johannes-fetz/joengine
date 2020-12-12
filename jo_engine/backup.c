@@ -157,7 +157,7 @@ typedef	struct
 typedef struct
 {
     unsigned char	filename[JO_BACKUP_MAX_FILENAME_LENGTH];
-    unsigned char	comment[11];
+    unsigned char	comment[JO_BACKUP_MAX_COMMENT_LENGTH + 1];
     unsigned char	language;
     unsigned int	date;
     unsigned int	datasize;
@@ -379,10 +379,10 @@ bool                jo_backup_save_file_contents(const jo_backup_device backup_d
         dir.filename[i] = (Uint8)fname[i];
     JO_ZERO(dir.filename[i]);
     len = jo_strlen(comment);
-    if (len > 10)
+    if (len > JO_BACKUP_MAX_COMMENT_LENGTH)
     {
 #ifdef JO_DEBUG
-        jo_core_error("comment too long (%d) (max 10)", len);
+        jo_core_error("comment too long (%d) (max %d)", len, JO_BACKUP_MAX_COMMENT_LENGTH);
 #endif
         return (false);
     }
@@ -429,6 +429,34 @@ bool                jo_backup_save_file_contents(const jo_backup_device backup_d
     jo_core_enable_reset();
     JO_BACKUP_DRIVER_STAT(backup_device, 10, &__jo_backup_devices[backup_device].sttb);
     return (__jo_backup_devices[backup_device].status == 0);
+}
+
+unsigned char           *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname)
+{
+    jo_backup_file      dir;
+    unsigned char       *comment;
+    register int        i;
+
+    if (!__jo_backup_devices[backup_device].is_mounted)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Device not mounted");
+#endif
+        return (JO_NULL);
+    }
+    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) != 1)
+        return (JO_NULL);
+    if ((comment = (Uint8 *)jo_malloc_with_behaviour((JO_BACKUP_MAX_COMMENT_LENGTH + 1) * sizeof(*comment), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        return (JO_NULL);
+    }
+    for (JO_ZERO(i); i < JO_BACKUP_MAX_COMMENT_LENGTH && dir.comment[i] != '\0'; ++i)
+        comment[i] = dir.comment[i];
+    JO_ZERO(comment[i]);
+    return (comment);
 }
 
 void                    *jo_backup_load_file_contents(const jo_backup_device backup_device, const char * const fname, unsigned int *length)

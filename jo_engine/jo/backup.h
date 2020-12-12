@@ -44,6 +44,9 @@
 /** @brief Max backup file in device */
 # define JO_BACKUP_MAX_FILE                 (255)
 
+/** @brief Max backup file comment length */
+# define JO_BACKUP_MAX_COMMENT_LENGTH       (10)
+
 /** @brief Backup device type
   * @warning If you change these values, the program will crash
  */
@@ -131,6 +134,13 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
  *  @return true if succeed
  */
 bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks);
+
+/** @brief Load file comment from the backup device
+ *  @param backup_device Backup device
+ *  @param fname File name (max 11 characters not NULL)
+ *  @return Comment (max 10 characters)
+ */
+unsigned char       *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname);
 
 /** @brief Load file contents from the backup device
  *  @param backup_device Backup device
