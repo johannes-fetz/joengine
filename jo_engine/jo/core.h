@@ -170,7 +170,7 @@ static  __jo_force_inline void      jo_core_tv_on(void)
  */
 static  __jo_force_inline void jo_core_restart_saturn(void)
 {
-    (**(volatile void(**)(void))0x600026C)();
+    (**(void(**)(void))0x600026C)();
 }
 
 /** @brief Set scroll screen order between them
