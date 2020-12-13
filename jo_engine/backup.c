@@ -51,7 +51,7 @@
 /** @brief Driver workspace size */
 # define JO_BACKUP_LIB_SPACE_SIZE               (16384)
 /** @brief User workspace size for the driver */
-# define JO_BACKUP_WORK_SPACE_SIZE              (2048)
+# define JO_BACKUP_WORK_SPACE_SIZE              (8192)
 /** @brief Set write behaviour */
 # define JO_BACKUP_OVERRIDE_FILE_IF_EXISTS      (0)
 /** @brief backup driver base address */
