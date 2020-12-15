@@ -105,6 +105,8 @@ jo_software_renderer_gfx                    *jo_software_renderer_create(unsigne
     img.width = width;
     img.data = JO_NULL;
     gfx->depth_mode_testing = JO_SR_DEPTH_GREATER_OR_EQUAL;
+    gfx->face_culling_mode = JO_SR_BACK_FACE_CULLING;
+    gfx->draw_mode = JO_SR_DRAW_WIREFRAME;
     gfx->sprite_id = -1;
     gfx->clipping_size.width = width;
     gfx->clipping_size.height = height;
@@ -179,7 +181,7 @@ void                                        jo_software_renderer_flush(jo_softwa
 ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
 */
 
-void                                        jo_software_renderer_clear(jo_software_renderer_gfx * const gfx, const jo_color color)
+void                                        jo_software_renderer_clear(const jo_software_renderer_gfx * const gfx, const jo_color color)
 {
     register jo_color                       *ptr;
     register jo_color                       *end;
@@ -194,19 +196,19 @@ static __jo_force_inline bool               __jo_software_renderer_pixel_clippin
     return (x >= 0 && y >= 0 && x < jo_int2fixed(gfx->clipping_size.width) && y < jo_int2fixed(gfx->clipping_size.height));
 }
 
-static __jo_force_inline void               __jo_software_renderer_plot_pixel(jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_color color)
+static __jo_force_inline void               __jo_software_renderer_plot_pixel(const jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_color color)
 {
     if (!__jo_software_renderer_pixel_clipping(gfx, x, y))
         return;
     gfx->color_buffer[jo_fixed2int(x) + jo_fixed2int(y) * gfx->vram_size.width] = color;
 }
 
-void                                        jo_software_renderer_draw_pixel2D(jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_color color)
+void                                        jo_software_renderer_draw_pixel2D(const jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_color color)
 {
     __jo_software_renderer_plot_pixel(gfx, x, y, color);
 }
 
-static __jo_force_inline void               __jo_software_renderer_draw_pixel(jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_fixed z, const jo_color color)
+static __jo_force_inline void               __jo_software_renderer_draw_pixel(const jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_fixed z, const jo_color color)
 {
     unsigned int                            idx;
 
@@ -228,12 +230,12 @@ static __jo_force_inline void               __jo_software_renderer_draw_pixel(jo
     gfx->depth_buffer[idx] = z;
 }
 
-void                                        jo_software_renderer_draw_pixel3D(jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_fixed z, const jo_color color)
+void                                        jo_software_renderer_draw_pixel3D(const jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y, const jo_fixed z, const jo_color color)
 {
     __jo_software_renderer_draw_pixel(gfx, x, y, z, color);
 }
 
-void                                        jo_software_renderer_draw_line3D(jo_software_renderer_gfx * const gfx,
+void                                        jo_software_renderer_draw_line3D(const jo_software_renderer_gfx * const gfx,
                                                                            jo_fixed x0, jo_fixed y0, jo_fixed z0,
                                                                            jo_fixed x1, jo_fixed y1, jo_fixed z1,
                                                                            const jo_color color0, const jo_color color1)
@@ -279,6 +281,119 @@ void                                        jo_software_renderer_draw_line3D(jo_
    ██║   ██║  ██║██║██║  ██║██║ ╚████║╚██████╔╝███████╗███████╗
    ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚══════╝
 */
+
+static __jo_force_inline bool               jo_is_triangle_degenerated(const jo_vector4_fixed * const p0,
+                                                                       const jo_vector4_fixed * const p1,
+                                                                       const jo_vector4_fixed * const p2)
+{
+    return ((p0->x == p1->x && p0->x == p2->x) || (p0->y == p1->y && p0->y == p2->y));
+}
+
+static __jo_force_inline bool               jo_is_triangle_offscreen(const jo_vector4_fixed * const p0,
+                                                                     const jo_vector4_fixed * const p1,
+                                                                     const jo_vector4_fixed * const p2)
+{
+    if ((p0->x < -p0->w && p1->x < -p1->w && p2->x < -p2->w) ||
+        (p0->x > p0->w && p1->x > p1->w && p2->x > p2->w))
+            return (true);
+    if ((p0->y < -p0->w && p1->y < -p1->w && p2->y < -p2->w) ||
+        (p0->y > p0->w && p1->y > p1->w && p2->y > p2->w))
+            return (true);
+    if ((p0->z < 0 && p1->z <0 && p2->z < 0) ||
+        (p0->z > p0->w && p1->z > p1->w && p2->z > p2->w))
+            return (true);
+    return (false);
+}
+
+static __jo_force_inline bool               jo_is_triangle_face_culled(const jo_software_renderer_face_culling_mode face_culling_mode,
+                                                                       const jo_vector4_fixed * const p0,
+                                                                       const jo_vector4_fixed * const p1,
+                                                                       const jo_vector4_fixed * const p2)
+{
+    jo_vector4_fixed                        d1;
+    jo_vector4_fixed                        d2;
+    jo_vector4_fixed                        n;
+    jo_fixed                                dp;
+
+    jo_vector4_fixed_sub(p1, p0, &d1);
+    jo_vector4_fixed_sub(p2, p0, &d2);
+    jo_vector4_fixed_cross(&d1, &d2, &n);
+    dp = jo_vector4_fixed_dot(p0, &n);
+    switch (face_culling_mode)
+    {
+        case JO_SR_BACK_FACE_CULLING:
+            return (dp >= 0);
+        case JO_SR_FRONT_FACE_CULLING:
+            return (dp < 0);
+        default:
+            return false;
+    }
+}
+
+static __jo_force_inline void               jo_transform_to_surface_coord(const jo_software_renderer_gfx * const gfx,
+                                                                         jo_vector4_fixed * const p0,
+                                                                         jo_vector4_fixed * const p1,
+                                                                         jo_vector4_fixed * const p2)
+{
+    p0->x = jo_fixed_mult(p0->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p0->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
+    p0->y = jo_fixed_mult(p0->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p0->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+
+    p1->x = jo_fixed_mult(p1->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p1->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
+    p1->y = jo_fixed_mult(p1->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p1->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+
+    p2->x = jo_fixed_mult(p2->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p2->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
+    p2->y = jo_fixed_mult(p2->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p2->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+}
+
+static __jo_force_inline void               jo_swap_vertex(jo_software_renderer_vertex * const a, jo_software_renderer_vertex * const b)
+{
+    JO_SWAP(a->color, b->color);
+    JO_SWAP(a->uv_texture_mapping.x, b->uv_texture_mapping.x);
+    JO_SWAP(a->uv_texture_mapping.y, b->uv_texture_mapping.y);
+    jo_vector4_swap(&a->pos, &b->pos);
+}
+
+void                                        jo_software_renderer_draw_triangle(const jo_software_renderer_gfx * const gfx,
+                                                                               const jo_software_renderer_triangle * const triangle,
+                                                                               const jo_matrix * const transform_matrix)
+{
+    jo_software_renderer_triangle           result;
+
+    result.a.color = triangle->a.color;
+    result.b.color = triangle->b.color;
+    result.c.color = triangle->c.color;
+    result.a.uv_texture_mapping = triangle->a.uv_texture_mapping;
+    result.b.uv_texture_mapping = triangle->b.uv_texture_mapping;
+    result.c.uv_texture_mapping = triangle->c.uv_texture_mapping;
+
+    /*result.a.pos = triangle->a.pos;
+    result.b.pos = triangle->b.pos;
+    result.c.pos = triangle->c.pos;*/
+    jo_matrix_mul_vector4(transform_matrix, &triangle->a.pos, &result.a.pos);
+    jo_matrix_mul_vector4(transform_matrix, &triangle->b.pos, &result.b.pos);
+    jo_matrix_mul_vector4(transform_matrix, &triangle->c.pos, &result.c.pos);
+
+    if (jo_is_triangle_offscreen(&result.a.pos, &result.b.pos, &result.c.pos))
+        return ;
+    //if (gfx->face_culling_mode != JO_SR_NO_FACE_CULLING && jo_is_triangle_face_culled(gfx->face_culling_mode, &result.a.pos, &result.b.pos, &result.c.pos))
+    //    return ;
+    jo_transform_to_surface_coord(gfx, &result.a.pos, &result.b.pos, &result.c.pos);
+
+    if (result.c.pos.y > result.b.pos.y)
+        jo_swap_vertex(&result.b, &result.c);
+    if (result.a.pos.y > result.b.pos.y)
+        jo_swap_vertex(&result.a, &result.b);
+    if (result.a.pos.y > result.c.pos.y)
+        jo_swap_vertex(&result.a, &result.c);
+
+    if (jo_is_triangle_degenerated(&result.a.pos, &result.b.pos, &result.c.pos))
+        return ;
+    if (gfx->draw_mode == JO_SR_DRAW_WIREFRAME)
+    {
+        jo_software_renderer_draw_triangle_wireframe(gfx, &result);
+        return ;
+    }
+}
 
 #endif
 
