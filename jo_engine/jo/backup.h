@@ -109,7 +109,20 @@ bool                jo_backup_format_device(const jo_backup_device backup_device
  *  @param content_size Data size
  *  @return true if succeed
  */
-bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned int content_size);
+bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment,
+                                                 void *contents, unsigned int content_size);
+
+/** @brief Save file contents to the backup device on specific partition (if the file exists it will be overwritten)
+ *  @param backup_device Backup device
+ *  @param fname File name (max 11 characters not NULL)
+ *  @param comment Comment (max 10 characters not NULL)
+ *  @param contents Data (not NULL or empty)
+ *  @param content_size Data size
+ *  @param partition_number Partition number (FDD)
+ *  @return true if succeed
+ */
+bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
+                                                              void *contents, unsigned int content_size, const unsigned short partition_number);
 
 /** @brief Delete file on the backup device
  *  @param backup_device Backup device
@@ -149,6 +162,13 @@ unsigned char       *jo_backup_load_file_comment(const jo_backup_device backup_d
  *  @return File contents
  */
 void                *jo_backup_load_file_contents(const jo_backup_device backup_device, const char * const fname, unsigned int *length);
+
+/** @brief Get the partition number where the file is located
+ *  @param backup_device Backup device
+ *  @param fname File name (max 11 characters not NULL)
+ *  @return Partition number where the file is located
+ */
+unsigned short      jo_backup_get_file_partition(const jo_backup_device backup_device, const char * const fname);
 
 /** @brief Get free block count on the backup device
  *  @param backup_device Backup device

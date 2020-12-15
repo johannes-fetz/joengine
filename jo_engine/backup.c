@@ -135,6 +135,13 @@
 # define JO_BACKUP_DRIVER_PREPARE_DATE(DATE)	\
         ((unsigned int (*)(jo_backup_date *))JO_BACKUP_FUNCTION_ADDR(40))(DATE)
 
+/** @brief Change current partition on device (useful for Sega Saturn external Floppy Disk Drive)
+ *  @param DEVICE device id
+ *  @param PARTITION_NUMBER Partition number (0 to 2)
+ */
+# define JO_BACKUP_DRIVER_CHANGE_PARTITION(DEVICE, PARTITION_NUMBER)	\
+        ((unsigned int (*)(unsigned int, unsigned short))JO_BACKUP_FUNCTION_ADDR(4))(DEVICE, PARTITION_NUMBER)
+
 /** @brief Internal backup config struct */
 typedef struct
 {
@@ -190,6 +197,7 @@ static __jo_backup_device   __jo_backup_devices[3];
 static bool                 __jo_backup_initialized = false;
 static unsigned int         *__jo_backup_lib_space;
 static unsigned int         *__jo_backup_work_space;
+static jo_backup_config     __jo_backup_cntb[3];
 
 /*
 ** PRIVATE FUNCTIONS
@@ -197,8 +205,6 @@ static unsigned int         *__jo_backup_work_space;
 
 static void                     jo_backup_init(void)
 {
-    static jo_backup_config     cntb[3];
-
     if ((__jo_backup_lib_space = (unsigned int *)jo_malloc_with_behaviour(JO_BACKUP_LIB_SPACE_SIZE, JO_FAST_ALLOCATION)) == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -214,7 +220,7 @@ static void                     jo_backup_init(void)
         return;
     }
     jo_core_disable_reset();
-    JO_BACKUP_DRIVER_INIT(__jo_backup_lib_space, __jo_backup_work_space, cntb);
+    JO_BACKUP_DRIVER_INIT(__jo_backup_lib_space, __jo_backup_work_space, __jo_backup_cntb);
     jo_core_enable_reset();
     __jo_backup_devices[JoInternalMemoryBackup].is_mounted = false;
     __jo_backup_devices[JoCartridgeMemoryBackup].is_mounted = false;
@@ -272,12 +278,13 @@ bool                        jo_backup_mount(const jo_backup_device backup_device
     return (__jo_backup_devices[backup_device].is_mounted);
 }
 
-bool                    jo_backup_read_device(const jo_backup_device backup_device, jo_list * const filenames)
+bool                            jo_backup_read_device(const jo_backup_device backup_device, jo_list * const filenames)
 {
-    register int        i;
-    register int        j;
-    jo_backup_file      *dir;
-    char                *str;
+    register int                i;
+    register int                j;
+    register unsigned short     partition_number;
+    jo_backup_file              *dir;
+    char                        *str;
 
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
@@ -295,30 +302,39 @@ bool                    jo_backup_read_device(const jo_backup_device backup_devi
     }
     for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE; ++i)
         JO_ZERO(dir[i].filename[0]);
-    JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (unsigned char*)"", JO_BACKUP_MAX_FILE, dir);
-    for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE && dir[i].filename[0] != '\0'; ++i)
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
     {
-        if ((str = (char *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILENAME_LENGTH * sizeof(*str), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (unsigned char*)"", JO_BACKUP_MAX_FILE, dir);
+        for (JO_ZERO(i); i < JO_BACKUP_MAX_FILE && dir[i].filename[0] != '\0'; ++i)
         {
-#ifdef JO_DEBUG
-            jo_core_error("Out of memory #2");
-#endif
-            jo_free(dir);
-            jo_list_free_and_clear(filenames);
-            return (false);
+            if ((str = (char *)jo_malloc_with_behaviour(JO_BACKUP_MAX_FILENAME_LENGTH * sizeof(*str), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) == JO_NULL)
+            {
+    #ifdef JO_DEBUG
+                jo_core_error("Out of memory #2");
+    #endif
+                jo_free(dir);
+                jo_list_free_and_clear(filenames);
+                if (partition_number != 0)
+                    JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+                return (false);
+            }
+            for (JO_ZERO(j); dir[i].filename[j] != '\0'; ++j)
+                str[j] = dir[i].filename[j];
+            JO_ZERO(str[j]);
+            jo_list_add_ptr(filenames, str);
         }
-        for (JO_ZERO(j); dir[i].filename[j] != '\0'; ++j)
-            str[j] = dir[i].filename[j];
-        JO_ZERO(str[j]);
-        jo_list_add_ptr(filenames, str);
     }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
     jo_free(dir);
     return (true);
 }
 
-bool                jo_backup_file_exists(const jo_backup_device backup_device, const char * const fname)
+bool                            jo_backup_file_exists(const jo_backup_device backup_device, const char * const fname)
 {
-    jo_backup_file  dir;
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
 
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
@@ -327,11 +343,57 @@ bool                jo_backup_file_exists(const jo_backup_device backup_device, 
 #endif
         return (false);
     }
-    __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir);
-    return (__jo_backup_devices[backup_device].status == 1);
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
+    {
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir);
+        if (__jo_backup_devices[backup_device].status == 1)
+        {
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (true);
+        }
+    }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+    return (false);
+}
+
+unsigned short                  jo_backup_get_file_partition(const jo_backup_device backup_device, const char * const fname)
+{
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
+
+    if (!__jo_backup_devices[backup_device].is_mounted)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Device not mounted");
+#endif
+        return (-1);
+    }
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
+    {
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir);
+        if (__jo_backup_devices[backup_device].status == 1)
+        {
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (partition_number);
+        }
+    }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+    return (-1);
 }
 
 bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned int content_size)
+{
+    return (jo_backup_save_file_contents_on_partition(backup_device, fname, comment, contents, content_size, 0));
+}
+
+bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
+                                                              void *contents, unsigned int content_size, const unsigned short partition_number)
 {
     jo_backup_date  date;
     jo_backup_file  dir;
@@ -389,6 +451,7 @@ bool                jo_backup_save_file_contents(const jo_backup_device backup_d
     for (JO_ZERO(i); i < len; ++i)
         dir.comment[i] = (Uint8)comment[i];
     JO_ZERO(dir.comment[i]);
+    JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
     /* LANGUAGE */
     switch (jo_get_current_language())
     {
@@ -428,14 +491,16 @@ bool                jo_backup_save_file_contents(const jo_backup_device backup_d
         __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_CHECKSUM(backup_device, dir.filename, contents);
     jo_core_enable_reset();
     JO_BACKUP_DRIVER_STAT(backup_device, 10, &__jo_backup_devices[backup_device].sttb);
+    JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
     return (__jo_backup_devices[backup_device].status == 0);
 }
 
-unsigned char           *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname)
+unsigned char                   *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname)
 {
-    jo_backup_file      dir;
-    unsigned char       *comment;
-    register int        i;
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
+    unsigned char               *comment;
+    register int                i;
 
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
@@ -444,25 +509,37 @@ unsigned char           *jo_backup_load_file_comment(const jo_backup_device back
 #endif
         return (JO_NULL);
     }
-    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) != 1)
-        return (JO_NULL);
-    if ((comment = (Uint8 *)jo_malloc_with_behaviour((JO_BACKUP_MAX_COMMENT_LENGTH + 1) * sizeof(*comment), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
     {
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) != 1)
+            return (JO_NULL);
+        if ((comment = (Uint8 *)jo_malloc_with_behaviour((JO_BACKUP_MAX_COMMENT_LENGTH + 1) * sizeof(*comment), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+        {
 #ifdef JO_DEBUG
-        jo_core_error("Out of memory");
+            jo_core_error("Out of memory");
 #endif
-        return (JO_NULL);
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (JO_NULL);
+        }
+        for (JO_ZERO(i); i < JO_BACKUP_MAX_COMMENT_LENGTH && dir.comment[i] != '\0'; ++i)
+            comment[i] = dir.comment[i];
+        JO_ZERO(comment[i]);
+        if (partition_number != 0)
+            JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+        return (comment);
     }
-    for (JO_ZERO(i); i < JO_BACKUP_MAX_COMMENT_LENGTH && dir.comment[i] != '\0'; ++i)
-        comment[i] = dir.comment[i];
-    JO_ZERO(comment[i]);
-    return (comment);
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+    return (JO_NULL);
 }
 
-void                    *jo_backup_load_file_contents(const jo_backup_device backup_device, const char * const fname, unsigned int *length)
+void                            *jo_backup_load_file_contents(const jo_backup_device backup_device, const char * const fname, unsigned int *length)
 {
-    jo_backup_file      dir;
-    unsigned char       *content;
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
+    unsigned char               *content;
 
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
@@ -471,33 +548,48 @@ void                    *jo_backup_load_file_contents(const jo_backup_device bac
 #endif
         return (JO_NULL);
     }
-    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) != 1)
-        return (JO_NULL);
-    if ((content = (Uint8 *)jo_malloc_with_behaviour(dir.datasize + 1, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
     {
-#ifdef JO_DEBUG
-        jo_core_error("Out of memory");
-#endif
-        return (JO_NULL);
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) != 1)
+            continue;
+        if ((content = (Uint8 *)jo_malloc_with_behaviour(dir.datasize + 1, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+        {
+    #ifdef JO_DEBUG
+            jo_core_error("Out of memory");
+    #endif
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (JO_NULL);
+        }
+        jo_core_disable_reset();
+        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_READ(backup_device, (Uint8 *)fname, content);
+        if (__jo_backup_devices[backup_device].status == 0)
+            __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_CHECKSUM(backup_device, (Uint8 *)fname, content);
+        jo_core_enable_reset();
+        if (__jo_backup_devices[backup_device].status != 0)
+        {
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            jo_free(content);
+            return (JO_NULL);
+        }
+        if (length != JO_NULL)
+            *length = dir.datasize;
+        JO_ZERO(content[dir.datasize]);
+        if (partition_number != 0)
+            JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+        return (content);
     }
-    jo_core_disable_reset();
-    __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_READ(backup_device, (Uint8 *)fname, content);
-    if (__jo_backup_devices[backup_device].status == 0)
-        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_CHECKSUM(backup_device, (Uint8 *)fname, content);
-    jo_core_enable_reset();
-    if (__jo_backup_devices[backup_device].status != 0)
-    {
-        jo_free(content);
-        return (JO_NULL);
-    }
-    if (length != JO_NULL)
-        *length = dir.datasize;
-    JO_ZERO(content[dir.datasize]);
-    return (content);
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+    return (JO_NULL);
 }
 
-bool                    jo_backup_delete_file(const jo_backup_device backup_device, const char * const fname)
+bool                            jo_backup_delete_file(const jo_backup_device backup_device, const char * const fname)
 {
+    register unsigned short     partition_number;
+
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
 #ifdef JO_DEBUG
@@ -505,11 +597,23 @@ bool                    jo_backup_delete_file(const jo_backup_device backup_devi
 #endif
         return (false);
     }
-    jo_core_disable_reset();
-    __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_DELETE(backup_device, (Uint8 *)fname);
-    jo_core_enable_reset();
-    JO_BACKUP_DRIVER_STAT(backup_device, 10, &__jo_backup_devices[backup_device].sttb);
-    return (__jo_backup_devices[backup_device].status == 0);
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
+    {
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        jo_core_disable_reset();
+        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_DELETE(backup_device, (Uint8 *)fname);
+        jo_core_enable_reset();
+        JO_BACKUP_DRIVER_STAT(backup_device, 10, &__jo_backup_devices[backup_device].sttb);
+        if (__jo_backup_devices[backup_device].status == 0)
+        {
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (true);
+        }
+    }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+    return (false);
 }
 
 bool                        jo_backup_unmount(const jo_backup_device backup_device)
@@ -531,10 +635,11 @@ bool                        jo_backup_unmount(const jo_backup_device backup_devi
     return (true);
 }
 
-bool                jo_backup_get_file_last_modified_date(const jo_backup_device backup_device, const char * const fname, jo_datetime *datetime)
+bool                            jo_backup_get_file_last_modified_date(const jo_backup_device backup_device, const char * const fname, jo_datetime *datetime)
 {
-    jo_backup_file  dir;
-    jo_backup_date  bdate;
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
+    jo_backup_date              bdate;
 
     if (datetime == JO_NULL)
     {
@@ -550,23 +655,32 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
 #endif
         return (false);
     }
-    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
     {
-        JO_BACKUP_DRIVER_GET_DATE(dir.date, &bdate);
-        datetime->year = bdate.year + 1980;
-        datetime->month = bdate.month;
-        datetime->week = bdate.week;
-        datetime->day = bdate.day;
-        datetime->hour = bdate.time;
-        datetime->minute = bdate.min;
-        return (true);
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
+        {
+            JO_BACKUP_DRIVER_GET_DATE(dir.date, &bdate);
+            datetime->year = bdate.year + 1980;
+            datetime->month = bdate.month;
+            datetime->week = bdate.week;
+            datetime->day = bdate.day;
+            datetime->hour = bdate.time;
+            datetime->minute = bdate.min;
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (true);
+        }
     }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
     return (false);
 }
 
-bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks)
+bool                            jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
-    jo_backup_file  dir;
+    register unsigned short     partition_number;
+    jo_backup_file              dir;
 
     if (num_bytes == JO_NULL && num_blocks == NULL)
     {
@@ -582,14 +696,22 @@ bool                jo_backup_get_file_size(const jo_backup_device backup_device
 #endif
         return (false);
     }
-    if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
+    for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
     {
-        if (num_bytes != JO_NULL)
-            *num_bytes = dir.datasize;
-        if (num_blocks != JO_NULL)
-            *num_blocks = dir.blocksize;
-        return (true);
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+        if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
+        {
+            if (num_bytes != JO_NULL)
+                *num_bytes = dir.datasize;
+            if (num_blocks != JO_NULL)
+                *num_blocks = dir.blocksize;
+            if (partition_number != 0)
+                JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
+            return (true);
+        }
     }
+    if (partition_number > 1)
+        JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
     return (false);
 }
 
