@@ -148,6 +148,18 @@ bool                jo_backup_get_file_last_modified_date(const jo_backup_device
  */
 bool                jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks);
 
+/** @brief Get file comment, language, date, and size in bytes and blocks
+ *  @param backup_device Backup device
+ *  @param fname File name (max 11 characters not NULL)
+ *  @param comment Output comment (min 11 characters space)
+ *  @param language Output language in native format
+ *  @param date Output date in native format
+ *  @param num_bytes Output file size in bytes
+ *  @param num_blocks Output file size in blocks
+ *  @return true if succeed
+ */
+bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks);
+
 /** @brief Load file comment from the backup device
  *  @param backup_device Backup device
  *  @param fname File name (max 11 characters not NULL)

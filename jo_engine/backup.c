@@ -679,21 +679,26 @@ bool                            jo_backup_get_file_last_modified_date(const jo_b
 
 bool                            jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
+    return jo_backup_get_file_info(backup_device, fname, JO_NULL, JO_NULL, JO_NULL, num_bytes, num_blocks);
+}
+
+bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks)
+{
     register unsigned short     partition_number;
     jo_backup_file              dir;
 
-    if (num_bytes == JO_NULL && num_blocks == NULL)
+    if (comment == JO_NULL && language == JO_NULL && date == JO_NULL && num_bytes == JO_NULL && num_blocks == JO_NULL)
     {
-#ifdef JO_DEBUG
-        jo_core_error("num_bytes and num_blocks can't both be null");
-#endif
+        #ifdef JO_DEBUG
+        jo_core_error("comment, language, date, num_bytes, and num_blocks can't all be null");
+        #endif
         return (false);
     }
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
-#ifdef JO_DEBUG
+        #ifdef JO_DEBUG
         jo_core_error("Device not mounted");
-#endif
+        #endif
         return (false);
     }
     for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
@@ -701,6 +706,16 @@ bool                            jo_backup_get_file_size(const jo_backup_device b
         JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
         if (JO_BACKUP_DRIVER_GET_FILE_INFO(backup_device, (Uint8 *)fname, 1, &dir) == 1)
         {
+            if (comment != JO_NULL)
+            {
+                // memcpy() not available?
+                for(unsigned int i = 0; i < sizeof(dir.comment); i++)
+                    comment[i] = dir.comment[i];
+            }
+            if (language != JO_NULL)
+                *language = dir.language;
+            if (date != JO_NULL)
+                *date = dir.date;
             if (num_bytes != JO_NULL)
                 *num_bytes = dir.datasize;
             if (num_blocks != JO_NULL)
