@@ -50,23 +50,22 @@ void			                        my_soft_render_for_gfx1(void)
     jo_software_renderer_triangle       tri;
     jo_matrix                           transform_matrix;
 
-    // It's not necessary to clear the buffer in our case because nothing moves.
     jo_software_renderer_clear(gfx1, JO_COLOR_Black);
 
     tri.v0.color = JO_COLOR_Red;
-    tri.v0.pos.x = jo_float2fixed(-0.5);
-    tri.v0.pos.y = jo_float2fixed(0.5);
+    tri.v0.pos.x = jo_float2fixed(-0.7);
+    tri.v0.pos.y = jo_float2fixed(0.7);
     tri.v0.pos.z = jo_float2fixed(0);
     tri.v0.pos.w = jo_float2fixed(1);
 
     tri.v1.color = JO_COLOR_Green;
     tri.v1.pos.x = jo_float2fixed(0);
-    tri.v1.pos.y = jo_float2fixed(-0.5);
+    tri.v1.pos.y = jo_float2fixed(-0.7);
     tri.v1.pos.z = jo_float2fixed(0);
     tri.v1.pos.w = jo_float2fixed(1);
 
     tri.v2.color = JO_COLOR_Blue;
-    tri.v2.pos.x = jo_float2fixed(0.5);
+    tri.v2.pos.x = jo_float2fixed(0.7);
     tri.v2.pos.y = jo_float2fixed(0);
     tri.v2.pos.z = jo_float2fixed(0);
     tri.v2.pos.w = jo_float2fixed(1);
