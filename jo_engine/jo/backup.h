@@ -116,13 +116,15 @@ bool                jo_backup_save_file_contents(const jo_backup_device backup_d
  *  @param backup_device Backup device
  *  @param fname File name (max 11 characters not NULL)
  *  @param comment Comment (max 10 characters not NULL)
+ *  @param language Language 0-5
+ *  @param save_date Date in BUP format. 0 for current date
  *  @param contents Data (not NULL or empty)
  *  @param content_size Data size
  *  @param partition_number Partition number (FDD)
  *  @return true if succeed
  */
 bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
-                                                              void *contents, unsigned int content_size, const unsigned short partition_number);
+                                                              const char language, const unsigned int save_date, void *contents, unsigned int content_size, const unsigned short partition_number);
 
 /** @brief Delete file on the backup device
  *  @param backup_device Backup device
