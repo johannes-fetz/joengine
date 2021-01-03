@@ -387,13 +387,27 @@ unsigned short                  jo_backup_get_file_partition(const jo_backup_dev
     return (-1);
 }
 
-bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned int content_size)
+void                jo_backup_init_file(jo_backup * file)
 {
-    return (jo_backup_save_file_contents_on_partition(backup_device, fname, comment, contents, content_size, 0));
+    if (file == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("file is null");
+#endif
+        return ;
+    }
+    JO_ZERO(file->save_datetime.year);
+    JO_ZERO(file->save_timestamp);
+    file->language = jo_get_current_language();
+    file->language_num = 99;
+    file->fname = JO_NULL;
+    file->comment = JO_NULL;
+    file->contents = JO_NULL;
+    JO_ZERO(file->content_size);
+    JO_ZERO(file->partition_number);
 }
 
-bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
-                                                              void *contents, unsigned int content_size, const unsigned short partition_number)
+bool                jo_backup_save(jo_backup * file)
 {
     jo_backup_date  date;
     jo_backup_file  dir;
@@ -401,35 +415,42 @@ bool                jo_backup_save_file_contents_on_partition(const jo_backup_de
     register int    len;
     register int    i;
 
-    if (!__jo_backup_devices[backup_device].is_mounted)
+    if (file == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("file is null");
+#endif
+        return (false);
+    }
+    if (!__jo_backup_devices[file->backup_device].is_mounted)
     {
 #ifdef JO_DEBUG
         jo_core_error("Device not mounted");
 #endif
         return (false);
     }
-    if (comment == JO_NULL)
+    if (file->comment == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("comment is null");
 #endif
         return (false);
     }
-    if (contents == JO_NULL)
+    if (file->contents == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("contents is null");
 #endif
         return (false);
     }
-    if (fname == JO_NULL)
+    if (file->fname == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("fname is null");
 #endif
         return (false);
     }
-    len = jo_strlen(fname);
+    len = jo_strlen(file->fname);
     if (len > 11)
     {
 #ifdef JO_DEBUG
@@ -438,9 +459,9 @@ bool                jo_backup_save_file_contents_on_partition(const jo_backup_de
         return (false);
     }
     for (JO_ZERO(i); i < len; ++i)
-        dir.filename[i] = (Uint8)fname[i];
+        dir.filename[i] = (Uint8)file->fname[i];
     JO_ZERO(dir.filename[i]);
-    len = jo_strlen(comment);
+    len = jo_strlen(file->comment);
     if (len > JO_BACKUP_MAX_COMMENT_LENGTH)
     {
 #ifdef JO_DEBUG
@@ -449,50 +470,70 @@ bool                jo_backup_save_file_contents_on_partition(const jo_backup_de
         return (false);
     }
     for (JO_ZERO(i); i < len; ++i)
-        dir.comment[i] = (Uint8)comment[i];
+        dir.comment[i] = (Uint8)file->comment[i];
     JO_ZERO(dir.comment[i]);
-    JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
+    JO_BACKUP_DRIVER_CHANGE_PARTITION(file->backup_device, file->partition_number);
     /* LANGUAGE */
-    switch (jo_get_current_language())
+    if (file->language_num <= 5)
+        dir.language = file->language_num;
+    else
     {
-    case Espanol:
-        dir.language = 4;
-        break;
-    case Japanese:
-        dir.language = 0;
-        break;
-    case Italiano:
-        dir.language = 5;
-        break;
-    case Deutsch:
-        dir.language = 3;
-        break;
-    case French:
-        dir.language = 2;
-        break;
-    case English:
-    default:
-        dir.language = 1;
-        break;
+        switch (file->language)
+            {
+            case Espanol:
+                dir.language = 4;
+                break;
+            case Japanese:
+                dir.language = 0;
+                break;
+            case Italiano:
+                dir.language = 5;
+                break;
+            case Deutsch:
+                dir.language = 3;
+                break;
+            case French:
+                dir.language = 2;
+                break;
+            case English:
+            default:
+                dir.language = 1;
+                break;
+            }
     }
     /* DATE */
-    jo_getdate(&now);
-    date.year = now.year - 1980;
-    date.month = now.month;
-    date.week = now.week;
-    date.day = now.day;
-    date.time = now.hour;
-    date.min = now.minute;
-    dir.date = JO_BACKUP_DRIVER_PREPARE_DATE(&date);
-    dir.datasize = content_size;
+    if (file->save_timestamp != 0)
+         dir.date = file->save_timestamp;
+    else if (file->save_datetime.year != 0)
+    {
+        date.year = file->save_datetime.year - 1980;
+        date.month = file->save_datetime.month;
+        date.week = file->save_datetime.week;
+        date.day = file->save_datetime.day;
+        date.time = file->save_datetime.hour;
+        date.min = file->save_datetime.minute;
+        dir.date = JO_BACKUP_DRIVER_PREPARE_DATE(&date);
+    }
+    else
+    {
+        jo_getdate(&now);
+        date.year = now.year - 1980;
+        date.month = now.month;
+        date.week = now.week;
+        date.day = now.day;
+        date.time = now.hour;
+        date.min = now.minute;
+        dir.date = JO_BACKUP_DRIVER_PREPARE_DATE(&date);
+    }
+    dir.datasize = file->content_size;
     jo_core_disable_reset();
-    __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_WRITE(backup_device, &dir, contents, JO_BACKUP_OVERRIDE_FILE_IF_EXISTS);
-    if (__jo_backup_devices[backup_device].status == 0)
-        __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_CHECKSUM(backup_device, dir.filename, contents);
+    __jo_backup_devices[file->backup_device].status = JO_BACKUP_DRIVER_WRITE(file->backup_device, &dir, file->contents, JO_BACKUP_OVERRIDE_FILE_IF_EXISTS);
+    if (__jo_backup_devices[file->backup_device].status == 0)
+        __jo_backup_devices[file->backup_device].status = JO_BACKUP_DRIVER_CHECKSUM(file->backup_device, dir.filename, file->contents);
     jo_core_enable_reset();
-    JO_BACKUP_DRIVER_STAT(backup_device, 10, &__jo_backup_devices[backup_device].sttb);
-    JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, 0);
-    return (__jo_backup_devices[backup_device].status == 0);
+    JO_BACKUP_DRIVER_STAT(file->backup_device, 10, &__jo_backup_devices[file->backup_device].sttb);
+    JO_BACKUP_DRIVER_CHANGE_PARTITION(file->backup_device, 0);
+    return (__jo_backup_devices[file->backup_device].status == 0);
 }
 
 unsigned char                   *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname)
@@ -682,23 +723,23 @@ bool                            jo_backup_get_file_size(const jo_backup_device b
     return jo_backup_get_file_info(backup_device, fname, JO_NULL, JO_NULL, JO_NULL, num_bytes, num_blocks);
 }
 
-bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks)
+bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language_num, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
     register unsigned short     partition_number;
     jo_backup_file              dir;
 
-    if (comment == JO_NULL && language == JO_NULL && date == JO_NULL && num_bytes == JO_NULL && num_blocks == JO_NULL)
+    if (comment == JO_NULL && language_num == JO_NULL && date == JO_NULL && num_bytes == JO_NULL && num_blocks == JO_NULL)
     {
-        #ifdef JO_DEBUG
-        jo_core_error("comment, language, date, num_bytes, and num_blocks can't all be null");
-        #endif
+#ifdef JO_DEBUG
+        jo_core_error("comment, language_num, date, num_bytes, and num_blocks can't all be null");
+#endif
         return (false);
     }
     if (!__jo_backup_devices[backup_device].is_mounted)
     {
-        #ifdef JO_DEBUG
+#ifdef JO_DEBUG
         jo_core_error("Device not mounted");
-        #endif
+#endif
         return (false);
     }
     for (JO_ZERO(partition_number); partition_number < __jo_backup_cntb[backup_device].partition; ++partition_number)
@@ -708,12 +749,11 @@ bool                jo_backup_get_file_info(const jo_backup_device backup_device
         {
             if (comment != JO_NULL)
             {
-                // memcpy() not available?
                 for(unsigned int i = 0; i < sizeof(dir.comment); i++)
                     comment[i] = dir.comment[i];
             }
-            if (language != JO_NULL)
-                *language = dir.language;
+            if (language_num != JO_NULL)
+                *language_num = dir.language;
             if (date != JO_NULL)
                 *date = dir.date;
             if (num_bytes != JO_NULL)

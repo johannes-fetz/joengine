@@ -69,6 +69,28 @@ typedef enum
     JoBackupStatusUnknown = 6
 }                   jo_backup_status;
 
+/** @brief Backup File struct */
+typedef struct
+{
+    jo_backup_device            backup_device;
+    char                        *fname;
+    char                        *comment;
+    void                        *contents;
+    unsigned int                content_size;
+
+    /* ▲ Fields bellow are optional ▲ */
+
+    unsigned short              partition_number;
+
+    jo_language                 language;
+    /* OR */
+    unsigned char               language_num;
+
+    unsigned int                save_timestamp;
+    /* OR */
+    jo_datetime                 save_datetime;
+}                               jo_backup;
+
 /** @brief Mount the backup device (must be the first call)
  *  @param backup_device Backup device
  *  @return true if succeed
@@ -101,6 +123,17 @@ bool                jo_backup_file_exists(const jo_backup_device backup_device, 
  */
 bool                jo_backup_format_device(const jo_backup_device backup_device);
 
+/** @brief Initialize a backup file in order to save it
+ *  @param file Backup file to initialize
+ */
+void                jo_backup_init_file(jo_backup * file);
+
+/** @brief Save file contents to the backup device (if the file exists it will be overwritten)
+ *  @param file Backup file to save
+ *  @return true if succeed
+ */
+bool                jo_backup_save(jo_backup * file);
+
 /** @brief Save file contents to the backup device (if the file exists it will be overwritten)
  *  @param backup_device Backup device
  *  @param fname File name (max 11 characters not NULL)
@@ -109,20 +142,19 @@ bool                jo_backup_format_device(const jo_backup_device backup_device
  *  @param content_size Data size
  *  @return true if succeed
  */
-bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment,
-                                                 void *contents, unsigned int content_size);
+static  __jo_force_inline bool          jo_backup_save_file_contents(const jo_backup_device backup_device, char * const fname, char * const comment,
+                                                 void *contents, unsigned int content_size)
+{
+    jo_backup                           bkp;
 
-/** @brief Save file contents to the backup device on specific partition (if the file exists it will be overwritten)
- *  @param backup_device Backup device
- *  @param fname File name (max 11 characters not NULL)
- *  @param comment Comment (max 10 characters not NULL)
- *  @param contents Data (not NULL or empty)
- *  @param content_size Data size
- *  @param partition_number Partition number (FDD)
- *  @return true if succeed
- */
-bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
-                                                              void *contents, unsigned int content_size, const unsigned short partition_number);
+    jo_backup_init_file(&bkp);
+    bkp.backup_device = backup_device;
+    bkp.fname = fname;
+    bkp.comment = comment;
+    bkp.contents = contents;
+    bkp.content_size = content_size;
+    return (jo_backup_save(&bkp));
+}
 
 /** @brief Delete file on the backup device
  *  @param backup_device Backup device
@@ -152,13 +184,13 @@ bool                jo_backup_get_file_size(const jo_backup_device backup_device
  *  @param backup_device Backup device
  *  @param fname File name (max 11 characters not NULL)
  *  @param comment Output comment (min 11 characters space)
- *  @param language Output language in native format
+ *  @param language_num Output language in native format
  *  @param date Output date in native format
  *  @param num_bytes Output file size in bytes
  *  @param num_blocks Output file size in blocks
  *  @return true if succeed
  */
-bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks);
+bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language_num, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks);
 
 /** @brief Load file comment from the backup device
  *  @param backup_device Backup device
