@@ -506,6 +506,24 @@ static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
     return (jo_fixed_mult(jo_fixed_wrap_to_pi(rad), JO_FIXED_180_DIV_PI));
 }
 
+/** @brief Returns the smallest (fixed) integer value greater than or equal to x
+ *  @param x Fixed value
+ *  @return Smallest (fixed) integer value greater than or equal to x
+ */
+static __jo_force_inline jo_fixed       jo_fixed_ceil(const jo_fixed x)
+{
+    return (x & 0xFFFF0000UL) + (x & 0x0000FFFFUL ? JO_FIXED_1 : 0);
+}
+
+/** @brief Returns the largest (fixed) integer value less than or equal to x
+ *  @param x Fixed value
+ *  @return largest (fixed) integer value less than or equal to x
+ */
+static __jo_force_inline jo_fixed       jo_fixed_floor(const jo_fixed x)
+{
+    return (x & 0xFFFF0000ul);
+}
+
 /*
 ██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗
 ██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║

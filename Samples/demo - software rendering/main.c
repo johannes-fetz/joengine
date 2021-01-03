@@ -46,50 +46,36 @@ jo_software_renderer_gfx                *gfx2;
 
 void			                        my_soft_render_for_gfx1(void)
 {
+    static float                        rad = 0.0f;
     jo_software_renderer_triangle       tri;
     jo_matrix                           transform_matrix;
 
     // It's not necessary to clear the buffer in our case because nothing moves.
     jo_software_renderer_clear(gfx1, JO_COLOR_Black);
 
-/*
-    Here we set each vertice (3) of our triangle
+    tri.v0.color = JO_COLOR_Red;
+    tri.v0.pos.x = jo_float2fixed(-0.5);
+    tri.v0.pos.y = jo_float2fixed(0.5);
+    tri.v0.pos.z = jo_float2fixed(0);
+    tri.v0.pos.w = jo_float2fixed(1);
 
-    A ___ C
-     \   /
-      \ /
-       B
-*/
-    tri.a.color = JO_COLOR_Red;
-    tri.a.pos.x = jo_int2fixed(1);
-    tri.a.pos.y = jo_int2fixed(0);
-    tri.a.pos.z = jo_int2fixed(0);
-    tri.a.pos.w = jo_int2fixed(1);
+    tri.v1.color = JO_COLOR_Green;
+    tri.v1.pos.x = jo_float2fixed(0);
+    tri.v1.pos.y = jo_float2fixed(-0.5);
+    tri.v1.pos.z = jo_float2fixed(0);
+    tri.v1.pos.w = jo_float2fixed(1);
 
-    tri.b.color = JO_COLOR_Green;
-    tri.b.pos.x = jo_int2fixed(5);
-    tri.b.pos.y = jo_int2fixed(31);
-    tri.b.pos.z = jo_int2fixed(0);
-    tri.b.pos.w = jo_int2fixed(1);
-
-    tri.c.color = JO_COLOR_Blue;
-    tri.c.pos.x = jo_int2fixed(31);
-    tri.c.pos.y = jo_int2fixed(0);
-    tri.c.pos.z = jo_int2fixed(0);
-    tri.c.pos.w = jo_int2fixed(1);
-
-    // We render our triangle in wireframe
-    // Note: It's the only way to draw a triangle today, but texture mapped triangle will arrive quickly
-
+    tri.v2.color = JO_COLOR_Blue;
+    tri.v2.pos.x = jo_float2fixed(0.5);
+    tri.v2.pos.y = jo_float2fixed(0);
+    tri.v2.pos.z = jo_float2fixed(0);
+    tri.v2.pos.w = jo_float2fixed(1);
 
     jo_matrix_identity(&transform_matrix);
-
-    //transform_matrix.m30 = jo_int2fixed(5);
+    jo_matrix_rotation_z_rad(rad, &transform_matrix);
+    rad += 0.05f;
 
     jo_software_renderer_draw_triangle(gfx1, &tri, &transform_matrix);
-
-
-    //jo_software_renderer_draw_triangle_wireframe(gfx1, &tri);
 
     // This copy the rendering buffer into VDP1 VRAM using DMA of course
     // ▲ Note: You don't need to redraw everything at every frame but it's just a demo

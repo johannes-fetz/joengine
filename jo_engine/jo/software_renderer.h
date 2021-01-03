@@ -63,10 +63,9 @@
 /** @brief Draw mode */
 typedef enum
 {
-    JO_SR_DRAW_AFFINE      = (1 << 0),
-    JO_SR_DRAW_PERSPECTIVE = (1 << 1),
-    JO_SR_DRAW_FLAT        = (1 << 2),
-    JO_SR_DRAW_WIREFRAME   = (1 << 3)
+    JO_SR_DRAW_TEXTURED     = (1 << 0),
+    JO_SR_DRAW_FLAT         = (1 << 1),
+    JO_SR_DRAW_WIREFRAME    = (1 << 2)
 }                                           jo_software_renderer_draw_mode;
 
 /** @brief Face culling mode */
@@ -187,19 +186,15 @@ void                                        jo_software_renderer_draw_line3D(con
    ██║   ██╔══██╗██║██╔══██║██║╚██╗██║██║   ██║██║     ██╔══╝
    ██║   ██║  ██║██║██║  ██║██║ ╚████║╚██████╔╝███████╗███████╗
    ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚══════╝
-
-    A ___ C
-     \   /
-      \ /
-       B
 */
 
 /** @brief Triangle definition */
 typedef struct
 {
-    jo_software_renderer_vertex             a;
-    jo_software_renderer_vertex             b;
-    jo_software_renderer_vertex             c;
+    jo_software_renderer_vertex             v0;
+    jo_software_renderer_vertex             v1;
+    jo_software_renderer_vertex             v2;
+    int                                     sprite_id;
 }                                           jo_software_renderer_triangle;
 
 void                                        jo_software_renderer_draw_triangle(const jo_software_renderer_gfx * const gfx,
@@ -213,17 +208,17 @@ void                                        jo_software_renderer_draw_triangle(c
 static __jo_force_inline void               jo_software_renderer_draw_triangle_wireframe(const jo_software_renderer_gfx * const gfx, const jo_software_renderer_triangle * const triangle)
 {
     jo_software_renderer_draw_line3D(gfx,
-                                     triangle->a.pos.x, triangle->a.pos.y, triangle->a.pos.z,
-                                     triangle->b.pos.x, triangle->b.pos.y, triangle->b.pos.z,
-                                     triangle->a.color, triangle->b.color);
+                                     triangle->v0.pos.x, triangle->v0.pos.y, triangle->v0.pos.z,
+                                     triangle->v1.pos.x, triangle->v1.pos.y, triangle->v1.pos.z,
+                                     triangle->v0.color, triangle->v1.color);
     jo_software_renderer_draw_line3D(gfx,
-                                     triangle->b.pos.x, triangle->b.pos.y, triangle->b.pos.z,
-                                     triangle->c.pos.x, triangle->c.pos.y, triangle->c.pos.z,
-                                     triangle->b.color, triangle->c.color);
+                                     triangle->v1.pos.x, triangle->v1.pos.y, triangle->v1.pos.z,
+                                     triangle->v2.pos.x, triangle->v2.pos.y, triangle->v2.pos.z,
+                                     triangle->v1.color, triangle->v2.color);
     jo_software_renderer_draw_line3D(gfx,
-                                     triangle->c.pos.x, triangle->c.pos.y, triangle->c.pos.z,
-                                     triangle->a.pos.x, triangle->a.pos.y, triangle->a.pos.z,
-                                     triangle->c.color, triangle->a.color);
+                                     triangle->v2.pos.x, triangle->v2.pos.y, triangle->v2.pos.z,
+                                     triangle->v0.pos.x, triangle->v0.pos.y, triangle->v0.pos.z,
+                                     triangle->v2.color, triangle->v0.color);
 }
 
 #endif // JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT

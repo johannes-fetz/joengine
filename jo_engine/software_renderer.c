@@ -60,6 +60,11 @@
 
 extern jo_picture_definition                __jo_sprite_pic[JO_MAX_SPRITE];
 extern jo_color                             *nbg1_bitmap;
+typedef enum
+{
+    JO_TRIANGLE_FLAT_BOTTOM,
+    JO_TRIANGLE_FLAT_TOP
+}                                           __jo_triangle_type;
 
 static __jo_force_inline void               __jo_software_renderer_clear_zbuffer(jo_software_renderer_gfx * const gfx)
 {
@@ -104,10 +109,10 @@ jo_software_renderer_gfx                    *jo_software_renderer_create(unsigne
     img.height = height;
     img.width = width;
     img.data = JO_NULL;
-    gfx->depth_mode_testing = JO_SR_DEPTH_GREATER_OR_EQUAL;
-    gfx->face_culling_mode = JO_SR_BACK_FACE_CULLING;
-    gfx->draw_mode = JO_SR_DRAW_WIREFRAME;
     gfx->sprite_id = -1;
+    gfx->depth_mode_testing = JO_SR_DEPTH_GREATER_OR_EQUAL;
+    gfx->face_culling_mode = JO_SR_NO_FACE_CULLING;
+    gfx->draw_mode = JO_SR_DRAW_WIREFRAME;
     gfx->clipping_size.width = width;
     gfx->clipping_size.height = height;
     switch (screen)
@@ -322,9 +327,9 @@ static __jo_force_inline bool               jo_is_triangle_face_culled(const jo_
     switch (face_culling_mode)
     {
         case JO_SR_BACK_FACE_CULLING:
-            return (dp >= 0);
-        case JO_SR_FRONT_FACE_CULLING:
             return (dp < 0);
+        case JO_SR_FRONT_FACE_CULLING:
+            return (dp >= 0);
         default:
             return false;
     }
@@ -335,14 +340,20 @@ static __jo_force_inline void               jo_transform_to_surface_coord(const 
                                                                          jo_vector4_fixed * const p1,
                                                                          jo_vector4_fixed * const p2)
 {
-    p0->x = jo_fixed_mult(p0->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p0->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
-    p0->y = jo_fixed_mult(p0->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p0->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+    jo_fixed                                width;
+    jo_fixed                                height;
 
-    p1->x = jo_fixed_mult(p1->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p1->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
-    p1->y = jo_fixed_mult(p1->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p1->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+    width = jo_int2fixed(gfx->clipping_size.width);
+    height = jo_int2fixed(gfx->clipping_size.height);
 
-    p2->x = jo_fixed_mult(p2->x, jo_int2fixed(gfx->clipping_size.width)) / jo_fixed_mult(131072, p2->w) + jo_fixed_div(gfx->clipping_size.width, 131072);
-    p2->y = jo_fixed_mult(p2->y, jo_int2fixed(gfx->clipping_size.height)) / jo_fixed_mult(131072, p2->w) + jo_fixed_div(gfx->clipping_size.height, 131072);
+    p0->x = jo_fixed_div(jo_fixed_mult(p0->x, width), jo_fixed_mult(131072, p0->w)) + jo_fixed_div(width, 131072);
+    p0->y = jo_fixed_div(jo_fixed_mult(p0->y, height), jo_fixed_mult(131072, p0->w)) + jo_fixed_div(height, 131072);
+
+    p1->x = jo_fixed_div(jo_fixed_mult(p1->x, width), jo_fixed_mult(131072, p1->w)) + jo_fixed_div(width, 131072);
+    p1->y = jo_fixed_div(jo_fixed_mult(p1->y, height), jo_fixed_mult(131072, p1->w)) + jo_fixed_div(height, 131072);
+
+    p2->x = jo_fixed_div(jo_fixed_mult(p2->x, width), jo_fixed_mult(131072, p2->w)) + jo_fixed_div(width, 131072);
+    p2->y = jo_fixed_div(jo_fixed_mult(p2->y, height), jo_fixed_mult(131072, p2->w)) + jo_fixed_div(height, 131072);
 }
 
 static __jo_force_inline void               jo_swap_vertex(jo_software_renderer_vertex * const a, jo_software_renderer_vertex * const b)
@@ -353,46 +364,192 @@ static __jo_force_inline void               jo_swap_vertex(jo_software_renderer_
     jo_vector4_swap(&a->pos, &b->pos);
 }
 
+static __jo_force_inline void               __jo_software_renderer_draw_textured_triangle(const jo_software_renderer_gfx * const gfx,
+                                                                                      const jo_software_renderer_triangle * const triangle,
+                                                                                      const __jo_triangle_type triangle_type)
+{
+    JO_UNUSED_ARG(gfx);
+    JO_UNUSED_ARG(triangle);
+    JO_UNUSED_ARG(triangle_type);
+    jo_core_error("Texture mapped triangle is not implemented yet");
+}
+
+static __jo_force_inline void               __jo_software_renderer_draw_fill_triangle(const jo_software_renderer_gfx * const gfx,
+                                                                                      const jo_software_renderer_triangle * const triangle,
+                                                                                      const __jo_triangle_type triangle_type)
+{
+    jo_fixed y, invDy, dxLeft, dxRight, xLeft, xRight, prestep, numScanlines, yDir;
+    jo_fixed startInvZ, endInvZ, invZ0, invZ1, invZ2, invY02, currLine, x0, x1, r1;
+
+    if (triangle_type == JO_TRIANGLE_FLAT_BOTTOM)
+    {
+        if ((triangle->v2.pos.y - triangle->v0.pos.y) < JO_FIXED_1)
+            return ;
+        invDy = jo_fixed_div(JO_FIXED_1, (triangle->v2.pos.y - triangle->v0.pos.y));
+        yDir = JO_FIXED_1;
+        numScanlines = jo_fixed_ceil(triangle->v2.pos.y) - jo_fixed_ceil(triangle->v0.pos.y);
+        prestep = jo_fixed_ceil(triangle->v0.pos.y) - triangle->v0.pos.y;
+    }
+    else
+    {
+        if ((triangle->v0.pos.y - triangle->v2.pos.y) < JO_FIXED_1)
+            return ;
+        invDy = jo_fixed_div(JO_FIXED_1, (triangle->v0.pos.y - triangle->v2.pos.y));
+        yDir = -JO_FIXED_1;
+        numScanlines = jo_fixed_ceil(triangle->v0.pos.y) - jo_fixed_ceil(triangle->v2.pos.y);
+        prestep = jo_fixed_ceil(triangle->v2.pos.y) - triangle->v2.pos.y;
+    }
+    dxLeft = jo_fixed_mult((triangle->v2.pos.x - triangle->v0.pos.x), invDy);
+    dxRight = jo_fixed_mult((triangle->v1.pos.x - triangle->v0.pos.x), invDy);
+    xLeft = triangle->v0.pos.x + jo_fixed_mult(dxLeft, prestep);
+    xRight = triangle->v0.pos.x + jo_fixed_mult(dxRight, prestep);
+
+    if (gfx->depth_mode_testing != JO_SR_DEPTH_IGNORE)
+    {
+        invZ0 = jo_fixed_div(JO_FIXED_1, triangle->v0.pos.z);
+        invZ1 = jo_fixed_div(JO_FIXED_1, triangle->v1.pos.z);
+        invZ2 = jo_fixed_div(JO_FIXED_1, triangle->v2.pos.z);
+        invY02 = jo_fixed_div(JO_FIXED_1, (triangle->v0.pos.y - triangle->v2.pos.y));
+        for (JO_ZERO(currLine), y = jo_fixed_ceil(triangle->v0.pos.y); currLine <= numScanlines; y += yDir)
+        {
+            x0 = jo_fixed_ceil(xLeft);
+            x1 = jo_fixed_ceil(xRight);
+            r1 = jo_fixed_mult(triangle->v0.pos.y - y, invY02);
+            startInvZ = jo_lerp(invZ0, invZ2, r1);
+            endInvZ = jo_lerp(invZ0, invZ1, r1);
+            // TODO use all vertex colors
+            jo_software_renderer_draw_line3D(gfx, x0, y, jo_fixed_div(JO_FIXED_1, startInvZ), x1, y, jo_fixed_div(JO_FIXED_1, endInvZ), triangle->v0.color, triangle->v1.color);
+            currLine += JO_FIXED_1;//jo_float2fixed(0.999);
+            if (currLine < numScanlines)
+            {
+                xLeft  += dxLeft;
+                xRight += dxRight;
+            }
+        }
+    }
+    else
+    {
+        for (JO_ZERO(currLine), y = jo_fixed_ceil(triangle->v0.pos.y); currLine <= numScanlines; y += yDir)
+        {
+            // TODO use all vertex colors
+            jo_software_renderer_draw_line3D(gfx, jo_fixed_ceil(xLeft), y, JO_FIXED_1, jo_fixed_ceil(xRight), y, JO_FIXED_1, triangle->v0.color, triangle->v1.color);
+            currLine += JO_FIXED_1;//jo_float2fixed(0.999);
+            if (currLine < numScanlines)
+            {
+                xLeft  += dxLeft;
+                xRight += dxRight;
+            }
+        }
+    }
+}
+
+static __jo_force_inline void               __jo_software_renderer_draw_triangle_type(const jo_software_renderer_gfx * const gfx,
+                                                                                      const jo_software_renderer_triangle * const triangle,
+                                                                                      const __jo_triangle_type triangle_type)
+{
+    switch (gfx->draw_mode)
+    {
+        case JO_SR_DRAW_TEXTURED:
+            __jo_software_renderer_draw_textured_triangle(gfx, triangle, triangle_type);
+            return ;
+        case JO_SR_DRAW_FLAT:
+        default:
+            __jo_software_renderer_draw_fill_triangle(gfx, triangle, triangle_type);
+            return;
+    }
+}
+
+static __jo_force_inline void               __jo_software_renderer_draw_regular_triangle(const jo_software_renderer_gfx * const gfx,
+                                                                                       jo_software_renderer_triangle * triangle)
+{
+    jo_software_renderer_vertex             v3;
+    jo_software_renderer_vertex             original_v1;
+    jo_vector4_fixed                        diff;
+    jo_vector4_fixed                        diff2;
+    jo_fixed                                ratioU;
+    jo_fixed                                ratioV;
+    jo_fixed                                invV0Z;
+    jo_fixed                                invV1Z;
+
+    v3 = triangle->v2;
+    v3.pos.x = triangle->v0.pos.x + jo_fixed_div(jo_fixed_mult((triangle->v1.pos.x - triangle->v0.pos.x), (triangle->v2.pos.y - triangle->v0.pos.y)), (triangle->v1.pos.y - triangle->v0.pos.y));
+    JO_ZERO(v3.pos.z);
+    jo_vector4_fixed_sub(&triangle->v1.pos, &triangle->v0.pos, &diff);
+    jo_vector4_fixed_sub(&v3.pos, &triangle->v0.pos, &diff2);
+    ratioU = diff.x != 0 ? jo_fixed_div(diff2.x, diff.x) : JO_FIXED_1;
+    ratioV = diff.y != 0 ? jo_fixed_div(diff2.y, diff.y) : JO_FIXED_1;
+
+    if (gfx->draw_mode == JO_SR_DRAW_TEXTURED || gfx->depth_mode_testing != JO_SR_DEPTH_IGNORE)
+    {
+        invV0Z = jo_fixed_div(JO_FIXED_1, triangle->v0.pos.z);
+        invV1Z = jo_fixed_div(JO_FIXED_1, triangle->v1.pos.z);
+
+        if (triangle->v0.pos.x - triangle->v1.pos.x)
+            v3.pos.z = jo_fixed_div(JO_FIXED_1, jo_lerp(invV1Z, invV0Z, jo_fixed_div((v3.pos.x - triangle->v1.pos.x), (triangle->v0.pos.x - triangle->v1.pos.x))));
+        else
+            v3.pos.z = triangle->v0.pos.z;
+
+        if (gfx->draw_mode == JO_SR_DRAW_TEXTURED)
+        {
+            v3.uv_texture_mapping.x = jo_fixed_mult(v3.pos.z, jo_lerp(jo_fixed_mult(triangle->v0.uv_texture_mapping.x, invV0Z), jo_fixed_mult(triangle->v1.uv_texture_mapping.x, invV1Z), ratioU));
+            v3.uv_texture_mapping.y = jo_fixed_mult(v3.pos.z, jo_lerp(jo_fixed_mult(triangle->v0.uv_texture_mapping.y, invV0Z), jo_fixed_mult(triangle->v1.uv_texture_mapping.y, invV1Z), ratioV));
+        }
+    }
+    if (v3.pos.x < triangle->v2.pos.x)
+        jo_swap_vertex(&v3, &triangle->v2);
+    original_v1 = triangle->v1;
+    if (!jo_is_triangle_degenerated(&triangle->v0.pos, &v3.pos, &triangle->v2.pos))
+    {
+        triangle->v1 = v3;
+        __jo_software_renderer_draw_triangle_type(gfx, triangle, JO_TRIANGLE_FLAT_BOTTOM);
+    }
+    if (!jo_is_triangle_degenerated(&original_v1.pos, &v3.pos, &triangle->v2.pos))
+    {
+        triangle->v0 = original_v1;
+        triangle->v1 = v3;
+        __jo_software_renderer_draw_triangle_type(gfx, triangle, JO_TRIANGLE_FLAT_TOP);
+    }
+}
+
 void                                        jo_software_renderer_draw_triangle(const jo_software_renderer_gfx * const gfx,
                                                                                const jo_software_renderer_triangle * const triangle,
                                                                                const jo_matrix * const transform_matrix)
 {
     jo_software_renderer_triangle           result;
 
-    result.a.color = triangle->a.color;
-    result.b.color = triangle->b.color;
-    result.c.color = triangle->c.color;
-    result.a.uv_texture_mapping = triangle->a.uv_texture_mapping;
-    result.b.uv_texture_mapping = triangle->b.uv_texture_mapping;
-    result.c.uv_texture_mapping = triangle->c.uv_texture_mapping;
+    result.sprite_id = triangle->sprite_id;
+    result.v0.color = triangle->v0.color;
+    result.v1.color = triangle->v1.color;
+    result.v2.color = triangle->v2.color;
+    result.v0.uv_texture_mapping = triangle->v0.uv_texture_mapping;
+    result.v1.uv_texture_mapping = triangle->v1.uv_texture_mapping;
+    result.v2.uv_texture_mapping = triangle->v2.uv_texture_mapping;
 
-    /*result.a.pos = triangle->a.pos;
-    result.b.pos = triangle->b.pos;
-    result.c.pos = triangle->c.pos;*/
-    jo_matrix_mul_vector4(transform_matrix, &triangle->a.pos, &result.a.pos);
-    jo_matrix_mul_vector4(transform_matrix, &triangle->b.pos, &result.b.pos);
-    jo_matrix_mul_vector4(transform_matrix, &triangle->c.pos, &result.c.pos);
+    jo_matrix_mul_vector4(transform_matrix, &triangle->v0.pos, &result.v0.pos);
+    jo_matrix_mul_vector4(transform_matrix, &triangle->v1.pos, &result.v1.pos);
+    jo_matrix_mul_vector4(transform_matrix, &triangle->v2.pos, &result.v2.pos);
 
-    if (jo_is_triangle_offscreen(&result.a.pos, &result.b.pos, &result.c.pos))
+    if (jo_is_triangle_offscreen(&result.v0.pos, &result.v1.pos, &result.v2.pos))
         return ;
-    //if (gfx->face_culling_mode != JO_SR_NO_FACE_CULLING && jo_is_triangle_face_culled(gfx->face_culling_mode, &result.a.pos, &result.b.pos, &result.c.pos))
-    //    return ;
-    jo_transform_to_surface_coord(gfx, &result.a.pos, &result.b.pos, &result.c.pos);
-
-    if (result.c.pos.y > result.b.pos.y)
-        jo_swap_vertex(&result.b, &result.c);
-    if (result.a.pos.y > result.b.pos.y)
-        jo_swap_vertex(&result.a, &result.b);
-    if (result.a.pos.y > result.c.pos.y)
-        jo_swap_vertex(&result.a, &result.c);
-
-    if (jo_is_triangle_degenerated(&result.a.pos, &result.b.pos, &result.c.pos))
+    if (gfx->face_culling_mode != JO_SR_NO_FACE_CULLING && jo_is_triangle_face_culled(gfx->face_culling_mode, &result.v0.pos, &result.v1.pos, &result.v2.pos))
         return ;
-    if (gfx->draw_mode == JO_SR_DRAW_WIREFRAME)
+    jo_transform_to_surface_coord(gfx, &result.v0.pos, &result.v1.pos, &result.v2.pos);
+
+    if (result.v2.pos.y > result.v1.pos.y)
+        jo_swap_vertex(&result.v1, &result.v2);
+    if (result.v0.pos.y > result.v1.pos.y)
+        jo_swap_vertex(&result.v0, &result.v1);
+    if (result.v0.pos.y > result.v2.pos.y)
+        jo_swap_vertex(&result.v0, &result.v2);
+
+    if (jo_is_triangle_degenerated(&result.v0.pos, &result.v1.pos, &result.v2.pos))
+        return ;
+    if (gfx->draw_mode & JO_SR_DRAW_WIREFRAME)
     {
         jo_software_renderer_draw_triangle_wireframe(gfx, &result);
         return ;
     }
+    __jo_software_renderer_draw_regular_triangle(gfx, &result);
 }
 
 #endif
