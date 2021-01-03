@@ -506,6 +506,24 @@ static __jo_force_inline jo_fixed       jo_fixed_rad2deg(const jo_fixed rad)
     return (jo_fixed_mult(jo_fixed_wrap_to_pi(rad), JO_FIXED_180_DIV_PI));
 }
 
+/** @brief Returns the smallest (fixed) integer value greater than or equal to x
+ *  @param x Fixed value
+ *  @return Smallest (fixed) integer value greater than or equal to x
+ */
+static __jo_force_inline jo_fixed       jo_fixed_ceil(const jo_fixed x)
+{
+    return (x & 0xFFFF0000UL) + (x & 0x0000FFFFUL ? JO_FIXED_1 : 0);
+}
+
+/** @brief Returns the largest (fixed) integer value less than or equal to x
+ *  @param x Fixed value
+ *  @return largest (fixed) integer value less than or equal to x
+ */
+static __jo_force_inline jo_fixed       jo_fixed_floor(const jo_fixed x)
+{
+    return (x & 0xFFFF0000ul);
+}
+
 /*
 ██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗
 ██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║
@@ -950,6 +968,70 @@ static __jo_force_inline void jo_vector_fixed_muls(const jo_vector_fixed * const
     result->z = jo_fixed_mult(a->z, s);
 }
 
+/** @brief Add 2 vectors4 (using fixed numbers)
+ *  @param a First vector4
+ *  @param b Second vector4
+ *  @param result output vector4
+ *  @remarks You can pass a or b address for result parameter
+ */
+static __jo_force_inline void jo_vector4_fixed_add(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result)
+{
+    result->x = a->x + b->x;
+    result->y = a->y + b->y;
+    result->z = a->z + b->z;
+    result->w = JO_FIXED_1;
+}
+
+/** @brief Substract 2 vectors4 (using fixed numbers)
+ *  @param a First vector4
+ *  @param b Second vector4
+ *  @param result output vector4
+ *  @remarks You can pass a or b address for result parameter
+ */
+static __jo_force_inline void jo_vector4_fixed_sub(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result)
+{
+    result->x = a->x - b->x;
+    result->y = a->y - b->y;
+    result->z = a->z - b->z;
+    result->w = JO_FIXED_1;
+}
+
+/** @brief Cross product of 2 vectors4 (using fixed numbers)
+ *  @param a First vector4
+ *  @param b Second vector4
+ *  @param result output vector4
+ */
+static __jo_force_inline void jo_vector4_fixed_cross(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result)
+{
+    result->x = jo_fixed_mult(a->y, b->z) - jo_fixed_mult(a->z, b->y);
+    result->y = jo_fixed_mult(a->z, b->x) - jo_fixed_mult(a->x, b->z);
+    result->z = jo_fixed_mult(a->x, b->y) - jo_fixed_mult(a->y, b->x);
+    result->w = JO_FIXED_1;
+}
+
+/** @brief Dot product of 2 vectors4 (using fixed numbers)
+ *  @param a First vector4
+ *  @param b Second vector4
+ *  @return Dot product
+ */
+static __jo_force_inline jo_fixed jo_vector4_fixed_dot(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b)
+{
+    return (jo_fixed_mult(a->x, b->x) + jo_fixed_mult(a->y, b->y) + jo_fixed_mult(a->z, b->z));
+}
+
+/** @brief Dot product of 2 vectors4 (using fixed numbers)
+ *  @param a First vector4
+ *  @param b Second vector4
+ *  @return Dot product
+ */
+static __jo_force_inline void jo_vector4_swap(jo_vector4_fixed * const a, jo_vector4_fixed * const b)
+{
+    JO_SWAP(a->x, b->x);
+    JO_SWAP(a->y, b->y);
+    JO_SWAP(a->z, b->z);
+    JO_SWAP(a->w, b->w);
+}
+
 /*
     ________            __  _                _   __                __
    / ____/ /___  ____ _/ /_(_)___  ____ _   / | / /_  ______ ___  / /_  ___  _____
@@ -1157,6 +1239,21 @@ static __jo_force_inline float jo_vectorf_angle_between_radf(const jo_vectorf * 
 
 */
 
+/** @brief Creates the identity matrix (using fixed numbers)
+ *  @param result Result matrix
+ */
+static __jo_force_inline void   jo_matrix_identity(jo_matrix * const result)
+{
+    register int                i;
+
+    for (i = 1; i < 15; ++i)
+        JO_ZERO(result->table[i]);
+    result->m00 = JO_FIXED_1;
+    result->m11 = JO_FIXED_1;
+    result->m22 = JO_FIXED_1;
+    result->m33 = JO_FIXED_1;
+}
+
 /** @brief Creates the identity matrix (using floating numbers)
  *  @param result Result matrix
  */
@@ -1172,6 +1269,18 @@ static __jo_force_inline void   jo_matrixf_identity(jo_matrixf * const result)
     result->m33 = 1;
 }
 
+/** @brief Creates translation matrix (using fixed numbers)
+ *  @param offset Offset vector
+ *  @param result Result matrix
+ */
+static __jo_force_inline void jo_matrix_translation(const jo_vector_fixed * const offset, jo_matrix * const result)
+{
+    jo_matrix_identity(result);
+    result->m30 = offset->x;
+    result->m31 = offset->y;
+    result->m32 = offset->z;
+}
+
 /** @brief Creates translation matrix (using floating numbers)
  *  @param offset Offset vector
  *  @param result Result matrix
@@ -1184,6 +1293,18 @@ static __jo_force_inline void jo_matrixf_translation(const jo_vectorf * const of
     result->m32 = offset->z;
 }
 
+/** @brief Creates scaling matrix (using fixed numbers)
+ *  @param scale Scale vector
+ *  @param result Result matrix
+ */
+static __jo_force_inline void jo_matrix_scaling(const jo_vector_fixed * const scale, jo_matrix * const result)
+{
+    jo_matrix_identity(result);
+    result->m00 = scale->x;
+    result->m11 = scale->y;
+    result->m22 = scale->z;
+}
+
 /** @brief Creates scaling matrix (using floating numbers)
  *  @param scale Scale vector
  *  @param result Result matrix
@@ -1194,6 +1315,19 @@ static __jo_force_inline void jo_matrixf_scaling(const jo_vectorf * const scale,
     result->m00 = scale->x;
     result->m11 = scale->y;
     result->m22 = scale->z;
+}
+
+/** @brief Creates rotating matrix (X axis) (using fixed numbers)
+ *  @param angle_in_rad Angle in radiant
+ *  @param result Result matrix
+ */
+static __jo_force_inline void jo_matrix_rotation_x_rad(const float angle_in_rad, jo_matrix * const result)
+{
+    jo_matrix_identity(result);
+    result->m11 = jo_cos_rad(angle_in_rad);
+    result->m12 = jo_sin_rad(angle_in_rad);
+    result->m21 = -result->m12;
+    result->m22 = result->m11;
 }
 
 /** @brief Creates rotating matrix (X axis) (using floating numbers)
@@ -1209,6 +1343,19 @@ static __jo_force_inline void jo_matrixf_rotation_x_rad(const float angle_in_rad
     result->m22 = result->m11;
 }
 
+/** @brief Creates rotating matrix (Y axis) (using fixed numbers)
+ *  @param angle_in_rad Angle in radiant
+ *  @param result Result matrix
+ */
+static __jo_force_inline void jo_matrix_rotation_y_rad(const float angle_in_rad, jo_matrix * const result)
+{
+    jo_matrix_identity(result);
+    result->m00 = jo_cos_rad(angle_in_rad);
+    result->m20 = jo_sin_rad(angle_in_rad);
+    result->m02 = -result->m20;
+    result->m22 = result->m00;
+}
+
 /** @brief Creates rotating matrix (Y axis) (using floating numbers)
  *  @param angle_in_rad Angle in radiant
  *  @param result Result matrix
@@ -1222,6 +1369,19 @@ static __jo_force_inline void jo_matrixf_rotation_y_rad(const float angle_in_rad
     result->m22 = result->m00;
 }
 
+/** @brief Creates rotating matrix (Z axis) (using fixed numbers)
+ *  @param angle_in_rad Angle in radiant
+ *  @param result Result matrix
+ */
+static __jo_force_inline void jo_matrix_rotation_z_rad(const float angle_in_rad, jo_matrix * const result)
+{
+    jo_matrix_identity(result);
+    result->m00 = jo_cos_rad(angle_in_rad);
+    result->m01 = jo_sin_rad(angle_in_rad);
+    result->m10 = -result->m01;
+    result->m11 = result->m00;
+}
+
 /** @brief Creates rotating matrix (Z axis) (using floating numbers)
  *  @param angle_in_rad Angle in radiant
  *  @param result Result matrix
@@ -1233,6 +1393,31 @@ static __jo_force_inline void jo_matrixf_rotation_z_rad(const float angle_in_rad
     result->m01 = jo_sin_radf(angle_in_rad);
     result->m10 = -result->m01;
     result->m11 = result->m00;
+}
+
+/** @brief Creates transpose matrix (using fixed numbers)
+ *  @param matrix Input matrix
+ *  @param result Result matrix
+ *  @warning matrix and result parameters must not be the same address
+ */
+static __jo_force_inline void jo_matrix_transpose(const jo_matrix * const matrix, jo_matrix * const result)
+{
+    result->m00 = matrix->m00;
+    result->m10 = matrix->m01;
+    result->m20 = matrix->m02;
+    result->m30 = matrix->m03;
+    result->m01 = matrix->m10;
+    result->m11 = matrix->m11;
+    result->m21 = matrix->m12;
+    result->m31 = matrix->m13;
+    result->m02 = matrix->m20;
+    result->m12 = matrix->m21;
+    result->m22 = matrix->m22;
+    result->m32 = matrix->m23;
+    result->m03 = matrix->m30;
+    result->m13 = matrix->m31;
+    result->m23 = matrix->m32;
+    result->m33 = matrix->m33;
 }
 
 /** @brief Creates transpose matrix (using floating numbers)
@@ -1258,6 +1443,45 @@ static __jo_force_inline void jo_matrixf_transpose(const jo_matrixf * const matr
     result->m13 = matrix->m31;
     result->m23 = matrix->m32;
     result->m33 = matrix->m33;
+}
+
+/** @brief Multiply a matrix by a vector4 (using fixed numbers)
+ *  @param m Matrix
+ *  @param v Vector4
+ *  @param result Result vector4
+ *  @warning v and result parameters can be the same address
+ */
+static __jo_force_inline void   jo_matrix_mul_vector4(const jo_matrix * const m, const jo_vector4_fixed * const v, jo_vector4_fixed * const result)
+{
+    result->x = jo_fixed_mult(m->m00, v->x) + jo_fixed_mult(m->m10, v->y) + jo_fixed_mult(m->m20, v->z) + jo_fixed_mult(m->m30, v->w);
+    result->y = jo_fixed_mult(m->m01, v->x) + jo_fixed_mult(m->m11, v->y) + jo_fixed_mult(m->m21, v->z) + jo_fixed_mult(m->m31, v->w);
+    result->z = jo_fixed_mult(m->m02, v->x) + jo_fixed_mult(m->m12, v->y) + jo_fixed_mult(m->m22, v->z) + jo_fixed_mult(m->m32, v->w);
+    result->w = jo_fixed_mult(m->m03, v->x) + jo_fixed_mult(m->m13, v->y) + jo_fixed_mult(m->m23, v->z) + jo_fixed_mult(m->m33, v->w);
+}
+
+/** @brief Multiply 2 matrix (using fixed numbers)
+ *  @param a First matrix
+ *  @param b Second matrix
+ *  @param result Result matrix
+ *  @warning a, b and result parameters must not be the same address
+ */
+static __jo_force_inline void   jo_matrix_mul(const jo_matrix * const a, const jo_matrix * const b, jo_matrix * const result)
+{
+    register int                i;
+    register int                j;
+    register int                k;
+    register float              sum;
+
+    for (i = 0; i < 4; ++i)
+    {
+        for (j = 0; j < 4; ++j)
+        {
+            sum = 0;
+            for (k = 0; k < 4; ++k)
+                sum += jo_fixed_mult(a->m[k][j], b->m[i][k]);
+            result->m[i][j] = sum;
+        }
+    }
 }
 
 /** @brief Multiply 2 matrix (using floating numbers)
