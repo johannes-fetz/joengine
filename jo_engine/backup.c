@@ -389,11 +389,11 @@ unsigned short                  jo_backup_get_file_partition(const jo_backup_dev
 
 bool                jo_backup_save_file_contents(const jo_backup_device backup_device, const char * const fname, const char * const comment, void *contents, unsigned int content_size)
 {
-    return (jo_backup_save_file_contents_on_partition(backup_device, fname, comment, contents, content_size, 0));
+    return (jo_backup_save_file_contents_on_partition(backup_device, fname, comment, 1, 0, contents, content_size, 0));
 }
 
 bool                jo_backup_save_file_contents_on_partition(const jo_backup_device backup_device, const char * const fname, const char * const comment,
-                                                              void *contents, unsigned int content_size, const unsigned short partition_number)
+                                                              const char language, const unsigned int save_date, void *contents, unsigned int content_size, const unsigned short partition_number)
 {
     jo_backup_date  date;
     jo_backup_file  dir;
@@ -452,38 +452,56 @@ bool                jo_backup_save_file_contents_on_partition(const jo_backup_de
         dir.comment[i] = (Uint8)comment[i];
     JO_ZERO(dir.comment[i]);
     JO_BACKUP_DRIVER_CHANGE_PARTITION(backup_device, partition_number);
-    /* LANGUAGE */
-    switch (jo_get_current_language())
+
+    if(language > 5)
     {
-    case Espanol:
-        dir.language = 4;
-        break;
-    case Japanese:
-        dir.language = 0;
-        break;
-    case Italiano:
-        dir.language = 5;
-        break;
-    case Deutsch:
-        dir.language = 3;
-        break;
-    case French:
-        dir.language = 2;
-        break;
-    case English:
-    default:
-        dir.language = 1;
-        break;
+        /* LANGUAGE */
+        switch (jo_get_current_language())
+        {
+        case Espanol:
+            dir.language = 4;
+            break;
+        case Japanese:
+            dir.language = 0;
+            break;
+        case Italiano:
+            dir.language = 5;
+            break;
+        case Deutsch:
+            dir.language = 3;
+            break;
+        case French:
+            dir.language = 2;
+            break;
+        case English:
+        default:
+            dir.language = 1;
+            break;
+        }
     }
-    /* DATE */
-    jo_getdate(&now);
-    date.year = now.year - 1980;
-    date.month = now.month;
-    date.week = now.week;
-    date.day = now.day;
-    date.time = now.hour;
-    date.min = now.minute;
-    dir.date = JO_BACKUP_DRIVER_PREPARE_DATE(&date);
+    else
+    {
+        dir.language = language;
+    }
+
+    if(save_date == 0)
+    {
+
+        /* DATE */
+        jo_getdate(&now);
+        date.year = now.year - 1980;
+        date.month = now.month;
+        date.week = now.week;
+        date.day = now.day;
+        date.time = now.hour;
+        date.min = now.minute;
+        dir.date = JO_BACKUP_DRIVER_PREPARE_DATE(&date);
+    }
+    else
+    {
+        dir.date = save_date;
+    }
+
     dir.datasize = content_size;
     jo_core_disable_reset();
     __jo_backup_devices[backup_device].status = JO_BACKUP_DRIVER_WRITE(backup_device, &dir, contents, JO_BACKUP_OVERRIDE_FILE_IF_EXISTS);
