@@ -164,13 +164,23 @@ static  __jo_force_inline void      jo_core_tv_on(void)
     slTVOn();
 }
 
-/** @brief Restart the Saturn
+/** @brief Exit program and return to the Saturn multiplayer (CD player) screen
  *  @warning Works but I didn't found documentation about it
  *  @todo Investigate and give feedback to https://segaxtreme.net/threads/best-way-to-debug-saturn-bios.18644/
  */
+static  __jo_force_inline void jo_core_exit_to_multiplayer(void)
+{
+
+    (**(void(**)(void))0x600026C)();
+}
+
+/** @brief Restart the Saturn
+ *  @warning Doesn't work in Yabause
+ */
 static  __jo_force_inline void jo_core_restart_saturn(void)
 {
-    (**(void(**)(void))0x600026C)();
+    jo_smpc_begin_command();
+    jo_smpc_end_command(SystemReset);
 }
 
 /** @brief Set scroll screen order between them
