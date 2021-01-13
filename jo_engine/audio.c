@@ -49,12 +49,12 @@
 
 static PCM             __jo_internal_pcm[JO_SOUND_MAX_CHANNEL] =
 {
-    {(_Stereo | _PCM16Bit), 0, 127, 0, 0x0, 0, 0, 0, 0},
-    {(_Stereo | _PCM16Bit), 2, 127, 0, 0x0, 0, 0, 0, 0},
-    {(_Stereo | _PCM16Bit), 4, 127, 0, 0x0, 0, 0, 0, 0},
-    {(_Stereo | _PCM16Bit), 6, 127, 0, 0x0, 0, 0, 0, 0},
-    {(_Stereo | _PCM16Bit), 8, 127, 0, 0x0, 0, 0, 0, 0},
-    {(_Stereo | _PCM16Bit), 10, 127, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 0, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 2, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 4, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 6, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 8, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
+    {(_Stereo | _PCM16Bit), 10, JO_DEFAULT_AUDIO_VOLUME, 0, 0x0, 0, 0, 0, 0},
 };
 
 void			    jo_audio_play_cd_track(const int from_track, const int to_track, const bool repeat_infinitely)
@@ -132,7 +132,10 @@ void	            jo_audio_play_sound_on_channel(jo_sound * const sound, const un
         return ;
     slSndFlush();
     sound->current_playing_channel = channel;
+    __jo_internal_pcm[(int)channel].level = (Uint8)sound->volume;
     __jo_internal_pcm[(int)channel].mode = (Uint8)sound->mode;
+    __jo_internal_pcm[(int)channel].pitch = (Uint16)sound->sample_rate;
+    __jo_internal_pcm[(int)channel].pan = (Sint8)sound->pan;
     slPCMOn(&__jo_internal_pcm[(int)channel], sound->data, sound->data_length);
 }
 
@@ -144,6 +147,8 @@ void	                    jo_audio_play_sound(jo_sound * const sound)
 {
     register unsigned int   i;
 
+    if (sound->volume == JO_MIN_AUDIO_VOLUME)
+        return ;
 #ifdef JO_DEBUG
     if (sound == JO_NULL)
     {
@@ -222,6 +227,7 @@ static void         __jo_audio_load_pcm_async_callback(char *contents, int lengt
     sound = (jo_sound *)optional_token;
     sound->data_length = length;
     sound->data = contents;
+    sound->volume = JO_MAX_AUDIO_VOLUME;
 }
 
 bool                jo_audio_load_pcm_async(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
@@ -256,6 +262,7 @@ bool                jo_audio_load_pcm(const char * const filename, const jo_soun
     sound->mode = mode;
     sound->data_length = len;
     sound->data = pcm;
+    sound->volume = JO_MAX_AUDIO_VOLUME;
     return (true);
 }
 

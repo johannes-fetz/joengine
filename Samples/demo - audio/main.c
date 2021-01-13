@@ -77,6 +77,12 @@ void            load_blop_sound(void)
 		ffmpeg -i A.MP3 -f s8 -ac 1 -ar 8000 A.PCM => JoSoundStereo8Bit
 	*/
     jo_audio_load_pcm("A.PCM", JoSoundMono16Bit, &blop);
+    /* After loading our file we have to set the sampling rate (8000 to 44100 kHz, the -ar option) */
+    blop.sample_rate = 32000;
+    /* Optional:
+         blop.volume = 64; // Change volume: 0 (min) -> 127 (max)
+         blop.pan = 0; //Adjust stereo: -128 (left speaker) -> 127 (right speaker)
+    */
 }
 
 void			jo_main(void)
