@@ -1,0 +1,16 @@
+Traduction Française de l'Emulateur Kronos 2.1.5 - 32 Bits
+par Benjamin Siskoo
+
+Mise à jour le  25 Décembre 2020
+
+CONTACT :
+---------
+
+Si vous trouvez des bugs dus à la traduction francaise par rapport à l'anglaise, des fautes d'orthographes ou de style, ou même remanié certaines expressions, écrivez-moi à :
+
+Siskoo@tradu-france.com
+
+http://www.tradu-france.com
+
+
+

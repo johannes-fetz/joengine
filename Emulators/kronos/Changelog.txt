@@ -1,0 +1,580 @@
+Kronos 2.1.5 :
+
+Features : Added bios language option. Games like Rayman or Powerslave will be in the language of your choice and depends of the bios. (Will-LWE).
+ST-V Emulation : Cotton 2 : Fixed missing trees (FCare).
+ST-V Emulation : Mausuke No Ojama The World : Fixed missing background in game (FCare).
+Saturn Emulation : 3D Baseball : Fixed sound problem in game. Speaker said the name of the player twice (FCare).
+Saturn Emulation : Astra Super Stars : Fixed non booting game. The game is now bootable and playable (Devmiyax / FCare).
+Saturn Emulation : Capcom Generation 5 : Fixed missing Arts. The screen is not properly displayed (Devmiyax / FCare).
+Saturn Emulation : Corpe Killer : Fixed non booting game. In game, when you shoot enemies, they're not dying  (Devmiyax).
+Saturn Emulation : GeGeGe No Kitarou - Gentou Kaikitan : Use the built in bios, the game is playable with. With the real bios, the game is not booting (FCare).
+Saturn Emulation : Joe Engine : Fixed Rotation (FCare).
+Saturn Emulation : Kidou Senshi Z Gundam - Zenpen Zeta No Kodou : The game is booting and is playable with the built-in bios but not working with the real bios (FCare).
+Saturn Emulation : Kunoichi Torimonochou : Fixed missing GFX on the press start screen. The game is now playable (FCare).
+Saturn Emulation : Moon Cradle : The game is booting and playable with the built-in bios, but not working with the real bios (FCare).
+Saturn Emulation : NBA Live 98 : Fixed colors problem in game (FCare).
+Saturn Emulation : NFL Quarterback Club '97 : (Europe) Fixed GFX artefacts on players in game (Devmiyax / FCare).
+Saturn Emulation : NHL '98 : Fixed freeze before entering in game. The game is booting and it's almost playable. Flickering with stands (Devmiyax / FCare).
+Saturn Emulation : NHL All-Star Hockey : Fixed non booting game. The game is now booting and playable (Devmiyax / FCare).
+Saturn Emulation : Nobunaga No Yabou Sengoku Gunyuuden (Japan) : Fixed non booting game. The game is now booting and playable (FCare).
+Saturn Emulation : Nobunaga No Yabou Tenshouki : Fixed non booting game. The game is now booting and playable (FCare).
+Saturn Emulation : Nobunaga No Yabou Tenshouki With Power-Up Kit : Fixed non booting game. The game is now booting and playable (FCare).
+Saturn Emulation : PGA Tour 97 : Fixed black screen at the start. But black screen on the press start screen (FCare).
+Saturn Emulation : SatMag Sono CD (Japan) : FMVs are displayed with the built-in bios but not with the real bios (FCare).
+Saturn Emulation : Sea Bass Fishing 1 : The game is booting and playable with the built-in bios but not booting with the real bios (FCare).
+Saturn Emulation : Sea Bass Fishing 2 : The game is booting and playable with the built-in bios but not booting with the real bios. Slowdowns on the intro video (FCare).
+Saturn Emulation : Sega Ages Afterburner : Fixed missing SFX/music (FCare).
+Saturn Emulation : Sega Ages Fantasy Zone : Fixed sound problem (FCare).
+Saturn Emulation : Sega Saturn Choice Cuts : Fixed sound problem (FCare).
+Saturn Emulation : SegaColle Sega Bible Mogitate SegaSaturn Soukan-Gou (Japan) : FMVs are displayed with the built-in bios but not working with the real bios (FCare).
+Saturn Emulation : Shining Force III - Scenario 2 - Nerawareta Miko : Fixed water effect (Devmiyax / François Care).
+Saturn Emulation : Soeldnerschild : Fixed sound problem (FCare).
+Saturn Emulation : Steam-Heart's (Japan) :  Fixed black screen at the start. The game is now booting and playable (Devmiyax / FCare).
+Saturn Emulation : Stellar Assault : Fixed black screen at the start. The game is now booting and playable. But loading transition are very long  (FCare).
+Saturn Emulation : The King Of Fighter 95 : Fixed slowdowns in game (FCare).
+Emulation Saturn : Thunderstrike 2 : Fixed black screen at the start. The game is now booting and playable (FCare).
+Saturn Emulation : Tour Party - Sotsugyou Ryokou Ni Ikou : Fixed freeze on the Takara logo at the start. The game is now booting and playable  (FCare).
+Saturn Emulation : Vandal Hearts - Ushinawareta Kodai Bunmei : Fixed missing cursor on the press start screen (FCare).
+Saturn Emulation : Virtual Kyoutei 2 : Fixed crash at the start. The game is now booting but freeze in game. Playable with the built-in bios (Devmiyax / FCare).
+Saturn Emulation : Waku^2 Monster : Fixed the crash with the SH2 Kronos interpreter. The game is now playable (FCare).
+Saturn Emulation : Zero Divide - The Final Conflict : Fixed crash at the start. The game is now booting and playable (Devmiyax / FCare).
+Misc : Various fixes (FCare, Barbudreadmon).
+Misc : There are 2064 games on the WIKI (Benjamin Siskoo).
+Misc : Updated documentations (Benjamin Siskoo).
+Misc : Added games to the WIKI :
+	- Chill_(Jan_19,_1998_prototype)
+	- Clockwork_Knight_-_Pengin_War_(Oct_21,_1995_prototype)
+	- Dragon's Dream (Japan)
+	- Friends - Seishun No Kagayaki (Japan)
+	- Hang-On GP (USA)
+	- Hang On GP '96 (Europe)
+	- Hebereke's Popoitto (Europe)
+	- Heir Of Zendor - The Legend And The Land (USA)
+	- Kidou Senkan Nadesico - The Blank of 3 Years (Japan)
+	- Magical Hoppers (Japan)
+	- Mahjong Tenshi - Angel Lips (Japan)
+	- Mobile Suit Gundam Side Story - Optional Guide (Japan)
+	- Mobile Suit Gundam Side Story I - Senritsu No Blue (Japan) (Demo)
+	- Mobile Suit Gundam Side Story I - Senritsu No Blue (Japan) 
+	- Mobile Suit Gundam Side Story III - Sabakareshi Mono (Japan)
+	- Mobile Kidou Senshi Gundam Gaiden - The Blue Destiny (Japan)
+	- Mouja (Japan)
+	- Nihon Pro Mahjong Renmei Kounin - Doujou Yaburi (Japan) 
+	- Norse By Norsewest - The Return Of The Lost Vikings (USA) 
+	- PriKura (Princess Kurara) Daisakusen (Japan) (Demo)
+	- PriKura (Princess Kurara) Daisakusen (Japan)
+	- Sakura Taisen Teikokukagekidan Taiin Meibo (Japan)
+	- Sega Screams Volume 2 (USA)
+	- Shin Seiki Evangelion - Eva To Yukaina Nakama-Tachi (Japan) 
+	- Shinobi Legions (USA)
+	- Sorvice (Japan)
+	- Standby Say You! (Japan) 
+	- Street Fighter Zero 2' (Japan) 
+	- Thunder Storm & Road Blaster (Japan) (Thunder Storm)
+	- Thunder Storm & Road Blaster (Japan) (Road Blaster)
+	- Wheel's (Japan)
+
+Kronos 2.1.3 :
+
+Features : options display according to the video core (François Care).
+ST-V Emulation : Added of the choice of the region of bios in Qt (François Care).
+Saturn Emulation : Remove banding to the gouraud shading (François Care).
+Saturn Emulation : Actua Golf : Fixed booting problem. The game is now playable (Devmiyax).
+Saturn Emulation : Assault Suit Leynos 2 : Fixed booting problem. The game is now playable (Devmiyax).
+Saturn Emulation : Bishoujo Hanafuda Kikou - Michinoku Hitou Koi Monogatari Special (Japan) : Fixed menu display (François Care).
+Saturn Emulation : Marvel Super Heroes Vs. Street Fighter : Fixed booting problem. The game is now playable (Devmiyax).
+Saturn Emulation : Nanatsu Kaze No Shima Monogatari : Fixed booting problem. The game is now playable (Barbudreadmon).
+Saturn Emulation : NHL 98 : Fixed booting problem. The game freeze before entering in game (François Care).
+Saturn Emulation : NHL All Star Hockey : Fixed booting problem. The game boot but it freeze in game (François Care).
+Saturn Emulation : Primal Rage : Fixed booting problem. The game is now playable (François Care).
+Saturn Emulation : Sega Rally Championship (U) : Fixed booting problem. The game is now playable (Barbudreadmon).
+Saturn Emulation : Sega Saturn Bootleg II - On the Road : Fixed booting problem. The game is now playable (François Care).
+Saturn Emulation : Slayers Royal 2 : Fixed booting problem. The game is now playable (François Care).
+Saturn Emulation : Soukuu No Tsubasa - Gotha World : Fixed booting problem. The game is now playable (François Care).
+Saturn Emulation : Sound Novel Tkool 2 : Fixed booting problem. The game is now playable (Barbudreadmon).
+Saturn Emulation : Vampire Savior - The Lord Of Vampire : Fixed booting problem. The game is now playable (Devmiyax).
+Saturn Emulation : VR Golf '97 : Fixed booting problem. The game is now playable (Devmiyax).
+Saturn Emulation : X-Men Vs. Street Fighter : Fixed booting problem. The game is now playable (François Care).
+Saturn Emulation : Zoop : Fixed auto pause in game (François Care).
+Misc : Translating video options (Benjamin Siskoo).
+Misc : Added games to the Wiki  : 
+	- Amagi Shien (J), 
+	- Bishoujo Hanafuda Kikou - Michinoku Hitou Koi Monogatari Special (J),
+	- Cross Romance - Koi To Mahjong To Hanafuda to (J), 
+	- Dark Seed II
+	- Deka 4-Ku - Tough The Truck (J), 
+	- Doukoku Soshite... (J),
+	- Dream Generation - Koi Ka Shigoto Ka !... (J),
+	- Idol Mahjong - Final Romance 4 (J),
+	- The Game Of Life - DX Jinsei Game (J),
+	- The Game Of Life - DX Jinsei Game II (J),
+	- Honkaku Shougi Shinan - Wakamatsu Shougi Juku (J),
+	- Kaitou Saint Tail (J),
+	- Koudou Saisoku Densetsu - Initial D (J),
+	- Koutetsu Reiiki - Steeldom (J) (2M), 
+	- Kunoichi Torimonochou (J),
+	- Mahjong Yon Shimai - Wakakusa Monogatari (J),
+	- Pachi-Slot Kanzen Kouryaku Uni-Colle '97 - Universal Collection (J),
+	- Pyon Pyon Kyaruru No Mahjong Hiyori (J),
+	- Shingata Kururin Pa ! (J), 
+	- Shinpi No Sekai El-Hazard - El-Hazard - The Magnificent World For Sega Saturn (J) (2M),
+	- Shutsudou ! Miniskirt Police (J),
+	- Suchie-Pai Adventure - Doki Doki Nightmare (J),
+	- Tokimeki Mahjong Graffiti - Toshishita No Tenshi-tachi (J),
+	- Tour Party - Sotsugyou Ryokou Ni Ikou (J) (Rev A),
+	- Waku^2 Monster (J)
+
+Kronos 2.1.2 :
+
+Emulation ST-V : Fixed coins problems (François Care).
+Emulation ST-V : Added EEPROM support to save service settings (Barbudreadmon).
+Emulation ST-V : Added buttons 5 and 6 to the ST-V controller (François Care).
+Emulation ST-V : Die Hard Arcade : The game is now playable (François Care).
+Emulation ST-V : Final Arch : Fixed buttons. Now the game is now playable (Barburdreadmon).
+Emulation ST-V : Final Fight Revenge : Fixed a black line on the second stage (François Care).
+Emulation ST-V : Puzzle & Action : BoMulEul Chajara : The game is now playable (François Care).
+Emulation ST-V : Puzzle & Action - Treasure Hunt : The game is now playable (François Care).
+Emulation ST-V : Suiko Enbu / Outlaws Of The Dynasty : Fixed buttons. Now the game is now playable (Barburdreadmon).
+Emulation ST-V : Winterheat : Fixed buttons. Now the game is now playable (Barburdreadmon).
+Saturn Emulation : Fixed resolution with non interlaced HDTV games (Barbudreadmon / François Care). 
+Saturn Emulation : Assault Suit Leynos : The game is booting. Black screen before entering in game (François Care).
+Saturn Emulation : Final Fight Revenge : Fixed a black line on the second stage (François Care).
+Saturn Emulation : King Of Fighter 97 : Fixed GFX artefacts in game (François Care).
+Saturn Emulation : Shining Force 3 - Episode 1 : Fixed an incorrect scaling with magic to the CS core (François Care).
+Saturn Emulation : Sega Rally Championship : Fixed text on the front car spoiler to the CS core (François Care).
+Saturn Emulation : Various fixes (François Care, Barbudreadmon).
+Misc : Updated documentations (Benjamin Siskoo).
+Misc : Wiki updated (Benjamin Siskoo).
+
+Kronos 2.1.1 :
+
+Features : Add Wireframe mode. Dev options vbut endusers can play with (François Care).
+Features : Add integer scaling resize (François Care).
+Features : Color offset is now applied after color calculation as on the console, instead of before (François Care).
+Saturn Emulation : SCU : improve interrupt handling mechanism (François Care).
+Saturn Emulation : CS : implement a per line rasterizer. Fix texture mapping in multiple games (François Care).
+Saturn Emulation : Batman : Fixed artefacts on the press start screnn (François Care).
+Saturn Emulation : Batsugun : The game is now playable. Fixed buttons (François Care).
+Saturn Emulation : Casper : Fixed artefacts with transitions screen (François Care).
+Saturn Emulation : Dark Savior : The game is now playable. Fixed black screen dialog in game (François Care).
+Saturn Emulation : Doom : The game seems playable with some artefacts in OpenGl mode. CS mode is broken (François Care).
+Saturn Emulation : Dungeons & Dragons Collection : Fixed pixel problem on character in game with OpenGL renderer (François Care).
+Saturn Emulation : Fuusui Sensei - Feng-Shui Master : The game is now playable. Fixed GFX problem in game (François Care).
+Saturn Emulation : Gex : Fixed transparencies with the pause menu (François Care).
+Saturn Emulation : Gouketsuji Ichizoku 3 - Groove On Fight : Fixed missing characters in game (François Care).
+Saturn Emulation : Hang-On '95 : Fixed artefacts in game (François Care).
+Saturn Emulation : Highway 2000 : Fixed GFX artefacts in CS mode in game (François Care).
+Saturn Emulation : Kumitate Battle Kuttu Ketto : Fixed flickering (François Care).
+Saturn Emulation : Mr Bones : Fixed GFX problems with the pause menu (François Care).
+Saturn Emulation : Scorcher : Fixed a useless line with the pause menu (François Care).
+Saturn Emulation : Shangai Triple Threat : The game is now playable. Fixed broken buttons (François Care).
+Saturn Emulation : Skeletton Warriors : the game is now playable. Fixed intro and missing characters in game (François Care).
+Saturn Emulation : Steeldom : The game is now playable. Fixed ground GFX problem (François Care).
+Saturn Emulation : Tech Saturn Sep.1997 : The game is now booting and is playable (François Care).
+Misc : Fixed lot of usban errors/warnings (Barbudreadmon, François Care).
+Misc : Updated documentations (Benjamin Siskoo).
+Misc : Wiki updated (Benjamin Siskoo).
+Misc : various fixes (François Care).
+
+Kronos 2.0.2 :
+
+Features : Add 128 mb Dram to Heart Of Darkness (François Care).
+STV : Added bundled nvrams support (Barbudreadmon).
+STV : Added Fantasy Zone (Benjamin Siskoo).
+STV : Mausuke No Ojama the World : Fixed missing background (François Care).
+STV : Cotton Boomerang : Fixed missing trees (François Care).
+STV : Sakura Taisen - Hanagumi Taisen Columns : Fixed NBG3 layer (François Care).
+Saturn Emulation : Afterburner II : Fixed missing loading screen (François Care).
+Saturn Emulation : Batman Forever - The Arcade Game : Fixed controls problem, the game is now playable (François Care).
+Saturn Emulation : Code R : Fixed missing characters in game (François Care).
+Saturn Emulation : Digital Pinball - Last Gladiators : Fixed controls problem (François Care).
+Saturn Emulation : Digital Pinball - Necronomicon : Fixed controls problem (François Care).
+Saturn Emulation : Firestorm - Thunderhawk 2 : Fixed controls problem, but it doesn't work with a Dual Shock 3 (François Care).
+Saturn Emulation : GameWare Vol.1 : Fixed controls problem (François Care).
+Saturn Emulation : Grandia : Fixed incorrect in-game title screen and city floor (François Care).
+Saturn Emulation : Heart Of Darkness : The game is bootable and playable (François Care).
+Saturn Emulation : Last Gladiators - Digital Pinball : Fixed controls problem (François Care).
+Saturn Emulation : Lupin The 3rd - The Master File : Fixed controls problem, but it doesn't work with a Dual Shock 3 (François Care).
+Saturn Emulation : Metal Fighter Miku : Fixed black screen problem after pushing start (François Care).
+Saturn Emulation : Metal Slug : Fixed periodic sprite corruption of end of level stats (François Care).
+Saturn Emulation : Minnesota Fats - Pool Legend : Fixed artefacts on the press start screen (François Care).
+Saturn Emulation : Next King - Koi No Sennen Oukoku : Fixed artefacts on portraits (François Care).
+Saturn Emulation : Outrun : Fixed missing loading screen (François Care).
+Saturn Emulation : Rayman : Fixed controls problem (François Care).
+Saturn Emulation : Ryuuteki Gosennen - Dragons Of China : Fixed reboot problem (François Care).
+Saturn Emulation : Sakura Taisen : Fixed game freeze when starting a 2nd video (François Care).
+Saturn Emulation : Sega Rally Championship : Fixed missing HUD (François Care).
+Saturn Emulation : Shockwave Assault : Fixed controls problem, but it doesn't work with a Dual Shock 3 (François Care).
+Saturn Emulation : Side Pocket 2 : Fixed artefacts on the press start screen (François Care).
+Saturn Emulation : Space Harrier : Fixed missing loading screen (François Care).
+Saturn Emulation : Street Fighter The Movie : Fixed shadows with compute shader - not fixed with OpenGL (François Care).
+Saturn Emulation : The Need For Speed : Fixed missing loading screen (François Care).
+Saturn Emulation : The Tower : Fixed freeze in game, the game is now playable (François Care).
+Saturn Emulation : Thunderhawk 2 - Firestorm : Fixed controls problem, but it doesn't work with a Dual Shock 3 (François Care).
+Saturn Emulation : Thunderhawk II : Fixed controls problem, but it doesn't work with a Dual Shock 3 (François Care).
+Saturn Emulation : Voice Idol Maniacs - Pool Bar Story : Fixed controls problem (François Care).
+Saturn Emulation : Waku Waku 7 : Character screen selection is almost fixed, missing a part (François Care).
+Saturn Emulation : Winter Heat : Fixed window resize for VDP1 layer (François Care).
+Saturn Emulation : World Cup Golf - Professional Edition : Fixed artefacts on press start screen (François Care). 
+Saturn Emulation : Yuushun Classic Road : Fixed reboot problem (François Care).
+Wiki : Added these games to the wiki : Flash Volume 1 to Flash Volume 32, Bottom Of The 9Th, Dark Legend, Heart Of Darkness, Heim Waltz, Japan Super Bass Classic '96, Kamen Rider - Sakusen File 1, Kidou Senkan Nadesico - The Blank Of 3 Years, Lunacy, Oh-ChanNo Oekaki Logic,  P.T.O. - Pacific Theater of Operations II, Purikura Daisakusen, Sanguozhi IV, Sanguozhi V,Solar Eclipse, Tokyo Shadow, Winning Post, Xianjian Qixiazhuan, Zenkoku Seifuku Bishoujo Grand Prix Find Love (Benjamin Siskoo).
+Misc : Wiki updated (Benjamin Siskoo).
+Misc : Updated to Qt 5.14 (Benjamin Siskoo).
+Misc : Fixed Ubsan errors messages (François Care).
+Misc : Fixed a regression with CCD format (François Care).
+Misc : Updated documentations (Benjamin Siskoo).
+Misc : Various fixes.
+
+Kronos 2.0.1 :
+
+Features : Added Compute Shader video core (François Care).
+Features : Removed Software video core (François Care).
+Features : Added Compute Shader (François Care).
+Features : Added chd support (Devmiyax, BarbuDreadMon, François Care).
+Saturn Emulation : AI Shougi 2 : The game is now bootable and playable (François Care).
+Saturn Emulation : All-Star Baseball '97 featuring Frank Thomas : The game is now playable. (François Care).
+Saturn Emulation : Aquazone Desktop Life : The game is now bootable. Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Aquazone - Desktop Life Option Disc Series 1 - Angel Fish (Japan) (Rev A) : Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Aquazone - Desktop Life Option Disc Series 2 - Black Molly (Japan) (Rev A) : Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Aquazone - Desktop Life Option Disc Series 3 - Blue Emperor (Japan) (Rev A) : Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Aquazone - Desktop Life Option Disc Series 4 - Clown Loach (Japan) (Rev A) : Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Aquazone - Desktop Life Option Disc Series 5 - False Rummy-Nose (Japan) (Rev A) : Missing GFX in game, it's not playable (François Care).
+Saturn Emulation : Ayrton Senna Personal Talk - Message For The Future : The game is now bootable and is playable (François Care).
+Saturn Emulation : Black Matrix : The game is now bootable and playable. Voices are not understandable. (François Care).
+Saturn Emulation : Command & Conquer : The game is playable again (François Care).
+Saturn Emulation : Death Throttle - Kakuzetsu Toshi Kara No Dasshutsu : The game is now bootable and playable (François Care).
+Saturn Emulation : Deep Fear : Fixed sound problem (François Care).
+Saturn Emulation : Digital Ange - Dennou Tenshi SS : The game is now bootable. Still remaining window dialog problem (François Care).
+Saturn Emulation : Digital Dance Mix Vol. 1 - Namie Amuro : No more black screen in game but some remainings artefacts  (François Care).
+Saturn Emulation : DonPachi : The game is now booting, but it's not playable (François Care).
+Saturn Emulation : Doukyuusei 2 : The game is bootable and playable (François Care).
+Saturn Emulation : Dream Square - Hinagata Akiko : The game is now playable (François Care).
+Saturn Emulation : FIFA Road To World Cup : The game is now bootable but Kronos freezes few seconds after the start (François Care).
+Saturn Emulation : Fighting Vipers : Fixed a black screen with the real bios (François Care). 
+Saturn Emulation : Gakko No Kaidan : The game is now bootable and playable (François Care).
+Saturn Emulation : Game-Ware Vol. 1 : The game is now bootable, digital pinball demo has control problem (François Care).
+Saturn Emulation : Game-Ware Vol. 2 : The game is now bootable and playable (François Care).
+Saturn Emulation : Game-Ware Vol. 3 : The game is now bootable and playable (François Care).
+Saturn Emulation : Gotha - Ismailia Seneki : The game is now bootable and playable. Some GFX problem in game (François Care).
+Saturn Emulation : Gunbird : Fixed flickering in game (François Care).
+Saturn Emulation : Hatsukoi Monogatari : The game is now playable. Fixed freeze on the dialog screen (François Care).
+Saturn Emulation : Heiwa Pachinko Soushingeki : The game is now bootable and playable. Fixed crash on the menu (François Care).
+Saturn Emulation : Honkaku Hanafuda : The game is now bootable and playable. Fixed crash after Altron logo (François Care).
+Saturn Emulation : Jissen Pachinko Hisshou-Hou ! Twin : The game is now bootable and playable. Fixed black screen after Sammy logo (François Care).
+Saturn Emulation : Jissen! Pachi-Slot Hisshou-Hou ! Iron Hook - The Great Marine Adventures : The game is now playable. Fixed Missing GFX in game (François Care).
+Saturn Emulation : Keriotosse ! : Fixed a freeze on the character selection. The game is now playable (François Care).
+Saturn Emulation : Krazy Ivan : Fixed double cross on the radar (François Care).
+Saturn Emulation : Kyuukyoku Tiger II Plus : The game is now playable. Fixed a restart loop (François Care).
+Saturn Emulation : Kuuso Kagaku Sekai Gulliver Boy : Fixed black veil on the intro video (François Care).
+Saturn Emulation : Last Bronx : Fixed boot problem with the built in bios (Devmiyax).
+Saturn Emulation : Lode Runner Extra : The game is now bootable. Black screen after the logo (François Care).
+Saturn Emulation : Lunar 2 - Eternal Blue Complete : The game is playable. No more slowdown on the FMV (François Care).
+Saturn Emulation : Maboroshi No Black Bass : Fixed missing background in the shop and on the spot (François Care).
+Saturn Emulation : Madden NFL 97 : The game is now playable. Fixed Kronos freezes (François Care). 
+Saturn Emulation : Madden NFL 98 : The game is now playable (François Care).
+Saturn Emulation : Mass Destruction : Fixed map in game (François Care).
+Saturn Emulation : MechWarrior 2 - 31st Century Combat - Arcade Combat Edition : Fixed missing FMV (François Care).
+Saturn Emulation : Megaman 8 : Fixed black square in game (François Care).
+Saturn Emulation : Metal Fighter Miku : The game is now playable. Fixed black screen before entering in game (François Care).
+Saturn Emulation : Mogitate SegaSaturn - Special Movie : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 1 : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 2 : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 3 : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 4 : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 5 : The game is now bootable and playable (François Care).
+Saturn Emulation : Mogitate SegaSaturn Vol. 6 : The game is now bootable and playable (François Care).
+Saturn Emulation : NBA Jam Tournament Edition : Improvements on the text, but not completely fixed (François Care).
+Saturn Emulation : Nissan Presents - Over Drivin' GT-R : The game is now playable. Fixed a freeze after the first FMV (François Care).
+Saturn Emulation : Ochigee Designer Tsukutte Pon ! : The game is now playable. Fixed freeze (François Care).
+Saturn Emulation : Off-World Interceptor Extreme : The game is now playable. Fixed black screen in game (François Care).
+Saturn Emulation : Off World Interceptor : Fixed particles (François Care).
+Saturn Emulation : Ou-Chan No Oekaki Logic : The game is now playable. Fixed crash (François Care).
+Saturn Emulation : Pandemonium : Fixed a GFX problem on the day/night time (François Care). 
+Saturn Emulation : Panzer Dragoon Zwei : Fixed boot problem with the built in bios ((Devmiyax).
+Saturn Emulation : Pappara Paoon : The game is now playable. Fixed crashes after the menu (François Care).
+Saturn Emulation : Pastel Muses : The game is now playable. Fixed sound loops (François Care).
+Saturn Emulation : PD Ultraman Link : The game is now playable with windows (François Care).
+Saturn Emulation : Refrain Love - Anata Ni Aitai : Fixed intro FMV (François Care).
+Saturn Emulation : Revolution X - Music Is The Weapon : Fixed FMV intro (François Care).
+Saturn Emulation : Riglordsaga 2 : The game is  now bootable and playable (François Care).
+Saturn Emulation : Road & Track Presents - The Need for Speed : The game is now playable. Fixed crashes (François Care).
+Saturn Emulation : Quake : Fixed some GFX artefacts on the wall (François Care).
+Saturn Emulation : Samurai Spirits - Amakusa Kourin / Samurai Shodown IV - Amakusa's Revenge : Fixed vertical lines on the portraits and in game on the character (François Care).
+Saturn Emulation : Sega Ages - Memorial Selection Vol. 1 : The game is now bootable and playable (François Care).
+Saturn Emulation : Sega Rally : Fixed holes on the road (François Care).
+Saturn Emulation : Senryaku Shougi : The game is now playable. Fixed a freeze after pushing start on the press start screen (François Care).
+Saturn Emulation : Sentimental Graffiti : Fixed transparencies problem with dialog in game (François Care).
+Saturn Emulation : Shinsetsu Samurai Spirits - Bushidou Retsuden : Fixed kind of transparency on the press start screen (François Care).
+Satunr Emulation : Shippuu Mahou Daisakusen - Kingdom-Grandprix : Fixed black bar on the left of the screen (François Care).
+Saturn Emulation : Sky Target : Fixed missing background on the press start screen (François Care).
+Saturn Emulation : Sonic Jam : Fixed boot with built in bios (Devmiyax).
+Saturn Emulation : Sonic Jam : No more invalid opcode with savestates (François Care).
+Saturn Emulation : Soviet Strike : Fixed transition screen (François Care).
+Saturn Emulation : Space Hulk - Vengeance Of The Blood Angels : Fixed transparencies problem with the map in game (Devmiyax).
+Saturn Emulation : Street Fighter - Real Battle On Film : Fixed lines on shadows (François Care).
+Saturn Emulation : Street Fighter - The Movie : Fixed lines on shadows (François Care).
+Saturn Emulation : The Hyper Golf - Devil's Course : The game is now bootable but not playable (missing GFX in game). Fixed a freeze on the first logo (François Care).
+Saturn Emulation : The Tower : The game is now playable. Fixed a freeze in game (François Care).
+Saturn Emulation : Three Dirty Dwarves : Fixed street lamps in game (François Care).
+Saturn Emulation : Transport Tycoon : Fixed missing sprite (François Care).
+Saturn Emulation : Turfwind '96 - Take Yutaka Kyousouba Ikusei Game : The game is now bootable and playable. Fixed black screen after choosing your characters (François Care).
+Saturn Emulation : Tsuukai !! Slot Shooting : Fixed transparencies shadow under letters (François Care).
+Saturn Emulation : UEFA Euro 96 England : The game is now bootable and playable (François Care).
+Saturn Emulation : Vahollian :  Fixed GFX problem in game (François Care).
+Saturn Emulation : Virtua Cop : Fixed invisible sprite (François Care).
+Saturn Emulation : Virtual Hydlide : The game is bootable and playable with built in bios (Devmiyax).
+Saturn Emulation : Virtual Majhong : Fixed a GFX problem in game (François Care).
+Saturn Emulation : Virtual Mahjong 2 - My Fair Lady : Fixed press start screen display. Fixed an a black square in game (François Care).
+Saturn Emulation : X-Japan - Virtual Shock 001 : The game is now bootable and playable (François Care).
+Satunr Emulation : Waku Waku 7 : Character selection screen is now displayed but some glitches on it (François Care). 
+Saturn Emulation : World Advanced Daisenryaku - Sakusen File : fixed intro video problem (François Care).
+Misc : Improved Qt with Visual Studio (François Care).
+Misc : Improved debug with windows (François Care).
+Misc : Do not read or write if buffer is too small (François Care).
+Misc : Fixed a buffer problem with some archives (François Care).
+Misc : A to Z letters are tested (Benjamin Siskoo).
+Misc : Updated Kronos Readme.html (ST-V compatibility). Updated Comparison Chart.html (Benjamin Siskoo).
+Misc : Various fixes.
+
+Kronos 1.7.0 :
+
+Features : Complete rewriting of the openGL renderer (François Care).
+Features : Compilation support for x86 and X64 on Visual Studio. 64 Bits release is available for the first time (François Care).
+Features : Alignment of the debug output to the standard error output (stdout on linux, DebugView on windows) (François Care).
+Features : Added a mesh transparency option in the video tab (François Care).
+Features : Improved GPU Tesselation and CPU Tesselation emulation (François Care).
+FPS counter : Fixed a problem when the FPS counter was off and Sega Rally (François Care).
+Saturn Emulation : Fixed a display problem on the bios screen with the OpenGL option : Original (Original resolution of the Saturn) (François Care). 
+Saturn Emulation : Arcade's Greatest Hits: The Atari Collection 1 : Fixed interlaced problem with missile command (François Care).
+Saturn Emulation : Athlete Kings : Fixed shadow problem on the long jump (François Care).
+Saturn Emulation : Black Fire : Fixed missing arrow on the menu (Francois Care).
+Saturn Emulation : Black Fire : Fixed transparencies sur on folders screen (Francois Care).
+Saturn Emulation : Black Fire : Fixed big GFX problem in game, the game is now playable (Francois Care).
+Saturn Emulation : Blam Machinehead : Fixed gradiancy to the pause menu (François Care).
+Saturn Emulation : Bug Too : Fixed transparency on the pause menu (François Care).
+Saturn Emulation : Capcom Generation 4 : Fixed chopper door, it was a really old bug (François Care).
+Saturn Emulation : Code-R : The game is playable (François Care).
+Saturn Emulation : Crows - The Battle Action : Fixed Shadow's problem under the character (François Care).
+Saturn Emulation : Dark Savior : Fixed a GFX problem on the memory selection screen (François Care).
+Saturn Emulation : Deadalus : Fixed artefacts in game (François Care).
+Saturn Emulation : Decathlete : Fixed a shadow problem on the long jump (François Care).
+Saturn Emulation : Devil Summoner - Soul Hackers - Akuma Zensho Dai-Ni-Shuu : Fixed interlaced problem (François Care).
+Saturn Emulation : Discworld 2 : Fixed colors problem, gfx was messed (François Care).
+Saturn Emulation : Disc Station Bessatsu - I Miss You. Tanaka Katsumi : Fixed GFX blue parts (François Care).
+Saturn Emulation : DoDonPachi (Demo) : The game is now playable (François Care).
+Saturn Emulation : Doom : the game is playable. Fixed transparencies with ceiling and ground (François Care).
+Saturn Emulation : Elf O Karu Monotachi - Hanafuda Hen : Fixed missing background on the dialog (François Care).
+Saturn Emulation : Gale Racer : Fixed artefacts in game (François Care).
+Saturn Emulation : Ginga Ojousama Densetsu Yuna - Mika Akitaka Illust Works : Fixed overexposed pictures (François Care).
+Saturn Emulation : Gyuwambler Jiko Chuushinha - Tokyo Mahjongland : The game is now playable (François Care).
+Saturn Emulation : J. B. Harold - Blue Chicago Blues : Fixed missing transparencies on the menu (François Care).
+Saturn Emulation : Jikkyou Oshaberi Parodius - Forever With Me : Fixed transparencies problem with clouds on the press start screen (François Care).
+Saturn Emulation : Jikkyou Oshaberi Parodius - Forever With Me : Fixed scaled vertices on the font (François Care).
+Saturn Emulation : Keiou Yuugekitai - Katsugeki-Hen : Fixed missing background in game (François Care).
+Saturn Emulation : Krazy Ivan : Fixed GFX problem with the sky (François Care).
+Saturn Emulation : Krazy Ivan : Fixed GFX problem with the font in game (François Care).
+Saturn Emulation : Kuuso Kagaku Sekai Gulliver Boy : Fixed a black veil on the intro movie (François Care).
+Saturn Emulation : Linda^3 Kanzenban : Fixed missing cursor on the menu (François Care).
+Saturn Emulation : Magic Knight Rayearth : fixed thin line in the dialog (François Care).
+Saturn Emulation : MechWarrior 2 - 31st Century Combat - Arcade Combat Edition : Fixed background (François Care).
+Saturn Emulation : Minnesota Fats - Pool Legend : Fixed black texts (François Care).
+Saturn Emulation : Mobile Suit Gundam Side Story - Optional Guide. Fixed interlaced problem (François Care).
+Saturn Emulation : Nekketsu Oyako : Fixed background problem in the menu (François Care).
+Saturn Emulation : NHL 97 : Fixed missing flags (François Care).
+Saturn Emulation : Nightruth - Explanation Of The Paranormal 01 - Yami No Tobira : Fixed GFX problem on the menu (François Care).
+Saturn Emulation : Night Striker S : Fixed zig zag line on the road (François Care).
+Saturn Emulation : Nissan Presents - Over Drivin' GT-R : Fixed a GFX problem in game (François Care).
+Saturn Emulation : Nissan Presents - Over Drivin' GT-R : Fixed a GFX problem with pictures (François Care).
+Saturn Emulation : Noon : The game is playable again (François Care).
+Saturn Emulation : Off World Interceptor : Fixed black screen in game, the game is now playable (François Care).
+Saturn Emulation : Riglord Saga 2 : The game is now playable. Boot fixing (Devmiyax).
+Saturn Emulation : Sakura Taisen 2 : Fixed GFX artefacts in game with dialog (François Care).
+Saturn Emulation : Sonic 3D : Fixed a priority problem (François Care).
+Saturn Emulation : Sword & Sorcery : The game is now playable (François Care).
+Saturn Emulation : Tomb Raider : Fixed missing transparency on the pause menu (François Care).
+Saturn Emulation : Virtual Hydlide : Fixed map menu (François Care).
+Saturn Emulation : Wing Arms : Fixed a GFX problem between the transition (François Care).
+Translation : Updated French translation (Benjamin Siskoo).
+Translation : Updated Spanish translation (LuismaSP89).
+Translation : Updated German translation (LuismaSP89).
+Translation : Fixing some translations strings (Benjamin Siskoo).
+Misc : Remove embedded log window - Relay on debugview on windows (https://docs.microsoft.com/en-us/sysinternals/downloads/debugview) and console output on linux (François Care).
+Misc : Change frameskip limiter label to Vertical synchronization (François Care).
+Misc : Musashi alignement with the last release (François Care).
+Misc : Tested M,N and O letter games on the Wiki (Benjamin Siskoo).
+Misc : Fixed transparencies issues with controllers buttons (Benjamin Siskoo).
+Misc : Updated Kronos Readme.html (ST-V compatibility). Updated Comparison Chart.html (Benjamin Siskoo).
+Misc : Various fixes.
+
+Kronos 1.6.0 :
+
+Features : Migration to OpenGL Core 4.2 for better desktop compatibility and tesselation support on all recent GFX cards.
+Features : Debug VDP1 & VDP2 are back (François Care).
+Misc : new kronos.exe icon (François Care).
+Misc : fixed bkram.bin (Panzer Dragon, Story Of Thor and others) (Barbudreadmon).
+Misc : fixed video filters (François Care).
+Misc : fixed FPS counter (François Care).
+Misc : various fixes (François Care).
+Saturn Emulation : Advanced World War Sennen Teikoku No Koubou : Last Of The Millennium : fixes lines on the book (François Care).
+Saturn Emulation : AI Igo : fixed a missing vertical line on the board (François Care).
+Saturn Emulation : Beach De Reach: fixed transparency problem with dialogs. (François Care).
+Saturn Emulation : Defcon 5 : fixed missing wall in game (François Care).
+Saturn Emulation : Devil Summoner - Soul Hackers & Ronde - Otameshi-You (Demo) : fixed missing FMV (François Care).
+Saturn Emulation : Ginga Ojousama Densetsu Yuna - Mika Akitaka Illust Works : fixed the missing press start screen (François Care).
+Saturn Emulation : Hi Octane : fixed missing ships in game (François Care).
+Saturn Emulation : Ippatsu Gyakuten - Gambling King E No Michi : fixed a GFX problem with dialog (François Care).
+Saturn Emulation : J. B. Harold - Blue Chicago Blues : fixed a transparency problem on the menu (François Care).
+Saturn Emulation : Joshikousei no Houkago. Pukunpa : fixed missing portraits background (François Care).
+Saturn Emulation : Langrisser I & II (Dramatic Edition) : fixed white rectangle o*n the menu (François Care).
+Saturn Emulation : Magical Night Dreams - Cotton 2 : fixed missing cliffs in game (François Care).
+Saturn Emulation : Scorcher : fixed the line in the pause menu (François Care).
+STV Emulation : Guardian Force : fixed GFX problem with the background in game (François Care).
+Translation : added several strings (Benjamin Siskoo).
+Translation : updated french translation (Benjamin Siskoo).
+Translation : spanish translation (LuismaSP89).
+
+
+Kronos 1.5.0 :
+
+Features : new video option in OpenGL Size : 4x, 8x, 16x (François Care).
+Features : STV player 2 support (Benjamin Siskoo).
+Saturn Emulation : Ai Igo : fixed missing vertical line on the board (François Care).
+Saturn Emulation : Akumajou Dracula X : fixed transition screen (François Care).
+Saturn Emulation : Alone In The Dark : the game is finally playable after all these years :) (François Care).
+Saturn Emulation : Batsugun : fixed now loading screen (text was messed) (François Care).
+Saturn Emulation : Blam Machinehead : fixed vertical line with the background in game (François Care).
+Saturn Emulation : Breakpoint Tennis : lines on the tennis court are almost back (François Care).
+Saturn Emulation : Capcom Generation 5 : fixed a regression with FPS (François Care).
+Saturn Emulation : Command & Conquer : fixed a regression with FPS (François Care).
+Saturn Emulation : Devil Summoner - Soul Hackers & Ronde - Otameshi-You (Demo) : fixed videos (FMV) that were not displayed (François Care).
+Saturn Emulation : Emit Vol.1 : fixed a reboot problem on the press start screen (need to push start quickly to go in game) (François Care).
+Saturn Emulation : Emit Vol.2 : fixed a reboot problem on the press start screen (need to push start quickly to go in game) (François Care).
+Saturn Emulation : Emit Vol.3 : fixed a reboot problem on the press start screen (need to push start quickly to go in game) (François Care).
+Saturn Emulation : Fist : the game is now playable (François Care).
+Saturn Emulation : Gungriffon : fixed a GFX problem with the mission screen (François Care).
+Saturn Emulation : Heartbeat Scramble : fixed a GFX problem with the now loading screen (François Care).
+Saturn Emulation : Hop Step Idol : fixed character's selection screen (François Care).
+Saturn Emulation : Horror tour : fixed a GFX problem with the now loading screen (François Care).
+Saturn Emulation : Ide Yousuke Meijin no Shin Jissen Mahjong : fixed a GFX artefact on the now loading screen (François Care).
+Saturn Emulation : Idol Maajan Final Romance R Premium Package : the game is now playable (François Care).
+Saturn Emulation : Impact Racing (Demo). The game is now playable (François Care).
+Saturn Emulation : Impact Racing. The game is now playable (François Care).
+Saturn Emulation : J-League Victory Goal '96 : fixed transparencies on the menu (François Care).
+Saturn Emulation : J-League Victory Goal '97 : fixed transparencies on the menu (François Care).
+Saturn Emulation : Keio Flying Squadron 2 : fixed a GFX problem with the background (François Care).
+Saturn Emulation : Langrisser Dramatic Edition : fixed a black screen with dialog (François Care).
+Saturn Emulation : Langrisser III : fixed a problem with texts (François Care).
+Saturn Emulation : Langrisser V : fixed character screen and menu screen (François Care).
+Saturn Emulation : Linda^3 Kanzenban : fixed cursor (François Care).
+Saturn Emulation : Lunar Silver Star Story : fixed a GFX problem with the hill (it was not displayed) (François Care).
+Saturn Emulation : Marobishi No Black Bass : fixed missing screen.
+Saturn Emulation : Mr Bones : Game is playable now. Fixed a black screen and booting after loosing a life (François Care).
+Saturn Emulation : Street Racer : the game is finally fully playable (François Care). 
+Saturn Emulation : Shining Force 3 - Premium Disk : fixed VDP1 quads handling (François Care). 
+Saturn Emulation : Sonic Jam : workaround to launch the game again (François Care).
+STV Emulation : Guardian Forces : fixed background problem (François Care).
+STV Emulation : Groove On Fight : fixed background problem (François Care).
+STV Emulation : Magical Night Dreams - Cotton Boomerang : fixed a GFX problem with the hill (it was not displayed) (François Care).
+STV Emulation : Othello Shiyouyo : fixed GFX problem in game (François Care).
+Misc : new compatibility list (0 - L) : http://tradu-france.com/tfwiki-1.28.2/index.php?title=Compatibility_list_of_Kronos (Benjamin Siskoo).
+Misc : Asynchronous texture calculation for vdp1 and Vdp2 : increase FPS on low end CPU or in frameskip mode (François Care).
+Misc : Gouraud shading fixes (François Care).
+Misc : Fixed warnings during compilation (François Care).
+Misc : Various fixes (François Care).
+Translation : Removed the sound option "Use new SCSP".
+
+Kronos 1.4.5 :
+
+Saturn Emulation : Bug : fixed booting. Black screen after the intro video (Devmiyax).
+Saturn Emulation : Croc : fixed booting. The game is now playable (Devmiyax).
+Saturn Emulation : Emit Vol.1 : fixed booting. The game is almost playable. You have to push quickly Start otherwise the game reboot (Devmiyax).
+Saturn Emulation : Gex : fixed booting. The game is now playable (Devmiyax).
+Saturn Emulation : Idol Janshi Suchie : fixed booting. The game is now playable (Devmiyax).
+Saturn Emulation : Mr Bones : fixed massive GFX problem in game. The game is now playable (Devmiyax).
+Saturn Emulation : Virtua Fighter Kids : fixed booting. The game is finally playable. First time since Yabause exists (Devmiyax).
+Saturn Emulation : UEFA Euro 96 : fixed booting. The game is now playable for the first time (François).
+Saturn Emulation : Virtual Hydlide : fixed a freeze. The game is now playable (Devmiyax).
+Saturn Emulation : Xmen Vs Street Fighter : The game is playable (Devmiyax).
+ST-V : Fixed ST-V emulation. It works again (François).
+ST-V : Added Virtual Mahjong. Varioux fixes. Some games are now playable/bootable. (Benjamin Siskoo).
+Misc : Fixed layers in the GUI (François).
+Misc : Updated Kronos Readme.html (ST-V compatibility). Updated Comparison Chart.html (Benjamin Siskoo).
+
+Kronos 1.4.0 :
+
+Features : Redump zip archive support (François).
+Features : QT5.11.1 and Visual Studio 2017 support.
+Features : Options added to command line : scanline, ST-V (bios and iso) keyboard ST-V support (Linux for now) (François).
+Features : New BR2Z filter. If you have a low end GPU, try it (François).
+Saturn Emulation : Doom : fixed glitches in game (François).
+Saturn Emulation : F1 Challenge : fixed a GFX problem with the car cockpit (François).
+Saturn Emulation : F1 Challenge : fixed a messed screen in the menu (François).
+Saturn Emulation : Metal Slug : fixed a sprite problem with the character (François).
+Saturn Emulation : Athlete Kings and Blam Machinehead : fixed a GFX problem (transparent strips) (François).
+Saturn Emulation : Earthworm Jim : fixed a GFX problem (François).
+Saturn Emulation : Tsuukai!! Slot Shooting : fixed a shadow problem with menu (François).
+ST-V : added all ST-V games, possibly missing 2 or 3 games (Benjamin Siskoo)
+ST-V : fixed a problem with the STV bios (Linux and Windows). Now, STV emulation works on Linux and Windows (François).
+ST-V : games ascending sort order (François).
+ST-V : fixed the screen position in game for the game Shienryu (François).
+Translation : updated spanish language (Kris Tophe)
+Translation : updated french language (Benjamin Siskoo).
+Translation : updated english language (Benjamin Siskoo).
+Translation : translations strings added : ST-V cabinet Configuration, ST-V Cabinet, SH2 Kronos Interpreter.
+Translation : translations strings removed : Tesselation, Triangles using perspective correction, CPU Tesselation, GPU Tesselation.
+Misc : added a new readme.html file, comparison table.html, changelog.txt (Benjamin Siskoo).
+Misc : fixed a crash with an old ini file and a recent version of Kronos (François).
+Misc : Removed QT4 support (deprecated) (François).
+Misc : removed Tesselation support. It seems this option is useless (François).
+
+Kronos 1.3.0 :
+
+Features : New Kronos interpreter. Less CPU usage.
+Features : Added STV rom game support. With Linux all games are launchable but with the windows port lots of game are not playable.
+Saturn Emulation : Burning Rangers : fixed a black veil in game.
+Saturn Emulation : Contra - Legacy of War : fixed a regression with the character's shadow.
+Saturn Emulation : Doukoku Soshite : fixed a transparency problem with the moon.
+Saturn Emulation : Doukoku Soshite : fixed a transparency with dialog.
+Saturn Emulation : Doukoku Soshite : fixed a problem with a missing sign aside of the bus.
+Saturn Emulation : Le manoir des ames perdues : fixed a GFX problem with the menu.
+Saturn Emulation : Outrun : fixed missing screen (loading screen, options screen).
+Saturn Emulation : Sakura Taisen 2 : fixed a regression.
+Saturn Emulation : Scorcher : fixed a GFX problem with trees in game.
+Saturn Emulation : Scorcher : fixed the pause menu screen. It was messed.
+Saturn Emulation : Sega Ages : fixed loading screen.
+Saturn Emulation : Slam & Jam 96 : fixed a regression with High score screen.
+Saturn Emulation : Turfwind '96 - Take Yutaka Kyousouba Ikusei Game : fixed a black screen. The game is now playable.
+
+Kronos 1.2.0 :
+
+Features : Win 7 Support is back. Fixed the kernel32.dll error with Windows 7. It should be work.
+Features : Added 2 video options : Original Aspect Ratio and Stretch to window.
+Features : Added title for new video option : Upscale Filter, Embellishment filter, Tesselation, OpenGL size, TV Effect (Benjamin Siskoo). 
+Features : Added Scanline filter. Can be combined with others filters (HQ4X, etc...). 
+Misc : Removed 3 video options : Fit to window, Fixed aspect ratio: 4:3 and Fixed aspect ratio: 16:9.
+Translation : French translation of the new video options (Benjamin Siskoo). 
+Translation : Added a new translation string : toolBar (shortcuts panel) (Benjamin Siskoo).
+
+Kronos 1.1.0
+Features : Make resolution and filter switch dynamic in order to avoid needed restart. Introduce also the so usefull openGL debug callback support. Fixed audio problem with european games after switching between NTSC to PAL.
+Features : Added 1x to 4x resolution.
+Features : Added video filter bicubic extrapolation.
+Features : Added video filter HQX4.
+Features : Added video filter 4xBRZ.
+Sound Emulation : CDDA for Sega Ages Afterburner and Space Harrier (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed [Panzer Dragoon zwei] : RBG line color insertion is not correct (Devmiyax - Yaba Sanshiro)..
+Saturn emulation : Fixed [Space Harrier] Shadow is not transparent (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed a regression : ASTAL RBG0 Transparencies (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed a regression : Albert Odyssey Title (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed a gfx problem with NBG0 layer for the game Panzer Dragon Zwei. The sky in background is now displayed properly (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed [Space Harrier] Shadow is not transparent (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed [OutRun] Shadow is not drawn (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed a regression : Chaos Seed characters are not drawn (Devmiyax - Yaba Sanshiro).
+Saturn emulation : Fixed Sonic R : Sea is not transparent (Devmiyax - Yaba Sanshiro).
+Saturn emulation : HQ4x works better with NEAREST - Fix bad alpha behavior on MegamanX4.
+Saturn emulation : Software renderer is back.
+Saturn emulation : - A better handling of the lines.
+Translation : Added a translation string : Original (original resolution of the Saturn) (Benjamin Siskoo).
+Misc : Remove useless native resolution.
+Misc : Remove useless FXAA.
+Misc : Fixed a problem with the video filter bicubic.

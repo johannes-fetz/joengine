@@ -1,0 +1,574 @@
+Kronos 2.1.5 :
+
+Características : Añadida opción de idioma de bios. Juegos como Rayman o Poweslave estarán en el idioma de tu elección y dependen de la bios. (Will-LWE).
+Emulación ST-V : Cotton 2 : Arreglados los árboles que no aparecen (FCare).
+Emulación ST-V : Mausuke No Ojama The World : Arreglado un fondo en el juego (FCare).
+Emulación Saturn : 3D Baseball : Arreglado un problema de sonido en el juego. El altavoz dice el nombre del jugador dos veces (FCare).
+Emulación Saturn : Astra Super Stars : Arreglado un problema en el arranque. The game is now bootable and playable (Devmiyax / FCare).
+Emulación Saturn : Capcom Generation 5 : Arreglado el arte que no aparecía. La pantalla no se muestra correctamente (Devmiyax / FCare).
+Emulación Saturn : Corpe Killer : Arreglado el que que no arrancase el juego. Una vez dentro, cuando disparas a los enemigos, no mueren.  (Devmiyax).
+Emulación Saturn : GeGeGe No Kitarou - Gentou Kaikitan : Usar la bios integrada, el juego funciona con ella. Con la bios real el juego no funciona (FCare).
+Emulación Saturn : Joe Engine : Arreglada la rotación (FCare).
+Emulación Saturn : Kidou Senshi Z Gundam - Zenpen Zeta No Kodou : El juego ahora arranca y es jugable con la bios integrada, pero no con la real (FCare).
+Emulación Saturn : Kunoichi Torimonochou : Arreglados gráficos faltantes en la pantalla de pulsa start. El juego ahora funciona (FCare).
+Emulación Saturn : Moon Cradle : El juego ahora arranca y es funciona con la bios integrada, pero no con la bios real (FCare).
+Emulación Saturn : NBA Live 98 : Arreglado un problema de colores en el juego (FCare).
+Emulación Saturn : NFL Quarterback Club '97 : (Europe) Arreglados artefactos gráficos en los jugadores (Devmiyax / FCare).
+Emulación Saturn : NHL '98 : Arreglado un bloqueo antes de entrar en el juego. El juego ahora arranca y es casi jugable. Flickering con los stands (Devmiyax / FCare).
+Emulación Saturn : NHL All-Star Hockey : Arreglado un problema en el arranque. El juego ahora arranca y es jugable (Devmiyax / FCare).
+Emulación Saturn : Nobunaga No Yabou Sengoku Gunyuuden (Japan) : Arreglado un problema en el arranque. El juego ahora arranca y es jugable (FCare).
+Emulación Saturn : Nobunaga No Yabou Tenshouki : Arreglado un problema en el arranque. El juego ahora arranca y es jugable (FCare).
+Emulación Saturn : Nobunaga No Yabou Tenshouki With Power-Up Kit : Arreglado un problema en el arranque. El juego ahora arranca y es jugable (FCare).
+Emulación Saturn : PGA Tour 97 : Arreglada pantalla negra al iniciar. Pero hay una pantalla negra en la pantalla de pulsa start (FCare).
+Emulación Saturn : SatMag Sono CD (Japan) : Los vídeos se muestran con la bios integrada, pero no con la bios real (FCare).
+Emulación Saturn : Sea Bass Fishing 1 : El juego ahora arranca y es jugable con la bios integrada, pero no funciona con la bios real (FCare).
+Emulación Saturn : Sea Bass Fishing 2 : El juego ahora arranca y es jugable con la bios integrada pero no arranca con la bios real. Ralentizaciones en el vídeo de la intro (FCare).
+Emulación Saturn : Sega Ages Afterburner : Arreglados efectos de sonido y música ausentes (FCare).
+Emulación Saturn : Sega Ages Fantasy Zone : Arreglado un problema de sonido (FCare).
+Emulación Saturn : Sega Saturn Choice Cuts : Arreglado un problema de sonido  (FCare).
+Emulación Saturn : SegaColle Sega Bible Mogitate SegaSaturn Soukan-Gou (Japan) : Los vídeos se muestran con la bios integrada, pero no con la bios real (FCare).
+Emulación Saturn : Shining Force III - Scenario 2 - Nerawareta Miko : Arreglado un efecto en el agua (Devmiyax / François Care).
+Emulación Saturn : Soeldnerschild : Arreglado un problema de sonido (FCare).
+Emulación Saturn : Steam-Heart's (Japan) : Arreglada pantalla negra al inicio. El juego ahora arranca y funciona. (Devmiyax / FCare).
+Emulación Saturn : Stellar Assault : Arreglada pantalla negra al inicio. El juego ahora funciona. Pero las transiciones de carga duran mucho  (FCare).
+Emulación Saturn : The King Of Fighter 95 : Arregladas ralentizaciones en el juego (FCare).
+Emulation Saturn : Thunderstrike 2 : Arreglada pantalla negra al iniciar. El juego ahora arranca y funciona (FCare).
+Emulación Saturn : Tour Party - Sotsugyou Ryokou Ni Ikou : Arreglado un bloqueo en el logo Takara al inicio. El juego ahora arranca y es jugable (FCare).
+Emulación Saturn : Vandal Hearts - Ushinawareta Kodai Bunmei : Arreglado el cursor desaparecido en la pantalla de pulsa start (FCare).
+Emulación Saturn : Virtual Kyoutei 2 (Japan) (2M) : Arreglado un crash en el inicio. El juego ahora arranca pero se congela al jugarlo. Jugable con la bios integrada (Devmiyax / FCare).
+Emulación Saturn : Waku^2 Monster : Arreglado el crash con el intérprete SH2 Kronos. El juego ahora funciona (FCare).
+Emulación Saturn : Zero Divide - The Final Conflict (Japan) : Arreglado un crash en el inicio. El juego ahora arranca y funciona (Devmiyax / FCare).
+Misc : Varios arreglos (FCare, Barbudreadmon).
+Misc : Hay 2064 juegos en la WIKI (Benjamin Siskoo).
+Misc : Actualizada documentación (Benjamin Siskoo).
+Misc : Añadidos juegos a la WIKI :
+	- Chill_(Jan_19,_1998_prototype)
+	- Clockwork_Knight_-_Pengin_War_(Oct_21,_1995_prototype)
+	- Dragon's Dream (Japan)
+	- Friends - Seishun No Kagayaki (Japan)
+	- Hang-On GP (USA)
+	- Hang On GP '96 (Europe)
+	- Hebereke's Popoitto (Europe)
+	- Heir Of Zendor - The Legend And The Land (USA)
+	- Kidou Senkan Nadesico - The Blank of 3 Years (Japan)
+	- Magical Hoppers (Japan)
+	- Mahjong Tenshi - Angel Lips (Japan)
+	- Mobile Suit Gundam Side Story - Optional Guide (Japan)
+	- Mobile Suit Gundam Side Story I - Senritsu No Blue (Japan) (Demo)
+	- Mobile Suit Gundam Side Story I - Senritsu No Blue (Japan) 
+	- Mobile Suit Gundam Side Story III - Sabakareshi Mono (Japan)
+	- Mobile Kidou Senshi Gundam Gaiden - The Blue Destiny (Japan)
+	- Mouja (Japan)
+	- Nihon Pro Mahjong Renmei Kounin - Doujou Yaburi (Japan) 
+	- Norse By Norsewest - The Return Of The Lost Vikings (USA) 
+	- PriKura (Princess Kurara) Daisakusen (Japan) (Demo)
+	- PriKura (Princess Kurara) Daisakusen (Japan)
+	- Sakura Taisen Teikokukagekidan Taiin Meibo (Japan)
+	- Sega Screams Volume 2 (USA)
+	- Shin Seiki Evangelion - Eva To Yukaina Nakama-Tachi (Japan) 
+	- Shinobi Legions (USA)
+	- Sorvice (Japan)
+	- Standby Say You! (Japan) 
+	- Street Fighter Zero 2' (Japan) 
+	- Thunder Storm & Road Blaster (Japan) (Thunder Storm)
+	- Thunder Storm & Road Blaster (Japan) (Road Blaster)
+	- Wheel's (Japan)
+
+Kronos 2.1.3 :
+
+Características : Mostrar las opciones de acuerdo al núcleo de vídeo (François Care).
+Emulación ST-V : Añadida la opción de la región de la bios en el Qt (François Care).
+Emulación Saturn : Eliminado el "banding" en el sombreado gouraud (François Care).
+Emulación Saturn : Actua Golf : Solucionado problema de arranque. El juego ahora es jugable (Devmiyax).
+Emulación Saturn : Assault Suit Leynos 2 : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Bishoujo Hanafuda Kikou - Michinoku Hitou Koi Monogatari Special (Japan) : Arreglada la pantalla del menú (François Care).
+Emulación Saturn : Marvel Super Heroes Vs. Street Fighter : Arreglado problema de arranque, el juego ahora es jugable (Devmiyax).
+Emulación Saturn : Nanatsu Kaze No Shima Monogatari : Arreglado problema de arranque, el juego ahora es jugable (Barbudreadmon).
+Emulación Saturn : NHL 98 : Arreglado problema de arranque, el juego arranca pero se congela antes de poder jugar (François Care).
+Emulación Saturn : NHL All Star Hockey : Arreglado problema de arranque, el juego arranca pero se congela (François Care).
+Emulación Saturn : Primal Rage : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Sega Rally Championship (U) : Arreglado problema de arranque, el juego ahora es jugable (Barbudreadmon).
+Emulación Saturn : Sega Saturn Bootleg II - On the Road : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Slayers Royal 2 : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Soukuu No Tsubasa - Gotha World : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Sound Novel Tkool 2 : Arreglado problema de arranque, el juego ahora es jugable (Barbudreadmon).
+Emulación Saturn : Vampire Savior - The Lord Of Vampire : Arreglado problema de arranque, el juego ahora es jugable (Devmiyax).
+Emulación Saturn : VR Golf '97 : Arreglado problema de arranque, el juego ahora es jugable (Devmiyax).
+Emulación Saturn : X-Men Vs. Street Fighter : Arreglado problema de arranque, el juego ahora es jugable (François Care).
+Emulación Saturn : Zoop : Arreglada la auto pausa en el juego (François Care).
+Miscelánea : Traducción de opciones de vídeo (Benjamin Siskoo).
+Miscelánea : Añadidos juegos a la Wiki  : 
+	- Amagi Shien (J), 
+	- Bishoujo Hanafuda Kikou - Michinoku Hitou Koi Monogatari Special (J),
+	- Cross Romance - Koi To Mahjong To Hanafuda to (J), 
+	- Dark Seed II
+	- Deka 4-Ku - Tough The Truck (J), 
+	- Doukoku Soshite... (J),
+	- Dream Generation - Koi Ka Shigoto Ka !... (J),
+	- Idol Mahjong - Final Romance 4 (J),
+	- The Game Of Life - DX Jinsei Game (J),
+	- The Game Of Life - DX Jinsei Game II (J),
+	- Honkaku Shougi Shinan - Wakamatsu Shougi Juku (J),
+	- Kaitou Saint Tail (J),
+	- Koudou Saisoku Densetsu - Initial D (J),
+	- Koutetsu Reiiki - Steeldom (J) (2M), 
+	- Kunoichi Torimonochou (J),
+	- Mahjong Yon Shimai - Wakakusa Monogatari (J),
+	- Pachi-Slot Kanzen Kouryaku Uni-Colle '97 - Universal Collection (J),
+	- Pyon Pyon Kyaruru No Mahjong Hiyori (J),
+	- Shingata Kururin Pa ! (J), 
+	- Shinpi No Sekai El-Hazard - El-Hazard - The Magnificent World For Sega Saturn (J) (2M),
+	- Shutsudou ! Miniskirt Police (J),
+	- Suchie-Pai Adventure - Doki Doki Nightmare (J),
+	- Tokimeki Mahjong Graffiti - Toshishita No Tenshi-tachi (J),
+	- Tour Party - Sotsugyou Ryokou Ni Ikou (J) (Rev A),
+	- Waku^2 Monster (J)
+
+Kronos 2.1.2 :
+
+Emulation ST-V : Arreglado problema con las monedas (François Care).
+Emulation ST-V : Añadido soporte EEPROM para guardar la configuración de la cabina (Barbudreadmon).
+Emulation ST-V : Añadidos botones 5 y 6 al controlador ST-V (François Care).
+Emulation ST-V : Final Arch : Arreglados los botones. El juego ahora funciona. (Barburdreadmon).
+Emulation ST-V : Die Hard Arcade : El juego ahora funciona (François Care).
+Emulation ST-V : Final Fight Revenge : Arreglada una línea negra en el segundo nivel (François Care).
+Emulation ST-V : Puzzle & Action : BoMulEul Chajara : El juego ahora funciona (François Care).
+Emulation ST-V : Puzzle & Action - Treasure Hunt : El juego ahora funciona (François Care).
+Emulation ST-V : Suiko Enbu / Outlaws Of The Dynasty : Arreglados botones, el juego ahora funciona (Barburdreadmon).
+Emulation ST-V : Winterheat : Arreglados los botones. Ahora el juego funciona (Barburdreadmon).
+Emulación Saturn : Arreglada la resolución con los juegos HDTV sin entrelazado (Barbudreadmon / François Care). 
+Emulación Saturn : Assault Suit Leynos : El juego ahora arranca. Pantalla negra al entrar ingame (François Care).
+Emulación Saturn : Final Fight Revenge : Arreglada una línea negra en el segundo nivel (François Care).
+Emulación Saturn : King Of Fighter 97 : Arreglados artefactos gráficos en el juego (François Care).
+Emulación Saturn : Shining Force 3 - Episode 1 : Arreglado escalado incorrecto con la magia en el núcleo CS (François Care).
+Emulación Saturn : Sega Rally Championship : Arreglado texto enfrente del coche spoiler en el núcleo CS (François Care).
+Emulación Saturn : Varios arreglos (François Care, Barbudreadmon).
+Miscelánea : Actualizada documentación (Benjamin Siskoo).
+Miscelánea : Wiki actualizada(Benjamin Siskoo).
+
+Kronos 2.1.1 : 
+
+Características : Añadido modo de estructura de diseño. Opción para los desarrolladores, aunque cualquier usuario puede probarlo. (François Care).
+Características : Añadido reescalado íntegro. (François Care). 
+Características : El compensado de color se aplica ahora después del cálculo de colores en la consola, en lugar de antes (François Care). (François Care).
+Emulación Saturn : SCU : Mejorado el mecanismo de interrupción (François Care).
+Emulación Saturn : CS : Implementado un rasterizador por líneas. Solucionado mapeo de texturas en múltiples juegos. (François Care).
+Emulación Saturn : Batman : Solucionados artefactos en la pantalla de "Pulsa start" (François Care).
+Emulación Saturn : Batsugun : Ahora es jugable. Arreglados los botones (François Care).
+Emulación Saturn : Casper : Solucionados artefactos con las pantallas de transición (François Care).
+Emulación Saturn : Dark Savior : Ahora es jugable. Arreglada pantalla negra en los diálogos del juego (François Care).
+Emulación Saturn : Doom : Parece que es jugable aunque con algunos artefactos en modo OpenGL. El modo CS no funciona (François Care).
+Emulación Saturn : Dungeons & Dragons Collection : Arreglado un problema de píxeles en el juego al usar el renderizador OpenGL (François Care).
+Emulación Saturn : Fuusui Sensei - Feng-Shui Master : Ahora es jugable. Arreglado un problema gráfico en el juego. (François Care).
+Emulación Saturn : Gex : Arregladas transparencias en el menú de pausa. (François Care).
+Emulación Saturn : Gouketsuji Ichizoku 3 - Groove On Fight : Arreglados personajes que desaparecen en el juego (François Care).
+Emulación Saturn : Hang-On '95 : Arreglados artefactos en el juego (François Care).
+Emulación Saturn : Highway 2000 : Arreglados artefactos gráficos usando el modo CS (François Care).
+Emulación Saturn : Kumitate Battle Kuttu Ketto : Arreglado parpadeo (François Care).
+Emulación Saturn : Mr Bones : Arreglados problemas gráficos en el menú de pausa. (François Care).
+Emulación Saturn : Scorcher : Arreglada una línea inútil en el menú de pausa. (François Care).
+Emulación Saturn : Shangai Triple Threat : Ahora es jugable. Arreglados botones estropeados (François Care).
+Emulación Saturn : Skeletton Warriors : Ahora es jugable. Arreglada la intro y los personajes que no aparecían en el juego. (François Care).
+Emulación Saturn : Steeldom : Ahora es jugable. Arreglado un problema gráfico en el suelo. (François Care).
+Emulación Saturn : Tech Saturn Sep.1997 : El juego ahora arranca y funciona (François Care).
+Miscelánea : Arreglados un montón de errores y advertencias del usban (Barbudreadmon, François Care).
+Miscelánea : Actualizada documentación (Benjamin Siskoo).
+Miscelánea : Wiki Actualizada (Benjamin Siskoo).
+Miscelánea : Varios arreglos (François Care).
+
+Kronos 2.0.2 :
+
+Características : Añadida 128 mb de Dram a Heart Of Darkness (François Care).
+STV : Añadido soporte para grupos de nvram (Barbudreadmon).
+STV : Añadido Fantasy Zone (Benjamin Siskoo).
+STV : Mausuke No Ojama the World : Arreglado fondo faltante (François Care).
+STV : Cotton Boomerang : Arreglados los árboles que no aparecían (François Care).
+STV : Sakura Taisen - Hanagumi Taisen Columns : Arreglada la capa NBG3 (François Care).
+Emulación Saturn : NBA Jam Tournament Edition : Arreglado menú (François Care).
+Emulación Saturn : Afterburner II : Arreglada pantalla de carga (François Care).
+Emulación Saturn : Batman Forever - The Arcade Game : Arreglado un problema en los controles, el juego ahora funciona (François Care).
+Emulación Saturn : Code R :Arreglados personajes faltantes en el juego (François Care).
+Emulación Saturn : Digital Pinball - Last Gladiators : Arreglado un problema de controles (François Care).
+Emulación Saturn : Digital Pinball - Necronomicon : Arreglado un problema de controles (François Care).
+Emulación Saturn : Firestorm - Thunderhawk 2 : Arreglado un problema con los controles, pero no funciona con Dual Shock 3 (François Care).
+Emulación Saturn : GameWare Vol.1 : Arreglado un problema en los controles (François Care).
+Emulación Saturn : Heart Of Darkness : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Last Gladiators - Digital Pinball : Arreglado un problema de controles (François Care).
+Emulación Saturn : Lupin The 3rd - The Master File : Arreglado un problema con los controles, pero no funciona con Dual Shock 3 (François Care).
+Emulación Saturn : Metal Fighter Miku : Arreglada pantalla negra tras pulsar start (François Care).
+Emulación Saturn : Minnesota Fats - Pool Legend : Arreglados problemas en la pantalla de "pulsa start" (François Care).
+Emulación Saturn : Next King - Koi No Sennen Oukoku : Arreglados artefactos en los cuadros (François Care).
+Emulación Saturn : Rayman : Arreglado un problema de controles (François Care).
+Saturn Emualtion : Ryuuteki Gosennen - Dragons Of China : Arreglado un problema de reinicio (François Care).
+Emulación Saturn : Shockwave Assault : Arreglado un problema con los controles, pero no funciona con Dual Shock 3 (François Care).
+Saturn Emualtion : Side Pocket 2 : Arreglados artefactos en la pantalla de "pulsa start" (François Care).
+Emulación Saturn : Street Fighter The Movie : Arregladas sombras con el cómputo de shaders - not fixed with opengl (François Care).
+Emulación Saturn : The Tower : Arreglado un bloqueo durante el juego, el juego ahora funciona (François Care).
+Emulación Saturn : Thunderhawk 2 - Firestorm : Arreglado un problema con los controles, pero no funciona con Dual Shock 3 (François Care).
+Emulación Saturn : Thunderhawk II : Arreglado un problema con los controles, pero no funciona con Dual Shock 3 (François Care).
+Emulación Saturn : Voice Idol Maniacs - Pool Bar Story : Arreglado problema en los controles (François Care).
+Emulación Saturn : Waku Waku 7 : La pantalla de selección de personajes está casi arreglada, falta un trozo (François Care).
+Emulación Saturn : Winter Heat : Arreglado el redimensionamiento de la ventana para la capa VDP1 (François Care).
+Emulación Saturn : World Cup Golf - Professional Edition : Arreglados artefactos en la pantalla de pulsa start (François Care). 
+Emulación Saturn : Yuushun Classic Road : Solucionado un problema de reinicios (François Care).
+Wiki : Añadidos los siguientes juegos a la wiki : Flash Volume 1 to Flash Volume 32, Bottom Of The 9Th, Dark Legend, Heart Of Darkness, Heim Waltz, Japan Super Bass Classic '96, Kamen Rider - Sakusen File 1, Kidou Senkan Nadesico - The Blank Of 3 Years, Lunacy, Oh-Chan No Oekaki Logic,  P.T.O. - Pacific Theater of Operations II, Purikura Daisakusen, Sanguozhi IV, Sanguozhi V,Solar Eclipse, Tokyo Shadow, Winning Post, Xianjian Qixiazhuan, Zenkoku Seifuku Bishoujo Grand Prix Find Love (Benjamin Siskoo).
+Miscelánea : Wiki actualizada (Benjamin Siskoo).
+Miscelánea : Actualizado Qt 5.14 (Benjamin Siskoo).
+Miscelánea : Arreglados errores con Ubsan "messa"(François Care).
+Miscelánea : Arreglada una regresión con el formato CCD (François Care).
+Miscelánea : Documentación actualizada (Benjamin Siskoo).
+Miscelánea : Varios arreglos.
+
+Kronos 2.0.1 :
+
+Características : Añadido núcleo de vídeo de sombreadores computados (François Care).
+Características : Eliminado núcleo de vídeo de software (François Care).
+Características : Añadido sombreadores computados (François Care).
+Características : Añadido soporte chd (Devmiyax, BarbuDreadMon, François Care).
+Emulación Saturn : AI Shougi 2 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : All-Star Baseball '97 featuring Frank Thomas : El juego ahora funciona (François Care).
+Emulación Saturn : Aquazone Desktop Life : El juego ahora arranca. Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Aquazone - Desktop Life Option Disc Series 1 - Angel Fish (Japan) (Rev A) : Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Aquazone - Desktop Life Option Disc Series 2 - Black Molly (Japan) (Rev A) : Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Aquazone - Desktop Life Option Disc Series 3 - Blue Emperor (Japan) (Rev A) : Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Aquazone - Desktop Life Option Disc Series 4 - Clown Loach (Japan) (Rev A) : Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Aquazone - Desktop Life Option Disc Series 5 - False Rummy-Nose (Japan) (Rev A) : Faltan efectos gráficos en el juego, no es jugable (François Care).
+Emulación Saturn : Ayrton Senna Personal Talk - Message For The Future : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Black Matrix : El juego ahora arranca y funciona. Las voces son ininteligibles (François Care).
+Emulación Saturn : Command & Conquer : El juego funciona de nuevo (François Care).
+Emulación Saturn : Death Throttle - Kakuzetsu Toshi Kara No Dasshutsu : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Deep Fear : Arreglado un problema de sonido (François Care).
+Emulación Saturn : Digital Ange - Dennou Tenshi SS : El juego ahora arranca. Aún hay problemas en la ventana de diálogos (François Care).
+Emulación Saturn : Digital Dance Mix Vol. 1 - Namie Amuro : No más pantalla negras durante el juego, pero aún quedan algunos artefactos (François Care).
+Emulación Saturn : DonPachi : El juego ahora arranca, pero no es jugable (François Care).
+Emulación Saturn : Doukyuusei 2 : El juego arranca y funciona (François Care).
+Emulación Saturn : Dream Square - Hinagata Akiko : El juego ahora funciona (François Care).
+Emulación Saturn : FIFA Road To World Cup : El juego ahora arranca, pero Kronos se congela segundos después de iniciarse. (François Care).
+Emulación Saturn : Fighting Vipers : Arreglada una pantalla negra con la bios real (François Care). 
+Emulación Saturn : Gakko No Kaidan : El juego ahora arranca y funciona. (François Care).
+Emulación Saturn : Game-Ware Vol. 1 : El juego ahora arranca, la demo del pinball digital tiene problemas en los controles (François Care).
+Emulación Saturn : Game-Ware Vol. 2 : El juego ahora arranca y funciona. (François Care).
+Emulación Saturn : Game-Ware Vol. 3 : El juego ahora arranca y funciona. (François Care).
+Emulación Saturn : Gotha - Ismailia Seneki : El juego ahora arranca y funciona. Algunos problemas gráficos en el juego (François Care).
+Emulación Saturn : Gunbird : Arreglado parpadeo en el juego (François Care).
+Emulación Saturn : Hatsukoi Monogatari : El juego ahora funciona. Arreglado un bloqueo en la pantalla de diálogo (François Care).
+Emulación Saturn : Heiwa Pachinko Soushingeki : El juego ahora arranca y funciona. Arreglado un crash en el menú. (François Care).
+Emulación Saturn : Honkaku Hanafuda : El juego ahora arranca y funciona. Arreglado un crash tras el logo de Altron (François Care).
+Emulación Saturn : Jissen Pachinko Hisshou-Hou ! Twin : El juego ahora arranca y funciona. Arreglada pantalla negra tras el logo de Sammy (François Care).
+Emulación Saturn : Jissen! Pachi-Slot Hisshou-Hou ! Iron Hook - The Great Marine Adventures : El juego ahora funciona. Arreglados efectos gráficos en el juego (François Care).
+Emulación Saturn : Keriotosse ! : Arreglado un bloqueo en la pantalla de selección de personaje. El juego ahora funciona. (François Care).
+Emulación Saturn : Krazy Ivan : Arreglada cruz doble en el radar (François Care).
+Emulación Saturn : Kyuukyoku Tiger II Plus : El juego funciona. Arreglado un bucle de reinicio. (François Care).
+Emulación Saturn : Kuuso Kagaku Sekai Gulliver Boy : Arreglado velo negro en el vídeo de la introducción (François Care).
+Emulación Saturn : Last Bronx : Arreglado un problema en el arranque con la bios integrada (Devmiyax).
+Emulación Saturn : Lode Runner Extra : El juego ahora arranca. Pantalla negra tras el logo (François Care).
+Emulación Saturn : Lunar 2 - Eternal Blue Complete : El juego funciona. No más lentitud en los vídeos (François Care).
+Emulación Saturn : Maboroshi No Black Bass : Arreglado fondo faltante en la tienda y en el punto (François Care).
+Emulación Saturn : Madden NFL 97 : El juego ahora funciona. Arreglado bloqueo en Kronos (François Care). 
+Emulación Saturn : Madden NFL 98 : El juego ahora funciona (François Care).
+Emulación Saturn : Mass Destruction : Arreglado mapa en el juego (François Care).
+Emulación Saturn : MechWarrior 2 - 31st Century Combat - Arcade Combat Edition : Arreglado vídeo faltante (François Care).
+Emulación Saturn : Megaman 8 : Arreglado cuadrado negro en el juego (François Care).
+Emulación Saturn : Metal Fighter Miku : El juego ahora funciona. Arreglada una pantalla negra tras entrar en el juego (François Care).
+Emulación Saturn : Mogitate SegaSaturn - Special Movie : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 1 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 2 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 3 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 4 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 5 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Mogitate SegaSaturn Vol. 6 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : NBA Jam Tournament Edition : Mejoras en el texto, pero aún no solucionado por completo (François Care).
+Emulación Saturn : Nissan Presents - Over Drivin' GT-R : El juego ahora funciona. Arreglado un bloqueo tras el primer vídeo. (François Care).
+Emulación Saturn : Ochigee Designer Tsukutte Pon ! : El juego ahora funciona. Arreglado bloqueo (François Care).
+Emulación Saturn : Off-World Interceptor Extreme : El juego ahora funciona. Arreglada pantalla negra en el juego (François Care).
+Emulación Saturn : Off World Interceptor : Arregladas partículas (François Care).
+Emulación Saturn : Ou-Chan No Oekaki Logic : El juego ahora es jugable. Arreglado un crash. (François Care).
+Emulación Saturn : Pandemonium : Arreglado un problema gráfico con las horas día/noche (François Care). 
+Emulación Saturn : Panzer Dragoon Zwei : Arreglado un problema de arranque con la bios integrada ((Devmiyax).
+Emulación Saturn : Pappara Paoon : El juego ahora funciona. Arreglados los crashes después del menú (François Care).
+Emulación Saturn : Pastel Muses : El juego ahora funciona. Arreglados sonidos en bucle (François Care).
+Emulación Saturn : PD Ultraman Link : El juego es ahora jugable en windows (François Care).
+Emulación Saturn : Refrain Love - Anata Ni Aitai : Arreglado el vídeo de introducción (François Care).
+Emulación Saturn : Revolution X - Music Is The Weapon : Arreglado el vídeo de introducción (François Care).
+Emulación Saturn : Riglordsaga 2 : El juego ahora arranca y es jugable (François Care).
+Emulación Saturn : Road & Track Presents - The Need for Speed : El juego ahora funciona. Arreglados los crashes (François Care).
+Emulación Saturn : Quake : Arreglados algunos artefactos gráficos en los muros (François Care).
+Emulación Saturn : Samurai Spirits - Amakusa Kourin / Samurai Shodown IV - Amakusa's Revenge : Arregladas líneas verticales en los cuadros y en el personaje jugable (François Care).
+Emulación Saturn : Sega Ages - Memorial Selection Vol. 1 : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Sega Rally : Arreglados agujeros en la carretera (François Care).
+Emulación Saturn : Senryaku Shougi : El juego ahora funciona. Arreglado un bloqueo tras pulsar "start" en la pantalla de "Pulsa start" (François Care).
+Emulación Saturn : Sentimental Graffiti : Arreglado un problema de transparencias con los diálogos durante el juego (François Care).
+Emulación Saturn : Shinsetsu Samurai Spirits - Bushidou Retsuden : Arreglado un tipo de transparencia en la pantalla de "Pulsa start" (François Care).
+Emulación Saturn : Shippuu Mahou Daisakusen - Kingdom-Grandprix : Arreglada la barra negra de la izquierda de la pantalla (François Care).
+Emulación Saturn : Sky Target : Arreglado fondo perdido en la pantalla de "pulsa start" (François Care).
+Emulación Saturn : Sonic Jam : Arreglado arranque usando la bios integrada (Devmiyax).
+Emulación Saturn : Sonic Jam : No más códigos OP con los estados guardados (François Care).
+Emulación Saturn : Soviet Strike : Arreglada la pantalla de transición (François Care).
+Emulación Saturn : Space Hulk - Vengeance Of The Blood Angels : Arreglados problemas de transparencias con el mapa durante el juego (Devmiyax).
+Emulación Saturn : Street Fighter - Real Battle On Film : Arregladas líneas en las sombras. (François Care).
+Emulación Saturn : Street Fighter - The Movie : Arregladas líneas en las sombras. (François Care).
+Emulación Saturn : The Hyper Golf - Devil's Course : El juego arranca pero no funciona (Faltan efectos gráficos en el juego). Arreglado un bloqueo durante el primer logo. (François Care).
+Emulación Saturn : The Tower : El juego ahora funciona. Arreglado un problema de bloqueo en el juego. (François Care).
+Emulación Saturn : Three Dirty Dwarves : Arregladas las farolas en el juego (François Care).
+Emulación Saturn : Transport Tycoon : Arreglado un sprite perdido (François Care).
+Emulación Saturn : Turfwind '96 - Take Yutaka Kyousouba Ikusei Game : El juego ahora arranca y funciona. Arreglada pantalla negra tras elegir a los personajes. (François Care).
+Emulación Saturn : Tsuukai !! Slot Shooting : Arregladas transparencias debajo de las letras (François Care).
+Emulación Saturn : UEFA Euro 96 England : El juego ahora arranca y funciona (François Care).
+Emulación Saturn : Vahollian : Arregñadp im problema gráfico en el juego (François Care).
+Emulación Saturn : Virtua Cop : Arreglado un sprite invisible (François Care).
+Emulación Saturn : Virtual Hydlide : El juego arranca y funciona con la bios integrada (Devmiyax).
+Emulación Saturn : Virtual Majhong : Arreglado un problema gráfico en el juego (François Care).
+Emulación Saturn : Virtual Mahjong 2 - My Fair Lady : Arreglada la pantalla de "Pulsa start" Arreglado un cuadrado negro durante el juego (François Care).
+Emulación Saturn : X-Japan - Virtual Shock 001 : El juego ahora arranca y funciona (François Care).
+Satunr Emulation : Waku Waku 7 : La pantalla de selección de personajes ahora se muestra, aunque con algunos glitches en ella. (François Care). 
+Emulación Saturn : World Advanced Daisenryaku - Sakusen File : Arreglado un problema en el vídeo de la introducción (François Care).
+Miscelánea : Mejorado QT con Visual Studio (François Care).
+Miscelánea : Mejorado el desarrollador en windows (François Care).
+Miscelánea : No leer ni escribir si el buffer es muy pequeño (François Care).
+Miscelánea : Arreglado un problema en el buffer con algunos archivos (François Care).
+Miscelánea : Testeados juegos de la A a la Z (Benjamin Siskoo).
+Miscelánea : Actualizado Léeme Kronos.html (Compatibilidad ST-V). Actualizada Tabla comparativa.html (Benjamin Siskoo).
+Miscelánea : Varios arreglos.
+
+
+Kronos 1.7.0 :
+
+Características : Reestructuración completa del renderizador Opengl (François Care).
+Características : Soporte de compilación para visual studio x86 y x64. El ejecutable de 64 bits está disponible por primera vez (François Care).
+Características : Alineamiento de la salida del debug "desarrollador" con la salida estándar de los errores (stdout en linux, DebugView en windows) (François Care).
+Características : Añadida la opción de "transparencia mesh" en la pestaña de vídeo (François Care).
+Características : Mejorada la emulación del teselado GPU y CPU (François Care). 
+Contador de FPS : Arreglado un problema en Sega Rally por el cual no se mostraba el contador de FPS (François Care).
+Emulación Saturn : Arreglado un problema en la pantalla de bios usando la opción OpenGL : Original (Resolución original de la Saturn) (François Care). 
+Emulación Saturn : Arcade's Greatest Hits: The Atari Collection 1 : Arreglado un problema de entrelazado al lanzar los misiles (François Care).
+Emulación Saturn : Athlete Kings : Arreglado un problema en las sombras al hacer el salto largo (François Care).
+Emulación Saturn : Black Fire : Arreglada una flecha faltante en el menú (Francois Care).
+Emulación Saturn : Black Fire : Arregladas las transparencias en la pantalla de carpetas (Francois Care).
+Emulación Saturn : Black Fire : Arreglado un gran problema gráfico, ahora es jugable (Francois Care).
+Emulación Saturn : Blam Machinehead : Arreglada la gradación en el menú de pausa (François Care).
+Emulación Saturn : Bug Too : Arreglada transparencia en el menú de pausa (François Care).
+Emulación Saturn : Capcom Generation 4 : Arreglada una puerta entrecortada, se trataba de un bug muy antiguo (François Care).
+Emulación Saturn : Code-R : Ahora es jugable (François Care).
+Emulación Saturn : Crows - The Battle Action : Arreglado un problema en la sombra bajo el personaje (François Care).
+Emulación Saturn : Dark Savior : Arreglado un problema gráfico en la pantalla de selección de la memoria (François Care).
+Emulación Saturn : Deadalus : Arreglados artefactos en el juego (François Care).
+Emulación Saturn : Decathlete : Arreglado un problema en las sombras al hacer el salto largo (François Care).
+Emulación Saturn : Devil Summoner - Soul Hackers - Akuma Zensho Dai-Ni-Shuu : Arreglado un problema de entrelazado (François Care).
+Emulación Saturn : Discworld 2 : Arreglado un problema en los colores, los gráficos estaban estropeados (François Care).
+Emulación Saturn : Disc Station Bessatsu - I Miss You. Tanaka Katsumi : Arreglados los gráficos en las partes de azul (François Care).
+Emulación Saturn : DoDonPachi (Demo) : Ahora es jugable (François Care).
+Emulación Saturn : Doom : Ahora es jugable. Arregladas transparencias en el techo y en el suelo (François Care).
+Emulación Saturn : Elf O Karu Monotachi - Hanafuda Hen : Arreglado el fondo de los diálogos (François Care).
+Emulación Saturn : Gale Racer : Arreglados artefactos en el juego (François Care).
+Emulación Saturn : Ginga Ojousama Densetsu Yuna - Mika Akitaka Illust Works : Arregladas las ilustraciones sobreexpuestas (François Care).
+Emulación Saturn : Gyuwambler Jiko Chuushinha - Tokyo Mahjongland : Ahora es jugable (François Care).
+Emulación Saturn : Kuuso Kagaku Sekai Gulliver Boy : Arreglado un velo negro en la cinemática de inicio (François Care).
+Emulación Saturn : J. B. Harold - Blue Chicago Blues : Arregladas las transparencias desaparecidas en el menú (François Care).
+Emulación Saturn : Jikkyou Oshaberi Parodius - Forever With Me : Arreglados los problemas de transparencias con las nubes en la pantalla de start (François Care).
+Emulación Saturn : Jikkyou Oshaberi Parodius - Forever With Me : Arreglados los vértices escalando las fuentes (François Care).
+Emulación Saturn : Keiou Yuugekitai - Katsugeki-Hen : Arreglados fondos desaparecidos en el juego (François Care).
+Emulación Saturn : Krazy Ivan : Arreglado un problema gráfico con el cielo (François Care).
+Emulación Saturn : Krazy Ivan : Arreglado un problema gráfico con las fuentes en el juego (François Care).
+Emulación Saturn : Linda^3 Kanzenban : Arreglado problema con cursor que desaparece en el menú (François Care).
+Emulación Saturn : Magic Knight Rayearth : Arreglada una pequeña línea en los diálogos (François Care).
+Emulación Saturn : MechWarrior 2 - 31st Century Combat - Arcade Combat Edition : Fondo arreglado (François Care).
+Emulación Saturn : Minnesota Fats - Pool Legend : Arreglados los textos en negro (François Care).
+Emulación Saturn : Mobile Suit Gundam Side Story - Optional Guide. Arreglado un problema de entrelazado (François Care).
+Emulación Saturn : Nekketsu Oyako : Arreglado un problema de fondos en el menú (François Care).
+Emulación Saturn : NHL 97 : Arregladas las "flags" faltantes (François Care).
+Emulación Saturn : Nightruth - Explanation Of The Paranormal 01 - Yami No Tobira : Arreglado problema gráfico en el menú (François Care).
+Emulación Saturn : Night Striker S : Arreglada una línea en zig zag en la carretera (François Care).
+Emulación Saturn : Nissan Presents - Over Drivin' GT-R : Arreglado un problema gráfico en el juego (François Care).
+Emulación Saturn : Nissan Presents - Over Drivin' GT-R : Arreglado un problema gráfico en las fotos (François Care).
+Emulación Saturn : Off World Interceptor : Arreglada pantalla negra en el juego. Ahora es jugable (François Care).
+Emulación Saturn : Riglord Saga 2 : Ahora es jugable. Arreglado arranque (Devmiyax).
+Emulación Saturn : Sakura Taisen 2 : Arreglados artefactos gráficos en los diálogos (François Care).
+Emulación Saturn : Sonic 3D : Arreglado un problema de prioridad (François Care).
+Emulación Saturn : Sword & Sorcery : Ahora es jugable (François Care).
+Emulación Saturn : Tomb Raider : Fixed missing transparency on the pause menu (François Care).
+Emulación Saturn : Virtual Hydlide : Arreglado menú del mapa (François Care).
+Emulación Saturn : Wing Arms : Arreglado un problema gráfico en las transiciones (François Care).
+Traducción : Actualizada traducción en Francés (Benjamin Siskoo).
+Traducción : Actualizada traducción en Español (LuismaSP89).
+Traducción : Actualizada traducción en Alemán (LuismaSP89).
+Traducción : Arregladas algunas cadenas de traducción (Benjamin Siskoo).
+Miscelánea : Eliminada la ventana de log embebido - Relegado a la vista de desarrollo en windows (https://docs.microsoft.com/en-us/sysinternals/downloads/debugview) y a la salida de la consola en linux (François Care).
+Miscelánea : Cambiada la etiqueta de "limitador de frames" a "sincronización vertical" (François Care).
+Miscelánea : Musashi alineamiento con la última versión (François Care).
+Miscelánea : Testeados los juegos con "M", "N" y "O" en la wiki (Benjamin Siskoo).
+Miscelánea : Arreglados problemas de transparencia en los botones de los mandos (Benjamin Siskoo).
+Miscelánea : Actualizado Readme.html (Compatibiliidad ST-V). Actualizado el archivo Chart.html (Benjamin Siskoo).
+Miscelánea : Varios arreglos.
+
+
+
+Kronos 1.6.0 :
+
+Características : Migración al núcleo OpenGL 4.2 para una mejor compatibilidad en escritorio y soporte de teselado en las tarjetas gráficas recientes.
+Miscelánea : arreglado bkram.bin (Panzer Dragon, Story Of Thor y otros) (Barbudreadmon).
+Miscelánea : nuevo icono kronos.exe (François Care).
+Miscelánea : arreglados filtros de vídeo (François Care).
+Miscelánea : arreglado contador FPS (François Care).
+Emulación de Saturn : Advanced World War Sennen Teikoku No Koubou : Last Of The Millennium : arregladas las líneas en el libro (François Care).
+Emulación de Saturn : AI Igo : arregladas unas líneas verticales faltantes en la pizarra (François Care).
+Emulación de Saturn : Beach De Reach: arreglado un problema de transparencia en los diálogos. (François Care).
+Emulación de Saturn : Defcon 5 : arreglado un muro faltante en el juego (François Care).
+Emulación de Saturn : Devil Summoner - Soul Hackers & Ronde - Otameshi-You (Demo) : arreglados los vídeos faltantes (François Care).
+Emulación de Saturn : Ginga Ojousama Densetsu Yuna - Mika Akitaka Illust Works : arreglada la pantalla de "pulsa start" (François Care).
+Emulación de Saturn : Hi Octane : arreglados los barcos del juego (François Care).
+Emulación de Saturn : Ippatsu Gyakuten - Gambling King E No Michi : arreglado un problema gráfico con los diálogos (François Care).
+Emulación de Saturn : J. B. Harold - Blue Chicago Blues : arreglado un problema de transparencia con el menú (François Care).
+Emulación de Saturn : Joshikousei no Houkago. Pukunpa : arreglados los retratos de fondo faltantes (François Care).
+Emulación de Saturn : Langrisser I & II (Dramatic Edition) : arreglado rectángulo blanco en el menú (François Care).
+Emulación de Saturn : Magical Night Dreams - Cotton 2 : arreglados los acantilados faltantes en el juego (François Care).
+Emulación de Saturn : Scorcher : arreglada una línea en el menú de pausa (François Care).
+Emulación STV : Guardian Force : arreglado un problema gráfico con el fondo del juego (François Care).
+Traducción : añadidas cuantiosas líneas de texto (Benjamin Siskoo).
+Traducción : actualizada la traducción francesa (Benjamin Siskoo).
+Traducción : traducción española (LuismaSP89).
+
+
+Kronos 1.5.0 :
+
+Características : nueva opción de vídeo en OpenGL, tamaños : 4x, 8x, 16x (François Care).
+Características : STV soporte para jugador 2 (Benjamin Siskoo).
+Emulación de Saturn : Ai Igo : arreglada línea vertical faltante en la pizarra (François Care).
+Emulación de Saturn : Akumajou Dracula X : arreglada la pantalla de transición (François Care).
+Emulación de Saturn : Alone In The Dark : el juego es finalmente jugable después de tres años :) (François Care).
+Emulación de Saturn : Batsugun : arreglada la pantalla de carga (el texto estaba desordenado) (François Care).
+Emulación de Saturn : Blam Machinehead : arreglada línea vertical en el fondo del juego (François Care).
+Emulación de Saturn : Breakpoint Tennis : las líneas del campo de tenis son casi negras (François Care).
+Emulación de Saturn : Capcom Generation 5 : arreglada una regresión con los FPS (François Care).
+Emulación de Saturn : Command & Conquer : arreglada una regresión con los FPS (François Care).
+Emulación de Saturn : Devil Summoner - Soul Hackers & Ronde - Otameshi-You (Demo) : arreglados videos (FMV) que no aparecían (François Care).
+Emulación de Saturn : Emit Vol.1 : arreglado un problema de reinicio en la pantalla de pulsar start (hacía falta pulsar rápidamente start para iniciar el juego) (François Care).
+Emulación de Saturn : Emit Vol.2 : arreglado un problema de reinicio en la pantalla de pulsar start (hacía falta pulsar rápidamente start para iniciar el juego) (François Care).
+Emulación de Saturn : Emit Vol.3 : arreglado un problema de reinicio en la pantalla de pulsar start (hacía falta pulsar rápidamente start para iniciar el juego) (François Care).
+Emulación de Saturn : Fist : el juego es ahora jugable (François Care).
+Emulación de Saturn : Gungriffon : arreglado un problema gráfico con la pantalla de misión (François Care).
+Emulación de Saturn : Heartbeat Scramble : arreglado un problema gráfico con la pantalla de carga (François Care).
+Emulación de Saturn : Hop Step Idol : arreglada la pantalla de selección de personajes (François Care).
+Emulación de Saturn : Horror tour : arreglado un problema gráfico con la pantalla de carga (François Care).
+Emulación de Saturn : Ide Yousuke Meijin no Shin Jissen Mahjong : arreglado un artefacto gráfico en la pantalla de carga (François Care).
+Emulación de Saturn : Idol Maajan Final Romance R Premium Package : el juego es ahora jugable (François Care).
+Emulación de Saturn : Impact Racing (Demo). el juego es ahora jugable (François Care).
+Emulación de Saturn : Impact Racing. El juego es ahora jugable (François Care).
+Emulación de Saturn : J-League Victory Goal '96 : arregladas las transparencias en el menú (François Care).
+Emulación de Saturn : J-League Victory Goal '97 : arregladas las transparencias en el menú (François Care).
+Emulación de Saturn : Keio Flying Squadron 2 : arreglado un problema gráfico con el fondo (François Care).
+Emulación de Saturn : Langrisser Dramatic Edition : arreglada una pantalla negra con diálogo (François Care).
+Emulación de Saturn : Langrisser III : arreglado un problema con los textos (François Care).
+Emulación de Saturn : Langrisser V : arreglada la pantalla de personajes y de menú (François Care).
+Emulación de Saturn : Linda^3 Kanzenban : arreglado cursor (François Care).
+Emulación de Saturn : Lunar Silver Star Story : arreglado un problema gráfico con la colina (no aparecía) (François Care).
+Emulación de Saturn : Marobishi No Black Bass : arreglada pantalla faltante.
+Emulación de Saturn : Mr Bones : el juego es ahora jugable. Arreglada una pantalla en negro y el booteo después de perder una vida (François Care).
+Emulación de Saturn : Street Racer : el juego es finalmente jugable por completo (François Care). 
+Emulación de Saturn : Shining Force 3 - Premium Disk : arreglado el soporte de quads VDP1 (François Care). 
+Emulación de Saturn : Sonic Jam : arreglo para relanzar el juego (François Care).
+Emulación STV  : Guardian Forces : arreglado un problema de fondo (François Care).
+Emulación STV : Groove On Fight : arreglado un problema de fondo (François Care).
+Emulación STV : Magical Night Dreams - Cotton Boomerang : arreglado un problema gráfico con la colina (no aparecía) (François Care).
+Emulación STV : Othello Shiyouyo : arreglado un problema gráfico en el juego (François Care).
+Miscelánea : nueva lista de compatibilidad (0 - L) : http://tradu-france.com/tfwiki-1.28.2/index.php?title=Compatibility_list_of_Kronos (Benjamin Siskoo).
+Miscelánea : Cálculo de textura asíncrona para vdp1 y Vdp2 : aumenta los FPS en CPU poco potentes o en el modo de salto de frames (François Care).
+Miscelánea : Arreglos de los shaders Gouraud (François Care).
+Miscelánea : Arreglados las alertas durante la compilación (François Care).
+Miscelánea : Varios arreglos (François Care).
+Traducción : Quitada la opción de sonido "Usar nuevo SCSP".
+
+Kronos 1.4.5 :
+
+Emulación de Saturn : Bug : arreglado arranque. Pantalla negra tras el vídeo de intro (Devmiyax).
+Emulación de Saturn : Croc : arreglado arranque. El juego es ahora jugable (Devmiyax).
+Emulación de Saturn : Emit Vol.1 : arreglado arranque. El juego es casi jugable. Debes de pulsar rápidamente start o el juego se reiniciará (Devmiyax).
+Emulación de Saturn : Gex : arreglado arranque. El juego es ahora jugable (Devmiyax).
+Emulación de Saturn : Idol Janshi Suchie : arreglado arranque. El juego es ahora jugable (Devmiyax).
+Emulación de Saturn : Mr Bones : arreglado problema gráfico masivo. El juego es ahora jugable (Devmiyax).
+Emulación de Saturn : Virtua Fighter Kids : arreglado arranque. El juego es al fin jugable. La primera vez desde que existe Yabause (Devmiyax).
+Emulación de Saturn : UEFA Euro 96 : arreglado arranque. El juego es ahora jugable por primera vez (François).
+Emulación de Saturn : Virtual Hydlide : arreglado congelamiento. El juego es ahora jugable (Devmiyax).
+Emulación de Saturn : Xmen Vs Street Fighter : El juego es jugable (Devmiyax).
+ST-V : Arreglada la emulación ST-V. Funciona de nuevo (François).
+ST-V : Añadido Mahjong Virtual. Varios arreglos. Algunos juegos son ahora jugables/arrancables. (Benjamin Siskoo).
+Miscelánea : Arregladas las capas en la interfaz (François).
+Miscelánea : Actualizado Léeme de Kronos.html (Compatibilidad ST-V). Actualizada la tabla de comparación.html (Benjamin Siskoo).
+
+Kronos 1.4.0 :
+
+Características : Soporte para archivos zip de re-volcado (François).
+Características : Soporte QT5.11.1 y Visual Studio 2017.
+Características : Opciones añadidas a la línea de comandos : scanline, ST-V (bios e iso) Soporte teclado ST-V (Linux por ahora) (François).
+Características : Nuevo filtro BR2Z. Pruébalo si tienes una tarjeta gráfica poco potente (François).
+Emulación de Saturn : Doom : arreglados glitches en el juego (François).
+Emulación de Saturn : F1 Challenge : arreglado un problema gráfico con la cabina del coche (François).
+Emulación de Saturn : F1 Challenge : arreglada una pantalla desordenada en el menú (François).
+Emulación de Saturn : Metal Slug : arreglado un problema de sprites con el personaje (François).
+Emulación de Saturn : Athlete Kings and Blam Machinehead : arreglado un problema gráfico (transparent strips) (François).
+Emulación de Saturn : Earthworm Jim : arreglado un problema gráfico (François).
+Emulación de Saturn : Tsuukai!! Slot Shooting : arreglado un problema de sombras en el menú (François).
+ST-V : Añadidos todos los juegos ST-V, posiblemente falten 2-3 juegos (Benjamin Siskoo)
+ST-V : arreglado un problema con la bios ST-V (Linux y Windows). Ahora, la emulación STV funciona en Linux y Windows (François).
+ST-V : Listado de juegos en orden ascendente (François).
+ST-V : arreglada la posición de la pantalla en el juego Shienryu (François).
+Traducción : actualizada la traducción española (Kris Tophe)
+Traducción : actualizada la traducción francesa (Benjamin Siskoo).
+Traducción : actualizado el idioma inglés (Benjamin Siskoo).
+Traducción : líneas de traducción añadidas : configuración de cabina ST-V, cabina ST-V, Intérprete SH2.
+Traducción : Líneas de traducción quitadas : Teselado, Triángulos usando correción de perspectiva, Teselado CPU, Teselado GPU.
+Miscelánea : añadido un nuevo archivo leéme.html, tabla de comparación.html, cambios.txt (Benjamin Siskoo).
+Miscelánea : arreglado un crash con el antiguo archivo ini y el nuevo kronos (François).
+Miscelánea : Quitado el soporte para QT4 (Desestimado) (François).
+Miscelánea : Quitado el soporte para teselado. Parece que ésta opción no tiene uso (François).
+
+Kronos 1.3.0 :
+
+Características : Nuevo intérprete Kronos. Menor uso de CPU.
+Características : Añadido soporte para roms STV. En Linux todos los juegos son ejecutables pero en el port de Windows muchos no son jugables.
+Emulación de Saturn : Burning Rangers : arreglado un velo negro en el juego.
+Emulación de Saturn : Contra - Legacy of War : arreglada una regresión en la sombra del personaje.
+Emulación de Saturn : Doukoku Soshite : arreglado un problema de transparencia con la luna.
+Emulación de Saturn : Doukoku Soshite : arreglado un problema de transparencia con los diálogos.
+Emulación de Saturn : Doukoku Soshite : arreglado un problema con un símbolo faltante en el lateral del autobús.
+Emulación de Saturn : Le manoir des ames perdues : arreglado un problema gráfico con el menú.
+Emulación de Saturn : Outrun : arreglada pantallas faltantes (pantalla de carga y de opciones).
+Emulación de Saturn : Sakura Taisen 2 : arreglada una regresión.
+Emulación de Saturn : Scorcher : arreglado un problema gráfico con los árboles.
+Emulación de Saturn : Scorcher : arreglado la pantalla del menú de pausa, estaba desordenada.
+Emulación de Saturn : Sega Ages : arreglada pantalla de carga.
+Emulación de Saturn : Slam & Jam 96 : arreglada una regresión con la pantalla de las mejores puntuaciones.
+Emulación de Saturn : Turfwind '96 - Take Yutaka Kyousouba Ikusei Game : arreglada una pantalla negra. El juego es ahora jugable.
+
+Kronos 1.2.0 :
+
+Características : El soporte para Windows 7 está de vuelta. Arreglado el error de kernel32.dll en Windows 7. Debería funcionar.
+Características : Añadidas 2 opciones de vídeo : Aspecto de ratio original y estirar a la ventana.
+Características : Añadido título para la nueva opción de vídeo : Filtro de escalado, Filtro de mejora, Teselado, tamaño OpenGL, Efecto TV (Benjamin Siskoo). 
+Características : Añadido filtro Scanline. Puede ser combinado con otros filtros (HQ4X, etc...). 
+Miscelánea : Eliminadas 3 opciones de vídeo : Ajustar a la ventana, Aspecto fijo de ratio: 4:3 y aspecto fijo de ratio: 16:9.
+Traducción : Traducción francesa de las nuevas opciones de vídeo (Benjamin Siskoo). 
+Traducción : Añadida nueva línea de traducción : barra de herramientas (panel de accesos rápidos) (Benjamin Siskoo).
+
+Kronos 1.1.0
+Características : Hacer que la resolución y el interruptor de filtro sea dinámico para evitar tener que reiniciar. Introducido también el útil depurador OpenGL con soporte para llamadas remitentes. Arregla un problema de audio con los juegos europeos después de cambiarlos entre NTSC y PAL
+Características : Añadida resolución 1x hasta 4x.
+Características : Añadido filtro de vídeo "extrapolación bicúbica".
+Características : Añadido filtro de vídeo HQX4.
+Características : Añadido filtro de vídeo 4xBRZ.
+Emulación de sonido : CDDA para Sega Ages Afterburner y Space Harrier (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglado [Panzer Dragoon zwei] : Inserción de línea de color RBG no es correcta (Devmiyax - Yaba Sanshiro)..
+Emulación de Saturn : Arreglado [Space Harrier] La sombra no es transparente (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglada una regresión : Transparencias ASTAL RBG0 (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglada una regresión : Título Albert Odyssey (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglado un problema gráfico con la capa NBG0 para el juego Panzer Dragon Zwei. El cielo de fondo se muestra ahora correctamente (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglado [Space Harrier] La sombra no es transparente (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglado [OutRun] La sombra no está dibujada (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglada una regresión : Los personajes en Chaos Seed no se dibujan (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : Arreglado Sonic R : El mar no es transparente (Devmiyax - Yaba Sanshiro).
+Emulación de Saturn : HQ4x funciona mejor con NEAREST - Arregla un mal comportamiento alpha en MegamanX4.
+Emulación de Saturn : El renderizador de Software está de vuelta.
+Emulación de Saturn : - Un mejor manejo de las líneas.
+Traducción : Añadido a línea de traducción: Original (resolución original de Saturn) (Benjamin Siskoo).
+Miscelánea : Quitada resolución nativa innecesaria.
+Miscelánea : Quitado FXAA innecesario.
+Miscelánea : Arreglado un problema con el filtro de vídeo bicúbico.

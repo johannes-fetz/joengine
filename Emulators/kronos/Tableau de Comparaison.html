@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>Kronos Tableau de Comparaison</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+      td { padding-left:6px; padding-right:6px }
+      .fineprint { font-size:75% }
+      .heading { text-align:center }
+    </style>
+  </head>
+  <body>
+    <h1 class="heading"><a name="pagetop" id="pagetop">Kronos : Tableau de Comparaison</a></h1>
+    <p class="heading">
+      <em>
+        version 2.1.5<br>
+        dernière mise à jour : 25 Décembre 2020<br>
+        <br>
+          Site: <a href="https://github.com/FCare/yabause/tree/extui-align">https://github.com/FCare/yabause/tree/extui-align</a><br>
+        Mail: François Care<br>
+      </em>
+    </p>
+    <hr>
+    <p>
+		Kronos est un émulateur Sega Saturn/ST-V basé sur Yabause et Yaba Sanshiro.
+		Copyright (C) 2017 - François Caron
+
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU General Public License
+		as published by the Free Software Foundation; either version 2
+		of the License, or (at your option) any later version.
+
+		This program is distributed in the hope that it will be useful,
+		but WITHOUT ANY WARRANTY; without even the implied warranty of
+		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+		GNU General Public License for more details.
+
+		You should have received a copy of the GNU General Public License
+		along with this program; if not, write to the Free Software
+		Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+    </p>
+    <hr>
+    <h2>Tableau de Comparaison</h2>
+	<p>Le but de ce tableau n'est pas de démontrer qu'une branche est meilleure que l'autre. Je vais essayer de vous donner un état de l'émulation pour les 3 branches basées Yabause : Kronos, Yaba Sanshiro et Yabause.</p>
+    <table border="1" width="1600">
+      <tr>
+        <th></th>
+        <th>Kronos</th>
+        <th>Yaba Sanshiro</th>
+        <th>Yabause</th>		
+      </tr>
+      <tr>
+        <td><center><b>Statut</b></center></td>
+		<td><center>Actif</center></td>
+		<td><center>Actif</center></td>
+		<td><center>Inactif</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Plateformes Supportées</b></center></td>
+		<td><center>Linux et Windows</center></td>
+		<td><center>Linux, Windows, Android</center></td>
+		<td><center>Linux, Windows, Macintosh, Dreamcast.</center></td>
+      </tr>
+      <tr>
+        <td><b><center>Version de l'Emulateur</b></center></td>
+		<td><center>2.1.5</center></td>
+		<td><center>3.4.2</center></td>
+		<td><center>0.9.5</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Moteur de Rendu OpenGL</b></center></td>
+		<td><center>Oui</center></td>
+		<td><center>Oui</center></td>
+		<td><center>Oui</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Moteur de Rendu Software</b></center></td>
+		<td><center>Non</center></td>
+		<td><center>Cassé</center></td>
+		<td><center>Oui</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Moteur de Rendu Compute Shader</b></center></td>
+		<td><center>Oui</center></td>
+		<td><center>Non</center></td>
+		<td><center>Non</center></td>
+      </tr>
+
+      <tr>
+        <td><center><b>Emulation Graphique (c'est une estimation)</b></center></td>
+		<td><center>88-90%</center></td>
+		<td><center>80-84%</center></td>
+		<td><center>60-65%</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Emulation du Son (c'est une estimation)</b></center></td>
+		<td><center>95%</center></td>
+		<td><center>95%</center></td>
+		<td><center>85%</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Support ST-V</b></center></td>
+		<td><center>Oui</center></td>
+		<td><center>Non</center></td>
+		<td><center>Non</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Filtre Vidéo</b></center></td>
+		<td><center>Oui (HQ4X, Bilinèaire, Scanline, etc...)</center></td>
+		<td><center>Oui (FXAA, Scanline, Bilinèaire) </center></td>
+		<td><center>Aucun</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Traduction</b></center></td>
+		<td><center>Oui</center></td>
+		<td><center>Oui (doit être retravailler)</center></td>
+		<td><center>Oui (doit être retravailler)</center></td>
+      </tr>
+      <tr>
+        <td><center><b>Options/Fonctionnalités Spécifiques</b></center></td>
+		<td><center>Débug (VDP1 et VDP2), Support de Windows 7, Support des archives ZIP Redump, Interpréteur Kronos, Mémoire interne étendue à 8 Mb, filtre vidéo pour les petits GPU (BRZ2), support des images CHD, Compute Shader, Retroarch Kronos</center></td>
+		<td><center>Débug, Tesselation, rotation de l'écran à 90°, compteur de SCSP, Mémoire interne étendue à 8 Mb, support des images CHD, Retropie Yaba Sanshiro</center></td>
+		<td><center>Débug, support de la ROM SH1, CD Block LLE, SH2 Dma Timing, SH2 Cache</center></td>
+      </tr>
+    </table>
+    <p>
+      Kronos est sous Copyright &copy; 2017-2020 par François Caron.<br>
+      <br>
+      SEGA SATURN est une marque commerciale ou une marque déposée de SEGA.<br>
+      Kronos n'est affilié à aucune des sociétés mentionnées et n'est endossé par aucune d'entre elles. 
+    </p>
+  </body>
+</html>

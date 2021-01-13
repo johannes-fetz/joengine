@@ -1,0 +1,353 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>Documentation de Kronos</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+      td { padding-left:6px; padding-right:6px }
+      .fineprint { font-size:75% }
+      .heading { text-align:center }
+    </style>
+  </head>
+  <body>
+    <h1 class="heading"><a name="pagetop" id="pagetop">Documentation de Kronos</a></h1>
+    <p class="heading">
+      <em>
+        Version 2.1.5<br>
+        Mise à jour le : 25 Décembre 2020<br>
+        <br>
+          Site : <a href="https://github.com/FCare/yabause/tree/extui-align">Rejoignez nous sur Github</a><br>
+		  Youtube : <a href="https://www.youtube.com/channel/UCCmvLrXartUzL7rU5pBnA-A">Rejoignez nous sur Youtube - Kronos</a><br>
+		  Discord : <a href="https://discord.gg/c5q4EU2">Rejoignez nous sur Discord</a><br>
+        <br>
+      </em>
+    </p>
+    <hr>
+    <p>
+		Kronos est un émulateur Sega Saturn/ST-V basé sur Yabause et Yaba Sanshiro.
+		Copyright (C) 2017-2020 - François Caron
+
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU General Public License
+		as published by the Free Software Foundation; either version 2
+		of the License, or (at your option) any later version.
+
+		This program is distributed in the hope that it will be useful,
+		but WITHOUT ANY WARRANTY; without even the implied warranty of
+		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+		GNU General Public License for more details.
+
+		You should have received a copy of the GNU General Public License
+		along with this program; if not, write to the Free Software
+		Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+    </p>
+    <hr>
+    <h2>Table des Matières</h2>
+    <ul>
+      <li><a href="#introduction">Introduction</a></li>
+      <li><a href="#avant_lancement">Avant de lancer Kronos</a></li>
+      <li><a href="#core">Noyau vidéo OpenGL / Compute Shader</a></li>
+      <li><a href="#features">Fonctionnalités spécifique à Kronos</a></li>
+      <li><a href="#stvgames">Comment lancer un jeu ST-V ?</a></li>
+      <li><a href="#compatibilitystv">Liste de Compatibilité des jeux ST-V</a></li>	  
+      <li><a href="#needed">Ce dont on a besoin</a></li>
+      <li><a href="#helptranslate">Comment traduire Kronos ?</a></li>
+      <li><a href="#translations">Traductions</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+    <p>
+      Pour les nouveautés de la version, veuillez consulter le fichier "Nouveautés.txt".
+    </p>
+    <hr>
+    <h2><a name="introduction" id="introduction">Introduction :</a></h2>
+    <p>
+      Kronos est un émulateur Sega Saturn/ST-V en open source écrit en C/C++. Il est basé sur les sources de Yabause/UoYabause/Yaba Sanshiro, tle but est d'améliorer l'émulation et l’expérience Sega Saturn/ST-V.
+      <br>
+      <br>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <h2><a name="avant_lancement" id="avant_lancement">Avant de lancer Kronos :</a></h2>
+    <p>
+      Pour avoir la meilleure expérience, suivez ces étapes :
+	<ul>
+      <li>Effacer votre bkram.bin --> par défaut, le chemin est C:\Users\yourname\Appdata\local\kronos\</li>
+      <li>Effacer votre ancien fichier kronos.ini ou utiliser le kronos.ini fournit dans l'archive.</li>
+      <li>Les anciennes sauvegardes/sauvegardes d'états ne devraient pas fonctionner avec Kronos 2.1.3.</li>
+    </ul>
+      <a href="#pagetop">Back to Top</a>
+    </p>
+    <hr>
+    <h2><a name="core" id="core">OpenGL / Compute Shader video core :</a></h2>
+    <p>
+      Kronos a introduit un nouveau noyau vidéo : le noyau Compute Shader. Voici les différences avec le noyau OpenGL :
+    <ul>
+      <li>Noyau OpenGL : les cartes graphiques supportés < OpenGl 4.3.</li>
+      <li>Noyay Compute Shader : les cartes graphiques supportés >= OpenGl 4.3.</li>
+    </ul>
+      Certains problèmes graphiques ne pourront pas ^étre corrigés avec le noyau OpenGL (ex : les trous dans le route pour le jeu Sega Rally holes).
+      <br>
+      <br>
+      <a href="#pagetop">Back to Top</a>
+    </p>
+    <hr>
+    <h2><a name="features" id="features">Fonctionnalités spécifiques à Kronos :</a></h2>    
+    <ul>
+      <li>Support du Compute Shader.</li>
+      <li>Support de Windows 7/10.</li>
+      <li>Support des jeux ST-V.</li>
+      <li>Support de Kronos dans Retroarch (préliminaire).</li>
+      <li>Support des archives Redump au format Zip (si vous possédez un jeu Saturn provenant de chez Redump, il est possible de lancer le jeu sans décompresser l'archive).</li>
+      <li>Nouvelles options vidéo.</li>
+      <li>Support des filtres vidéos (HQ4X, Bicubic, BRZ2, etc...).</li>
+      <li>Nouvel interpréteur kronos (utilisation réduite du CPU).</li>
+      <li>Support des images CHD.</li>
+      <li>Plus de jeux ont été corrigés.</li>
+      <li>Suppression d'options inutiles et de vieux code.</li>
+	  </li>
+    </ul>
+    <p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <h2><a name="stvgames" id="stvgames">Comment lancer un jeu STV ?</a></h2>
+	<p>Pour lancer une jeu ST-V, veuillez suivre les étapes suivantes (port Windows) :</p>
+    <ul>
+      <li>Créer un répertoire avec vos roms ST-V (ne surtout pas les décompresser). Ajout le Bios ST-V dans le même répertoire.</li>
+      <li>Lancer Kronos.exe</li>
+      <li>Cliquez sur "Fichier" --> "Paramètres" --> puis sur l'onglet "Cartouche/Mémoire".</li>
+      <li>Dans "Cartouche", sélectionnez "Rom Jeu ST-V".</li>
+      <li>Cliquez sur "..." pour ajouter le chemin du répertoire ou se trouve les roms ST-V. Patientez quelques secondes. Les jeux devraient être affichés sur la ligne au dessus.</li>
+	  <li>En-dessous, dans Mémoire, donnez le chemin d'un fichier .bin utilisé uniquement pour le book keeping des jeux ST-V (un jeu ST-V peut avoir un comportement anormal en présence de la sauvegarde de son port Saturn).</li>
+	  <li>Dans Contrôleur, choisir une configuration libre pour le Port 1 et sélectionner "Contrôles ST-V". Cliquez sur l'icône de clé à molette à côté et réglez chaque bouton du joueur 1.</li>
+	  <li>Répéter l'opération pour le Port 2 pour jouer à 2.</li>
+	  <li>Cliquez sur "Ok" pour fermer la fenêtre des "Paramètres".</li>
+	  <li>Pressez l'icône "Lancer" dans la barre d'outils ou dans le menu "Emulation".</li>
+	  </li>
+    </ul>
+    <p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <hr>
+    <h2><a name="compatibilitystv" id="compatibilitystv">Liste de Compatibilité des jeux ST-V</a></h2>
+	<p>La liste de compatibilité avec les jeux ST-V  (besoin de plus de tests) :</p>
+	<p><b>Jeux qui fonctionnent :</b></p>
+    <ul>
+		<li>Baku Baku Animal</li>
+		<li>Cotton 2</li>
+		<li>DaeJeon ! SanJeon SuJeon</li>
+		<li>Danchi De Hanafuda</li>
+		<li>Danchi De Quiz - Okusan Yontaku Desuyo</li>
+		<li>Die Hard Arcade</li>
+		<li>Dynamite Deka</li>
+		<li>Ejihon Tantei Jimusyo</li>
+		<li>Final Fight Revenge</li>
+		<li>Funky Head Boxers : problème graphique avec l'arrière plan.</li>
+		<li>Golden Axe The Duel</li>
+		<li>Groove on Fight - Gouketsuji Ichizoku 3</li>
+		<li>Guardian Forces</li>
+		<li>Karaoke Quiz Intro Don Don !</li>
+		<li>Magical Nights Dreams - Cotton Boomerang</li>
+		<li>Maru-Chan de Goo !</li>
+		<li>Mausuke No Ojama the World</li>
+		<li>Name Club</li>
+		<li>Name Club V2</li>
+		<li>Name Club V3</li>
+		<li>Othello Shiyouyo</li>
+		<li>Princess Clara Daisakusen</li>
+		<li>Puyo Puyo Sun</li>
+		<li>Puzzle & Action : BoMulEul Chajara</li>
+		<li>Puzzle & Action : Treasure Hunt</li>
+		<li>Puzzle & Action : Sando R</li>
+		<li>Radiant Silvergun</li>
+		<li>Sakura Taisen - Hanagumi Taisen Columns</li>
+		<li>Sea Bass Fishing</li>
+		<li>Shienryu : problème d'affichage au boot.</li>
+		<li>Soukyugurentai / Terra Driver</li>
+		<li>Steep Slope Sliders</li>
+		<li>Suiko Enbu / Outlaws Of The Dynasty</li>
+		<li>Taisen Tanto-R Sashissu !!</li>
+		<li>Touryuu Densetsu Elan Doree / Elan Doree - Legend of Dragoon : problème d'arrière plan dans le jeu.</li>
+		<li>Virtua Fighter Kids</li>
+		<li>Virtua Fighter Remix</li>
+		<li>Virtual Mahjong</li>
+		<li>Winter Heat</li>
+		<li>Zen Nippon Pro-Wrestling Featuring Virtua</li>
+		<li>Zenkoku Seifuku Bishoujo Grand Prix Find Love</li>
+	  
+	<p><b>Jeux qui ne fonctionnent pas :</b></p>
+        <li>Astra SuperStars : le jeu ne démarre pas.</li>
+		<li>Batman Forever : Ecran noir après avoir pressé start sur l'écran press start.</li>
+		<li>Choro Q Hyper Racing 5 : écran noir.</li>
+		<li>Columns 97 : Kronos bloque sur le premier écran.</li>
+		<li>Critter Crusher : curseur manquant dans le jeu.</li>
+		<li>Decathlete 1.000 : décryptage graphique manquant.</li>
+		<li>Decathlete 1.001 : décryptage graphique manquant.</li>
+		<li>Fantasy Zone : Error 10. Rom has changed.</li>
+		<li>Final Arch : Kronos freeze dans le jeu.</li>
+		<li>Hashire Patrol Car : problème d'input.</li>
+		<li>Magical Zunou Power : Message d'erreur : Onsei Board Error.</li>
+		<li>Microman Battle Charge : Error on Cartridge.</li>
+		<li>Nerae! Super Goal : input manquant. Hopper ?</li>
+		<li>Peeble Beach - The Great Shot : gros problème graphique.</li>
+		<li>Pro Majhong Kiwame S : bloque avant d'entrer in game.</li>
+		<li>Shangai - The Great Wall : Gros problème graphique.</li>
+		<li>Sky Challenger : input manquant. Hopper ?</li>
+		<li>Soreyuke Anpanman Crayon Kids : Kronos plante au démarrage.</li>
+		<li>Sport Fishing 2 : le STVCD est manquant. Operation of this cartdrige is disallowed in this country.</li>
+		<li>Stress Busters : Kronos plante.</li>
+		<li>Super Major League : Kronos plante.</li>
+		<li>Technical Bowling : écran noir au démarrage.</li>
+		<li>Tecmo World Cup 98 : écran noir au démarrage.</li>
+		<li>Tecmo World Soccer 98 : écran noir au démarrage.</li>
+		<li>Virtual Mahjong 2 - My Fair Lady : presque jouable. Problème de ligne par ligne ?</li>
+	  
+	<p><b>Nécessite le support de l'imprimante/Caméra :</b></p>
+		<li>Print Club 2</li>
+		<li>Print Club 2 Vol. 3</li>
+		<li>Print Club 2 Vol. 6 Winter</li>
+		<li>Print Club 2 Vol. 6 Winter</li>
+		<li>Print Club 2 Vol. 7 Spring</li>
+		<li>Print Club 2 Vol. 8 Summer</li>
+		<li>Print Club 2 Vol. 9 Autumn</li>
+		<li>Print Club 2 '97 Winter</li>
+		<li>Print Club 2 '97 Winter</li>
+		<li>Print Club 2 '98 Autumn</li>
+		<li>Print Club 2 '98 Summer</li>
+		<li>Print Club 2 '98 Spring</li>
+		<li>Print Club 2 '98 Summer</li>
+		<li>Print Club 2 2000 Summer</li>
+		<li>Print Club 2 Kobe Luminaire '99 (Print Club Custom 3)</li>
+		<li>Print Club 2 Felix The Cat</li>
+		<li>Print Club Goukakenran : Kronos crashes.</li>
+		<li>Print Club LoveLove : Black screen.</li>
+		<li>Print Club LoveLove 2 : Black screen</li>
+		<li>Print Club 2 Puffy</li>
+		<li>Print Club 2 Pokemon B</li>
+		<li>Print Club 2 Olive</li>
+		<li>Print Club 2 Pepsiman</li>
+		<li>Print Club 2 Warner Bros</li>
+		<li>Print Club Winnie-the-Pooh Vol. 2 : Black screen.</li>
+		<li>Print Club Winnie-the-Pooh Vol. 3 : Black screen.</li>
+		<li>Print Club Yoshimoto V2</li>
+		<li>Print Kome Club</li>
+    </ul>
+    <p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <h2><a name="needed" id="needed">Comment créer une image CHD ?</a></h2>    
+    <ul>
+		<li><a href="https://www.youtube.com/watch?v=MnH22AmrrGw">Comment créer une image CHD</a></li>
+    </ul>
+    <p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <h2><a name="needed" id="needed">Ce dont on a besoin</a></h2>    
+    <ul>
+      <li>Un développeur Windows pour aider à corriger ce port.</li>
+      <li>Un développeur Linux.</li>
+      <li>Des testeurs.</li>
+      <li>Des traducteurs.</li>
+      <li>Tout autre aide que vous pouvez fournir (info, documentations techniques, etc...).</li>
+	  </li>
+    </ul>
+    <p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+    <h2><a name="helptranslate" id="helptranslate">Comment traduire Kronos ?</a></h2>    
+	<p>Vous devez télécharger ce fichier : <a href="https://github.com/FCare/yabause/blob/extui-align/yabause/l10n/yabause_default.yts">Kronos_default.yts</a></p>
+    <p>La traduction de Kronos est plutôt simple. Voici un exemple : <br></p>
+		<p>File|"mettez la traduction ici"<br>
+		Close|"mettez la traduction ici"</p>
+
+		<p>Voici un exemple : <br></p>
+		<p>File|Fichier</p>
+	</p>
+	<p>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+        <h2><a name="translations" id="translations">Traductions :</a></h2>
+    <table border="1">
+      <tr>
+        <th>Auteur</th>
+        <th>Langue</th>
+      </tr>
+      <tr>
+        <td>Benjamin Siskoo</td>
+        <td><a href="http://www.tradu-france.com">Français</a></td>
+      </tr>
+      <tr>
+        <td>Luis Manuel Sánchez Pérez</td>
+        <td><a href="mailto:LuismaSP89@hotmail.com">Spanish</a></td>
+      </tr>
+    </table>
+    <p>
+      <br>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+        <h2><a name="contact" id="contact">Contact :</a></h2>
+    <table border="1">
+      <tr>
+        <th>Nom</th>
+        <th>E-Mail</th>
+      </tr>
+      <tr>
+        <td>François Caron</td>
+       <td><a href="mailto:francois.caron.perso@gmail.com">François Caron</a></td>
+      </tr>
+      <tr>
+        <td>Benjamin Siskoo</td>
+        <td><a href="mailto:siskoo@tradu-france.com">Benjamin Siskoo</a></td>
+      </tr>
+    </table>
+    <p>
+      <br>
+      <a href="#pagetop">Revenir en Haut de la Page</a>
+    </p>
+    <hr>
+        <h2><a name="contact" id="contact">L'équipe :</a></h2>
+    <table border="1">
+      <tr>
+        <th>Nom</th>
+        <th>Description</th>
+      </tr>
+      <tr>
+        <td>François Caron</td>
+       <td>Développeur de Kronos</td>
+      </tr>
+      <tr>
+        <td>Benjamin Siskoo</td>
+        <td>Traducteur, testeur, création des builds</td>
+      </tr>
+      <tr>
+        <td>Barbudreadmon</td>
+        <td>Port Kronos sur Retroarch</td>
+      </tr>
+      <tr>
+        <td>Faffling</td>
+        <td>Testeur avec des connaissances des documentations techniques</td>
+      </tr>
+      <tr>
+        <td>Luis Manuel Sánchez Pérez</td>
+        <td>Traducteur Espagnol/Allemand, testeur</td>
+      </tr>
+    </table>
+    <p>
+      <br>
+      <a href="#pagetop">Back to Top</a>
+    </p>    
+    <hr>
+    <p>
+      Kronos est sous Copyright &copy; 2017-2020 par François Caron.<br>
+      <br>
+      SEGA SATURN est une marque commerciale ou une marque déposée de SEGA.<br>
+      Kronos n'est affilié à aucune des sociétés mentionnées et n'est endossé par aucune d'entre elles.
+    </p>
+  </body>
+</html>
