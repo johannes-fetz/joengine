@@ -283,11 +283,10 @@ else
 	LDFILE   = $(CMNDIR)/nosgl.linker
 endif
 
-MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" \
+MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" -sectype 2352 \
 	-publisher "SEGA ENTERPRISES, LTD." -preparer "SEGA ENTERPRISES, LTD." -appid "SaturnApp" \
 	-abstract "$(ASSETS_DIR)/ABS.TXT" -copyright "$(ASSETS_DIR)/CPY.TXT" -biblio "$(ASSETS_DIR)/BIB.TXT" -generic-boot $(IPFILE) \
 	-full-iso9660-filenames -o $(TARGET2) $(ASSETS_DIR) $(ENTRYPOINT)
-
 
 MAKEFILE = makefile
 
