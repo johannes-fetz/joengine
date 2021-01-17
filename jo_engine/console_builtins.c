@@ -46,6 +46,7 @@
 #include "jo/map.h"
 #include "jo/fs.h"
 #include "jo/image.h"
+#include "jo/tga.h"
 #include "jo/sprites.h"
 #include "jo/vdp2.h"
 #include "jo/console_builtins.h"
