@@ -10,11 +10,39 @@
 +-------------------------------------------------------------------------------*/
 #ifndef model
 #define model
-#define MAX_DIALOGS        (500)
+#define MAX_DIALOGS        (550)
 
 typedef void    (*dialog_callback)(void);
 
 static dialog_callback      dialogs[MAX_DIALOGS];
+
+void define_dialogs(void);
+void draw_menu(void);
+void dialog_000(void);
+void dialog_009(void);
+void dialog_012(void);
+void dialog_015(void);
+void dialog_070(void);
+void dialog_075(void);
+void dialog_105(void);
+void dialog_106(void);
+void dialog_068(void);
+void dialog_127(void);
+void dialog_129(void);
+void dialog_165(void);
+void dialog_168(void);
+void dialog_214(void);
+void dialog_272(void);
+void dialog_274(void);
+void dialog_284(void);
+void dialog_288(void);
+void dialog_290(void);
+void dialog_253(void);
+void dialog_281(void);
+void dialog_212(void);
+void dialog_254(void);
+void dialog_256(void);
+void dialog_282(void);
 
 void draw_intro(void){
     define_dialogs();

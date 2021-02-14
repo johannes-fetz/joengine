@@ -40,7 +40,7 @@ void controller(){
 
     //pointer motion trigger
     if (jo_is_pad1_key_down(JO_KEY_A) && start_menu == 0 && choice_pause == 0){
-    
+
         jo_clear_screen();
 
         d_pointer++;
@@ -366,7 +366,7 @@ void controller(){
         dialogs[481] = JO_NULL;
     }
 
-    if (jo_is_pad1_key_down(JO_KEY_A) && choice_pause == 0 && d_pointer == 475 || d_pointer == 491){
+    if (jo_is_pad1_key_down(JO_KEY_A) && choice_pause == 0 && (d_pointer == 475 || d_pointer == 491)){
         jo_clear_screen();
         dialogs[249]();
         dialogs[249] = JO_NULL;

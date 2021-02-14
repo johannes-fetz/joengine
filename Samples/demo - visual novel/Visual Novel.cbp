@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Visual Novel" />
+		<Option makefile="makefile" />
+		<Option pch_mode="2" />
+		<Option compiler="msvc10" />
+		<Build>
+			<Target title="Debug">
+				<Option type="4" />
+				<Option compiler="gcc" />
+				<Option host_application="run_with_yabause.bat" />
+				<Option run_host_application_in_terminal="0" />
+				<ExtraCommands>
+					<Add before="compile.bat" />
+					<Mode after="always" />
+				</ExtraCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-DJO_COMPILE_USING_SGL" />
+			<Add option="-DJO_COMPILE_WITH_RAM_CARD_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_FS_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_TGA_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_AUDIO_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_PRINTF_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_3D_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_EFFECTS_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_BACKUP_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_VIDEO_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_DUAL_CPU_SUPPORT" />
+			<Add option="-DJO_NTSC_VERSION" />
+			<Add option="-DJO_DEBUG" />
+			<Add option="-DJO_COMPILE_WITH_STORYBOARD_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_KEYBOARD_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_CONSOLE_SUPPORT" />
+			<Add option="-DJO_COMPILE_WITH_SPRITE_HASHTABLE" />
+			<Add option="-DJO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT" />
+		</Compiler>
+		<Unit filename="control.h" />
+		<Unit filename="main.c">
+			<Option compilerVar="CC" />
+			<Option link="0" />
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="makefile" />
+		<Unit filename="model.h" />
+		<Unit filename="neptune.h" />
+		<Extensions>
+			<code_completion>
+				<search_path add="..\..\jo_engine" />
+			</code_completion>
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
