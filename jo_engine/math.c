@@ -46,9 +46,6 @@
 
 /*
 ** Thanks Ponut64 for optimized this method !
-**
-** Note: -O2 optimisation is temporarily disabled for this function because it cause unexpected behaviour
-**
 ** History:
 **
 **  - https://github.com/johannes-fetz/joengine/pull/15
@@ -56,12 +53,10 @@
 **  - https://github.com/johannes-fetz/joengine/pull/19
 **
 */
-#pragma GCC push_options
-#pragma GCC optimize ("Os")
 
 jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
-	register jo_fixed rtval;
+	register volatile jo_fixed rtval;
 	asm(
 	"dmuls.l %[d1],%[d2];" // `dmuls.l % , %` -- dmuls.l being double-word multplication, inputs as longword from variable register (%)
 	"sts MACH,r1;"		// `sts` - store system register MACH at explicit general-purpose register r1
@@ -76,7 +71,7 @@ jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 
 jo_fixed	jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal instruction execution... I wonder why... fxm does not
 {
-	register jo_fixed rtval;
+	register volatile jo_fixed rtval;
 	asm(
 		"clrmac;"
 		"mac.l @%[ptr1]+,@%[ptr2]+;"
@@ -114,23 +109,23 @@ jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
 jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 {
 
-const int * DVSR = ( int*)0xFFFFFF00;
-const int * DVDNTH = ( int*)0xFFFFFF10;
-const int * DVDNTL = ( int*)0xFFFFFF14;
-
-/*
-SH7604 Note
-Saturn special CPU has a division unit. We use it here.
-Our assembler is not aware of its existence, so we must address it via pointers.
-When a value is placed in DVDNTL register, (64 bit / 32 bit) division begins,
- with DVDNTH and DVDNTL represening the high and low 32 bits of the 64 bit dividend.
-The divisor register (DVSR) is just 32-bit.
-
-Now, this *should* take 39 cycles to complete. It appears the SH7604 will just wait if you try and access it early.
-But check with real hardware first, you know?
-*/
-
-register jo_fixed quotient;
+	const int * DVSR = ( int*)0xFFFFFF00;
+	const int * DVDNTH = ( int*)0xFFFFFF10;
+	const int * DVDNTL = ( int*)0xFFFFFF14;
+	
+	/*
+	SH7604 Note
+	Saturn special CPU has a division unit. We use it here.
+	Our assembler is not aware of its existence, so we must address it via pointers.
+	When a value is placed in DVDNTL register, (64 bit / 32 bit) division begins,
+	with DVDNTH and DVDNTL representing the high and low 32 bits of the 64 bit dividend.
+	The divisor register (DVSR) is just 32-bit.
+	
+	Now, this *should* take 39 cycles to complete. It appears the SH7604 will just wait if you try and access it early.
+	But check with real hardware first, you know?
+	*/
+	
+	register volatile jo_fixed quotient;
 	asm(
 	"mov.l %[dvs], @%[dvsr];"
 	"mov %[dvd], r1;" //Move the dividend to a general-purpose register, to prevent weird misreading of data.
@@ -149,7 +144,6 @@ register jo_fixed quotient;
 	return quotient;
 }
 
-#pragma GCC pop_options
 
 /* Taylor series approximation */
 jo_fixed                jo_fixed_sin(jo_fixed rad)
