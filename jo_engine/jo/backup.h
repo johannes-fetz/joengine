@@ -220,6 +220,12 @@ unsigned short      jo_backup_get_file_partition(const jo_backup_device backup_d
  */
 int                 jo_backup_get_free_block_count(const jo_backup_device backup_device);
 
+/** @brief Get total block count on the backup device
+ *  @param backup_device Backup device
+ *  @return Free block count
+ */
+int                 jo_backup_get_total_block_count(const jo_backup_device backup_device);
+
 /** @brief Get last backup status (error details)
  *  @param backup_device Backup device
  *  @return Backup status
