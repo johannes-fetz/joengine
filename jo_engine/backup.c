@@ -244,6 +244,18 @@ int                         jo_backup_get_free_block_count(const jo_backup_devic
     return (__jo_backup_devices[backup_device].sttb.freeblock);
 }
 
+int                         jo_backup_get_total_block_count(const jo_backup_device backup_device)
+{
+    if (!__jo_backup_devices[backup_device].is_mounted)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Device not mounted");
+#endif
+        return (-1);
+    }
+    return (__jo_backup_devices[backup_device].sttb.totalblock);
+}
+
 bool                        jo_backup_format_device(const jo_backup_device backup_device)
 {
     if (!__jo_backup_devices[backup_device].is_mounted)
