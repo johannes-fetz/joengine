@@ -1,3 +1,4 @@
+OUTPUT_FORMAT(coff-sh)
 SECTIONS {		
 	SLSTART 0x06004000 : {	
 		___Start = .;	
