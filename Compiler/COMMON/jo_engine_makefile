@@ -265,10 +265,10 @@ LDFLAGS = -m2
 #ifeq (1,${JO_COMPILE_USING_SGL})
 	LDFLAGS += -L$(SGLLDR)
 #endif
-LDFLAGS +=-Xlinker --format=elf32-sh -Xlinker -T$(LDFILE) -Xlinker -Map \
+LDFLAGS +=-Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
 ifneq ($(OS), Windows_NT)
-LIBS += -L.$(COMPILER_DIR)/LINUX/sh-elf/sh-elf/lib/ -Wl,--format=elf32-sh -Wl,--relax -lgcc
+LIBS += -L.$(COMPILER_DIR)/LINUX/sh-elf/sh-elf/lib/ -Wl,--relax -lgcc
 endif
 DFLAGS =
 
