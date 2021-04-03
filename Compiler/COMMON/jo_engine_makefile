@@ -227,6 +227,7 @@ else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
 	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/CueMaker"
+	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 endif
 
 ASSETS_DIR=./cd
@@ -243,7 +244,7 @@ RM = rm -rf
 CMNDIR = $(COMPILER_DIR)/COMMON
 
 CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
--Winline -Wlong-long -Wsign-compare -Wextra -Wno-strict-aliasing \
+-Winline -Wsign-compare -Wextra -Wno-strict-aliasing \
 -fno-common -ffast-math \
 --param max-inline-insns-single=50 -fms-extensions -std=gnu99 \
 -fmerge-all-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
