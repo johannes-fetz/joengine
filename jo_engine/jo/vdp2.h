@@ -32,6 +32,15 @@
  *  @bug No known bugs.
  */
 
+ /*
+    ▲ IMPORTANT NOTE ABOUT VDP2 USAGE (extract from ST-058-R2-060194.pdf p61):
+    Depending on the color count of NBG0 and NBG1, the scroll screen that cannot be displayed will appear.
+
+    - When NBG0 is set as 2048 or 32768 colors, NBG2 can not longer be displayed.
+    - When NBG0 is set at 16,770,000 colors, NBG1 to NBG3 can not longer be displayed.
+    - When NBG1 is set at 2048 or 32768 colors, NBG3 can longer be displayed.
+ */
+
 #ifndef __JO_VDP2_H__
 # define __JO_VDP2_H__
 
