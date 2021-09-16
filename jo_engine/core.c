@@ -294,6 +294,9 @@ static void         jo_core_init_vdp(const jo_color back_color)
     jo_set_vdp2_4k_default_color_palette();
     jo_set_printf_color_index(0);
 #endif
+/*Credit: slinga-homebrew, fafling and Ponut64
+  https://github.com/johannes-fetz/joengine/pull/58
+*/
 # if defined(JO_480i)
     JO_VDP2_CRAOFB = 0x0010 | (JO_VDP2_CRAOFB & 0xFF0F);
 #  if defined(JO_COMPILE_WITH_PRINTF_SUPPORT)
