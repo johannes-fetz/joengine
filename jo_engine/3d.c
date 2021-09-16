@@ -96,6 +96,73 @@ void                        jo_3d_create_plane(jo_3d_quad * const quad, jo_verti
     JO_ZERO(quad->data.attbl->gstb);
 }
 
+jo_3d_mesh                  *jo_3d_create_mesh_from_vertices_and_normals(const unsigned int quad_count, jo_vertice * const vertices, jo_vector * const normals)
+{
+    unsigned int            i;
+    FIXED                   vertice_index;
+    jo_3d_mesh              *mesh;
+
+    mesh = (jo_3d_mesh *)jo_malloc_with_behaviour(sizeof(*mesh), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    mesh->data.nbPoint = JO_MULT_BY_4(quad_count);
+    mesh->data.pntbl = (POINT *)jo_malloc_with_behaviour(mesh->data.nbPoint * sizeof(*mesh->data.pntbl), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    if (vertices != JO_NULL)
+    {
+        for (JO_ZERO(i); i < mesh->data.nbPoint; ++i)
+        {
+            mesh->data.pntbl[i][0] = jo_int2fixed(vertices[i].x);
+            mesh->data.pntbl[i][1] = jo_int2fixed(vertices[i].y);
+            mesh->data.pntbl[i][2] = jo_int2fixed(vertices[i].z);
+        }
+    }
+    mesh->data.nbPolygon = quad_count;
+    mesh->data.pltbl = (POLYGON *)jo_malloc_with_behaviour(quad_count * sizeof(*mesh->data.pltbl), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    JO_ZERO(vertice_index);
+    for (JO_ZERO(i); i < quad_count; ++i)
+    {
+        if (normals != JO_NULL)
+        {
+            mesh->data.pltbl[i].norm[0] = jo_int2fixed(normals[i].x);
+            mesh->data.pltbl[i].norm[1] = jo_int2fixed(normals[i].y);
+            mesh->data.pltbl[i].norm[2] = jo_int2fixed(normals[i].z);
+        }
+        else
+        {
+            mesh->data.pltbl[i].norm[0] = JO_FIXED_0;
+            mesh->data.pltbl[i].norm[1] = JO_FIXED_1;
+            mesh->data.pltbl[i].norm[2] = JO_FIXED_0;
+        }
+        mesh->data.pltbl[i].Vertices[0] = vertice_index;
+        ++vertice_index;
+        mesh->data.pltbl[i].Vertices[1] = vertice_index;
+        ++vertice_index;
+        mesh->data.pltbl[i].Vertices[2] = vertice_index;
+        ++vertice_index;
+        mesh->data.pltbl[i].Vertices[3] = vertice_index;
+        ++vertice_index;
+    }
+    mesh->data.attbl = (ATTR *)jo_malloc_with_behaviour(quad_count * sizeof(*mesh->data.attbl), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    for (JO_ZERO(i); i < quad_count; ++i)
+    {
+        mesh->data.attbl[i].flag = Dual_Plane;
+        JO_ZERO(mesh->data.attbl[i].gstb);
+    }
+    return (mesh);
+}
+
+void                        jo_3d_free_mesh(const jo_3d_mesh * const mesh)
+{
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return ;
+    }
+#endif
+    jo_free(mesh->data.pntbl);
+    jo_free(mesh->data.pltbl);
+    jo_free(mesh->data.attbl);
+}
+
 void                        jo_3d_create_cube(jo_3d_quad * const array, jo_vertice * const vertices)
 {
     jo_3d_create_plane(array, vertices);

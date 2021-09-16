@@ -242,6 +242,41 @@ static  __jo_force_inline unsigned int       jo_3d_get_displayed_polygon_count(v
 
 */
 
+/** @brief Create a mesh programmatically from vertices
+ *  @param quad_count Quad count (Quad count == Polygon count)
+ *  @param vertices An array of jo_vertice (4 * quad_count)
+ *  @param normals An array of jo_vector (quad_count)
+ *  @return The mesh
+ *  @remarks The return type can be casted to (jo_3d_mesh *)
+ */
+jo_3d_mesh       *jo_3d_create_mesh_from_vertices_and_normals(const unsigned int quad_count, jo_vertice * const vertices, jo_vector * const normals);
+
+/** @brief Create a mesh programmatically from vertices
+ *  @param quad_count Quad count (Quad count == Polygon count)
+ *  @param vertices An array of jo_vertice (4 * quad_count)
+ *  @return The mesh
+ *  @remarks The return type can be casted to (jo_3d_mesh *)
+ */
+static  __jo_force_inline jo_3d_mesh       *jo_3d_create_mesh_from_vertices(const unsigned int quad_count, jo_vertice * const vertices)
+{
+    return (jo_3d_create_mesh_from_vertices_and_normals(quad_count, vertices, JO_NULL));
+}
+
+/** @brief Create a mesh programmatically from vertices
+ *  @param quad_count Quad count (Quad count == Polygon count)
+ *  @return The mesh
+ *  @remarks The return type can be casted to (jo_3d_mesh *)
+ */
+static  __jo_force_inline jo_3d_mesh       *jo_3d_create_mesh(const unsigned int quad_count)
+{
+    return (jo_3d_create_mesh_from_vertices_and_normals(quad_count, JO_NULL, JO_NULL));
+}
+
+/** @brief Free a mesh created with jo_3d_create_mesh()
+ *  @param mesh The mesh to free
+ */
+void                        jo_3d_free_mesh(const jo_3d_mesh * const mesh);
+
 /** @brief Create a four vertices polygon (Quadrilateral shape)
  *  @param quad Address to a jo_3d_quad allocated struct
  *  @param vertices Vertices coords (table of 4 jo_vertice)
@@ -304,6 +339,43 @@ void                                jo_3d_set_mesh_texture(jo_3d_mesh * const me
 static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, const int sprite_id)
 {
     jo_3d_set_mesh_polygon_texture((jo_3d_mesh *)quad, sprite_id, 0);
+}
+
+/*
+███╗   ███╗███████╗███████╗██╗  ██╗    ██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗███████╗       ██╗       ███╗   ██╗ ██████╗ ██████╗ ███╗   ███╗ █████╗ ██╗
+████╗ ████║██╔════╝██╔════╝██║  ██║    ██║   ██║██╔════╝██╔══██╗╚══██╔══╝██║██╔════╝██╔════╝       ██║       ████╗  ██║██╔═══██╗██╔══██╗████╗ ████║██╔══██╗██║
+██╔████╔██║█████╗  ███████╗███████║    ██║   ██║█████╗  ██████╔╝   ██║   ██║██║     █████╗      ████████╗    ██╔██╗ ██║██║   ██║██████╔╝██╔████╔██║███████║██║
+██║╚██╔╝██║██╔══╝  ╚════██║██╔══██║    ╚██╗ ██╔╝██╔══╝  ██╔══██╗   ██║   ██║██║     ██╔══╝      ██╔═██╔═╝    ██║╚██╗██║██║   ██║██╔══██╗██║╚██╔╝██║██╔══██║██║
+██║ ╚═╝ ██║███████╗███████║██║  ██║     ╚████╔╝ ███████╗██║  ██║   ██║   ██║╚██████╗███████╗    ██████║      ██║ ╚████║╚██████╔╝██║  ██║██║ ╚═╝ ██║██║  ██║███████╗
+╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝      ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝╚══════╝    ╚═════╝      ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝
+*/
+
+/** @brief Set vertice position in mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param x X position
+ *  @param y Y position
+ *  @param z Z position
+ *  @param index vertice index on the mesh (4 vertices for each quad)
+ */
+static  __jo_force_inline void      jo_3d_set_mesh_vertice(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
+{
+    mesh->data.pntbl[index][0] = x;
+    mesh->data.pntbl[index][1] = y;
+    mesh->data.pntbl[index][2] = z;
+}
+
+/** @brief Set quad normal in mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param x X position
+ *  @param y Y position
+ *  @param z Z position
+ *  @param index quad index on the mesh
+ */
+static  __jo_force_inline void      jo_3d_set_mesh_normal(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
+{
+    mesh->data.pltbl[index].norm[0] = x;
+    mesh->data.pltbl[index].norm[1] = y;
+    mesh->data.pltbl[index].norm[2] = z;
 }
 
 /*
