@@ -112,21 +112,37 @@
         # define JO_TV_HEIGHT_4						(60)
     #endif
 #else /* PAL Version */
-    /** @brief Sega Saturn PAL Screen resolution (internal use) */
-    # define JO_TV_RES							(TV_320x256)
-    /** @brief PAL Screen width */
-    # define JO_TV_WIDTH						(320)
-    /** @brief PAL Screen width divided by 2 (math optimization purpose) */
-    # define JO_TV_WIDTH_2						(160)
-    /** @brief PAL Screen width divided by 4 (math optimization purpose) */
-    # define JO_TV_WIDTH_4						(80)
-    /** @brief PAL Screen height */
-    # define JO_TV_HEIGHT						(256)
-    /** @brief PAL Screen height divided by 2 (math optimization purpose) */
-    # define JO_TV_HEIGHT_2						(128)
-    /** @brief PAL Screen height divided by 4 (math optimization purpose) */
-    # define JO_TV_HEIGHT_4						(64)
-
+    # if defined(JO_480i)
+        /** @brief Sega Saturn PAL Screen resolution (internal use) */
+        # define JO_TV_RES							(TV_704x256)
+        /** @brief PAL Screen width */
+        # define JO_TV_WIDTH						(704)
+        /** @brief PAL Screen width divided by 2 (math optimization purpose) */
+        # define JO_TV_WIDTH_2						(352)
+        /** @brief PAL Screen width divided by 4 (math optimization purpose) */
+        # define JO_TV_WIDTH_4						(176)
+        /** @brief PAL Screen height */
+        # define JO_TV_HEIGHT						(256)
+        /** @brief PAL Screen height divided by 2 (math optimization purpose) */
+        # define JO_TV_HEIGHT_2						(128)
+        /** @brief PAL Screen height divided by 4 (math optimization purpose) */
+        # define JO_TV_HEIGHT_4						(64)
+    #else
+        /** @brief Sega Saturn PAL Screen resolution (internal use) */
+        # define JO_TV_RES							(TV_320x256)
+        /** @brief PAL Screen width */
+        # define JO_TV_WIDTH						(320)
+        /** @brief PAL Screen width divided by 2 (math optimization purpose) */
+        # define JO_TV_WIDTH_2						(160)
+        /** @brief PAL Screen width divided by 4 (math optimization purpose) */
+        # define JO_TV_WIDTH_4						(80)
+        /** @brief PAL Screen height */
+        # define JO_TV_HEIGHT						(256)
+        /** @brief PAL Screen height divided by 2 (math optimization purpose) */
+        # define JO_TV_HEIGHT_2						(128)
+        /** @brief PAL Screen height divided by 4 (math optimization purpose) */
+        # define JO_TV_HEIGHT_4						(64)
+    #endif
 #endif
 
 # if defined (JO_480i)

@@ -168,7 +168,9 @@ endif
 
 ifeq (${JO_480i},)
 else
-	CCFLAGS += -DJO_480i
+	ifeq (1,${JO_480i})
+		CCFLAGS += -DJO_480i
+	endif
 endif
 
 ifeq (${JO_NTSC},)

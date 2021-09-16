@@ -294,6 +294,12 @@ static void         jo_core_init_vdp(const jo_color back_color)
     jo_set_vdp2_4k_default_color_palette();
     jo_set_printf_color_index(0);
 #endif
+# if defined(JO_480i)
+    JO_VDP2_CRAOFB = 0x0010 | (JO_VDP2_CRAOFB & 0xFF0F);
+#  if defined(JO_COMPILE_WITH_PRINTF_SUPPORT)
+    jo_vdp2_zoom_nbg0(0.5f);
+#  endif
+# endif
 }
 
 void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ...)
