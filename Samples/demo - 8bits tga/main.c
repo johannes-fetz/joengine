@@ -64,14 +64,14 @@ void			jo_main(void)
 	// This method is used to register you palette handler
 	jo_set_tga_palette_handling(my_tga_palette_handling);
 	// Load a 8 bits ▲ 255 colors (MAX) NOT 256 or it will glitch! ▲ TGA
-	// Instead of JO_COLOR_Transparent, you can pass an index on your palette
-	jo_sprite_add_tga("TEX", "SON8.TGA", JO_COLOR_Transparent);
+	// Instead of 0 (no transparency), you can pass an index on your palette (Note: the first value is 1 not 0)
+	jo_sprite_add_tga("TEX", "SON8.TGA", 0);
 
 	// You can disable TGA palette loading by simply passing JO_NULL to jo_set_tga_palette_handling()
 	// Of course you can use an existing palette using jo_sprite_set_palette_id()
 	jo_set_tga_palette_handling(JO_NULL);
-	// Note: instead of JO_COLOR_Transparent you can pass palette color index like 0x1 or 0x2 in our case.
-	jo_sprite_add_tga("TEX", "BRK8.TGA", JO_COLOR_Transparent);
+	// Note: instead of 0 you can pass palette color index like 1 or 2 in our case.
+	jo_sprite_add_tga("TEX", "BRK8.TGA", 0);
 
 	// Here we create a custom palette for the second sprite
 	jo_create_palette(&palette2);
