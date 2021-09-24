@@ -3,7 +3,7 @@
     <type>org.netbeans.modules.cnd.makeproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
-            <name>Demo 3D programmatically</name>
+            <name>Demo FileSystem</name>
             <c-extensions>c</c-extensions>
             <cpp-extensions/>
             <header-extensions/>
