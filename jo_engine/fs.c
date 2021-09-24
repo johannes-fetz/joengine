@@ -413,9 +413,9 @@ bool                    jo_fs_seek_forward(jo_file * const file, unsigned int nb
 
 int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes)
 {
-    int                 readed;
     int                 len;
     int                 retry;
+    int                 readed;
 
 #ifdef JO_DEBUG
     if (file == JO_NULL)
@@ -428,13 +428,14 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
         jo_core_error("buffer is null");
         return (-1);
     }
-#endif
     JO_ZERO(readed);
+#endif
 fs_read_from_buffer:
-    while (file->read_index < __jo_fs_read_buffer_size && nbytes > 0)
+    while (file->read_index < __jo_fs_read_buffer_size && nbytes > 0 && file->read < file->size)
     {
         *buffer++ = file->read_buffer[file->read_index++];
         --nbytes;
+        ++file->read;
         ++readed;
     }
     if (nbytes <= 0 || file->read >= file->size)
@@ -448,7 +449,6 @@ fs_read_from_buffer:
     }
     if (len <= 0)
         return (readed);
-    file->read += len;
     goto fs_read_from_buffer;
 }
 
