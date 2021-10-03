@@ -34,6 +34,7 @@
 			<Add option="-DJO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT" />
 		</Compiler>
 		<Unit filename="../Compiler/COMMON/jo_engine_makefile" />
+		<Unit filename="../Doxygen/Doxyfile" />
 		<Unit filename="3d.c">
 			<Option compilerVar="CC" />
 		</Unit>

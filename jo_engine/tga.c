@@ -103,7 +103,7 @@ static  __jo_force_inline jo_color          jo_tga_get_pixel(const char * const 
     switch (bits)
     {
     case JO_TGA_8_BITS:
-        return (jo_color)(*(stream + (x + (y * width))) + 1);
+        return (jo_color)(*(stream + (x + (y * width))) + 1 /* +1 Because 0 means transparent in the Saturn. So 1 means index 0 in the palette*/);
     case JO_TGA_32_BITS:
         if (JO_TGA_CONVERT_COLOR(stream, (JO_MULT_BY_4(x) + 3) + ((y) * JO_MULT_BY_4(width))) <= 0)
             return (JO_COLOR_Transparent);
