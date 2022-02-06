@@ -119,6 +119,20 @@ t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * cons
  */
 t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *stream, const int transparent_color_index_in_palette);
 
+/** @brief Load a tileset TGA image
+ *  @param img Image (set data to NULL for dynamic allocation)
+ *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
+ *  @param filename Filename (upper case and shorter as possible like "A.TGA")
+ *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
+ *  @param tileset Tileset definition
+ *  @param tile_count Number of tile in the entire image
+ *  @param output_tiles an array of tile_count * jo_raw_img.
+ *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
+ *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @return t_tga_error_code
+ */
+t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count, jo_raw_img *output_tiles);
+
 /** @brief Add tileset sprites from a TGA file
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
