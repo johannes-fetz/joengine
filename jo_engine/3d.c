@@ -47,6 +47,8 @@
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
+extern jo_picture_definition        __jo_sprite_pic[JO_MAX_SPRITE];
+extern jo_sprite_attributes         __jo_sprite_attributes;
 jo_3d_quad                          *__jo_sprite_quad[JO_MAX_SPRITE];
 
 void                                jo_3d_init(void)
@@ -302,10 +304,19 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
     if (use_light)
         JO_ADD_FLAG(mesh->data.attbl[index].sort, UseLight);
     mesh->data.attbl[index].texno = sprite_id;
-    mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((sprNoflip) >> 24) & 0xc0);
+    if (__jo_sprite_pic[sprite_id].color_mode == COL_256)
+    {
+        mesh->data.attbl[index].colno = (unsigned short)__jo_sprite_attributes.color_table_index;
+        mesh->data.attbl[index].atrb = (CL256Bnk | No_Gouraud) | (((sprNoflip) >> 24) & 0xc0);
+        JO_ADD_FLAG(mesh->data.attbl[index].sort, UsePalette);
+    }
+    else
+    {
+        mesh->data.attbl[index].colno = No_Palet;
+        mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((sprNoflip) >> 24) & 0xc0);
+    }
     if (use_screen_doors)
         JO_ADD_FLAG(mesh->data.attbl[index].atrb, MESHon);
-    mesh->data.attbl[index].colno = No_Palet;
     mesh->data.attbl[index].dir = (sprNoflip) & 0x3f;
 }
 

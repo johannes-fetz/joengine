@@ -342,6 +342,51 @@ static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, c
 }
 
 /*
+   8 BITS PALETTE HANDLING
+*/
+
+/** @brief Set a palette on the mesh
+ *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param index polygon index on the mesh
+ *  @param palette_id Palette id from jo_create_palette()
+ */
+static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * const mesh, const int palette_id, const unsigned int index)
+{
+    mesh->data.attbl[index].colno = JO_MULT_BY_256(palette_id);
+}
+
+/** @brief Set a palette on one polygon on the mesh
+ *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param palette_id Palette id from jo_create_palette()
+ */
+static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const mesh, const int palette_id)
+{
+    for (unsigned int i = 0; i < mesh->data.nbPolygon; ++i)
+        jo_3d_set_mesh_polygon_palette(mesh, palette_id, i);
+}
+
+/** @brief Set a palette on the quadrilateral
+ *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param palette_id Palette id from jo_create_palette()
+ */
+static  __jo_force_inline void      jo_3d_set_palette(jo_3d_quad * const quad, const int palette_id)
+{
+    quad->attribute.colno = JO_MULT_BY_256(palette_id);
+}
+
+/** @brief Set a palette on a sprite (3D)
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @param palette_id Palette id from jo_create_palette()
+ *  @return true if succeeded otherwise false
+ */
+static  __jo_force_inline bool      jo_3d_set_sprite_palette(const int sprite_id, const int palette_id)
+{
+    if (__jo_sprite_quad[sprite_id] == JO_NULL && !jo_3d_create_sprite_quad(sprite_id)) return (false);
+    jo_3d_set_palette(__jo_sprite_quad[sprite_id], palette_id);
+    return (true);
+}
+
+/*
 ███╗   ███╗███████╗███████╗██╗  ██╗    ██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗███████╗       ██╗       ███╗   ██╗ ██████╗ ██████╗ ███╗   ███╗ █████╗ ██╗
 ████╗ ████║██╔════╝██╔════╝██║  ██║    ██║   ██║██╔════╝██╔══██╗╚══██╔══╝██║██╔════╝██╔════╝       ██║       ████╗  ██║██╔═══██╗██╔══██╗████╗ ████║██╔══██╗██║
 ██╔████╔██║█████╗  ███████╗███████║    ██║   ██║█████╗  ██████╔╝   ██║   ██║██║     █████╗      ████████╗    ██╔██╗ ██║██║   ██║██████╔╝██╔████╔██║███████║██║
