@@ -379,6 +379,22 @@ void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bit
  */
 void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
 
+/** @brief Replace plane A image
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param vertical_flip Flip image vertically
+ *  @warning jo_vdp2_set_rbg0_plane_a_8bits_image() MUST be called before
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation and the previous palette is preserved
+ */
+void                            jo_vdp2_replace_rbg0_plane_a_8bits_image(jo_img_8bits *img, bool vertical_flip);
+
+/** @brief Replace plane B image
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param vertical_flip Flip image vertically
+ *  @warning jo_vdp2_set_rbg0_plane_b_8bits_image() MUST be called before
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation and the previous palette is preserved
+ */
+void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_8bits *img, bool vertical_flip);
+
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
  */

@@ -131,7 +131,7 @@ inline void                     jo_vdp2_free(const void * const p)
     }
 }
 
-void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, const unsigned int n)
+void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, unsigned int n)
 {
     register unsigned int       i;
     void                        *ptr;

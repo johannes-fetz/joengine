@@ -252,7 +252,7 @@ static void                     __jo_create_map(const jo_img_8bits * const img, 
         if (x2 >= x)
             JO_ZERO(x2);
         *map = (JO_MULT_BY_2(y2 + x2 * y) | paloff) + map_offset;
-            ++map;
+        ++map;
         ++y2;
         if (y2 >= y)
             JO_ZERO(y2);
@@ -271,20 +271,28 @@ static void                     __jo_create_map(const jo_img_8bits * const img, 
 #define RBG0_OVER_MODE_REPEAT   (0)
 #define RBG0_OVER_MODE_SINGLE   (3)
 
+void                            jo_vdp2_replace_rbg0_plane_a_8bits_image(jo_img_8bits *img, bool vertical_flip)
+{
+    jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_a);
+}
+
+void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_8bits *img, bool vertical_flip)
+{
+    jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_b);
+}
+
 void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
-    slPlaneRA(PL_SIZE_1x1);
     if (rbg0_map_a == JO_NULL)
         rbg0_map_a = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
     sl1MapRA(rbg0_map_a);
 	slOverRA(repeat ? RBG0_OVER_MODE_REPEAT : RBG0_OVER_MODE_SINGLE);
-	slKtableRA(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
-    if (rbg0_cell_b != JO_NULL)
+    if (rbg0_cell_a != JO_NULL)
         jo_vdp2_free(rbg0_cell_a);
     else
     {
         rbg0_cell_a = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_RBG0, img->width * img->height);
-        if (rbg0_cell_b == JO_NULL)
+        if (rbg0_cell_a == JO_NULL)
             slPageRbg0(rbg0_cell_a, 0, PNB_1WORD | CN_12BIT);
     }
     jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_a);
@@ -293,18 +301,16 @@ void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bit
 
 void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
-    slPlaneRB(PL_SIZE_1x1);
     if (rbg0_map_b == JO_NULL)
         rbg0_map_b = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
     sl1MapRB(rbg0_map_b);
 	slOverRB(repeat ? RBG0_OVER_MODE_REPEAT : RBG0_OVER_MODE_SINGLE);
-	slKtableRB(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
     if (rbg0_cell_b != JO_NULL)
         jo_vdp2_free(rbg0_cell_b);
     else
     {
         rbg0_cell_b = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_RBG0, img->width * img->height);
-        if (rbg0_cell_a == JO_NULL)
+        if (rbg0_cell_b == JO_NULL)
             slPageRbg0(rbg0_cell_b, 0, PNB_1WORD | CN_12BIT);
     }
     jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_b);
@@ -320,8 +326,12 @@ void                            jo_vdp2_enable_rbg0(void)
     if (rbg0_ktable == JO_NULL)
         rbg0_ktable = jo_vdp2_malloc_autosize(JO_VDP2_RAM_KTABLE);
     slMakeKtable(rbg0_ktable);
+    slKtableRA(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
+    slKtableRB(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
     slCharRbg0(COL_TYPE_256, CHAR_SIZE_1x1);
     slRparaMode(K_CHANGE);
+    slPlaneRA(PL_SIZE_1x1);
+    slPlaneRB(PL_SIZE_1x1);
     JO_ADD_FLAG(screen_flags, RBG0ON);
     slScrAutoDisp(screen_flags);
 }
@@ -444,6 +454,7 @@ void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, in
             y0 += sy;
         }
     }
+    JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
 void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
@@ -460,6 +471,7 @@ void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
         jo_dma_copy(buf, vram_ptr, JO_VDP2_WIDTH * sizeof(color));
         vram_ptr += JO_VDP2_WIDTH;
     }
+    JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
 void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip)
@@ -476,6 +488,7 @@ void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palet
 	slPageNbg1(nbg1_cell, 0, PNB_1WORD | CN_12BIT);
     jo_img_to_vdp2_cells(img, vertical_flip, nbg1_cell);
 	__jo_create_map(img, nbg1_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg1_cell));
+    JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
 void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const unsigned short left, const unsigned short top)
@@ -506,6 +519,7 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
             vram_ptr += JO_VDP2_WIDTH;
         img_ptr += img->width;
     }
+    JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
 void                            jo_vdp2_disable_nbg1_line_scroll(void)
