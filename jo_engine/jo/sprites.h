@@ -56,6 +56,10 @@ extern jo_texture_definition        __jo_sprite_def[JO_MAX_SPRITE];
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
+extern jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
+/** @brief (internal engine usage)
+ *  @warning MC Hammer: don't touch this
+ */
 void    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates, const bool billboard);
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
@@ -498,9 +502,18 @@ static  __jo_force_inline int         jo_sprite_get_width(const int sprite_id)
  *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
  *  @return Sprite height
  */
-static  __jo_force_inline int         jo_sprite_get_height(const int sprite_id)
+static  __jo_force_inline int           jo_sprite_get_height(const int sprite_id)
 {
     return (__jo_sprite_def[sprite_id].height);
+}
+
+/** @brief Get sprite raw image contents
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @return Raw image contents
+ */
+static  __jo_force_inline void          *jo_sprite_get_raw_data(const int sprite_id)
+{
+    return (__jo_sprite_pic[sprite_id].data);
 }
 
 /*
