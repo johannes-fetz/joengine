@@ -471,6 +471,7 @@ void jo_sprite_set_clipping_area(const unsigned int x, const unsigned int y, con
  *  @param x Horizontal ccord in the image
  *  @param y Vertical ccord in the image
  *  @param image_width Image width (in pixels)
+ *  @warning This method doesn't work for 8 bits image
  */
 static  __jo_force_inline jo_color        jo_sprite_get_pixel_color(const jo_color * const data, const unsigned int x, const unsigned int y, const unsigned int image_width)
 {
@@ -483,6 +484,7 @@ static  __jo_force_inline jo_color        jo_sprite_get_pixel_color(const jo_col
  *  @param y Vertical ccord in the image
  *  @return true if the pixel is transparent otherwise false
  *  @param image_width Image width (in pixels)
+ *  @warning This method doesn't work for 8 bits image
  */
 static  __jo_force_inline bool        jo_sprite_is_pixel_transparent(const jo_color * const data, const unsigned int x, const unsigned int y, const unsigned int image_width)
 {

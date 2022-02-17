@@ -132,10 +132,11 @@ void			jo_map_free(const unsigned int layer);
  */
 void			jo_map_draw(const unsigned int layer, const short screen_x, const short screen_y);
 
-/** @brief Draw the specific layer on the background
+/** @brief Draw the specific layer on the background (NBG1)
  *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
  *  @param x relative horizontal position between the background image and the map
  *  @param y relative vertical position between the background image and the map
+ *  @warning Only works with full color images (not 8 bits)
  */
 void            jo_map_draw_background(const unsigned int layer, const short x, const short y);
 
