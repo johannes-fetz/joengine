@@ -86,6 +86,8 @@ int                                     jo_map_per_pixel_vertical_collision(cons
     register int                        i;
     register int                        distance;
     unsigned short                      *img_data;
+    unsigned char                       *img_data_8bits;
+    jo_picture_definition               *current_pic;
 
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
@@ -94,30 +96,60 @@ int                                     jo_map_per_pixel_vertical_collision(cons
         {
             if (attribute != JO_NULL)
                 *attribute = current_tile->attribute;
-            img_data = ((unsigned short *)__jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id].data);
+            current_pic = &__jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id];
             x -= current_tile->real_x;
             y -= current_tile->real_y;
-            if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
+            if (current_pic->color_mode == COL_256)
             {
-                for (distance = 1; distance < current_tile->height; ++distance)
+                img_data_8bits = ((unsigned char *)current_pic->data);
+                if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
                 {
-                    if (!jo_sprite_is_pixel_transparent(img_data, x, y + distance, current_tile->width))
-                        return distance;
+                    for (distance = 1; distance < current_tile->height; ++distance)
+                    {
+                        if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y + distance, current_tile->width) != 0)
+                            return distance;
+                    }
+                    return (JO_MAP_NO_COLLISION);
                 }
-                return (JO_MAP_NO_COLLISION);
+                else
+                {
+                    distance = y;
+                    do
+                    {
+                        --y;
+                        if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
+                            break;
+
+                    }
+                    while (y > 0);
+                    return (y - distance + 1);
+                }
             }
             else
             {
-                distance = y;
-                do
+                img_data = ((unsigned short *)current_pic->data);
+                if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
                 {
-                    --y;
-                    if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
-                        break;
-
+                    for (distance = 1; distance < current_tile->height; ++distance)
+                    {
+                        if (!jo_sprite_is_pixel_transparent(img_data, x, y + distance, current_tile->width))
+                            return distance;
+                    }
+                    return (JO_MAP_NO_COLLISION);
                 }
-                while (y > 0);
-                return (y - distance + 1);
+                else
+                {
+                    distance = y;
+                    do
+                    {
+                        --y;
+                        if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
+                            break;
+
+                    }
+                    while (y > 0);
+                    return (y - distance + 1);
+                }
             }
         }
     }

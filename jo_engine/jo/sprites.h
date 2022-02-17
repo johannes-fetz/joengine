@@ -478,6 +478,18 @@ static  __jo_force_inline jo_color        jo_sprite_get_pixel_color(const jo_col
     return (data[x + y * image_width]);
 }
 
+/** @brief Get a specific pixel palette index from image bytes
+ *  @param data Bytes (raw image data)
+ *  @param x Horizontal ccord in the image
+ *  @param y Vertical ccord in the image
+ *  @param image_width Image width (in pixels)
+ *  @warning This method only works for 8 bits image
+ */
+static  __jo_force_inline unsigned char     jo_sprite_get_pixel_palette_index(const unsigned char * const data, const unsigned int x, const unsigned int y, const unsigned int image_width)
+{
+    return (data[x + y * image_width]);
+}
+
 /** @brief Get if a specific pixel is transparent (JO_COLOR_Transparent) in image bytes
  *  @param data Bytes (raw image data)
  *  @param x Horizontal ccord in the image
