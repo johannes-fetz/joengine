@@ -7,7 +7,6 @@ rm -f ./cd/0.bin
 rm -f *.o
 rm -f %JO_ENGINE_SRC_DIR%/*.o
 rm -f ./*.bin
-rm -f ./*.raw
 rm -f ./*.coff
 rm -f ./*.elf
 rm -f ./*.map
