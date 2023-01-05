@@ -275,7 +275,7 @@ endif
 DFLAGS =
 
 TARGET   = game.elf
-TARGET1  = $(TARGET:.elf=.bin)
+TARGET1  = $(TARGET:.elf=.raw)
 TARGET2  = $(TARGET:.elf=.iso)
 TARGET3  = $(TARGET:.elf=.cue)
 MPFILE   = $(TARGET:.elf=.map)
