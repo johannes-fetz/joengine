@@ -47,9 +47,9 @@ void			    my_gamepad(void)
     {
         if (!is_cd_playing)
         {
-            /* The first two tracks in this demo are reserved so the first audio track is 3.
+            /* The first track in this demo is game data so the first audio track is 2.
                For more details you can open "game.cue" file with a notepad */
-            jo_audio_play_cd_track(3, 3, true);
+            jo_audio_play_cd_track(2, 2, true);
             is_cd_playing = true;
         }
         else
