@@ -145,7 +145,7 @@ jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 }
 
 
-/* Taylor series approximation */
+/* Taylor series approximation for fixed sin */
 jo_fixed                jo_fixed_sin(jo_fixed rad)
 {
     jo_fixed            result;
@@ -167,6 +167,38 @@ jo_fixed                jo_fixed_sin(jo_fixed rad)
     result -= (rad / 39916800);
 
     return (result);
+}
+
+/* 
+** Taylor series approximation for fixed cos 
+** Code based on Austin Henley's cosine blog: https://austinhenley.com/blog/cosine.html
+*/
+jo_fixed                jo_fixed_cos(jo_fixed rad)
+{
+    int div = jo_fixed2int(jo_fixed_div(rad, JO_FIXED_PI));
+    rad = rad - jo_fixed_mult(toFIXED(div) , JO_FIXED_PI);
+    char sign = 1;
+    if (div % 2 != 0){
+        sign = -1;
+    }
+
+    jo_fixed x2 = jo_fixed_mult(rad, rad);
+    jo_fixed inter = jo_fixed_div(x2 , 131072);
+    jo_fixed result = toFIXED(1) - inter;
+
+    inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 786432));
+    result += inter;
+
+    inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 1966080));
+    result -= inter;
+
+    inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 3670016));
+    result += inter;
+
+    inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 5898240));
+    result -= inter;
+
+    return jo_fixed_mult(toFIXED(sign) , result);
 }
 
 /*

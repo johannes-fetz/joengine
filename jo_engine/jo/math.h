@@ -754,10 +754,7 @@ static  __jo_force_inline float	jo_sinf_mult(const float value, const int deg)
  *  @param rad Fixed angle in radian
  *  @return Cos(rad)
  */
-static  __jo_force_inline jo_fixed jo_fixed_cos(jo_fixed rad)
-{
-    return (jo_fixed_sin(rad + JO_FIXED_PI_DIV_2));
-}
+jo_fixed                            jo_fixed_cos(jo_fixed rad);
 
 /** @brief Fast cosinus computation
  *  @param deg Angle in degree
@@ -771,7 +768,7 @@ static  __jo_force_inline jo_fixed	jo_cos(const int deg)
 /** @brief Cosinus computation
  *  @param deg Angle in degree
  *  @return Cos(deg) using floating number (slow)
- *  @warning slower than jo_sin() because it use floating point
+ *  @warning slower than jo_cos() because it use floating point
  */
 static  __jo_force_inline float	jo_cosf(const int deg)
 {
@@ -781,7 +778,7 @@ static  __jo_force_inline float	jo_cosf(const int deg)
 /** @brief Cosinus computation
  *  @param rad Angle in radian
  *  @return Fixed Cos(rad)
- *  @warning slower than jo_sin() because it use floating point
+ *  @warning slower than jo_cos() because it use floating point
  */
 static  __jo_force_inline jo_fixed	jo_cos_rad(const float rad)
 {
@@ -791,7 +788,7 @@ static  __jo_force_inline jo_fixed	jo_cos_rad(const float rad)
 /** @brief Cosinus computation
  *  @param rad Angle in radian
  *  @return Cos(rad) using floating number (slow)
- *  @warning slower than jo_sin_rad() because it use floating point
+ *  @warning slower than jo_cos_rad() because it use floating point
  */
 static  __jo_force_inline float	jo_cos_radf(const float rad)
 {
@@ -834,7 +831,7 @@ static  __jo_force_inline float	jo_cosf_mult(const float value, const int deg)
  */
 static __jo_force_inline jo_fixed    jo_tan(const int deg)
 {
-    return (jo_sin(deg) / jo_cos(deg));
+    return jo_fixed_div(jo_sin(deg), jo_cos(deg));
 }
 
 /** @brief Tangent computation
@@ -854,7 +851,7 @@ static __jo_force_inline float    jo_tanf(const float deg)
  */
 static __jo_force_inline jo_fixed    jo_tan_rad(const float rad)
 {
-    return (jo_sin_rad(rad) / jo_cos_rad(rad));
+    return jo_fixed_div(jo_sin_rad(rad), jo_cos_rad(rad));
 }
 
 /** @brief Tangent computation
