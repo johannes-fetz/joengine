@@ -122,6 +122,8 @@ typedef struct
 extern jo_3d_quad *__jo_sprite_quad[JO_MAX_SPRITE];
 bool    jo_3d_create_sprite_quad(const int sprite_id);
 
+#if JO_COMPILE_USING_SGL
+
 /*
  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
 ██╔════╝██╔══██╗████╗ ████║██╔════╝██╔══██╗██╔══██╗
@@ -584,7 +586,6 @@ static  __jo_force_inline void      jo_3d_set_color(jo_3d_quad * const quad, con
 ██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗
 ██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗
 ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
-
 */
 
 /** @brief Push 3D matrix
@@ -961,6 +962,8 @@ static  __jo_force_inline void      jo_3d_display_level(const unsigned short lev
 {
     slZdspLevel(level);
 }
+
+#endif
 
 #endif /* !JO_COMPILE_WITH_3D_SUPPORT */
 

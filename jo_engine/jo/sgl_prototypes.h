@@ -66,6 +66,8 @@
 #define	PER_ID_StnPad		0x02	/* サターン標準パッド			*/
 #define	PER_ID_StnMouse		0x23	/* サターンマウス			*/
 #define	PER_ID_ShuttleMouse	0xe3	/* シャトルマウス			*/
+#define	PER_ID_ExtKeyBoard	0x30	/* Extended-size keyboard device		*/
+#define	PER_ID_StnKeyBoard	0x34	/* Saturn keyboard			*/
 
 #define	    toFIXED(a)		((FIXED)(65536.0 * (a)))
 #define	    POStoFIXED(x,y,z)	{toFIXED(x),toFIXED(y),toFIXED(z)}
@@ -879,6 +881,8 @@ void GFS_Close(GfsHn gfs);
 void GFS_GetFileSize(GfsHn gfs, Sint32 *sctsz, Sint32 *nsct, Sint32 *lstsz);
 Sint32 GFS_NwCdRead(GfsHn gfs, Sint32 nsct);
 Sint32 GFS_SetTransPara(GfsHn gfs, Sint32 tsize);
+Sint32 GFS_SetReadPara(GfsHn gfs, Sint32 nsct);
+Sint32 GFS_SetTmode(GfsHn gfs, Sint32 tmode);
 
 Sint32 GFS_LoadDir(Sint32 fid, GfsDirTbl *dirtbl);
 Sint32 GFS_SetDir(GfsDirTbl *dirtbl);

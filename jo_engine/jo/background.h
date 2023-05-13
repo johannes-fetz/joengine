@@ -222,6 +222,8 @@ static  __jo_force_inline void                            jo_background_3d_plane
     jo_vdp2_set_rbg0_plane_b_8bits_image(img, palette_id, repeat, vertical_flip);
 }
 
+#if JO_COMPILE_USING_SGL
+
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
  */
@@ -237,6 +239,8 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
 {
     jo_vdp2_draw_rbg0_plane_b(use_scroll_format_matrix);
 }
+
+#endif
 
 /*
 ██╗  ██╗ ██████╗ ██████╗ ██╗███████╗ ██████╗ ███╗   ██╗████████╗ █████╗ ██╗

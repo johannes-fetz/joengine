@@ -395,6 +395,8 @@ void                            jo_vdp2_replace_rbg0_plane_a_8bits_image(jo_img_
  */
 void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_8bits *img, bool vertical_flip);
 
+#if JO_COMPILE_USING_SGL
+
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
  */
@@ -411,6 +413,8 @@ static  __jo_force_inline void  jo_vdp2_draw_rbg0_plane_b(const bool use_scroll_
     slCurRpara(RB); if (use_scroll_format_matrix) slScrMatConv(); slScrMatSet();
 }
 
+#endif
+
 /*
 ███╗   ███╗ ██████╗ ███████╗ █████╗ ██╗ ██████╗
 ████╗ ████║██╔═══██╗╚══███╔╝██╔══██╗██║██╔════╝
@@ -419,6 +423,8 @@ static  __jo_force_inline void  jo_vdp2_draw_rbg0_plane_b(const bool use_scroll_
 ██║ ╚═╝ ██║╚██████╔╝███████╗██║  ██║██║╚██████╗
 ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
 */
+
+#if JO_COMPILE_USING_SGL
 
 /** @brief Enable mozaic effect for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
@@ -439,6 +445,8 @@ static  __jo_force_inline void      jo_disable_all_screen_mozaic(void)
     slScrMosSize(1, 1);
     slScrMosaicOn(0);
 }
+
+#endif
 
 /*
 ██╗  ██╗ ██████╗ ██████╗ ██╗███████╗ ██████╗ ███╗   ██╗████████╗ █████╗ ██╗

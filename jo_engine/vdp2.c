@@ -62,7 +62,9 @@ static int                          *nbg0_scroll_table = JO_NULL;
 jo_color                            *nbg1_bitmap = JO_NULL;
 static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
+#if JO_COMPILE_USING_SGL
 static int                          *nbg1_scroll_table = JO_NULL;
+#endif
 #ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 //NBG2
 static unsigned short               *nbg2_map = JO_NULL;
@@ -82,8 +84,10 @@ static unsigned char                *rbg0_cell_a = JO_NULL;
 static unsigned char                *rbg0_cell_b = JO_NULL;
 static unsigned short               *rbg0_map_a = JO_NULL;
 static unsigned short               *rbg0_map_b = JO_NULL;
+#if JO_COMPILE_USING_SGL
 static void                         *rbg0_ktable = JO_NULL;
 static void                         *rbg0_rtable = JO_NULL;
+#endif
 //OTHER
 static unsigned int                 screen_flags = 0;
 static void                         *back_color = JO_NULL;
@@ -231,6 +235,8 @@ void                            jo_img_to_vdp2_cells(const jo_img_8bits * const 
     }
 }
 
+#if JO_COMPILE_USING_SGL
+
 static void                     __jo_create_map(const jo_img_8bits * const img, unsigned short *map, const unsigned short palette_id, const int map_offset)
 {
     register int                x;
@@ -259,6 +265,8 @@ static void                     __jo_create_map(const jo_img_8bits * const img, 
     }
 }
 
+#endif
+
 /*
 ██████╗ ██████╗  ██████╗  ██████╗
 ██╔══██╗██╔══██╗██╔════╝ ██╔═████╗
@@ -280,6 +288,8 @@ void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_
 {
     jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_b);
 }
+
+#if JO_COMPILE_USING_SGL
 
 void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
@@ -342,6 +352,8 @@ void                            jo_vdp2_disable_rbg0(void)
     slScrAutoDisp(screen_flags);
 }
 
+#endif
+
 /*
 ███╗   ██╗██████╗  ██████╗  ██████╗
 ████╗  ██║██╔══██╗██╔════╝ ██╔═████╗
@@ -354,7 +366,11 @@ void                            jo_vdp2_disable_rbg0(void)
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 void                     jo_init_nbg0_printf(void)
 {
+#if JO_COMPILE_USING_SGL
     slCharNbg0(COL_TYPE_256, CHAR_SIZE_1x1);
+#else
+    //TODO
+#endif
     jo_set_printf_palette_color(JO_COLOR_INDEX_White, JO_COLOR_White);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Black, JO_COLOR_Black);
     jo_set_printf_palette_color(JO_COLOR_INDEX_Red, JO_COLOR_Red);
@@ -396,6 +412,8 @@ void                            jo_vdp2_disable_nbg0_line_scroll(void)
     }
 }
 
+#if JO_COMPILE_USING_SGL
+
 void                            jo_vdp2_compute_nbg0_line_scroll(unsigned short offset)
 {
     slLineScrollTable0(nbg0_scroll_table + offset);
@@ -410,6 +428,8 @@ int                             *jo_vdp2_enable_nbg0_line_scroll(void)
     slLineScrollTable0(nbg0_scroll_table);
     return (nbg0_scroll_table);
 }
+
+#endif
 
 /*
 ███╗   ██╗██████╗  ██████╗  ██╗
@@ -474,6 +494,8 @@ void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
     JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
+#if JO_COMPILE_USING_SGL
+
 void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip)
 {
     __jo_switch_to_8bits_mode();
@@ -491,6 +513,8 @@ void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palet
     JO_ADD_FLAG(screen_flags, NBG1ON);
 }
 
+#endif
+
 void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const unsigned short left, const unsigned short top)
 {
     register int                y;
@@ -500,7 +524,11 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
     __jo_switch_to_bitmap_mode();
     if (nbg1_bitmap == JO_NULL)
         nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
+#if JO_COMPILE_USING_SGL
     slBitMapNbg1(COL_TYPE_32768, JO_VDP2_SIZE, nbg1_bitmap);
+#else
+    //TODO
+#endif
     if (img->data == JO_NULL)
         return ;
     if (top)
@@ -521,6 +549,8 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
     }
     JO_ADD_FLAG(screen_flags, NBG1ON);
 }
+
+#if JO_COMPILE_USING_SGL
 
 void                            jo_vdp2_disable_nbg1_line_scroll(void)
 {
@@ -545,6 +575,8 @@ int                             *jo_vdp2_enable_nbg1_line_scroll(void)
     slLineScrollTable1(nbg1_scroll_table);
     return (nbg1_scroll_table);
 }
+
+#endif
 
 #ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 
@@ -759,6 +791,8 @@ void			                jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palet
 ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝╚══════╝
 */
 
+#if JO_COMPILE_USING_SGL
+
 void        jo_set_displayed_screens(const jo_scroll_screen scroll_screen_flags)
 {
     screen_flags = (unsigned int)scroll_screen_flags;
@@ -798,6 +832,8 @@ void        jo_enable_screen_transparency(const jo_scroll_screen screen, const u
     }
     slScrTransparent(screen);
 }
+
+#endif
 
 /*
 ** END OF FILE

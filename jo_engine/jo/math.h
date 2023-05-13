@@ -648,6 +648,8 @@ static  __jo_force_inline ANGLE     jo_DEGtoANG_int(const int deg)
 #endif
 }
 
+#if JO_COMPILE_USING_SGL
+
 /** @brief Convert fixed radian to SGL ANGLE
  *  @param rad Jo Engine fixed radian
  *  @return SGL ANGLE
@@ -656,6 +658,8 @@ static  __jo_force_inline ANGLE     jo_fixed_rad2ANGLE(const jo_fixed rad)
 {
     return (RADtoANG(jo_fixed2float(rad)));
 }
+
+#endif
 
 /** @brief Convert fixed degree to SGL ANGLE
  *  @param deg Jo Engine fixed degree

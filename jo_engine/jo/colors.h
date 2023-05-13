@@ -103,6 +103,8 @@
 */
 # define JO_COLOR_RGB(R,G,B)	    JO_COLOR_SATURN_RGB(JO_COLOR_SATURN(R), JO_COLOR_SATURN(G), JO_COLOR_SATURN(B))
 
+#if JO_COMPILE_USING_SGL
+
 /** @brief Set color filter A for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_SPRITE_SCREEN|JO_NBG0_SCREEN)
  *  @param r Red offset value (signed 9 bits)
@@ -141,6 +143,8 @@ static  __jo_force_inline void      jo_disable_all_screen_color_filter(void)
 {
     jo_disable_screen_color_filter(JO_ALL_SCROLL_SCREEN);
 }
+
+#endif
 
 #endif /* !__JO_COLORS_H__ */
 

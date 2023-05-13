@@ -370,6 +370,10 @@ void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_po
     __jo_set_sprite_attributes(&attr, sprite_id);
     slDispSprite4P((FIXED *)sgl_4p, (FIXED)z, &attr);
 #else
+    JO_UNUSED_ARG(sprite_id);
+    JO_UNUSED_ARG(four_points);
+    JO_UNUSED_ARG(z);
+    JO_UNUSED_ARG(centered_style_coordinates);
     jo_core_error("Not implemented");
 #endif
 }

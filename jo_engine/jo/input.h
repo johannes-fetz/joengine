@@ -224,6 +224,8 @@ static  __jo_force_inline bool	jo_is_input_key_up(const int port, const jo_gamep
 }
 #endif
 
+#if JO_COMPILE_USING_SGL
+
 /** @brief Get mouse X position
  *  @param port Gamepad port
  *  @return X coordinate
@@ -241,6 +243,8 @@ static  __jo_force_inline int	jo_get_mouse_pos_y(const int port)
 {
     return (JO_DIV_BY_65536((JO_MULT_BY_65536(jo_inputs[port].dummy2[0]))));
 }
+
+#endif
 
 /*
 ** HELPER
