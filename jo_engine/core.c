@@ -168,20 +168,14 @@ static bool                 jo_init_memory(void)
     {
         jo_enable_extended_ram_cartridge_support();
         jo_set_a_bus_register();
-        jo_add_memory_zone((unsigned char *)0x2247ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x2267ffff, 0x180000);
+        jo_add_memory_zone((unsigned char *)0x22400000, 0x80000);
+        jo_add_memory_zone((unsigned char *)0x22600000, 0x80000);
     }
     else if (jo_get_extended_ram_cartridge_type() == CART_32MBits)
     {
         jo_enable_extended_ram_cartridge_support();
         jo_set_a_bus_register();
-        jo_add_memory_zone((unsigned char *)0x2247ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x2267ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x2287ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x22a7ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x22c7ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x22e7ffff, 0x180000);
-        jo_add_memory_zone((unsigned char *)0x2307ffff, 0x180000);
+        jo_add_memory_zone((unsigned char *)0x22400000, 0x200000);
     }
 #endif
 #ifdef JO_DEBUG
