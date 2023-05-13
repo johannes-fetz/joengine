@@ -346,7 +346,7 @@ static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, c
 */
 
 /** @brief Set a palette on the mesh
- *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param index polygon index on the mesh
  *  @param palette_id Palette id from jo_create_palette()
  */
@@ -356,7 +356,7 @@ static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * 
 }
 
 /** @brief Set a palette on one polygon on the mesh
- *  @param quad Address to a jo_3d_quad allocated struct
+ *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param palette_id Palette id from jo_create_palette()
  */
 static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const mesh, const int palette_id)

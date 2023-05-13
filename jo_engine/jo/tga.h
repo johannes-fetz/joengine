@@ -120,7 +120,6 @@ t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * cons
 t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *stream, const int transparent_color_index_in_palette);
 
 /** @brief Load a tileset TGA image
- *  @param img Image (set data to NULL for dynamic allocation)
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
  *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
