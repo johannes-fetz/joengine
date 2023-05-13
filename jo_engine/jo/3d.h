@@ -341,6 +341,13 @@ static  __jo_force_inline void      jo_3d_set_texture(jo_3d_quad * const quad, c
     jo_3d_set_mesh_polygon_texture((jo_3d_mesh *)quad, sprite_id, 0);
 }
 
+/** @brief Set wireframe mode on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param index polygon index on the mesh
+ *  @param wireframe True to enable wireframe mode
+ */
+void                        jo_3d_set_mesh_polygon_wireframe(jo_3d_mesh * const mesh, const unsigned int index, bool wireframe);
+
 /*
    8 BITS PALETTE HANDLING
 */
@@ -537,12 +544,23 @@ static  __jo_force_inline void      jo_3d_set_screen_doors(jo_3d_quad *const qua
 
 */
 
+/** @brief Set the color on one polygon on the mesh with wireframe option
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param color Color
+ *  @param index polygon index on the mesh
+ *  @param wireframe True to display only the edge of polygons
+ */
+void                                jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index, bool wireframe);
+
 /** @brief Set the color on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param color Color
  *  @param index polygon index on the mesh
  */
-void                                jo_3d_set_mesh_polygon_color(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index);
+static  __jo_force_inline void      jo_3d_set_mesh_polygon_color(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index)
+{
+    jo_3d_set_mesh_polygon_color_ex(mesh, color, index, false);
+}
 
 /** @brief Set the color on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct

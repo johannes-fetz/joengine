@@ -335,7 +335,21 @@ void                        jo_3d_set_mesh_texture(jo_3d_mesh * const mesh, cons
         jo_3d_set_mesh_polygon_texture(mesh, sprite_id, i);
 }
 
-void                        jo_3d_set_mesh_polygon_color(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index)
+void                        jo_3d_set_mesh_polygon_wireframe(jo_3d_mesh * const mesh, const unsigned int index, bool wireframe)
+{
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return ;
+    }
+#endif
+    mesh->data.attbl[index].sort = (SORT_CEN) | (((wireframe ? sprPolyLine : sprPolygon) >> 16) & 0x1c) | (No_Option);
+    mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((wireframe ? sprPolyLine : sprPolygon) >> 24) & 0xc0);
+    mesh->data.attbl[index].dir = (wireframe ? sprPolyLine : sprPolygon) & 0x3f;
+}
+
+void                        jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index, bool wireframe)
 {
     bool                    use_light;
     bool                    use_screen_doors;
@@ -354,15 +368,15 @@ void                        jo_3d_set_mesh_polygon_color(jo_3d_mesh * const mesh
 #endif
     use_light = (mesh->data.attbl[index].sort & UseLight) != 0;
     use_screen_doors = (mesh->data.attbl[index].atrb & MESHon) != 0;
-    mesh->data.attbl[index].sort = (SORT_CEN) | (((sprPolygon) >> 16) & 0x1c) | (No_Option);
+    mesh->data.attbl[index].sort = (SORT_CEN) | (((wireframe ? sprPolyLine : sprPolygon) >> 16) & 0x1c) | (No_Option);
     if (use_light)
         JO_ADD_FLAG(mesh->data.attbl[index].sort, UseLight);
     mesh->data.attbl[index].texno = No_Texture;
-    mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((sprPolygon) >> 24) & 0xc0);
+    mesh->data.attbl[index].atrb = (CL32KRGB | No_Gouraud) | (((wireframe ? sprPolyLine : sprPolygon) >> 24) & 0xc0);
     if (use_screen_doors)
         JO_ADD_FLAG(mesh->data.attbl[index].atrb, MESHon);
     mesh->data.attbl[index].colno = color;
-    mesh->data.attbl[index].dir = (sprPolygon) & 0x3f;
+    mesh->data.attbl[index].dir = (wireframe ? sprPolyLine : sprPolygon) & 0x3f;
 }
 
 void                        jo_3d_set_mesh_color(jo_3d_mesh * const mesh, const jo_color color)
