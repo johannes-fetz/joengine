@@ -28,15 +28,23 @@
 #include <jo/jo.h>
 
 static int mouse_sprite_id = 0;
+static int cursor_sprite_id = 0;
 static int arrow_sprite_id = 0;
 static jo_gamepad_type gamepad_type = JoNotConnectedGamepad;
+
 static int mouse_x = 0;
 static int mouse_y = 0;
+static int mouse_pos_x = 0;
+static int mouse_pos_y = 0;
+static int prev_pos_x = 0;
+static int prev_pos_y = 0;
+static int mouse_delta_x = 0;
+static int mouse_delta_y = 0;
 
 void			my_draw(void)
 {
     jo_printf(15, 1, "*Mouse demo*");
-	jo_sprite_draw3D(mouse_sprite_id, 0, -30, 500);
+    jo_sprite_draw3D(mouse_sprite_id, 0, -30, 500);
 
     if(gamepad_type == JoRegularMouse)
     {
@@ -44,16 +52,18 @@ void			my_draw(void)
     }
     else if(gamepad_type == JoShuttleMouse)
     {
-        jo_printf(3, 22, "Mouse: JoRegularMouse");
+        jo_printf(3, 22, "Mouse: JoShuttleMouse");
     }
     else
     {
-        jo_printf(3, 22, "Mouse: Not Connected");
+        jo_printf(3, 22, "Mouse: Not Connected ");
         return;
     }
 
-    jo_printf(3, 23, "Mouse X: %d", mouse_x);
-    jo_printf(3, 24, "Mouse Y: %d", mouse_y);
+    jo_printf(3, 23, "Mouse X: %d Delta: %d Pos: %d            ", mouse_pos_x, mouse_delta_x, mouse_x);
+    jo_printf(3, 24, "Mouse Y: %d Delta: %d Pos: %d            ", mouse_pos_y, mouse_delta_y, mouse_y);
+
+    jo_sprite_draw3D(cursor_sprite_id, mouse_x, mouse_y, 500);
 }
 
 void			my_gamepad(void)
@@ -70,11 +80,32 @@ void			my_gamepad(void)
     //
     // read mouse X, Y position
     //
-    mouse_x = jo_get_mouse_pos_x(0);
-    mouse_y = jo_get_mouse_pos_y(0);
+    mouse_pos_x = jo_get_mouse_pos_x(0);
+    mouse_pos_y = jo_get_mouse_pos_y(0);
+
+    // compare them to last frame to calculate the change
+    mouse_delta_x = mouse_pos_x - prev_pos_x;
+    mouse_delta_y = mouse_pos_y - prev_pos_y;
+
+    // move mouse sprite
+    mouse_x += mouse_delta_x;
+    mouse_y += mouse_delta_y;
+
+    prev_pos_x = mouse_pos_x;
+    prev_pos_y = mouse_pos_y;
+
+    // bound/wrap the mouse sprite
+    if(mouse_x < -160)
+        mouse_x = 160;
+    if(mouse_x > 160)
+        mouse_x = -160;
+    if(mouse_y < -120)
+        mouse_y = 120;
+    if(mouse_y > 120)
+        mouse_y = -120;
 
     //
-    // mouse only has 4 buttons (start, a, b, c)
+    // the mouse only has 4 buttons (start, a, b, c)
     //
 
     if (jo_is_input_key_pressed(0, JO_KEY_START))
@@ -89,12 +120,13 @@ void			my_gamepad(void)
 
 void			jo_main(void)
 {
-	jo_core_init(JO_COLOR_Black);
-	mouse_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "MOUSE.TGA", JO_COLOR_Transparent);
-	arrow_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "ARW.TGA", JO_COLOR_Green);
-	jo_core_add_callback(my_gamepad);
-	jo_core_add_callback(my_draw);
-	jo_core_run();
+    jo_core_init(JO_COLOR_Black);
+    mouse_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "MOUSE.TGA", JO_COLOR_Transparent);
+    cursor_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "CURSOR.TGA", JO_COLOR_Transparent);
+    arrow_sprite_id = jo_sprite_add_tga(JO_ROOT_DIR, "ARW.TGA", JO_COLOR_Green);
+    jo_core_add_callback(my_gamepad);
+    jo_core_add_callback(my_draw);
+    jo_core_run();
 }
 
 /*
