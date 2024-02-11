@@ -163,7 +163,13 @@ void                    jo_clear_screen_line(const int y)
 {
     register int        x;
 
-    for (JO_ZERO(x); x < 40; ++x)
+    for (JO_ZERO(x);
+# if defined(JO_480i)
+x < 44;
+#else
+x < 40;
+#endif
+++x)
     {
 #if JO_COMPILE_USING_SGL
         slPrint(" ", slLocate(x, y));
