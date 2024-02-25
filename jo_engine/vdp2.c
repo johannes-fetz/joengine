@@ -475,6 +475,7 @@ void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, in
         }
     }
     JO_ADD_FLAG(screen_flags, NBG1ON);
+    slScrAutoDisp(screen_flags);
 }
 
 void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
@@ -492,6 +493,7 @@ void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
         vram_ptr += JO_VDP2_WIDTH;
     }
     JO_ADD_FLAG(screen_flags, NBG1ON);
+    slScrAutoDisp(screen_flags);
 }
 
 #if JO_COMPILE_USING_SGL
@@ -507,10 +509,11 @@ void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palet
         nbg1_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG1, JO_VDP2_MAP_SIZE);
     slMapNbg1(nbg1_map, nbg1_map, nbg1_map, nbg1_map);
     nbg1_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG1, img->width * img->height);
-	slPageNbg1(nbg1_cell, 0, PNB_1WORD | CN_12BIT);
+    slPageNbg1(nbg1_cell, 0, PNB_1WORD | CN_12BIT);
     jo_img_to_vdp2_cells(img, vertical_flip, nbg1_cell);
-	__jo_create_map(img, nbg1_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg1_cell));
+    __jo_create_map(img, nbg1_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg1_cell));
     JO_ADD_FLAG(screen_flags, NBG1ON);
+    slScrAutoDisp(screen_flags);
 }
 
 #endif
@@ -548,6 +551,7 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
         img_ptr += img->width;
     }
     JO_ADD_FLAG(screen_flags, NBG1ON);
+    slScrAutoDisp(screen_flags);
 }
 
 #if JO_COMPILE_USING_SGL
