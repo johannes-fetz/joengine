@@ -38,6 +38,9 @@
 
 # define JO_INPUT_MAX_DEVICE            (12)
 
+// This device ID is not present in SGL header files
+#define	PER_ID_NightsPad	0x16	/* Nights 3D pad */
+
 #if JO_COMPILE_USING_SGL
 extern PerDigital                       jo_inputs[JO_INPUT_MAX_DEVICE];
 # define __JO_KEY_PRESSED(PORT, KEY)    ((jo_inputs[PORT].data & KEY) == 0)
@@ -122,14 +125,40 @@ typedef enum
     JoRegularGamepad = 1,
     JoRegularMouse = 2,
     JoShuttleMouse = 3,
-    JoRegularKeyboard = 4
+    JoRegularKeyboard = 4,
+
+	/** @brief Nights 3D pad, Axis1 and Axis2 are analog stick, Axis3 is right trigger and Axis4 is left trigger
+	 */
+	JoNightsPad = 5
 }           jo_gamepad_type;
+
+/** @brief Input axis type
+ */
+typedef enum
+{
+    JoAxis1 = 0,
+    JoAxis2 = 1,
+    JoAxis3 = 2,
+    JoAxis4 = 3,
+    JoAxis5 = 4,
+    JoAxis6 = 5,
+}           jo_input_axis;	
 
 /** @brief Get input type for the given port
  *  @param port Gamepad port
  *  @return Input type (Pad, Mouse, etc)
  */
 jo_gamepad_type                 jo_get_input_type(const int port);
+
+/** @brief Check if connected input is analog
+ *  @param port input port
+ *  @return true if connected controller has analog axies
+ */
+static __jo_force_inline bool	jo_is_input_analog(const int port)
+{
+	// TODO: Add other analog devices (wheel, mission stick)
+	return (jo_inputs[port].id == PER_ID_NightsPad);
+}
 
 /** @brief Check if the input is available for the given port
  *  @param port Gamepad port
@@ -144,6 +173,13 @@ static  __jo_force_inline bool	jo_is_input_available(const int port)
  *  @return Input count
  */
 int                             jo_get_input_count(void);
+
+/** @brief Get analog axis value
+ *  @param port Gamepad port
+ *  @param axis Analog axis
+ *  @return Analog axis value
+ */
+unsigned char                   jo_get_input_axis(const int port, const jo_input_axis axis);
 
 /** @brief Check if the key is pressed for the given port
  *  @param port Gamepad port

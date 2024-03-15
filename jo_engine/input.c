@@ -133,6 +133,8 @@ jo_gamepad_type                 jo_get_input_type(const int port)
         return (JoShuttleMouse);
     case PER_ID_StnKeyBoard:
         return (JoRegularKeyboard);
+    case PER_ID_NightsPad:
+        return (JoNightsPad);
     default:
         return (JoUnsupportedGamepad);
     }
@@ -149,6 +151,35 @@ int                             jo_get_input_count(void)
             ++count;
     }
     return (count);
+}
+
+unsigned char                   jo_get_input_axis(const int port, const jo_input_axis axis)
+{
+    // TODO: Implement other analog devices
+    switch (jo_get_input_type(port))
+    {
+    case JoNightsPad:
+        switch (axis)
+        {
+        case JoAxis1:
+            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Thumb X axis
+        case JoAxis2:
+            return ((PerAnalog *)(&jo_inputs[port]))->y;      // Thumb Y axis
+        case JoAxis3:
+            return ((PerAnalog *)(&jo_inputs[port]))->z;      // Right trigger
+        case JoAxis4:
+            return ((PerAnalog *)(&jo_inputs[port]))->dummy1; // Left trigger
+
+        default:
+            break;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return 0;
 }
 
 /*
