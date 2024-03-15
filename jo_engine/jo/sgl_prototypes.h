@@ -246,6 +246,19 @@ typedef struct  			/* デジタルデバイス			*/
     Uint32	dummy2[4];		/* ダミー２				*/
 } PerDigital;
 
+typedef struct {			/* Analogue devices			*/
+	Uint8	id;			/* Peripheral ID			*/
+	Uint8	ext;			/* Extended data size			*/
+	Uint16	data;			/* Button current data			*/
+	Uint16	push;			/* Button press data			*/
+	Uint16	pull;			/* Button pull data			*/
+	Uint8	x;			/* Absolute X-axis data value			*/
+	Uint8	y;			/* Absolute value of the Y-axis data			*/
+	Uint8	z;			/* Absolute value of the Z-axis data			*/
+	Uint8	dummy1;			/* Dummy 1				*/
+	Uint32	dummy2[3];		/* Dummy 2				*/
+} PerAnalog;
+
 enum BooleanLogic  			/* 論理定数１（偽、真） */
 {
     FALSE = 0,
