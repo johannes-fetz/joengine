@@ -360,23 +360,23 @@
 /** @brief Fixed floating point value for 1 */
 # define JO_FIXED_1					(65536)
 /** @brief Fixed floating point value for 2 */
-# define JO_FIXED_2                 (‭131072‬)
+# define JO_FIXED_2                 JO_INT_TO_FIXED(2)
 /** @brief Fixed floating point value for 4 */
-# define JO_FIXED_4                 (‭262144‬)
+# define JO_FIXED_4                 JO_INT_TO_FIXED(4)
 /** @brief Fixed floating point value for 8 */
-# define JO_FIXED_8                 (‭524288‬)
+# define JO_FIXED_8                 JO_INT_TO_FIXED(8)
 /** @brief Fixed floating point value for 16 */
-# define JO_FIXED_16                (‭1048576‬)
+# define JO_FIXED_16                JO_INT_TO_FIXED(16)
 /** @brief Fixed floating point value for 32 */
-# define JO_FIXED_32                (2097152)
+# define JO_FIXED_32                JO_INT_TO_FIXED(32)
 /** @brief Fixed floating point value for 120 */
-# define JO_FIXED_120				(7864320)
+# define JO_FIXED_120				JO_INT_TO_FIXED(120)
 /** @brief Fixed floating point value for 150 */
-# define JO_FIXED_150				(9830400)
+# define JO_FIXED_150				JO_INT_TO_FIXED(150)
 /** @brief Fixed floating point value for 180 */
-# define JO_FIXED_180				(11796480)
+# define JO_FIXED_180				JO_INT_TO_FIXED(180)
 /** @brief Fixed floating point value for 360 */
-# define JO_FIXED_360				(23592960)
+# define JO_FIXED_360				JO_INT_TO_FIXED(360)
 
 /** @brief Fixed floating point value for -32767.99998 */
 # define JO_FIXED_MIN				(-2147483647)
@@ -399,6 +399,14 @@
 /** @brief Fixed value of 1/65536 */
 # define JO_FIXED_1_DIV             (1.0f / 65536.0f)
 
+/** @brief Convert int to jo_fixed
+ *  @param X operand
+ */
+# define JO_INT_TO_FIXED(X)         JO_MULT_BY_65536(X)
+/** @brief Convert jo_fixed to int
+ *  @param X operand
+ */
+# define JO_FIXED_TO_INT(X)         JO_DIV_BY_65536(X)
 
 /** @brief Convert int to jo engine fixed
  *  @param x Float to convert
@@ -406,7 +414,7 @@
  */
 static __jo_force_inline jo_fixed       jo_int2fixed(const int x)
 {
-    return JO_MULT_BY_65536(x);
+    return JO_INT_TO_FIXED(x);
 }
 
 /** @brief Convert jo engine fixed to int
@@ -415,7 +423,7 @@ static __jo_force_inline jo_fixed       jo_int2fixed(const int x)
  */
 static __jo_force_inline int            jo_fixed2int(const jo_fixed x)
 {
-    return JO_DIV_BY_65536(x);
+    return JO_FIXED_TO_INT(x);
 }
 
 /** @brief Convert float to jo engine fixed (avoid usage of GCC Soft Float)

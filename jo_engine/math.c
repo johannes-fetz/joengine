@@ -112,7 +112,7 @@ jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 	const int * DVSR = ( int*)0xFFFFFF00;
 	const int * DVDNTH = ( int*)0xFFFFFF10;
 	const int * DVDNTL = ( int*)0xFFFFFF14;
-	
+
 	/*
 	SH7604 Note
 	Saturn special CPU has a division unit. We use it here.
@@ -120,11 +120,11 @@ jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 	When a value is placed in DVDNTL register, (64 bit / 32 bit) division begins,
 	with DVDNTH and DVDNTL representing the high and low 32 bits of the 64 bit dividend.
 	The divisor register (DVSR) is just 32-bit.
-	
+
 	Now, this *should* take 39 cycles to complete. It appears the SH7604 will just wait if you try and access it early.
 	But check with real hardware first, you know?
 	*/
-	
+
 	register volatile jo_fixed quotient;
 	asm(
 	"mov.l %[dvs], @%[dvsr];"
@@ -132,7 +132,7 @@ jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 	"shlr16 r1;"
 	"exts.w r1, r1;" //Sign extension in case value is negative
 	"mov.l r1, @%[nth];" //Expresses "*DVDNTH = dividend>>16"
-	"mov %[dvd], r1;" 
+	"mov %[dvd], r1;"
 	"shll16 r1;"
 	"mov.l r1, @%[ntl];" //Expresses *DVDNTL = dividend<<16";
 	"mov.l @%[ntl], %[out];" //Get result.
@@ -169,8 +169,8 @@ jo_fixed                jo_fixed_sin(jo_fixed rad)
     return (result);
 }
 
-/* 
-** Taylor series approximation for fixed cos 
+/*
+** Taylor series approximation for fixed cos
 ** Code based on Austin Henley's cosine blog: https://austinhenley.com/blog/cosine.html
 */
 jo_fixed                jo_fixed_cos(jo_fixed rad)
