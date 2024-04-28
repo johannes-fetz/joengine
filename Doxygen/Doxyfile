@@ -2214,7 +2214,9 @@ PREDEFINED             = JO_COMPILE_WITH_AUDIO_SUPPORT \
                          JO_COMPILE_USING_SGL \
                          JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT \
                          JO_COMPILE_WITH_FS_SUPPORT \
-                         JO_COMPILE_WITH_EFFECTS_SUPPORT
+                         JO_COMPILE_WITH_EFFECTS_SUPPORT \
+                         JO_COMPILE_WITH_AUDIO_SUPPORT \
+                         JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
