@@ -54,9 +54,16 @@ typedef enum
 
 /** @brief Set the callback to handle TGA palette for 8 bits image
  *  @param callback The callback
- *  @warning This function is mandatory if you use 8 bits TGA
+ *  @warning This function is mandatory if you use 8 bits TGA (but you can use jo_set_tga_default_palette() instead)
  */
 void                    jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback);
+
+/** @brief Set the palette to use for 8 bits image
+ *  @param palette The Palette
+ *  @warning This function is mandatory if you use 8 bits TGA (but you can use jo_set_tga_palette_handling() instead)
+ *  @warning The content of the palette will be filled when the image is loaded
+ */
+void                    jo_set_tga_default_palette(jo_palette *palette);
 
 /** @brief Load a TGA image from stream
  *  @param img Image (set data to NULL for dynamic allocation)

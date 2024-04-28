@@ -75,6 +75,7 @@ extern int      __jo_hash_table[JO_MAX_SPRITE];
 #endif
 
 static jo_tga_palette_handling_callback __jo_tga_palette_handling = JO_NULL;
+static jo_palette *__jo_tga_default_palette = JO_NULL;
 
 typedef struct
 {
@@ -92,6 +93,11 @@ typedef struct
     unsigned char   image_descriptor;
 
 } __attribute__((packed)) __jo_tga_header;
+
+void                                        jo_set_tga_default_palette(jo_palette *palette)
+{
+    __jo_tga_default_palette = palette;
+}
 
 void                                        jo_set_tga_palette_handling(jo_tga_palette_handling_callback callback)
 {
@@ -166,8 +172,10 @@ static char                             *__jo_tga_read_header(char * restrict st
     if (bits == JO_TGA_8_BITS)
     {
         jo_palette                      *palette;
+
+        palette = __jo_tga_default_palette;
         palette_length = jo_swap_endian_short(header->color_map_length);
-        if (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL)
+        if (palette != JO_NULL || (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL))
         {
             for (JO_ZERO(idx); idx < palette_length && idx < JO_PALETTE_MAX_COLORS; ++idx)
             {
