@@ -116,9 +116,21 @@ typedef struct
  *  @param width Surface width
  *  @param height Surface height
  *  @param screen Drawing destination. Only JO_SPRITE_SCREEN and JO_NBG1_SCREEN are supported today
+ *  @param enable_zbuffer Enable Z buffer (use a lot of RAM depending on the size of the surface)
  *  @return Software Rendering Graphics
  */
-jo_software_renderer_gfx                    *jo_software_renderer_create(unsigned short width, unsigned short height, const jo_scroll_screen screen);
+jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsigned short width, unsigned short height, const jo_scroll_screen screen, const bool enable_zbuffer);
+
+/** @brief Create a full-color rendering surface
+ *  @param width Surface width
+ *  @param height Surface height
+ *  @param screen Drawing destination. Only JO_SPRITE_SCREEN and JO_NBG1_SCREEN are supported today
+ *  @return Software Rendering Graphics
+ */
+static __jo_force_inline jo_software_renderer_gfx   *jo_software_renderer_create(unsigned short width, unsigned short height, const jo_scroll_screen screen)
+{
+    return (jo_software_renderer_create_ex(width, height, screen, true));
+}
 
 /** @brief Free the rendering surface
  *  @param gfx Software Rendering Graphics

@@ -68,10 +68,10 @@ typedef enum
 
 static __jo_force_inline void               __jo_software_renderer_clear_zbuffer(jo_software_renderer_gfx * const gfx)
 {
-    register int                            *ptr;
-    register int                            *end;
+    register jo_fixed                       *ptr;
+    register jo_fixed                       *end;
 
-    ptr = (int *)gfx->depth_buffer;
+    ptr = gfx->depth_buffer;
     end = ptr + gfx->depth_buffer_dword_size;
     while (ptr < end)
         *ptr++ = JO_FIXED_MIN;
@@ -93,7 +93,7 @@ void                                        jo_software_renderer_free(jo_softwar
     jo_free(gfx);
 }
 
-jo_software_renderer_gfx                    *jo_software_renderer_create(unsigned short width, unsigned short height, const jo_scroll_screen screen)
+jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsigned short width, unsigned short height, const jo_scroll_screen screen, const bool enable_zbuffer)
 {
     jo_img                                  img;
     jo_software_renderer_gfx                *gfx;
@@ -102,7 +102,7 @@ jo_software_renderer_gfx                    *jo_software_renderer_create(unsigne
     if (gfx == JO_NULL)
     {
 #ifdef JO_DEBUG
-        jo_core_error("Out of memory");
+        jo_core_error("Out of memory (GFX)");
 #endif
         return (JO_NULL);
     }
@@ -110,7 +110,6 @@ jo_software_renderer_gfx                    *jo_software_renderer_create(unsigne
     img.width = width;
     img.data = JO_NULL;
     gfx->sprite_id = -1;
-    gfx->depth_mode_testing = JO_SR_DEPTH_GREATER_OR_EQUAL;
     gfx->face_culling_mode = JO_SR_NO_FACE_CULLING;
     gfx->draw_mode = JO_SR_DRAW_WIREFRAME;
     gfx->clipping_size.width = width;
@@ -146,21 +145,31 @@ jo_software_renderer_gfx                    *jo_software_renderer_create(unsigne
     {
         jo_software_renderer_free(gfx);
 #ifdef JO_DEBUG
-        jo_core_error("Out of memory");
+        jo_core_error("Out of memory (Color Buffer)");
 #endif
         return (JO_NULL);
     }
-    gfx->depth_buffer_dword_size = (sizeof(*gfx->depth_buffer) * gfx->vram_size.width * height) / sizeof(int);
-    gfx->depth_buffer = jo_malloc(gfx->depth_buffer_dword_size * sizeof(int));
-    if (gfx->depth_buffer == JO_NULL)
+    if (enable_zbuffer)
     {
-        jo_software_renderer_free(gfx);
-#ifdef JO_DEBUG
-        jo_core_error("Out of memory");
-#endif
-        return (JO_NULL);
+        gfx->depth_mode_testing = JO_SR_DEPTH_GREATER_OR_EQUAL;
+        gfx->depth_buffer_dword_size = (sizeof(*gfx->depth_buffer) * gfx->vram_size.width * height) / sizeof(jo_fixed);
+        gfx->depth_buffer = jo_malloc(gfx->depth_buffer_dword_size * sizeof(*gfx->depth_buffer));
+        if (gfx->depth_buffer == JO_NULL)
+        {
+            jo_software_renderer_free(gfx);
+    #ifdef JO_DEBUG
+            jo_core_error("Out of memory (Z-buffer)");
+    #endif
+            return (JO_NULL);
+        }
+        __jo_software_renderer_clear_zbuffer(gfx);
     }
-    __jo_software_renderer_clear_zbuffer(gfx);
+    else
+    {
+        JO_ZERO(gfx->depth_buffer_dword_size);
+        gfx->depth_buffer = JO_NULL;
+        gfx->depth_mode_testing = JO_SR_DEPTH_IGNORE;
+    }
     return (gfx);
 }
 
@@ -174,7 +183,8 @@ void                                        jo_software_renderer_flush(jo_softwa
     }
 #endif
     jo_dma_copy(gfx->color_buffer, gfx->vram, gfx->color_buffer_size);
-    __jo_software_renderer_clear_zbuffer(gfx);
+    if (gfx->depth_buffer != JO_NULL)
+        __jo_software_renderer_clear_zbuffer(gfx);
 }
 
 /*
@@ -220,6 +230,11 @@ static __jo_force_inline void               __jo_software_renderer_draw_pixel(co
     if (!__jo_software_renderer_pixel_clipping(gfx, x, y))
         return;
     idx = jo_fixed2int(x) + jo_fixed2int(y) * gfx->vram_size.width;
+    if (gfx->depth_buffer == JO_NULL)
+    {
+        gfx->color_buffer[idx] = color;
+        return;
+    }
     switch (gfx->depth_mode_testing)
     {
         case JO_SR_DEPTH_LESS: if (z >= gfx->depth_buffer[idx]) return ; break;
