@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -368,7 +368,7 @@ void                        jo_memset(const void * const restrict ptr, const int
     unsigned int            tail;
     unsigned int            x;
     unsigned char           xx;
-	
+
     if(num == 0)
         return;
 
