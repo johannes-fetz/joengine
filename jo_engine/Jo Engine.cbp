@@ -107,6 +107,7 @@
 		<Unit filename="jo/vdp2.h" />
 		<Unit filename="jo/vdp2_malloc.h" />
 		<Unit filename="jo/video.h" />
+		<Unit filename="jo/voxel.h" />
 		<Unit filename="keyboard.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -168,6 +169,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="video.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="voxel.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Extensions>

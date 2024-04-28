@@ -76,6 +76,7 @@
 #include "font.h"
 #include "storyboard.h"
 #include "software_renderer.h"
+#include "voxel.h"
 
 #endif /* !__JO_H__ */
 
