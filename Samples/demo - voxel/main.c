@@ -99,10 +99,10 @@ void			    my_draw(void)
 
 void			    jo_main(void)
 {
-	jo_core_init(JO_COLOR_Black);
+    jo_core_init(JO_COLOR_Black);
 
-	// Camera setup
-	voxel.camera.angle = jo_float2fixed(1.2); // RAD
+    // Camera setup
+    voxel.camera.angle = jo_float2fixed(1.2); // RAD
     voxel.camera.scale = jo_int2fixed(100); // Changing this value allows you to have higher peaks
     voxel.camera.x = jo_int2fixed(128);
     voxel.camera.y = jo_int2fixed(128);
@@ -119,8 +119,8 @@ void			    jo_main(void)
     // We load the texture of the terrain with the palette
     // Note: 8 bits TGA is mandatory because it will use to much memory otherwise
     voxel.terrain_img.data = JO_NULL;
-	jo_create_palette(&voxel.terrain_pal);
-	jo_set_tga_default_palette(&voxel.terrain_pal);
+    jo_create_palette(&voxel.terrain_pal);
+    jo_set_tga_default_palette(&voxel.terrain_pal);
     jo_tga_8bits_loader(&voxel.terrain_img, JO_ROOT_DIR, "MAPCOL.TGA", JO_COLOR_Transparent);
 
     // We load the image that represent the relief (peaks in white)
@@ -136,7 +136,7 @@ void			    jo_main(void)
 
     jo_core_add_callback(my_draw);
     jo_core_add_callback(my_gamepad);
-	jo_core_run();
+    jo_core_run();
 }
 
 /*

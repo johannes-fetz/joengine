@@ -46,6 +46,9 @@ typedef struct
     jo_fixed        ply;
     jo_fixed        px;
     jo_fixed        py;
+    jo_fixed        clipping_size_width;
+    jo_fixed        inv_clipping_size_width;
+    jo_fixed        inv_zfar;
     int             map_width_minus_1;
 }                   __jo_voxel_computation_cache;
 
@@ -123,6 +126,15 @@ static  __jo_force_inline void      jo_voxel_redraw_and_flush(jo_voxel * const v
  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
 */
 
+/** @brief Set scale (camera.scale)
+ *  @param voxel_data Voxel
+ *  @param Scale fixed value (see also jo_int2fixed() or jo_float2fixed())
+ */
+static  __jo_force_inline void      jo_voxel_set_scale(jo_voxel * const voxel_data, const jo_fixed scale)
+{
+    voxel_data->camera.scale = scale;
+}
+
 /** @brief Increase view distance (camera.zfar)
  *  @param voxel_data Voxel
  *  @param distance fixed distance value (see also jo_int2fixed() or jo_float2fixed())
@@ -130,6 +142,7 @@ static  __jo_force_inline void      jo_voxel_redraw_and_flush(jo_voxel * const v
 static  __jo_force_inline void      jo_voxel_increase_view_distance(jo_voxel * const voxel_data, const jo_fixed distance)
 {
     voxel_data->camera.zfar += distance;
+    voxel_data->__cache.inv_zfar = jo_fixed_div(JO_FIXED_1, voxel_data->camera.zfar);
     jo_voxel_do_angle_computation(voxel_data);
 }
 
@@ -140,6 +153,7 @@ static  __jo_force_inline void      jo_voxel_increase_view_distance(jo_voxel * c
 static  __jo_force_inline void      jo_voxel_decrease_view_distance(jo_voxel * const voxel_data, const jo_fixed distance)
 {
     voxel_data->camera.zfar -= distance;
+    voxel_data->__cache.inv_zfar = jo_fixed_div(JO_FIXED_1, voxel_data->camera.zfar);
     jo_voxel_do_angle_computation(voxel_data);
 }
 

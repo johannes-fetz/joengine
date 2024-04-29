@@ -54,7 +54,7 @@
 **
 */
 
-jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
+__jo_force_inline jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 {
 	register volatile jo_fixed rtval;
 	asm(
@@ -69,7 +69,7 @@ jo_fixed                jo_fixed_mult(jo_fixed x, jo_fixed y)
 	return rtval;
 }
 
-jo_fixed	jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal instruction execution... I wonder why... fxm does not
+__jo_force_inline jo_fixed                 jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]) //This can cause illegal instruction execution... I wonder why... fxm does not
 {
 	register volatile jo_fixed rtval;
 	asm(
@@ -108,7 +108,6 @@ jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
 
 jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 {
-
 	const int * DVSR = ( int*)0xFFFFFF00;
 	const int * DVDNTH = ( int*)0xFFFFFF10;
 	const int * DVDNTL = ( int*)0xFFFFFF14;

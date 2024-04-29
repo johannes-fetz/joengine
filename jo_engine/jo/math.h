@@ -219,6 +219,11 @@
  */
 # define JO_MOD_POW2(N, M)          ((N) & ((M) - 1))
 
+/** @brief Fast check if N of a power of 2
+ *  @param N Number
+ */
+# define JO_IS_POW2(N)              ((N) != 0 && (((N) & ((N) - 1)) == 0))
+
 /** @brief Get the absolute value of X
  *  @param X Variable name
  */
