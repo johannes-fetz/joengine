@@ -35,12 +35,12 @@ void			        my_gamepad(void)
     bool change = false; // Avoid redraw the scene for nothing
     if (jo_is_input_key_pressed(0, JO_KEY_UP))
     {
-        jo_voxel_move_forward(&voxel, JO_FIXED_2);
+        jo_voxel_move_forward(&voxel, JO_FIXED_3);
         change = true;
     }
     if (jo_is_input_key_pressed(0, JO_KEY_DOWN))
     {
-        jo_voxel_move_backward(&voxel, JO_FIXED_2);
+        jo_voxel_move_backward(&voxel, JO_FIXED_3);
         change = true;
     }
     if (jo_is_input_key_pressed(0, JO_KEY_X))
@@ -108,7 +108,7 @@ void			    jo_main(void)
     voxel.camera.y = jo_int2fixed(128);
     voxel.camera.height = jo_int2fixed(20);
     voxel.camera.horizon = jo_int2fixed(10);
-    voxel.camera.zfar = jo_int2fixed(90); // Has a big impact on performance with the size of the rendered surface
+    voxel.camera.zfar = jo_int2fixed(80); // Has a big impact on performance with the size of the rendered surface
 
     // Z-buffer is only useful if you want to draw something else on the surface (gfx)
     voxel.use_zbuffer = false;

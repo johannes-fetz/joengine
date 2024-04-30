@@ -62,24 +62,29 @@ void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data)
 {
     jo_fixed sinangle_zfar = jo_fixed_mult(jo_fixed_sin(voxel_data->camera.angle), voxel_data->camera.zfar);
     jo_fixed cosangle_zfar = jo_fixed_mult(jo_fixed_cos(voxel_data->camera.angle), voxel_data->camera.zfar);
-    voxel_data->__cache.plx = cosangle_zfar + sinangle_zfar;
-    voxel_data->__cache.ply = sinangle_zfar - cosangle_zfar;
+    jo_fixed plx = cosangle_zfar + sinangle_zfar;
+    jo_fixed ply = sinangle_zfar - cosangle_zfar;
     jo_fixed prx = cosangle_zfar - sinangle_zfar;
     jo_fixed pry = sinangle_zfar + cosangle_zfar;
-    voxel_data->__cache.px = jo_fixed_mult((prx - voxel_data->__cache.plx), voxel_data->__cache.inv_clipping_size_width);
-    voxel_data->__cache.py = jo_fixed_mult((pry - voxel_data->__cache.ply), voxel_data->__cache.inv_clipping_size_width);
+    jo_fixed px = jo_fixed_mult((prx - plx), voxel_data->__cache.inv_clipping_size_width);
+    jo_fixed py = jo_fixed_mult((pry - ply), voxel_data->__cache.inv_clipping_size_width);
+    voxel_data->__cache.deltax_0 = jo_fixed_mult(plx, voxel_data->__cache.inv_zfar);
+    voxel_data->__cache.deltax_incr = jo_fixed_mult(px, voxel_data->__cache.inv_zfar);
+    voxel_data->__cache.deltay_0 = jo_fixed_mult(ply, voxel_data->__cache.inv_zfar);
+    voxel_data->__cache.deltay_incr = jo_fixed_mult(py, voxel_data->__cache.inv_zfar);
 }
 
-void            jo_voxel_redraw(jo_voxel * const voxel_data)
+void                        jo_voxel_redraw(jo_voxel * const voxel_data)
 {
-    for (jo_fixed x = JO_FIXED_0; x < voxel_data->__cache.clipping_size_width; x += JO_FIXED_1)
+    register jo_fixed       deltax = voxel_data->__cache.deltax_0;
+    register jo_fixed       deltay = voxel_data->__cache.deltay_0;
+
+    for (int x = 0; x < voxel_data->gfx->clipping_size.width; ++x)
     {
-        register jo_fixed deltax = jo_fixed_mult(voxel_data->__cache.plx + jo_fixed_mult(voxel_data->__cache.px, x), voxel_data->__cache.inv_zfar);
-        register jo_fixed deltay = jo_fixed_mult(voxel_data->__cache.ply + jo_fixed_mult(voxel_data->__cache.py, x), voxel_data->__cache.inv_zfar);
         register jo_fixed rx = voxel_data->camera.x;
         register jo_fixed ry = voxel_data->camera.y;
         int maxheight = voxel_data->gfx->clipping_size.height;
-        int int_x = jo_fixed2int(x);
+
         for (jo_fixed z = JO_FIXED_1; z < voxel_data->camera.zfar; z += JO_FIXED_1)
         {
             rx += deltax;
@@ -95,13 +100,15 @@ void            jo_voxel_redraw(jo_voxel * const voxel_data)
                 for (int y = (projheight >= 0) ? projheight : 0; y < maxheight; ++y)
                 {
                     if (voxel_data->use_zbuffer)
-                        jo_software_renderer_draw_pixel3D(voxel_data->gfx, x, jo_int2fixed(y), z, color);
+                        jo_software_renderer_draw_pixel3D(voxel_data->gfx, jo_int2fixed(x), jo_int2fixed(y), z, color);
                     else
-                        voxel_data->gfx->color_buffer[int_x + y * voxel_data->gfx->vram_size.width] = color;
+                        voxel_data->gfx->color_buffer[x + y * voxel_data->gfx->vram_size.width] = color;
                 }
                 maxheight = projheight;
             }
         }
+        deltax += voxel_data->__cache.deltax_incr;
+        deltay += voxel_data->__cache.deltay_incr;
     }
 }
 
@@ -125,8 +132,7 @@ void            jo_voxel_run(jo_voxel * const voxel_data)
     }
 #endif
 
-    voxel_data->__cache.clipping_size_width = jo_int2fixed(voxel_data->gfx->clipping_size.width);
-    voxel_data->__cache.inv_clipping_size_width = jo_fixed_div(JO_FIXED_1, voxel_data->__cache.clipping_size_width);
+    voxel_data->__cache.inv_clipping_size_width = jo_fixed_div(JO_FIXED_1, jo_int2fixed(voxel_data->gfx->clipping_size.width));
     voxel_data->__cache.map_width_minus_1 = voxel_data->terrain_img.width - 1;
     voxel_data->__cache.inv_zfar = jo_fixed_div(JO_FIXED_1, voxel_data->camera.zfar);
     jo_voxel_do_angle_computation(voxel_data);

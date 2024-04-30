@@ -42,14 +42,13 @@
  */
 typedef struct
 {
-    jo_fixed        plx;
-    jo_fixed        ply;
-    jo_fixed        px;
-    jo_fixed        py;
-    jo_fixed        clipping_size_width;
     jo_fixed        inv_clipping_size_width;
     jo_fixed        inv_zfar;
     int             map_width_minus_1;
+    jo_fixed        deltax_incr;
+    jo_fixed        deltay_incr;
+    jo_fixed        deltax_0;
+    jo_fixed        deltay_0;
 }                   __jo_voxel_computation_cache;
 
 /** @brief Voxel camera definition
