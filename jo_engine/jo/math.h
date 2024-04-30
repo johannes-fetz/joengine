@@ -107,6 +107,12 @@
  */
 # define JO_MULT_BY_256(X)			((X) << 8)
 
+/** @brief Multiply a variable by 512
+ *  @remarks faster than X * 512
+ *  @param X Variable name
+ */
+# define JO_MULT_BY_512(X)			((X) << 9)
+
 /** @brief Multiply a variable by 1024
  *  @remarks faster than X * 1024
  *  @param X Variable name
@@ -172,6 +178,24 @@
  *  @param X Variable name
  */
 # define JO_DIV_BY_64(X)			((X) >> 6)
+
+/** @brief Devide a variable by 128
+ *  @remarks faster than X / 128
+ *  @param X Variable name
+ */
+# define JO_DIV_BY_128(X)			((X) >> 7)
+
+/** @brief Devide a variable by 256
+ *  @remarks faster than X / 256
+ *  @param X Variable name
+ */
+# define JO_DIV_BY_256(X)			((X) >> 8)
+
+/** @brief Devide a variable by 512
+ *  @remarks faster than X / 512
+ *  @param X Variable name
+ */
+# define JO_DIV_BY_512(X)			((X) >> 9)
 
 /** @brief Devide a variable by 1024
  *  @remarks faster than X / 1024
@@ -366,6 +390,8 @@
 # define JO_FIXED_1					(65536)
 /** @brief Fixed floating point value for 2 */
 # define JO_FIXED_2                 JO_INT_TO_FIXED(2)
+/** @brief Fixed floating point value for 3 */
+# define JO_FIXED_3                 JO_INT_TO_FIXED(3)
 /** @brief Fixed floating point value for 4 */
 # define JO_FIXED_4                 JO_INT_TO_FIXED(4)
 /** @brief Fixed floating point value for 8 */
