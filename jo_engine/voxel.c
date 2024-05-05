@@ -74,7 +74,7 @@ void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data)
     voxel_data->__cache.deltay_incr = jo_fixed_mult(py, voxel_data->__cache.inv_zfar);
 }
 
-void                        jo_voxel_redraw(jo_voxel * const voxel_data)
+void                        jo_voxel_redraw(const jo_voxel * const voxel_data)
 {
     register jo_fixed       deltax = voxel_data->__cache.deltax_0;
     register jo_fixed       deltay = voxel_data->__cache.deltay_0;

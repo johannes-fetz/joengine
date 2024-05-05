@@ -97,7 +97,7 @@ void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data);
  *  @param voxel_data Voxel
  *  @remarks You should call jo_software_renderer_flush() at some point
  */
-void            jo_voxel_redraw(jo_voxel * const voxel_data);
+void            jo_voxel_redraw(const jo_voxel * const voxel_data);
 
 /** @brief Draw voxels to gfx
  *  @param voxel_data Voxel
@@ -109,7 +109,7 @@ void            jo_voxel_run(jo_voxel * const voxel_data);
  *  @param voxel_data Voxel
  *  @remarks It's just an helper method
  */
-static  __jo_force_inline void      jo_voxel_redraw_and_flush(jo_voxel * const voxel_data)
+static  __jo_force_inline void      jo_voxel_redraw_and_flush(const jo_voxel * const voxel_data)
 {
     jo_software_renderer_clear(voxel_data->gfx, JO_COLOR_Black);
     jo_voxel_redraw(voxel_data);
