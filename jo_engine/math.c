@@ -143,29 +143,23 @@ jo_fixed	jo_fixed_div(jo_fixed dividend, jo_fixed divisor)
 	return quotient;
 }
 
-
-/* Taylor series approximation for fixed sin */
 jo_fixed                jo_fixed_sin(jo_fixed rad)
 {
-    jo_fixed            result;
-    jo_fixed            x2;
+#if JO_COMPILE_USING_SGL && !JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
+    return ((jo_fixed)slSin(jo_fixed_rad2ANGLE(rad)));
+#else
+    // TODO: use a Cordic implementation
+    jo_fixed cos = jo_fixed_cos(rad);
+    jo_fixed sin = jo_fixed_sqrt(JO_FIXED_1 - jo_fixed_mult(cos, cos));
 
-    rad = jo_fixed_wrap_to_pi(rad);
-    x2 = jo_fixed_mult(rad ,rad);
-
-    result = rad;
-    rad = jo_fixed_mult(rad, x2);
-    result -= (rad / 6);
-    rad = jo_fixed_mult(rad, x2);
-    result += (rad / 120);
-    rad = jo_fixed_mult(rad, x2);
-    result -= (rad / 5040);
-    rad = jo_fixed_mult(rad, x2);
-    result += (rad / 362880);
-    rad = jo_fixed_mult(rad, x2);
-    result -= (rad / 39916800);
-
-    return (result);
+    if (rad >= 0 && rad < JO_FIXED_PI_OVER_2)
+        return sin;
+    if (rad >= JO_FIXED_PI_OVER_2 && rad < JO_FIXED_PI)
+        return sin;
+    if (rad >= JO_FIXED_PI && rad < JO_FIXED_3_PI_OVER_2)
+        return -sin;
+    return -sin;
+#endif
 }
 
 /*
@@ -174,8 +168,11 @@ jo_fixed                jo_fixed_sin(jo_fixed rad)
 */
 jo_fixed                jo_fixed_cos(jo_fixed rad)
 {
+#if JO_COMPILE_USING_SGL && !JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
+    return ((jo_fixed)slCos(jo_fixed_rad2ANGLE(rad)));
+#else
     int div = jo_fixed2int(jo_fixed_div(rad, JO_FIXED_PI));
-    rad = rad - jo_fixed_mult(toFIXED(div) , JO_FIXED_PI);
+    rad = rad - jo_fixed_mult(jo_int2fixed(div) , JO_FIXED_PI);
     char sign = 1;
     if (div % 2 != 0){
         sign = -1;
@@ -183,7 +180,7 @@ jo_fixed                jo_fixed_cos(jo_fixed rad)
 
     jo_fixed x2 = jo_fixed_mult(rad, rad);
     jo_fixed inter = jo_fixed_div(x2 , 131072);
-    jo_fixed result = toFIXED(1) - inter;
+    jo_fixed result = JO_FIXED_1 - inter;
 
     inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 786432));
     result += inter;
@@ -197,7 +194,8 @@ jo_fixed                jo_fixed_cos(jo_fixed rad)
     inter = jo_fixed_mult(inter, jo_fixed_div(x2 , 5898240));
     result -= inter;
 
-    return jo_fixed_mult(toFIXED(sign) , result);
+    return jo_fixed_mult(jo_int2fixed(sign) , result);
+#endif
 }
 
 /*
