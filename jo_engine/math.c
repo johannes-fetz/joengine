@@ -149,6 +149,7 @@ jo_fixed                jo_fixed_sin(jo_fixed rad)
     return ((jo_fixed)slSin(jo_fixed_rad2ANGLE(rad)));
 #else
     // TODO: use a Cordic implementation
+    rad = jo_fixed_wrap_to_pi(rad);
     jo_fixed cos = jo_fixed_cos(rad);
     jo_fixed sin = jo_fixed_sqrt(JO_FIXED_1 - jo_fixed_mult(cos, cos));
 
