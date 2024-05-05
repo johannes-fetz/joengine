@@ -386,6 +386,8 @@
 # define JO_FIXED_0					(0)
 /** @brief Fixed floating point value for 0.5 */
 # define JO_FIXED_1_DIV_2           (32768)
+/** @brief Fixed floating point value for 0.999 */
+# define JO_FIXED_ALMOST_1          (65470)
 /** @brief Fixed floating point value for 1 */
 # define JO_FIXED_1					(65536)
 /** @brief Fixed floating point value for 2 */
@@ -427,6 +429,10 @@
 # define JO_FIXED_PI_DIV_180        (1144)
 /** @brief Fixed value of PI/2 */
 # define JO_FIXED_PI_DIV_2          (102944)
+/** @brief Fixed value of PI/2 */
+# define JO_FIXED_PI_OVER_2         JO_FIXED_PI_DIV_2
+/** @brief Fixed value of 3 PI / 2 */
+# define JO_FIXED_3_PI_OVER_2       (308331)
 /** @brief Fixed value of 1/65536 */
 # define JO_FIXED_1_DIV             (1.0f / 65536.0f)
 
