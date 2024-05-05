@@ -361,14 +361,14 @@ static __jo_force_inline void               jo_transform_to_surface_coord(const 
     width = jo_int2fixed(gfx->clipping_size.width);
     height = jo_int2fixed(gfx->clipping_size.height);
 
-    p0->x = jo_fixed_div(jo_fixed_mult(p0->x, width), jo_fixed_mult(131072, p0->w)) + jo_fixed_div(width, 131072);
-    p0->y = jo_fixed_div(jo_fixed_mult(p0->y, height), jo_fixed_mult(131072, p0->w)) + jo_fixed_div(height, 131072);
+    p0->x = jo_fixed_div(jo_fixed_mult(p0->x, width), jo_fixed_mult(JO_FIXED_2, p0->w)) + jo_fixed_div(width, JO_FIXED_2);
+    p0->y = jo_fixed_div(jo_fixed_mult(p0->y, height), jo_fixed_mult(JO_FIXED_2, p0->w)) + jo_fixed_div(height, JO_FIXED_2);
 
-    p1->x = jo_fixed_div(jo_fixed_mult(p1->x, width), jo_fixed_mult(131072, p1->w)) + jo_fixed_div(width, 131072);
-    p1->y = jo_fixed_div(jo_fixed_mult(p1->y, height), jo_fixed_mult(131072, p1->w)) + jo_fixed_div(height, 131072);
+    p1->x = jo_fixed_div(jo_fixed_mult(p1->x, width), jo_fixed_mult(JO_FIXED_2, p1->w)) + jo_fixed_div(width, JO_FIXED_2);
+    p1->y = jo_fixed_div(jo_fixed_mult(p1->y, height), jo_fixed_mult(JO_FIXED_2, p1->w)) + jo_fixed_div(height, JO_FIXED_2);
 
-    p2->x = jo_fixed_div(jo_fixed_mult(p2->x, width), jo_fixed_mult(131072, p2->w)) + jo_fixed_div(width, 131072);
-    p2->y = jo_fixed_div(jo_fixed_mult(p2->y, height), jo_fixed_mult(131072, p2->w)) + jo_fixed_div(height, 131072);
+    p2->x = jo_fixed_div(jo_fixed_mult(p2->x, width), jo_fixed_mult(JO_FIXED_2, p2->w)) + jo_fixed_div(width, JO_FIXED_2);
+    p2->y = jo_fixed_div(jo_fixed_mult(p2->y, height), jo_fixed_mult(JO_FIXED_2, p2->w)) + jo_fixed_div(height, JO_FIXED_2);
 }
 
 static __jo_force_inline void               jo_swap_vertex(jo_software_renderer_vertex * const a, jo_software_renderer_vertex * const b)
@@ -434,7 +434,7 @@ static __jo_force_inline void               __jo_software_renderer_draw_fill_tri
             endInvZ = jo_lerp(invZ0, invZ1, r1);
             // TODO use all vertex colors
             jo_software_renderer_draw_line3D(gfx, x0, y, jo_fixed_div(JO_FIXED_1, startInvZ), x1, y, jo_fixed_div(JO_FIXED_1, endInvZ), triangle->v0.color, triangle->v1.color);
-            currLine += JO_FIXED_1;//jo_float2fixed(0.999);
+            currLine += JO_FIXED_ALMOST_1;
             if (currLine < numScanlines)
             {
                 xLeft  += dxLeft;
@@ -448,7 +448,7 @@ static __jo_force_inline void               __jo_software_renderer_draw_fill_tri
         {
             // TODO use all vertex colors
             jo_software_renderer_draw_line3D(gfx, jo_fixed_ceil(xLeft), y, JO_FIXED_1, jo_fixed_ceil(xRight), y, JO_FIXED_1, triangle->v0.color, triangle->v1.color);
-            currLine += JO_FIXED_1;//jo_float2fixed(0.999);
+            currLine += JO_FIXED_ALMOST_1;
             if (currLine < numScanlines)
             {
                 xLeft  += dxLeft;
