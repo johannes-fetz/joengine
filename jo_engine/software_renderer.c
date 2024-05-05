@@ -386,7 +386,9 @@ static __jo_force_inline void               __jo_software_renderer_draw_textured
     JO_UNUSED_ARG(gfx);
     JO_UNUSED_ARG(triangle);
     JO_UNUSED_ARG(triangle_type);
+#ifdef JO_DEBUG
     jo_core_error("Texture mapped triangle is not implemented yet");
+#endif
 }
 
 static __jo_force_inline void               __jo_software_renderer_draw_fill_triangle(const jo_software_renderer_gfx * const gfx,
