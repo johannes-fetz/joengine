@@ -493,7 +493,7 @@ static __jo_force_inline jo_fixed       jo_fixed_wrap_to_pi(jo_fixed rad)
 static __jo_force_inline jo_fixed       jo_fixed_wrap_to_180(jo_fixed deg)
 {
     while (deg > JO_FIXED_180) deg -= JO_FIXED_360;
-    while (deg <= -JO_FIXED_PI) deg += JO_FIXED_360;
+    while (deg <= -JO_FIXED_180) deg += JO_FIXED_360;
     return (deg);
 }
 
