@@ -58,6 +58,9 @@ void                                jo_3d_init(void)
     jo_3d_display_level(3);
     for (JO_ZERO(i); i < JO_MAX_SPRITE; ++i)
         __jo_sprite_quad[i] = JO_NULL;
+#if JO_COMPILE_USING_SGL
+    slDynamicFrame(ON); // Makes nearby objects close to the camera not disappear on real hardware. Credit : Ponut & TailsOfSaturn
+#endif
 }
 
 static  __jo_force_inline void      __jo_to_sgl_fixed_vertices(jo_vertice * const vertices, int count)
