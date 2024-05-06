@@ -234,6 +234,41 @@ void                        jo_3d_set_mesh_polygon_screen_doors(jo_3d_mesh * con
         JO_REMOVE_FLAG(mesh->data.attbl[index].atrb, MESHon);
 }
 
+void                        jo_3d_set_mesh_polygon_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index)
+{
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return ;
+    }
+    if (index >= mesh->data.nbPolygon)
+    {
+        jo_core_error("index (%d) is too high (max=%d)", (int)index, (int)mesh->data.nbPolygon);
+        return ;
+    }
+#endif
+    if (enabled)
+        JO_ADD_FLAG(mesh->data.attbl[index].atrb, HSSon);
+    else
+        JO_REMOVE_FLAG(mesh->data.attbl[index].atrb, HSSon);
+}
+
+void                        jo_3d_set_mesh_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled)
+{
+    unsigned int            i;
+
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return ;
+    }
+#endif
+    for (JO_ZERO(i); i < mesh->data.nbPolygon; ++i)
+        jo_3d_set_mesh_polygon_high_speed_shrink(mesh, enabled, i);
+}
+
 void                        jo_3d_set_mesh_screen_doors(jo_3d_mesh * const mesh, const bool enabled)
 {
     unsigned int            i;

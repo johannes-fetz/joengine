@@ -395,6 +395,19 @@ static  __jo_force_inline bool      jo_3d_set_sprite_palette(const int sprite_id
     return (true);
 }
 
+/** @brief Enable/Disable High Speed Shrink on one polygon on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param enabled true to enable High Speed Shrink
+ *  @param index polygon index on the mesh
+ */
+void                                jo_3d_set_mesh_polygon_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index);
+
+/** @brief Enable/Disable High Speed Shrink on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param enabled true to enable High Speed Shrink
+ */
+void                                jo_3d_set_mesh_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled);
+
 /*
 ███╗   ███╗███████╗███████╗██╗  ██╗    ██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗███████╗       ██╗       ███╗   ██╗ ██████╗ ██████╗ ███╗   ███╗ █████╗ ██╗
 ████╗ ████║██╔════╝██╔════╝██║  ██║    ██║   ██║██╔════╝██╔══██╗╚══██╔══╝██║██╔════╝██╔════╝       ██║       ████╗  ██║██╔═══██╗██╔══██╗████╗ ████║██╔══██╗██║
