@@ -60,14 +60,14 @@
 
 void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data)
 {
-    jo_fixed sinangle_zfar = jo_fixed_mult(jo_fixed_sin(voxel_data->camera.angle), voxel_data->camera.zfar);
-    jo_fixed cosangle_zfar = jo_fixed_mult(jo_fixed_cos(voxel_data->camera.angle), voxel_data->camera.zfar);
-    jo_fixed plx = cosangle_zfar + sinangle_zfar;
-    jo_fixed ply = sinangle_zfar - cosangle_zfar;
-    jo_fixed prx = cosangle_zfar - sinangle_zfar;
-    jo_fixed pry = sinangle_zfar + cosangle_zfar;
-    jo_fixed px = jo_fixed_mult((prx - plx), voxel_data->__cache.inv_clipping_size_width);
-    jo_fixed py = jo_fixed_mult((pry - ply), voxel_data->__cache.inv_clipping_size_width);
+    const jo_fixed sinangle_zfar = jo_fixed_mult(jo_fixed_sin(voxel_data->camera.angle), voxel_data->camera.zfar);
+    const jo_fixed cosangle_zfar = jo_fixed_mult(jo_fixed_cos(voxel_data->camera.angle), voxel_data->camera.zfar);
+    const jo_fixed plx = cosangle_zfar + sinangle_zfar;
+    const jo_fixed ply = sinangle_zfar - cosangle_zfar;
+    const jo_fixed prx = cosangle_zfar - sinangle_zfar;
+    const jo_fixed pry = sinangle_zfar + cosangle_zfar;
+    const jo_fixed px = jo_fixed_mult((prx - plx), voxel_data->__cache.inv_clipping_size_width);
+    const jo_fixed py = jo_fixed_mult((pry - ply), voxel_data->__cache.inv_clipping_size_width);
     voxel_data->__cache.deltax_0 = jo_fixed_mult(plx, voxel_data->__cache.inv_zfar);
     voxel_data->__cache.deltax_incr = jo_fixed_mult(px, voxel_data->__cache.inv_zfar);
     voxel_data->__cache.deltay_0 = jo_fixed_mult(ply, voxel_data->__cache.inv_zfar);
@@ -78,6 +78,8 @@ void                        jo_voxel_redraw(const jo_voxel * const voxel_data)
 {
     register jo_fixed       deltax = voxel_data->__cache.deltax_0;
     register jo_fixed       deltay = voxel_data->__cache.deltay_0;
+    const bool              use_zbuffer = voxel_data->use_zbuffer;
+    const int               mapwidth_minus_1 = voxel_data->__cache.map_width_minus_1;
 
     for (int x = 0; x < voxel_data->gfx->clipping_size.width; ++x)
     {
@@ -89,17 +91,16 @@ void                        jo_voxel_redraw(const jo_voxel * const voxel_data)
         {
             rx += deltax;
             ry += deltay;
-            int mapoffset = ((voxel_data->terrain_img.width * (jo_fixed2int(ry) & voxel_data->__cache.map_width_minus_1)) +
-                             (jo_fixed2int(rx) & voxel_data->__cache.map_width_minus_1));
+            const int mapoffset = ((voxel_data->terrain_img.width * (jo_fixed2int(ry) & mapwidth_minus_1)) + (jo_fixed2int(rx) & mapwidth_minus_1));
             // JO_COLOR_SATURN_GET_R: we use the red component arbitrary because it's a grayscale image
-            jo_fixed c = jo_int2fixed(JO_COLOR_SATURN_GET_R(voxel_data->height_pal.data[voxel_data->height_img.data[mapoffset] - 1]));
-            int projheight = jo_fixed2int(jo_fixed_mult(jo_fixed_div(voxel_data->camera.height - c, z), voxel_data->camera.scale) + voxel_data->camera.horizon);
+            const jo_fixed c = jo_int2fixed(JO_COLOR_SATURN_GET_R(voxel_data->height_pal.data[voxel_data->height_img.data[mapoffset] - 1]));
+            const int projheight = jo_fixed2int(jo_fixed_mult(jo_fixed_div(voxel_data->camera.height - c, z), voxel_data->camera.scale) + voxel_data->camera.horizon);
             if (projheight < maxheight)
             {
-                jo_color color = voxel_data->terrain_pal.data[voxel_data->terrain_img.data[mapoffset] - 1];
+                const jo_color color = voxel_data->terrain_pal.data[voxel_data->terrain_img.data[mapoffset] - 1];
                 for (int y = (projheight >= 0) ? projheight : 0; y < maxheight; ++y)
                 {
-                    if (voxel_data->use_zbuffer)
+                    if (use_zbuffer)
                         jo_software_renderer_draw_pixel3D(voxel_data->gfx, jo_int2fixed(x), jo_int2fixed(y), z, color);
                     else
                         voxel_data->gfx->color_buffer[x + y * voxel_data->gfx->vram_size.width] = color;
