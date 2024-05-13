@@ -518,12 +518,20 @@ void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palet
 
 #endif
 
-void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const unsigned short left, const unsigned short top)
+void			                jo_vdp2_set_nbg1_image(const jo_img *const img, short left, short top)
 {
     register int                y;
+    int                         right;
+    int                         len;
+    int                         bottom;
+    int                         height;
     register jo_color           *vram_ptr;
     register jo_color           *img_ptr;
 
+    if (left >= JO_VDP2_WIDTH || left <= -img->width)
+        return ;
+    if (top >= JO_VDP2_HEIGHT || top <= -img->height)
+        return;
     __jo_switch_to_bitmap_mode();
     if (nbg1_bitmap == JO_NULL)
         nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
@@ -534,20 +542,49 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, const uns
 #endif
     if (img->data == JO_NULL)
         return ;
-    if (top)
+    img_ptr = img->data;
+    JO_ZERO(y);
+    if (top != 0)
+    {
+        if (top < 0)
+        {
+            y = -top;
+            img_ptr += img->width * y;
+            JO_ZERO(top);
+        }
         vram_ptr = nbg1_bitmap + (JO_VDP2_WIDTH * top);
+    }
     else
         vram_ptr = nbg1_bitmap;
-    img_ptr = img->data;
-    for (JO_ZERO(y); y < img->height; ++y)
+    bottom = top + img->height;
+    if (bottom >= JO_VDP2_HEIGHT)
+        height = (JO_VDP2_HEIGHT - top - 1);
+    else
+        height = img->height;
+    for (; y < height; ++y)
     {
-        if (left)
+        if (left > 0)
+        {
             vram_ptr += left;
-        jo_dma_copy(img_ptr, vram_ptr, img->width * sizeof(*img_ptr));
-        if (left)
+            right = left + img->width;
+            if (right >= JO_VDP2_WIDTH)
+                len = img->width - (right - JO_VDP2_WIDTH);
+            else
+                len = img->width;
+            jo_dma_copy(img_ptr, vram_ptr, len * sizeof(*img_ptr));
             vram_ptr += JO_VDP2_WIDTH - left;
-        else
+        }
+        else if (left < 0)
+        {
+            len = img->width + left;
+            jo_dma_copy(img_ptr - left, vram_ptr, len * sizeof(*img_ptr));
             vram_ptr += JO_VDP2_WIDTH;
+        }
+        else
+        {
+            jo_dma_copy(img_ptr, vram_ptr, img->width * sizeof(*img_ptr));
+            vram_ptr += JO_VDP2_WIDTH;
+        }
         img_ptr += img->width;
     }
     JO_ADD_FLAG(screen_flags, NBG1ON);

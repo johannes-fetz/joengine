@@ -188,7 +188,7 @@ void    jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @param left Left location
  *  @param top Top location
  */
-void	jo_vdp2_set_nbg1_image(const jo_img * const img, const unsigned short left, const unsigned short top);
+void	jo_vdp2_set_nbg1_image(const jo_img * const img, short left, short top);
 
 /** @brief Clear NBG1 bitmap
  *  @param color Clear color
