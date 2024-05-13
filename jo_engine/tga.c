@@ -44,7 +44,6 @@
 #include "jo/tga.h"
 #include "jo/colors.h"
 #include "jo/sprites.h"
-#include "jo/colors.h"
 #include "jo/math.h"
 #include "jo/vdp2.h"
 
