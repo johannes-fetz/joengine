@@ -137,8 +137,21 @@ void			jo_map_draw(const unsigned int layer, const short screen_x, const short s
  *  @param x relative horizontal position between the background image and the map
  *  @param y relative vertical position between the background image and the map
  *  @warning Only works with full color images (not 8 bits)
+ *  @todo Handle NBG1 Zoom
  */
 void            jo_map_draw_background(const unsigned int layer, const short x, const short y);
+
+/** @brief Draw the specific layer on the background (NBG1)
+ *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
+ *  @param x relative horizontal position between the background image and the map
+ *  @param y relative vertical position between the background image and the map
+ *  @warning Only works with full color images (not 8 bits)
+ *  @todo Handle NBG1 Zoom
+ */
+static  __jo_force_inline void	jo_vdp2_map_draw_nbg1(const unsigned int layer, const short x, const short y)
+{
+    jo_map_draw_background(layer, x, y);
+}
 
 /** @brief Move specific tiles by their attributes
  *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
