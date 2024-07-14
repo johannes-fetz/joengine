@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -135,6 +135,10 @@ jo_gamepad_type                 jo_get_input_type(const int port)
         return (JoRegularKeyboard);
     case PER_ID_NightsPad:
         return (JoNightsPad);
+    case PER_ID_MissionStick:
+        return (JoMissionStick);
+    case PER_ID_Racing:
+        return (JoRacingWheel);
     default:
         return (JoUnsupportedGamepad);
     }
@@ -158,6 +162,30 @@ unsigned char                   jo_get_input_axis(const int port, const jo_input
     // TODO: Implement other analog devices
     switch (jo_get_input_type(port))
     {
+    case JoRacingWheel:
+        switch (axis)
+        {
+        case JoAxis1:
+            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Wheel turn axis
+        default:
+            break;
+        }
+        break;
+
+    case JoMissionStick:
+        switch (axis)
+        {
+        case JoAxis1:
+            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Stick X axis
+        case JoAxis2:
+            return ((PerAnalog *)(&jo_inputs[port]))->y;      // Stick Y axis
+        case JoAxis3:
+            return ((PerAnalog *)(&jo_inputs[port]))->z;      // Throttle
+        default:
+            break;
+        }
+        break;
+
     case JoNightsPad:
         switch (axis)
         {
