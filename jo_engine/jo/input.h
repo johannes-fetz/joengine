@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -40,6 +40,8 @@
 
 // This device ID is not present in SGL header files
 #define	PER_ID_NightsPad	0x16	/* Nights 3D pad */
+#define	PER_ID_MissionStick	0x15	/* Mission-stick */
+#define	PER_ID_Racing	    0x13	/* Racing wheel */
 
 #if JO_COMPILE_USING_SGL
 extern PerDigital                       jo_inputs[JO_INPUT_MAX_DEVICE];
@@ -129,7 +131,15 @@ typedef enum
 
 	/** @brief Nights 3D pad, Axis1 and Axis2 are analog stick, Axis3 is right trigger and Axis4 is left trigger
 	 */
-	JoNightsPad = 5
+	JoNightsPad = 5,
+    
+	/** @brief Mission stick, Axis1 and Axis2 are the analog stick, Axis3 is throttle
+	 */
+	JoMissionStick = 6,
+    
+	/** @brief Racing wheel, Axis1 is the wheel
+	 */
+	JoRacingWheel = 7
 }           jo_gamepad_type;
 
 /** @brief Input axis type
