@@ -28,6 +28,9 @@
 #include <jo/jo.h>
 
 #define BOX_SIZE (128)
+#define DIGITAL_UDLR toFIXED(0.5)
+#define DIGITAL_DIAG toFIXED(0.35)
+#define DIGITAL_TRIG toFIXED(0.999)
 
 static int cross_sprite = 0;
 static int trigger_sprite = 0;
@@ -41,15 +44,20 @@ jo_fixed right_trigger = 0;
 
 void			my_draw(void)
 {
+	jo_printf(12, 3, "Demo - Analog");
 	if (jo_get_input_type(0) == JoNightsPad)
 	{
-		jo_printf(3, 4, "Connected: YES");
+		jo_printf(3, 5, "Connected: YES");
 	}
 	else
 	{
-		jo_printf(3, 4, "Connected: NO ");
+		jo_printf(3, 5, "Connected: NO");
 	}
-
+	jo_printf(3, 24, "axis_x: %02i", jo_fixed2int(axis_x));
+	jo_printf(3, 25, "axis_y: %02i", jo_fixed2int(axis_y));
+	jo_printf(3, 26, "left_trigger: %02i", jo_fixed2int(left_trigger));
+	jo_printf(3, 27, "right_trigger: %02i", jo_fixed2int(right_trigger));
+	
 	// Draw the trigger bar background
 	jo_sprite_draw3D(trigger_bar_sprite, 140, 0, 500);
 	jo_sprite_draw3D(trigger_bar_sprite, -140, 0, 500);
@@ -58,8 +66,8 @@ void			my_draw(void)
 	jo_sprite_draw3D(cross_sprite, JO_DIV_BY_65536(axis_x), JO_DIV_BY_65536(axis_y), 500);
 
 	// Draw left and right trigger
-	jo_sprite_draw3D(trigger_sprite, 140, -JO_DIV_BY_65536(left_trigger) + 64, 500);
-	jo_sprite_draw3D(trigger_sprite, -140, -JO_DIV_BY_65536(right_trigger) + 64, 500);
+	jo_sprite_draw3D(trigger_sprite, -140, -JO_DIV_BY_65536(left_trigger) + 64, 500);
+	jo_sprite_draw3D(trigger_sprite,  140, -JO_DIV_BY_65536(right_trigger) + 64, 500);
 }
 
 void			my_gamepad(void)
@@ -72,13 +80,66 @@ void			my_gamepad(void)
 
 		// Left and right trigger start at 0 and go to 255
 		unsigned char axis_right_trigger_raw = jo_get_input_axis(0, JoAxis3);
-		unsigned char axis_left_trigger_raw = jo_get_input_axis(0, JoAxis4);
+		unsigned char axis_left_trigger_raw  = jo_get_input_axis(0, JoAxis4);
 
 		// Scale input to the size of the box on screen
 		axis_x = jo_fixed_mult(JO_MULT_BY_256(axis_x_raw), JO_MULT_BY_65536(BOX_SIZE));
 		axis_y = jo_fixed_mult(JO_MULT_BY_256(axis_y_raw), JO_MULT_BY_65536(BOX_SIZE));
-		left_trigger = jo_fixed_mult(JO_MULT_BY_256(axis_right_trigger_raw), JO_MULT_BY_65536(BOX_SIZE));
-		right_trigger = jo_fixed_mult(JO_MULT_BY_256(axis_left_trigger_raw), JO_MULT_BY_65536(BOX_SIZE));
+		left_trigger = jo_fixed_mult(JO_MULT_BY_256(axis_left_trigger_raw), JO_MULT_BY_65536(BOX_SIZE));
+		right_trigger = jo_fixed_mult(JO_MULT_BY_256(axis_right_trigger_raw), JO_MULT_BY_65536(BOX_SIZE));
+	}
+	else {
+		switch (jo_get_input_direction_pressed(0))
+		{
+			case UP_LEFT:
+				axis_y = jo_fixed_mult(-DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = jo_fixed_mult(-DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				break;
+			case UP_RIGHT:
+				axis_y = jo_fixed_mult(-DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = jo_fixed_mult(DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				break;
+			case DOWN_LEFT:
+				axis_y = jo_fixed_mult(DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = jo_fixed_mult(-DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				break;
+			case DOWN_RIGHT:
+				axis_y = jo_fixed_mult(DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = jo_fixed_mult(DIGITAL_DIAG, JO_MULT_BY_65536(BOX_SIZE));
+				break;
+			case LEFT:
+				axis_x = jo_fixed_mult(-DIGITAL_UDLR, JO_MULT_BY_65536(BOX_SIZE));
+				axis_y = JO_FIXED_0;
+				break;
+			case RIGHT:
+				axis_x = jo_fixed_mult(DIGITAL_UDLR, JO_MULT_BY_65536(BOX_SIZE));
+				axis_y = JO_FIXED_0;
+				break;
+			case UP:
+				axis_y = jo_fixed_mult(-DIGITAL_UDLR, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = JO_FIXED_0;
+				break;
+			case DOWN:
+				axis_y = jo_fixed_mult(DIGITAL_UDLR, JO_MULT_BY_65536(BOX_SIZE));
+				axis_x = JO_FIXED_0;
+				break;
+			case NONE:
+				axis_x = JO_FIXED_0;
+				axis_y = JO_FIXED_0;
+				break;
+		}
+		if (jo_is_input_key_pressed(0, JO_KEY_L)) {
+				left_trigger = jo_fixed_mult(DIGITAL_TRIG, JO_MULT_BY_65536(BOX_SIZE));
+		}
+		else {
+				left_trigger = JO_FIXED_0;
+		}
+		if (jo_is_input_key_pressed(0, JO_KEY_R)) {
+				right_trigger = jo_fixed_mult(DIGITAL_TRIG, JO_MULT_BY_65536(BOX_SIZE));
+		}
+		else {
+				right_trigger = JO_FIXED_0;
+		}
 	}
 }
 
@@ -86,12 +147,11 @@ void			jo_main(void)
 {
 	jo_core_init(JO_COLOR_Black);
 
-	jo_printf(12, 2, "Demo - Analog");
-
 	cross_sprite = jo_sprite_add_tga(JO_ROOT_DIR, "CROSS.TGA", JO_COLOR_Green);
 	trigger_sprite = jo_sprite_add_tga(JO_ROOT_DIR, "TRIG.TGA", JO_COLOR_Green);
 	trigger_bar_sprite = jo_sprite_add_tga(JO_ROOT_DIR, "TRIGBAR.TGA", JO_COLOR_Green);
 
+	jo_core_add_vblank_callback(jo_clear_screen);
 	jo_core_add_callback(my_gamepad);
 	jo_core_add_callback(my_draw);
 
