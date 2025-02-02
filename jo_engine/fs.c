@@ -415,7 +415,7 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
 {
     int                 len;
     int                 retry;
-    int                 readed;
+    int                 readed = 0;
 
 #ifdef JO_DEBUG
     if (file == JO_NULL)
@@ -428,8 +428,8 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
         jo_core_error("buffer is null");
         return (-1);
     }
-#endif
     JO_ZERO(readed);
+#endif
 fs_read_from_buffer:
     while (file->read_index < __jo_fs_read_buffer_size && nbytes > 0 && file->read < file->size)
     {
