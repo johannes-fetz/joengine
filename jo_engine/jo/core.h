@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2025, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@ void    __jo_core_error(char *message, const char *function);
 #endif
 
 /** @brief Jo Engine Version */
-# define JO_ENGINE_VERSION  (2024.2)
+# define JO_ENGINE_VERSION  (2025.1)
 
 /*
 ** TYPEDEFS
