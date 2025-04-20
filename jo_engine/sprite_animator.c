@@ -134,8 +134,6 @@ int			jo_create_sprite_anim(const unsigned short sprite_id, const unsigned short
 void    jo_clear_all_sprite_anim(void)
 {
     __jo_sprite_anim_id = -1;
-    jo_memset(__jo_sprite_anim_tab, 0, sizeof(__jo_sprite_anim_tab));
-
     if (__jo_sprite_anim_callback_event_id > 0)  // Avoid calling with an invalid value.
     {
         jo_core_remove_callback(__jo_sprite_anim_callback_event_id);
