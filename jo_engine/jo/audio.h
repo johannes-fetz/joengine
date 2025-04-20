@@ -81,6 +81,12 @@ void	jo_audio_set_volume(const unsigned char vol);
  */
 void	jo_audio_stop_cd(void);
 
+ /** @brief Checks whether a given audio channel is currently playing a sound
+  *  @param channel Channel to check (0 to JO_SOUND_MAX_CHANNEL - 1)
+  *  @return true if the channel is playing, false otherwise
+  */
+bool    jo_audio_is_channel_playing(const unsigned char channel);
+
 /** @brief Play a sound on a specific channel
  *  @param sound Sound definition
  *  @param channel Channel (0 to 6)
