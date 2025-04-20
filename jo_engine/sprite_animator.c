@@ -42,7 +42,7 @@
 
 jo_sprite_anim		__jo_sprite_anim_tab[JO_MAX_SPRITE_ANIM];
 static int			__jo_sprite_anim_id = -1;
-static char         __jo_sprite_anim_callback_event_id = 0;
+static char			__jo_sprite_anim_callback_event_id = 0;
 
 static void			__jo_internal_frame_animator(void)
 {
