@@ -114,6 +114,29 @@ void		        jo_audio_init(void)
 #endif
 }
 
+bool                jo_audio_is_channel_playing(const unsigned char channel)
+{
+#ifdef JO_DEBUG
+    if (channel >= JO_SOUND_MAX_CHANNEL)
+    {
+        jo_core_error("channel (%d) is too high (max=%d)", channel, JO_SOUND_MAX_CHANNEL - 1);
+        return false;
+    }
+#endif
+
+    // Proteção redundante em builds release
+    if (channel >= JO_SOUND_MAX_CHANNEL)
+    {
+        return false;
+    }
+
+    // Evita qualquer dependência de comportamento inesperado de slPCMStat
+    const unsigned char status = slPCMStat(channel);
+
+    // Retorna se o bit 0 está setado
+    return (status & 0x01u) != 0;
+}
+
 void	            jo_audio_play_sound_on_channel(jo_sound * const sound, const unsigned char channel)
 {
 #ifdef JO_DEBUG
