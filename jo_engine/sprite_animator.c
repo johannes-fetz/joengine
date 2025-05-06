@@ -131,6 +131,29 @@ int			jo_create_sprite_anim(const unsigned short sprite_id, const unsigned short
     return (__jo_sprite_anim_id);
 }
 
+void jo_remove_sprite_anim(const int anim_id)
+{
+    if (anim_id < 0 || anim_id > __jo_sprite_anim_id)
+        return;
+
+    jo_memset(&__jo_sprite_anim_tab[anim_id], 0, sizeof(jo_sprite_anim));
+
+    if (anim_id == __jo_sprite_anim_id)
+    {
+        while (__jo_sprite_anim_id >= 0 &&
+               __jo_sprite_anim_tab[__jo_sprite_anim_id].frame_count == 0)
+        {
+            --__jo_sprite_anim_id;
+        }
+
+        if (__jo_sprite_anim_id < 0 && __jo_sprite_anim_callback_event_id > 0)
+        {
+            jo_core_remove_callback(__jo_sprite_anim_callback_event_id);
+            JO_ZERO(__jo_sprite_anim_callback_event_id);
+        }
+    }
+}
+
 void    jo_clear_all_sprite_anim(void)
 {
     __jo_sprite_anim_id = -1;
