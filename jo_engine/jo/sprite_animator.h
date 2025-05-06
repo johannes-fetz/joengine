@@ -190,6 +190,11 @@ int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const
  */
 int			jo_create_sprite_anim(const unsigned short sprite_id, const unsigned short frame_count, const unsigned char frame_rate);
 
+/** @brief Remove a specific animation by ID
+ *  @param anim_id Id returned by jo_create_sprite_anim()
+ */
+void        jo_remove_sprite_anim(const int anim_id);
+
 /** @brief Clear all sprite animation
  */
 void        jo_clear_all_sprite_anim(void);
