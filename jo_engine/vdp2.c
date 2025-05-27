@@ -330,11 +330,23 @@ void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bit
 void                            jo_vdp2_enable_rbg0(void)
 {
     __jo_switch_to_8bits_mode();
+
     if (rbg0_rtable == JO_NULL)
+    {
         rbg0_rtable = jo_vdp2_malloc_autosize(JO_VDP2_RAM_RTABLE);
+        if (rbg0_rtable == JO_NULL)
+            return;
+    }
+
     slRparaInitSet(rbg0_rtable);
+
     if (rbg0_ktable == JO_NULL)
+    {
         rbg0_ktable = jo_vdp2_malloc_autosize(JO_VDP2_RAM_KTABLE);
+        if (rbg0_ktable == JO_NULL)
+            return;
+    }
+
     slMakeKtable(rbg0_ktable);
     slKtableRA(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
     slKtableRB(rbg0_ktable, K_FIX | K_DOT | K_2WORD | K_ON | K_LINECOL);
@@ -342,6 +354,7 @@ void                            jo_vdp2_enable_rbg0(void)
     slRparaMode(K_CHANGE);
     slPlaneRA(PL_SIZE_1x1);
     slPlaneRB(PL_SIZE_1x1);
+
     JO_ADD_FLAG(screen_flags, RBG0ON);
     slScrAutoDisp(screen_flags);
 }
@@ -350,6 +363,19 @@ void                            jo_vdp2_disable_rbg0(void)
 {
     JO_REMOVE_FLAG(screen_flags, RBG0ON);
     slScrAutoDisp(screen_flags);
+    slRparaMode(K_OFF);
+
+    if (rbg0_ktable != JO_NULL)
+    {
+        jo_vdp2_free(rbg0_ktable);
+        rbg0_ktable = JO_NULL;
+    }
+
+    if (rbg0_rtable != JO_NULL)
+    {
+        jo_vdp2_free(rbg0_rtable);
+        rbg0_rtable = JO_NULL;
+    }
 }
 
 #endif
