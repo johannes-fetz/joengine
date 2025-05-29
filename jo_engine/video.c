@@ -124,6 +124,7 @@ bool					jo_video_open_file(const char *const filename)
     Sint32              fid;
     CpkHeader           *header;
     CpkCreatePara       para;
+    CpkColorType        color_mode;
 
     jo_video_stop();
     fid = GFS_NameToId((Sint8 *)filename);
@@ -171,7 +172,8 @@ bool					jo_video_open_file(const char *const filename)
         jo_video_stop();
         return (false);
     }
-    CPK_SetColor(__jo_video_cpk.cpk, CPK_COLOR_15BIT);
+    color_mode = CPK_COLOR_15BIT;
+    CPK_SetColor(__jo_video_cpk.cpk, color_mode);
     CPK_PreloadHeader(__jo_video_cpk.cpk);
     header = CPK_GetHeader(__jo_video_cpk.cpk);
 #ifdef JO_DEBUG
@@ -182,7 +184,7 @@ bool					jo_video_open_file(const char *const filename)
         return (false);
     }
 #endif
-    __jo_video_cpk.decode_buffer_size = header->width * header->height * sizeof(unsigned short);
+    __jo_video_cpk.decode_buffer_size = header->width * header->height * (color_mode == CPK_COLOR_15BIT ? 2 : 3);
     if ((__jo_video_cpk.decode_buffer = jo_malloc_with_behaviour(__jo_video_cpk.decode_buffer_size, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
