@@ -47,8 +47,8 @@
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 
 #define	PCM_ADDR				((void*)0x25a20000)
-#define PCM_SIZE				(4096L * 4)
-#define RING_BUF_SIZ			(1024L * 48)
+#define	PCM_SIZE				(4096L*16)
+#define	RING_BUF_SIZ			(1024L*100)
 
 int __jo_video_sprite_id;
 void *__jo_pcm_buffer;
@@ -112,11 +112,11 @@ void             jo_video_stop(void)
     {
         jo_free(__jo_ring_buffer);
         __jo_ring_buffer = NULL;
-    }    
+    }     
     if (__jo_video_cpk.onstop != JO_NULL)
     {
         jo_sprite_free_all();
-        jo_core_remove_vblank_callback(__jo_vblank_id);
+        jo_core_remove_vblank_callback(__jo_vblank_id);        
         __jo_video_cpk.onstop();
         __jo_video_cpk.onstop = JO_NULL;
     }
@@ -140,7 +140,10 @@ bool					jo_video_open_file(const char *const filename)
     Sint32              fid;
     CpkHeader           *header;
     CpkCreatePara       para;
+    CpkColorType        color_mode;
 
+    __jo_pcm_buffer = jo_malloc(PCM_SIZE);
+    __jo_ring_buffer = jo_malloc(RING_BUF_SIZ);     
     jo_video_stop();
     fid = GFS_NameToId((Sint8 *)filename);
     if (fid < 0)
@@ -148,112 +151,81 @@ bool					jo_video_open_file(const char *const filename)
 #ifdef JO_DEBUG
         jo_core_error("%s: File not found", filename);
 #endif
-        return false;
+        return (false);
     }
-
-    __jo_video_cpk.gfs = GFS_Open(fid);
-    if (__jo_video_cpk.gfs == JO_NULL)
+    if ((__jo_video_cpk.gfs = GFS_Open(fid)) == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: GFS_Open() failed", filename);
 #endif
-        return false;
+        return (false);
     }
-
-    __jo_video_cpk.work_buffer = jo_malloc_with_behaviour(CPK_15WORK_BSIZE * sizeof(unsigned int), JO_MALLOC_TRY_REUSE_BLOCK);
-    if (__jo_video_cpk.work_buffer == NULL)
+    if ((__jo_video_cpk.movie_buffer = jo_malloc_with_behaviour(RING_BUF_SIZ, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
-        jo_core_error("%s: Out of memory #work", filename);
+        jo_core_error("%s: Out of memory #1", filename);
 #endif
         jo_video_stop();
-        return false;
+        return (false);
     }
-
-    header = CPK_GetHeader(__jo_video_cpk.cpk);
-    if (header == NULL)
-        header = CPK_GetHeader(__jo_video_cpk.cpk);
-
-    __jo_video_cpk.decode_buffer_size = 320 * 240 * sizeof(unsigned short); // 150 KB max.
-    __jo_video_cpk.decode_buffer = jo_malloc_with_behaviour(__jo_video_cpk.decode_buffer_size, JO_MALLOC_TRY_REUSE_BLOCK);
-    if (__jo_video_cpk.decode_buffer == NULL)
+    if ((__jo_video_cpk.work_buffer = jo_malloc_with_behaviour(CPK_15WORK_BSIZE * sizeof(unsigned int), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
-        jo_core_error("%s: Out of memory #decode", filename);
+        jo_core_error("%s: Out of memory #2", filename);
 #endif
         jo_video_stop();
-        return false;
+        return (false);
     }
-
-    __jo_pcm_buffer = jo_malloc(PCM_SIZE);
-    __jo_ring_buffer = jo_malloc(RING_BUF_SIZ);
-
-    if (__jo_pcm_buffer == NULL || __jo_ring_buffer == NULL)
-    {
-#ifdef JO_DEBUG
-        jo_core_error("Failed to allocate PCM or ring buffer");
-#endif
-        jo_video_stop();
-        return false;
-    }
-
-    __jo_video_cpk.movie_buffer = jo_malloc_with_behaviour(RING_BUF_SIZ, JO_MALLOC_TRY_REUSE_BLOCK);
-    if (__jo_video_cpk.movie_buffer == NULL)
-    {
-#ifdef JO_DEBUG
-        jo_core_error("%s: Out of memory #movie", filename);
-#endif
-        jo_video_stop();
-        return false;
-    }
-
     CPK_PARA_WORK_ADDR(&para) = __jo_video_cpk.work_buffer;
     CPK_PARA_WORK_SIZE(&para) = CPK_15WORK_BSIZE;
     CPK_PARA_BUF_ADDR(&para) = __jo_video_cpk.movie_buffer;
     CPK_PARA_BUF_SIZE(&para) = RING_BUF_SIZ;
     CPK_PARA_PCM_ADDR(&para) = PCM_ADDR;
     CPK_PARA_PCM_SIZE(&para) = PCM_SIZE;
-
-    __jo_video_cpk.cpk = CPK_CreateGfsMovie(&para, __jo_video_cpk.gfs);
-    if (__jo_video_cpk.cpk == NULL)
+    if ((__jo_video_cpk.cpk = CPK_CreateGfsMovie(&para, __jo_video_cpk.gfs)) == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("CPK_CreateGfsMovie() failed");
 #endif
         jo_video_stop();
-        return false;
+        return (false);
     }
-
-    CPK_SetColor(__jo_video_cpk.cpk, CPK_COLOR_15BIT);
+   
+    color_mode = CPK_COLOR_15BIT;
+    CPK_SetColor(__jo_video_cpk.cpk, color_mode);
     CPK_PreloadHeader(__jo_video_cpk.cpk);
     header = CPK_GetHeader(__jo_video_cpk.cpk);
-
 #ifdef JO_DEBUG
     if (JO_MOD_POW2(header->width, 8) != 0)
     {
         jo_core_error("%s: Video width must be a multiple of 8", filename);
         jo_video_stop();
-        return false;
+        return (false);
     }
 #endif
-
+    __jo_video_cpk.decode_buffer_size = header->width * header->height * (color_mode == CPK_COLOR_15BIT ? 2 : 3); // Thanks to tarceri for the tip!
+    if ((__jo_video_cpk.decode_buffer = jo_malloc_with_behaviour(__jo_video_cpk.decode_buffer_size, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: Out of memory #3", filename);
+#endif
+        jo_video_stop();
+        return (false);
+    }
     __jo_video_cpk.img.width = header->width;
     __jo_video_cpk.img.height = header->height;
     __jo_video_cpk.img.data = __jo_video_cpk.decode_buffer;
-
     if (__jo_video_sprite_id < 0)
         __jo_video_sprite_id = jo_sprite_add(&__jo_video_cpk.img);
     else
         __jo_video_sprite_id = jo_sprite_replace(&__jo_video_cpk.img, __jo_video_sprite_id);
-
     if (__jo_video_sprite_id < 0)
     {
         jo_video_stop();
-        return false;
+        return (false);
     }
-
     CPK_SetDecodeAddr(__jo_video_cpk.cpk, __jo_video_cpk.decode_buffer, JO_MULT_BY_2(header->width));
-    return true;
+    return (true);
 }
 
 bool                    jo_video_pause(void)
