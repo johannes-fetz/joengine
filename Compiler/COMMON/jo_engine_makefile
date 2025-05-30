@@ -245,13 +245,23 @@ RM = rm -rf
 
 CMNDIR = $(COMPILER_DIR)/COMMON
 
-CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
--Winline -Wsign-compare -Wextra -Wno-strict-aliasing \
--fno-common -ffast-math \
---param max-inline-insns-single=50 -fms-extensions -std=gnu99 \
--fmerge-all-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
--fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -O2 -nodefaultlibs -nostdlib -fno-builtin \
--m2 -c -I$(JO_ENGINE_SRC_DIR)
+ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
+	CCFLAGS += -w \
+	-Winline -Wno-strict-aliasing \
+	-fno-common -ffast-math \
+	-fms-extensions -std=gnu99 \
+	-fmerge-all-constants -fmerge-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
+	-fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -Os -nodefaultlibs -nostdlib -fno-builtin \
+	-m2 -c -I$(JO_ENGINE_SRC_DIR)
+else
+	CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
+	-Winline -Wsign-compare -Wextra -Wno-strict-aliasing \
+	-fno-common -ffast-math \
+	--param max-inline-insns-single=50 -fms-extensions -std=gnu99 \
+	-fmerge-all-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
+	-fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -O2 -nodefaultlibs -nostdlib -fno-builtin \
+	-m2 -c -I$(JO_ENGINE_SRC_DIR)
+endif
 
 ifneq ($(OS), Windows_NT)
 CCFLAGS += -flto
