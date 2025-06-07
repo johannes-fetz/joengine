@@ -51,6 +51,9 @@
 #define	RING_BUF_SIZ			(1024L*100)
 
 int __jo_video_sprite_id;
+void *__jo_pcm_buffer;
+void *__jo_ring_buffer;
+int __jo_vblank_id;
 
 typedef struct
 {
@@ -99,8 +102,21 @@ void             jo_video_stop(void)
         jo_free(__jo_video_cpk.movie_buffer);
         __jo_video_cpk.movie_buffer = JO_NULL;
     }
+    if (__jo_pcm_buffer != NULL)
+    {
+        jo_free(__jo_pcm_buffer);
+        __jo_pcm_buffer = NULL;
+    }
+
+    if (__jo_ring_buffer != NULL)
+    {
+        jo_free(__jo_ring_buffer);
+        __jo_ring_buffer = NULL;
+    }     
     if (__jo_video_cpk.onstop != JO_NULL)
     {
+        jo_sprite_free_all();
+        jo_core_remove_vblank_callback(__jo_vblank_id);        
         __jo_video_cpk.onstop();
         __jo_video_cpk.onstop = JO_NULL;
     }
@@ -124,7 +140,10 @@ bool					jo_video_open_file(const char *const filename)
     Sint32              fid;
     CpkHeader           *header;
     CpkCreatePara       para;
+    CpkColorType        color_mode;
 
+    __jo_pcm_buffer = jo_malloc(PCM_SIZE);
+    __jo_ring_buffer = jo_malloc(RING_BUF_SIZ);     
     jo_video_stop();
     fid = GFS_NameToId((Sint8 *)filename);
     if (fid < 0)
@@ -171,7 +190,9 @@ bool					jo_video_open_file(const char *const filename)
         jo_video_stop();
         return (false);
     }
-    CPK_SetColor(__jo_video_cpk.cpk, CPK_COLOR_15BIT);
+   
+    color_mode = CPK_COLOR_15BIT;
+    CPK_SetColor(__jo_video_cpk.cpk, color_mode);
     CPK_PreloadHeader(__jo_video_cpk.cpk);
     header = CPK_GetHeader(__jo_video_cpk.cpk);
 #ifdef JO_DEBUG
@@ -182,7 +203,7 @@ bool					jo_video_open_file(const char *const filename)
         return (false);
     }
 #endif
-    __jo_video_cpk.decode_buffer_size = header->width * header->height * sizeof(unsigned short);
+    __jo_video_cpk.decode_buffer_size = header->width * header->height * (color_mode == CPK_COLOR_15BIT ? 2 : 3); // Thanks to tarceri for the tip!
     if ((__jo_video_cpk.decode_buffer = jo_malloc_with_behaviour(__jo_video_cpk.decode_buffer_size, JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -271,7 +292,7 @@ bool		                        jo_video_init(void)
 #ifdef JO_DEBUG
     CPK_SetErrFunc(__jo_cpk_error_handling, JO_NULL);
 #endif
-    jo_core_add_vblank_callback(CPK_VblIn);
+    __jo_vblank_id = jo_core_add_vblank_callback(CPK_VblIn);
     return (true);
 }
 

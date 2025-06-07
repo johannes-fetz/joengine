@@ -26,6 +26,8 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <jo/jo.h>
+#define LWRAM_HEAP_SIZE 0x40000 // Number of bytes to extend the heap
+#define LWRAM 0x00200000
 
 void			    my_draw(void)
 {
@@ -54,6 +56,7 @@ void                my_video_stopped(void)
 void			    jo_main(void)
 {
 	jo_core_init(JO_COLOR_Black);
+    jo_add_memory_zone((unsigned char *)LWRAM, LWRAM_HEAP_SIZE);
 	if (jo_video_open_file("SAMPLE.CPK"))
         jo_video_play(my_video_stopped);
 	jo_core_add_callback(my_draw);
