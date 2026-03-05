@@ -26,6 +26,7 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "modem.h"
 #include <jo/jo.h>
 #include <string.h>
 
@@ -53,9 +54,14 @@ void my_frame_counter(void);
 void prepend_array(unsigned char* array, unsigned int array_size, unsigned char val);
 char convert_button_to_char(void);
 
+
+bool is_present = false;
+
 void			jo_main(void)
 {
 	jo_core_init(JO_COLOR_Black);
+
+	is_present = jo_modem_init();
 
 	// note: only tested with US and Jap Saturn. PAL saturn will likely be different speeds
 
@@ -104,6 +110,9 @@ void			my_draw(void)
 	jo_printf(11, 2, "Dial-Up Modem Demo");
 	jo_sprite_draw3D(g_sprite_id, 0,-40, 500);
 
+	jo_printf(11, 1, "present: %d", is_present);
+
+	/*
 	jo_printf(1, 18, "Send:");
 	for(i = 0; i < sizeof(g_send_buf); i++)
 	{
@@ -119,6 +128,7 @@ void			my_draw(void)
 	jo_printf(1, 22, "Press buttons to send data");
 	jo_printf(1, 23, "Sends 'This is COOL' char every");
     jo_printf(1, 24, "255 frames. 209954 baudrate 8N1");
+	*/
 
 	//jo_printf(1, 23, "H is a periodic heartbeat. 1800 B 8N1");
 }
