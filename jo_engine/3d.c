@@ -419,6 +419,11 @@ void                        jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const m
 
 void                        jo_3d_set_mesh_color(jo_3d_mesh * const mesh, const jo_color color)
 {
+    jo_3d_set_mesh_color_ex(mesh, color, false);
+}
+
+void                        jo_3d_set_mesh_color_ex(jo_3d_mesh * const mesh, const jo_color color, bool wireframe)
+{
     unsigned int            i;
 
 #ifdef JO_DEBUG
@@ -429,7 +434,7 @@ void                        jo_3d_set_mesh_color(jo_3d_mesh * const mesh, const 
     }
 #endif
     for (JO_ZERO(i); i < mesh->data.nbPolygon; ++i)
-        jo_3d_set_mesh_polygon_color(mesh, color, i);
+        jo_3d_set_mesh_polygon_color_ex(mesh, color, i, wireframe);
 }
 
 void                jo_3d_free_sprite_quad(int sprite_id)
