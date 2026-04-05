@@ -583,6 +583,13 @@ static  __jo_force_inline void      jo_3d_set_mesh_polygon_color(jo_3d_mesh * co
  */
 void                                jo_3d_set_mesh_color(jo_3d_mesh * const mesh, const jo_color color);
 
+/** @brief Set the color on the mesh
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param color Color
+ *  @param wireframe True to enable wireframe mode
+ */
+void                                jo_3d_set_mesh_color_ex(jo_3d_mesh * const mesh, const jo_color color, bool wireframe);
+
 /** @brief Set the color on the quadrilateral
  *  @param quad Address to a jo_3d_quad allocated struct
  *  @param color Color
