@@ -1,0 +1,99 @@
+; Reverberation of a room, for the DSP of the SCSP (see Compiler/COMMON/scsp_dsp_asm.py, jo_audio_set_reverb())
+;
+; The slots send their sound to the DSP (ISEL 0, IMXL: the level of the send). Mono in, stereo out (EFREG 0: left,
+; EFREG 1: right):
+;   - a pre-delay line: its taps make the early reflections (the walls: 9 to 23 ms), and the input of the tail (8 ms);
+;   - the tail: 4 comb filters in parallel (Schroeder, as Freeverb): a delay line whose output comes back to its input,
+;     a little lower (feedback: the decay time), through a low pass filter (damping: the high frequencies die faster);
+;   - their sum through 2 all-pass filters for each side (different lengths: the left and right tails differ, the
+;     sound is wide).
+; The ring buffer: 8192 words (16 KB of sound RAM).
+;
+; Temporary registers: t0, t2, t4, t6: the low pass filters of the combs (kept from a sample to the next: read as
+; t0'...: the odd registers are never written); t10: the input; t12: the input of the combs; t14: the sum of the
+; combs; t16, t18: the left all-pass filters; t20, t22: the right ones.
+; MEMS: 0-3: the outputs of the combs, 4: the input of the combs, 5-8: the early reflections, 9-12: the all-pass
+; filters.
+
+.ring 8192
+.line pre 1014
+.line c0 1116
+.line c1 1188
+.line c2 1277
+.line c3 1356
+.line al1 556
+.line al2 441
+.line ar1 579
+.line ar2 464
+
+.const in_gain 0.25         ; the input (the sends of many loud sounds add up: no saturation in the combs)
+.coef damp                  ; the low pass filter of the combs: lp = y * (1 - damp) + lp * damp
+.coef damp1
+.coef fbd1                  ; feedback * (1 - damp)
+.coef fbd                   ; feedback * damp
+.const one 0.99976
+.const comb_gain 0.25
+.const ap_gain 0.5
+.coef er1                   ; the early reflections (set at run time: the size of the room)
+.coef er2
+.coef er3
+.coef er4
+.coef wet                   ; the level of the tail
+
+; The input: in the pre-delay line and t10
+ira=mixs0 x=in y=in_gain
+twt=t10 mwt=pre
+; The reads: the input of the combs, the combs, the early reflections, the all-pass filters
+mrd=pre+353>4
+mrd=c0+1116>0
+ira=mems4 x=in y=one                                    ; the input of the combs (MEMS 4 written by the read 2 steps before)
+twt=t12 mrd=c1+1188>1
+; Comb 0
+ira=mems0 x=in y=damp1
+x=t0' y=damp b=acc mrd=c2+1277>2
+twt=t0 ira=mems0 x=in y=fbd1 b=t12
+x=t0' y=fbd b=acc
+mwt=c0 ira=mems1 x=in y=damp1                           ; (comb 0 written) comb 1
+x=t2' y=damp b=acc
+twt=t2 ira=mems1 x=in y=fbd1 b=t12 mrd=c3+1356>3
+x=t2' y=fbd b=acc
+mwt=c1 ira=mems2 x=in y=damp1                           ; comb 2
+x=t4' y=damp b=acc
+twt=t4 ira=mems2 x=in y=fbd1 b=t12 mrd=al1+556>9
+x=t4' y=fbd b=acc
+mwt=c2 ira=mems3 x=in y=damp1                           ; comb 3
+x=t6' y=damp b=acc
+twt=t6 ira=mems3 x=in y=fbd1 b=t12 mrd=al2+441>10
+x=t6' y=fbd b=acc
+mwt=c3 ira=mems0 x=in y=comb_gain                       ; the sum of the combs
+ira=mems1 x=in y=comb_gain b=acc
+ira=mems2 x=in y=comb_gain b=acc mrd=ar1+579>11
+ira=mems3 x=in y=comb_gain b=acc
+twt=t14 mrd=ar2+464>12
+; Left: 2 all-pass filters (out = buf - u, buf = u + g * buf)
+ira=mems9 x=in y=ap_gain b=t14
+mwt=al1 ira=mems9 x=in y=one b=t14 neg
+twt=t16
+ira=mems10 x=in y=ap_gain b=t16
+mwt=al2 ira=mems10 x=in y=one b=t16 neg
+twt=t18
+; Right
+ira=mems11 x=in y=ap_gain b=t14
+mwt=ar1 ira=mems11 x=in y=one b=t14 neg
+twt=t20
+ira=mems12 x=in y=ap_gain b=t20
+mwt=ar2 ira=mems12 x=in y=one b=t20 neg
+twt=t22
+; The early reflections (the taps of the pre-delay line)
+mrd=pre+397>5
+mrd=pre+573>6
+mrd=pre+750>7
+mrd=pre+1014>8
+; The outputs: the tail and the reflections
+x=t18 y=wet
+ira=mems5 x=in y=er1 b=acc
+ira=mems7 x=in y=er3 b=acc
+ewt=0 shift=1 x=t22 y=wet           ; (the outputs doubled: the input was divided by 4)
+ira=mems6 x=in y=er2 b=acc
+ira=mems8 x=in y=er4 b=acc
+ewt=1 shift=1
