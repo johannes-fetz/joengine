@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,7 @@
 /** @file effects.h
  *  @author Johannes Fetz
  *
- *  @brief Jo Engine Function prototypes special effects (Laser beam, etc)
+ *  @brief Jo Engine Function prototypes special effects (Laser beam, fire, smoke, flash, shake, etc)
  *  @bug No known bugs.
  */
 
@@ -80,6 +80,92 @@ void    jo_init_homing_laser(jo_homing_laser * const homing_laser, const int spr
  *  @remarks source, intermediate_point_a, intermediate_point_b, target and length must be set before this call
  */
 void    jo_draw_homing_laser(jo_homing_laser * const homing_laser);
+
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+
+/*
+** Effects of the 3D world: animated sprites (fire, smoke, dust, sparks...), flash of the screen, shake of the camera.
+** Cheap on the Saturn: the sprites are opaque with end codes (half transparency costs a lot of VDP1 time), the flash is
+** the color offset of the VDP2 (free), the shake is an offset of the camera given to the game.
+** The explosions of the entities use them (see entity.h)
+*/
+
+/** @brief Effects at the same time (the oldest one is reused) */
+# define JO_EFFECT_MAX                      (32)
+/** @brief Frames of the animation of an effect at most */
+# define JO_EFFECT_MAX_FRAMES               (4)
+
+/** @brief The sprite is mixed with what is behind (VDP1 half transparency: costly, for small sprites only) */
+# define JO_EFFECT_HALF_TRANSPARENT         (0x01)
+/** @brief The sprite stands on its position (else it is centered on it) */
+# define JO_EFFECT_STANDING                 (0x02)
+/** @brief The sprite is flipped at random (the effects don't look the same) */
+# define JO_EFFECT_RANDOM_FLIP              (0x04)
+
+/** @brief Definition of an effect (shared by the effects of the same kind) */
+typedef struct
+{
+    short                           sprites[JO_EFFECT_MAX_FRAMES];  // Frames of the animation (played once during the life)
+    unsigned char                   frame_count;
+    unsigned char                   life;           // Frames of the game
+    unsigned char                   flags;          // JO_EFFECT_xxx
+    unsigned char                   __pad;
+    short                           size_start;     // Half size at the start and at the end (world units)
+    short                           size_end;
+    short                           rise;           // Speed up (1/16 world units per frame of the game)
+    short                           __pad2;
+}                                   jo_effect_def;
+
+/** @brief Add an effect
+ *  @param def Definition (it must stay in memory)
+ *  @param position Center (or foot: JO_EFFECT_STANDING), world space
+ *  @param delay Frames before the effect starts (an explosion is a group of fireballs that start one after the other)
+ */
+void                                jo_effect_add(const jo_effect_def * const def, const jo_pos3D_fixed * const position, const int delay);
+
+/** @brief Remove all the effects, the flash and the shake */
+void                                jo_effects_clear(void);
+
+/** @brief Animate the effects, the flash and the shake: once per frame of the game */
+void                                jo_effects_update(void);
+
+/** @brief Draw the effects (in the world: the camera matrix is the current matrix, see jo_3d_set_depth_bias())
+ *  @return Number of VDP1 commands (sprites) drawn
+ */
+int                                 jo_effects_draw(void);
+
+/** @brief Flash of the screen: the color offset of the VDP2 is added to all the screens, it fades to 0
+ *  @param r Red (0 to 255: added to the colors)
+ *  @param g Green
+ *  @param b Blue
+ *  @param frames Frames of the game until it is gone
+ *  @remarks The registers are written during the VBLANK (no line of the screen with half of the flash). A brighter flash
+ *           than the current one replaces it
+ */
+void                                jo_effect_flash(const int r, const int g, const int b, const int frames);
+
+/** @brief Fade of the screen to black (or back): the color offset of the VDP2 (see jo_effect_flash())
+ *  @param darkness 0 (no fade) to 255 (black)
+ *  @param frames Frames of the game to reach it (see jo_effects_update()), 0: now
+ *  @remarks A change of level: fade to black, load, fade back. jo_effects_clear() doesn't change the fade
+ */
+void                                jo_effect_fade(const int darkness, const int frames);
+
+/** @brief Check if the fade is not finished (see jo_effect_fade()) */
+bool                                jo_effect_is_fading(void);
+
+/** @brief Shake of the camera
+ *  @param amount Amplitude (world units). A stronger shake than the current one replaces it
+ *  @param frames Frames of the game until it is gone
+ */
+void                                jo_effect_shake(const int amount, const int frames);
+
+/** @brief Offset of the camera of the shake (add it to the position of the eyes)
+ *  @param offset Offset (output, world units Q16.16), 0 when nothing shakes
+ */
+void                                jo_effect_get_shake(jo_pos3D_fixed * const offset);
+
+#endif /* !JO_COMPILE_WITH_3D_SUPPORT */
 
 #endif /* !JO_COMPILE_WITH_EFFECTS_SUPPORT */
 
