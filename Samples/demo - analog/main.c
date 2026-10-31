@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -28,9 +28,9 @@
 #include <jo/jo.h>
 
 #define BOX_SIZE (128)
-#define DIGITAL_UDLR toFIXED(0.5)
-#define DIGITAL_DIAG toFIXED(0.35)
-#define DIGITAL_TRIG toFIXED(0.999)
+#define DIGITAL_UDLR JO_FLOAT_TO_FIXED(0.5)
+#define DIGITAL_DIAG JO_FLOAT_TO_FIXED(0.35)
+#define DIGITAL_TRIG JO_FLOAT_TO_FIXED(0.999)
 
 static int cross_sprite = 0;
 static int trigger_sprite = 0;

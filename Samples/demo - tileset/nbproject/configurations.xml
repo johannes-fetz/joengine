@@ -45,7 +45,6 @@
             <incDir>
               <pElem>.</pElem>
               <pElem>../jo_engine</pElem>
-              <pElem>../Compiler/SGL_302j/INC</pElem>
               <pElem>../Compiler/SH_COFF/sh-coff/lib/gcc/sh-coff/4.0-GNUSH_v0601/include</pElem>
             </incDir>
           </cTool>

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2021, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -58,6 +58,8 @@ void            test2(void)
 
 void            my_async_callback_for_test3(char *contents, int length, int optional_token)
 {
+    JO_UNUSED_ARG(length);
+    JO_UNUSED_ARG(optional_token);
     // jo_fs_read_file_async() automatically adds the null char at the end of the string
     jo_printf(0, 2, "test3: %s", contents);
     jo_free(contents);

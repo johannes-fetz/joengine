@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2013, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -58,6 +58,13 @@ void			    my_gamepad(void)
             is_cd_playing = false;
         }
     }
+    if (jo_is_pad1_key_down(JO_KEY_C) && is_cd_playing)
+    {
+        if (jo_audio_is_cd_paused())
+            jo_audio_resume_cd();
+        else
+            jo_audio_pause_cd();
+    }
 }
 
 void            load_blop_sound(void)
@@ -91,6 +98,7 @@ void			jo_main(void)
 	load_blop_sound();
     jo_printf(0, 1, "Press A to play Blop sound");
     jo_printf(0, 2, "Press B to play CD music");
+    jo_printf(0, 3, "Press C to pause/resume CD music");
 	jo_core_add_callback(my_draw);
 	jo_core_add_callback(my_gamepad);
 	jo_core_run();

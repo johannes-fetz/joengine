@@ -12,7 +12,9 @@ game.elf
 game.iso
 game.cue
 game.map
+game.ip.bin
 /jo_engine/*.o
+/jo_engine/jo_options.txt
 /Projects/*/*.o
 /Samples/*/*.o
 *.layout
@@ -30,3 +32,12 @@ Emulators/SSF/Setting/*
 /Projects/*.7z
 /Emulators/SSF/Backup/InternalBackup/*.bin
 /Emulators/YabaSanshiro/debug.txt
+/Compiler/MACOS/*
+!/Compiler/MACOS/README.txt
+!/Compiler/MACOS/build_toolchain.sh
+
+# Build outputs not covered above
+game.ip.o
+*.su
+# Debug output of the emulators (Yabause)
+/Samples/*/debug.txt
