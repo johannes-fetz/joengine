@@ -38,6 +38,10 @@
 
 # define JO_INPUT_MAX_DEVICE            (12)
 
+/** @brief Index in jo_inputs of the first peripheral of each port (6 peripherals per port, see jo_get_inputs_vblank()) */
+# define JO_INPUT_PORT1_FIRST_DEVICE    (0)
+# define JO_INPUT_PORT2_FIRST_DEVICE    (6)
+
 extern jo_peripheral                       jo_inputs[JO_INPUT_MAX_DEVICE];
 # define __JO_KEY_PRESSED(PORT, KEY)    ((jo_inputs[PORT].data & KEY) == 0)
 
@@ -227,7 +231,7 @@ static  __jo_force_inline int	jo_get_mouse_pos_y(const int port)
  */
 static  __jo_force_inline bool	jo_is_pad1_available(void)
 {
-    return jo_is_input_available(0);
+    return jo_is_input_available(JO_INPUT_PORT1_FIRST_DEVICE);
 }
 
 /** @brief Check if the second gamepad is plugged
@@ -235,7 +239,7 @@ static  __jo_force_inline bool	jo_is_pad1_available(void)
  */
 static  __jo_force_inline bool	jo_is_pad2_available(void)
 {
-    return jo_is_input_available(1);
+    return jo_is_input_available(JO_INPUT_PORT2_FIRST_DEVICE);
 }
 
 /** @brief Check if the key is pressed on the first gamepad
@@ -244,7 +248,7 @@ static  __jo_force_inline bool	jo_is_pad2_available(void)
  */
 static  __jo_force_inline bool	jo_is_pad1_key_pressed(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_pressed(0, key));
+    return (jo_is_input_key_pressed(JO_INPUT_PORT1_FIRST_DEVICE, key));
 }
 
 /** @brief Check if the key is down on the first gamepad
@@ -253,7 +257,7 @@ static  __jo_force_inline bool	jo_is_pad1_key_pressed(jo_gamepad_keys key)
  */
 static  __jo_force_inline bool	jo_is_pad1_key_down(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_down(0, key));
+    return (jo_is_input_key_down(JO_INPUT_PORT1_FIRST_DEVICE, key));
 }
 
 /** @brief Check if the key is pressed on the second gamepad
@@ -262,7 +266,7 @@ static  __jo_force_inline bool	jo_is_pad1_key_down(jo_gamepad_keys key)
  */
 static  __jo_force_inline bool	jo_is_pad2_key_pressed(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_pressed(1, key));
+    return (jo_is_input_key_pressed(JO_INPUT_PORT2_FIRST_DEVICE, key));
 }
 
 /** @brief Check if the key is down on the second gamepad
@@ -271,7 +275,7 @@ static  __jo_force_inline bool	jo_is_pad2_key_pressed(jo_gamepad_keys key)
  */
 static  __jo_force_inline bool	jo_is_pad2_key_down(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_down(1, key));
+    return (jo_is_input_key_down(JO_INPUT_PORT2_FIRST_DEVICE, key));
 }
 
 #endif /* !__JO_INPUT_H__ */
