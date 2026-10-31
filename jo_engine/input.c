@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -43,62 +42,39 @@
 
 # define JO_INPUT_SPIN_WAIT     (16)
 
-#if !JO_COMPILE_USING_SGL
-jo_input                        jo_inputs[JO_INPUT_MAX_DEVICE];
-
-void                            jo_input_init(void)
-{
-    jo_memset(&jo_inputs, 0, sizeof(jo_inputs));
-    jo_smpc_write_byte(DataDirectionRegister1, 0x60);
-    jo_smpc_write_byte(DataDirectionRegister2, 0x60);
-    jo_smpc_write_byte(InputOutputSelectRegister, 0x03);
-    jo_smpc_write_byte(ExternalLatchEnableRegister, 0x00);
-}
-
-static unsigned short       jo_read_input(const jo_smpc_memory_address port)
-{
-    unsigned short          temp;
-
-    jo_smpc_write_byte(port, 0x60);
-    jo_spin_wait(JO_INPUT_SPIN_WAIT);
-    temp = (jo_smpc_read_byte(port) & 0x08) << 12;
-
-    jo_smpc_write_byte(port, 0x40);
-    jo_spin_wait(JO_INPUT_SPIN_WAIT);
-    temp |= (jo_smpc_read_byte(port) & 0x0F) << 8;
-
-    jo_smpc_write_byte(port, 0x20);
-    jo_spin_wait(JO_INPUT_SPIN_WAIT);
-    temp |= (jo_smpc_read_byte(port) & 0x0F) << 4;
-
-    jo_smpc_write_byte(port, 0x00);
-    jo_spin_wait(JO_INPUT_SPIN_WAIT);
-    temp |= (jo_smpc_read_byte(port) & 0x0F) << 0;
-
-    return (temp ^ 0x8FFF);
-}
-
-void                            jo_get_inputs_vblank(void)
-{
-    unsigned short              previous;
-
-    previous = jo_inputs[0].pressed;
-    jo_inputs[0].id = PER_ID_StnPad; /* TODO */
-    jo_inputs[0].pressed = jo_read_input(PortDataRegister1);
-    jo_inputs[0].on_keydown = (jo_inputs[0].pressed ^ previous) & jo_inputs[0].pressed;
-    jo_inputs[0].on_keyup = (previous ^ jo_inputs[0].pressed) & previous;
-
-    previous = jo_inputs[1].pressed;
-    jo_inputs[1].id = PER_ID_StnPad; /* TODO */
-    jo_inputs[1].pressed = jo_read_input(PortDataRegister2);
-    jo_inputs[1].on_keydown = (jo_inputs[1].pressed ^ previous) & jo_inputs[1].pressed;
-    jo_inputs[1].on_keyup = (previous ^ jo_inputs[1].pressed) & previous;
-}
-#else
-PerDigital                      jo_inputs[JO_INPUT_MAX_DEVICE];
+jo_peripheral                      jo_inputs[JO_INPUT_MAX_DEVICE];
 
 #define __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT        (36)
 #define __JO_SECOND_MULTITAP_OFFSET                         (54)
+
+/*
+** The peripherals are read at each VBLANK, the game reads jo_inputs once per frame (JO_FRAMERATE VBLANK): the keys pushed
+** or released since the start of the frame are accumulated, else jo_is_pad1_key_down() would miss the keys pushed during
+** the other VBLANK. Each push or pull is reported to the first frame that starts after it (and to the current frame).
+*/
+static unsigned short           jo_input_push[JO_INPUT_MAX_DEVICE];
+static unsigned short           jo_input_pull[JO_INPUT_MAX_DEVICE];
+static unsigned short           jo_input_reported_push[JO_INPUT_MAX_DEVICE];
+static unsigned short           jo_input_reported_pull[JO_INPUT_MAX_DEVICE];
+
+/** @brief Start of a frame (Internal usage, called by __jo_core_synch()): forget the keys already reported to the previous frame */
+void                            __jo_input_frame_start(void)
+{
+    register unsigned int       i;
+    unsigned int                sr;
+
+    sr = __jo_core_disable_interrupts();
+    for (JO_ZERO(i); i < JO_INPUT_MAX_DEVICE; ++i)
+    {
+        jo_input_push[i] &= ~jo_input_reported_push[i];
+        jo_input_pull[i] &= ~jo_input_reported_pull[i];
+        jo_input_reported_push[i] = jo_input_push[i];
+        jo_input_reported_pull[i] = jo_input_pull[i];
+        jo_inputs[i].push = (unsigned short)~jo_input_push[i];
+        jo_inputs[i].pull = (unsigned short)~jo_input_pull[i];
+    }
+    __jo_core_restore_interrupts(sr);
+}
 
 void                            jo_get_inputs_vblank(void)
 {
@@ -107,7 +83,7 @@ void                            jo_get_inputs_vblank(void)
     unsigned int                *dest;
 
     //We get the first 6 inputs
-    src = (unsigned int *)Smpc_Peripheral;
+    src = (unsigned int *)__jo_smpc_peripherals;
     dest = (unsigned int *)&jo_inputs[0];
     for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
         *dest++ = *src++;
@@ -116,28 +92,35 @@ void                            jo_get_inputs_vblank(void)
     src += __JO_SECOND_MULTITAP_OFFSET;
     for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
         *dest++ = *src++;
+    // Keys pushed or released since the start of the frame (active low in jo_inputs)
+    for (JO_ZERO(i); i < JO_INPUT_MAX_DEVICE; ++i)
+    {
+        jo_input_push[i] |= (unsigned short)~jo_inputs[i].push;
+        jo_input_pull[i] |= (unsigned short)~jo_inputs[i].pull;
+        jo_inputs[i].push = (unsigned short)~jo_input_push[i];
+        jo_inputs[i].pull = (unsigned short)~jo_input_pull[i];
+    }
 }
-#endif
 
 jo_gamepad_type                 jo_get_input_type(const int port)
 {
     switch (jo_inputs[port].id)
     {
-    case PER_ID_NotConnect:
+    case JO_PERIPHERAL_ID_NOT_CONNECTED:
         return (JoNotConnectedGamepad);
-    case PER_ID_StnPad:
+    case JO_PERIPHERAL_ID_STANDARD_PAD:
         return (JoRegularGamepad);
-    case PER_ID_StnMouse:
+    case JO_PERIPHERAL_ID_MOUSE:
         return (JoRegularMouse);
-    case PER_ID_ShuttleMouse:
+    case JO_PERIPHERAL_ID_SHUTTLE_MOUSE:
         return (JoShuttleMouse);
-    case PER_ID_StnKeyBoard:
+    case JO_PERIPHERAL_ID_KEYBOARD:
         return (JoRegularKeyboard);
-    case PER_ID_NightsPad:
+    case JO_PERIPHERAL_ID_NIGHTS_PAD:
         return (JoNightsPad);
-    case PER_ID_MissionStick:
+    case JO_PERIPHERAL_ID_MISSION_STICK:
         return (JoMissionStick);
-    case PER_ID_Racing:
+    case JO_PERIPHERAL_ID_RACING_WHEEL:
         return (JoRacingWheel);
     default:
         return (JoUnsupportedGamepad);
@@ -166,7 +149,7 @@ unsigned char                   jo_get_input_axis(const int port, const jo_input
         switch (axis)
         {
         case JoAxis1:
-            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Wheel turn axis
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->x;      // Wheel turn axis
         default:
             break;
         }
@@ -176,11 +159,11 @@ unsigned char                   jo_get_input_axis(const int port, const jo_input
         switch (axis)
         {
         case JoAxis1:
-            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Stick X axis
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->x;      // Stick X axis
         case JoAxis2:
-            return ((PerAnalog *)(&jo_inputs[port]))->y;      // Stick Y axis
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->y;      // Stick Y axis
         case JoAxis3:
-            return ((PerAnalog *)(&jo_inputs[port]))->z;      // Throttle
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->z;      // Throttle
         default:
             break;
         }
@@ -190,13 +173,13 @@ unsigned char                   jo_get_input_axis(const int port, const jo_input
         switch (axis)
         {
         case JoAxis1:
-            return ((PerAnalog *)(&jo_inputs[port]))->x;      // Thumb X axis
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->x;      // Thumb X axis
         case JoAxis2:
-            return ((PerAnalog *)(&jo_inputs[port]))->y;      // Thumb Y axis
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->y;      // Thumb Y axis
         case JoAxis3:
-            return ((PerAnalog *)(&jo_inputs[port]))->z;      // Right trigger
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->z;      // Right trigger
         case JoAxis4:
-            return ((PerAnalog *)(&jo_inputs[port]))->dummy1; // Left trigger
+            return ((jo_peripheral_analog *)(&jo_inputs[port]))->w; // Left trigger
 
         default:
             break;

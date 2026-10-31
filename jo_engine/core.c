@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -31,7 +31,6 @@
 */
 #include <stdbool.h>
 #include <stdarg.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -53,6 +52,8 @@
 #include "jo/vdp2.h"
 #include "jo/storyboard.h"
 #include "jo/keyboard.h"
+#include "jo/3d.h"
+#include "jo/profile.h"
 
 /*
 ** DEFINITIONS
@@ -65,6 +66,8 @@ extern unsigned int                         __jo_fs_background_job_count;
 #endif
 extern unsigned int                         _bstart;
 extern unsigned int                         _bend;
+/* End of the engine work area (see jo.linker) */
+extern unsigned int                         _jo_work_end;
 extern void                                 jo_main(void);
 void                                        __jo_init_vdp2(const jo_color back_color);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
@@ -97,11 +100,25 @@ void                                        jo_fs_do_background_jobs(void);
 void                                        jo_sprite_init(void);
 void                                        jo_time_init(unsigned char mode);
 void                                        jo_get_inputs_vblank(void);
+void                                        __jo_input_frame_start(void);
+void                                        __jo_smpc_init(void);
+void                                        __jo_smpc_vblank_in(void);
+void                                        __jo_vdp2_init_registers(void);
+void                                        __jo_vdp2_vblank(void);
+void                                        __jo_vdp2_set_tv_display(const bool on);
+void                                        __jo_vdp2_set_priority(const jo_scroll_screen screen, const unsigned short priority);
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+void                                        __jo_3d_end_frame(void);
+void                                        __jo_3d_reset_matrix(void);
+#endif
 
 #ifdef JO_DEBUG
 char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 #endif
 
+/** @brief Number of VBLANK since startup */
+volatile unsigned int                       __jo_core_vblank_count = 0;
+static unsigned int                         __jo_core_last_synch_vblank = 0;
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
@@ -115,13 +132,13 @@ void                                        jo_core_slave_init(void);
 
 static  __jo_force_inline void              jo_enable_extended_ram_cartridge_support(void)
 {
-    *((int *)0x257efffe) = 1;
+    JO_RAM_CARTRIDGE_ENABLE = 1;
 }
 
 static  __jo_force_inline void              jo_set_a_bus_register(void)
 {
-    *((int *)0x25fe0080) = 0x23301ff0;
-    *((int *)0x25fe0033) = 0x00000013;
+    JO_SCU_ASR0 = JO_RAM_CARTRIDGE_ASR0;
+    JO_SCU_AREF = JO_RAM_CARTRIDGE_AREF;
 }
 
 #endif
@@ -143,38 +160,56 @@ static void __jo_vblank_callbacks(void)
     jo_list_foreach(&__vblank_callbacks, __jo_call_event);
 }
 
-#if !JO_COMPILE_USING_SGL
 
-static __jo_force_inline void jo_wait_vblank_out(void)
+/** @brief Minimum size of a free area of the high work RAM given to jo_malloc() */
+#define JO_MIN_FREE_HIGH_WORK_RAM_ZONE  (1024)
+/** @brief Alignment of the free areas of the high work RAM given to jo_malloc() (cache line) */
+#define JO_FREE_HIGH_WORK_RAM_ALIGN     (16)
+
+/** @brief Give a free area of the high work RAM to jo_malloc()
+ *  @param begin Start of the area
+ *  @param end End of the area (excluded)
+ */
+static void                 jo_add_free_high_work_ram_zone(unsigned int begin, const unsigned int end)
 {
-    while ((JO_VDP2_TVSTAT & 8) == 8);
+    begin = (begin + JO_FREE_HIGH_WORK_RAM_ALIGN - 1) & ~(JO_FREE_HIGH_WORK_RAM_ALIGN - 1);
+    if (end > begin && end - begin >= JO_MIN_FREE_HIGH_WORK_RAM_ZONE)
+        jo_add_memory_zone((unsigned char *)begin, end - begin);
 }
-
-static __jo_force_inline void jo_wait_vblank_in(void)
-{
-    while ((JO_VDP2_TVSTAT & 8) == 0);
-}
-
-#endif
 
 static bool                 jo_init_memory(void)
 {
     static unsigned char    global_memory[JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC];
 
     jo_add_memory_zone(global_memory, sizeof(global_memory));
+    // The high work RAM not used by the program (after .bss) and by the engine (after the engine work area, before the stack):
+    // jo_malloc() uses the high work RAM before the slower memories (low work RAM, RAM cartridge)
+    jo_add_free_high_work_ram_zone((unsigned int)&_bend, JO_WORK_RAM_USER_PROGRAM_AND_DATA_END);
+#ifdef JO_STACK_GUARD_SIZE
+    // (tests: a painted area under the stack of the master CPU, not given to jo_malloc(), checked by the game)
+    jo_add_free_high_work_ram_zone((unsigned int)&_jo_work_end, JO_WORK_RAM_STACK_BOTTOM - JO_STACK_GUARD_SIZE);
+    {
+        volatile unsigned int   *w;
+
+        for (w = (volatile unsigned int *)(JO_WORK_RAM_STACK_BOTTOM - JO_STACK_GUARD_SIZE); (unsigned int)w < JO_WORK_RAM_STACK_BOTTOM; ++w)
+            *w = 0xDEADBEEF;
+    }
+#else
+    jo_add_free_high_work_ram_zone((unsigned int)&_jo_work_end, JO_WORK_RAM_STACK_BOTTOM);
+#endif
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
     if (jo_get_extended_ram_cartridge_type() == CART_8MBits)
     {
         jo_enable_extended_ram_cartridge_support();
         jo_set_a_bus_register();
-        jo_add_memory_zone((unsigned char *)0x22400000, 0x80000);
-        jo_add_memory_zone((unsigned char *)0x22600000, 0x80000);
+        jo_add_memory_zone((unsigned char *)JO_RAM_CARTRIDGE_ADDRESS, JO_RAM_CARTRIDGE_8MBITS_BANK_SIZE);
+        jo_add_memory_zone((unsigned char *)JO_RAM_CARTRIDGE_8MBITS_BANK2_ADDRESS, JO_RAM_CARTRIDGE_8MBITS_BANK_SIZE);
     }
     else if (jo_get_extended_ram_cartridge_type() == CART_32MBits)
     {
         jo_enable_extended_ram_cartridge_support();
         jo_set_a_bus_register();
-        jo_add_memory_zone((unsigned char *)0x22400000, 0x200000);
+        jo_add_memory_zone((unsigned char *)JO_RAM_CARTRIDGE_ADDRESS, JO_RAM_CARTRIDGE_32MBITS_SIZE);
     }
 #endif
 #ifdef JO_DEBUG
@@ -186,111 +221,151 @@ static bool                 jo_init_memory(void)
     return (true);
 }
 
+/*
+** INTERRUPTS
+*/
+
+/** @brief Get the vector base register
+ *  @return Address of the interrupt vector table
+ */
+static  __jo_force_inline unsigned int      jo_core_get_vbr(void)
+{
+    unsigned int                            vbr;
+
+    __asm__ volatile ("stc vbr, %0" : "=r" (vbr));
+    return (vbr);
+}
+
+void                                        __jo_core_set_interrupt_handler(const unsigned int vector, jo_interrupt_handler handler)
+{
+    *(volatile unsigned int *)(jo_core_get_vbr() + JO_MULT_BY_4(vector)) = (unsigned int)handler;
+}
+
+/** @brief SCU interrupt mask (1: masked) */
+static unsigned int                         jo_core_scu_mask = JO_SCU_INT_ALL;
+
+void                                        __jo_core_enable_scu_interrupts(const unsigned int mask)
+{
+    unsigned int                            sr;
+
+    sr = __jo_core_disable_interrupts();
+    jo_core_scu_mask = (jo_core_scu_mask & ~mask) & JO_SCU_INT_ALL;
+    // The BIOS copy first: an interrupt handled by the BIOS writes it to the SCU when it returns
+    JO_BIOS_SCU_IMS = jo_core_scu_mask;
+    JO_SCU_IMS = jo_core_scu_mask;
+    __jo_core_restore_interrupts(sr);
+}
+
+void                                        __jo_core_restore_scu_mask(void)
+{
+    JO_SCU_IMS = jo_core_scu_mask;
+}
+
+/** @brief VBLANK-IN interrupt handler
+ *  @remarks Applies the VDP2 registers, displays the last VDP1 command table, calls the VBLANK callbacks and requests the peripheral data
+ *  @remarks The division unit is saved and restored: the interrupted code can be waiting for a quotient (jo_fixed_div_start())
+ *           and the VBLANK callbacks can use jo_fixed_div()
+ */
+static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
+{
+    int                                     divisor;
+    int                                     high;
+    int                                     quotient;
+
+    // Reading the quotient waits for the end of a division in progress
+    quotient = JO_SH2_DVDNTL;
+    divisor = JO_SH2_DVSR;
+    high = JO_SH2_DVDNTH;
+    ++__jo_core_vblank_count;
+    __jo_vdp2_vblank();
+    __jo_vdp1_vblank();
+    if (__vblank_callbacks.count)
+        __jo_vblank_callbacks();
+    // Requests the SMPC status and the peripheral data (like the Sega libraries, during the VBLANK)
+    __jo_smpc_vblank_in();
+    // The quotient can only be written by a division: quotient / 1
+    JO_SH2_DVSR = 1;
+    JO_SH2_DVDNTH = quotient < 0 ? -1 : 0;
+    JO_SH2_DVDNTL = quotient;
+    // Wait for the end of the division
+    quotient = JO_SH2_DVDNTL;
+    // Remainder (or high part of a dividend not yet complete) and divisor
+    JO_SH2_DVDNTH = high;
+    JO_SH2_DVSR = divisor;
+    // The SCU masked its interrupts when this one was taken
+    __jo_core_restore_scu_mask();
+}
+
+/*
+** SYSTEM
+*/
+
+/** @brief Initialize the hardware (VDP1, VDP2, SMPC) and the interrupts
+ *  @remarks The display stays off (see jo_core_tv_on())
+ */
+static void                                 jo_core_init_system(void)
+{
+    __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
+    JO_BIOS_SCU_IMS = JO_SCU_INT_ALL;
+    JO_SCU_IMS = JO_SCU_INT_ALL;
+    __jo_vdp2_init_registers();
+    __jo_vdp1_init();
+    __jo_smpc_init();
+    __jo_core_set_interrupt_handler(JO_VECTOR_VBLANK_IN, jo_core_vblank_in_handler);
+    __jo_core_enable_scu_interrupts(JO_SCU_INT_VBLANK_IN | JO_SCU_INT_SMPC);
+    JO_ZERO(__jo_core_vblank_count);
+    JO_ZERO(__jo_core_last_synch_vblank);
+    __jo_core_set_sr(JO_SH2_SR_INTERRUPTS_ON);
+}
+
+void                                        __jo_core_synch(void)
+{
+    unsigned int                            target;
+
+    __jo_vdp1_end_frame();
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+    jo_profile_count(JO_PROFILE_POLYGONS, jo_3d_get_displayed_polygon_count());
+    __jo_3d_end_frame();
+#endif
+    // Real frame rate = (60 / JO_FRAMERATE)
+    jo_profile_begin(JO_PROFILE_VSYNC);
+    target = __jo_core_last_synch_vblank + (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE);
+    while ((int)(__jo_core_vblank_count - target) < 0 || __jo_core_vblank_count == __jo_core_last_synch_vblank)
+    {
+#ifndef JO_CORE_SYNCH_BUSY_WAIT
+        // The CPU sleeps until the next interrupt (the VBLANK, the SMPC just after it): the same wait, without the loop
+        // (an emulator does not run the instructions of the loop: Mednafen emulates the game faster)
+        __asm__ volatile ("sleep");
+#endif
+    }
+    jo_profile_end(JO_PROFILE_VSYNC);
+    jo_profile_count(JO_PROFILE_VBLANKS, 100 * (__jo_core_vblank_count - __jo_core_last_synch_vblank));
+    __jo_core_last_synch_vblank = __jo_core_vblank_count;
+    // The inputs of the new frame
+    __jo_input_frame_start();
+}
+
+void                                        jo_core_tv_off(void)
+{
+    __jo_vdp2_set_tv_display(false);
+}
+
+void                                        jo_core_tv_on(void)
+{
+    __jo_vdp2_set_tv_display(true);
+}
+
 static void         jo_core_init_vdp(const jo_color back_color)
 {
-#if JO_COMPILE_USING_SGL
-    slInitSystem(JO_TV_RES, (TEXTURE *)__jo_sprite_def, JO_FRAMERATE/*Real frame rate = (60 / JO_FRAMERATE)*/);
-    slTVOff();
+    jo_core_init_system();
+    jo_core_tv_off();
     __jo_init_vdp2(back_color);
-#else
-    slInitSystem(0, 0, 0); // TODO fix nosgl.linker script
-
-    jo_memset((void *)JO_VDP1_REG, 0, 0x16);
-    jo_memset((void *)JO_VDP2_REG, 0, 0x11E);
-    jo_memset((void *)JO_VDP2_VRAM, 0, 0x40000);
-    jo_memset((void *)JO_VDP2_CRAM, 0, 0x0800);
-
-    JO_VDP1_EWRR = (((JO_TV_WIDTH >> 3) << 9) | JO_TV_HEIGHT);
-    JO_VDP1_EDSR = 0x3;
-    JO_VDP1_PTMR = 0x2;
-    JO_VDP1_MODR = 0x1100;
-#if defined(JO_NTSC_VERSION)
-    JO_VDP2_HCNT = 0x275;
-#else
-    JO_VDP2_HCNT = 0x26B;
-#endif
-    JO_VDP2_VCNT = 0x36;
-    JO_VDP2_RAMCTL = 0x1327;
-
-    JO_VDP2_CYCA0L = 0x5555;
-    JO_VDP2_CYCA0U = 0xFEEE;
-    JO_VDP2_CYCA1L = 0x5555;
-    JO_VDP2_CYCA1U = 0xFEEE;
-    JO_VDP2_CYCB0L = 0xFFFF;
-    JO_VDP2_CYCB0U = 0xEEEE;
-    JO_VDP2_CYCB1L = 0x44F;
-    JO_VDP2_CYCB1U = 0xEEEE;
-
-    JO_VDP2_BGON = 0x3;
-
-    JO_VDP2_CHCTLA = 0x3210;
-    JO_VDP2_CHCTLB = 0x1000;
-
-    JO_VDP2_PNCN0 = 0x800C;
-    JO_VDP2_PNCN1 = 0xC00E;
-    JO_VDP2_PNCN2 = 0xC000;
-    JO_VDP2_PNCN3 = 0xC000;
-    JO_VDP2_PNCR = 0xC000;
-
-    JO_VDP2_MPABN0 = 0x3B3B;
-    JO_VDP2_MPCDN0 = 0x3B3B;
-    JO_VDP2_MPABN1 = 0x3939;
-    JO_VDP2_MPCDN1 = 0x3939;
-
-    JO_VDP2_MPABRA = 0x2020;
-    JO_VDP2_MPCDRA = 0x2020;
-    JO_VDP2_MPEFRA = 0x2020;
-    JO_VDP2_MPGHRA = 0x2020;
-    JO_VDP2_MPIJRA = 0x2020;
-    JO_VDP2_MPKLRA = 0x2020;
-    JO_VDP2_MPMNRA = 0x2020;
-    JO_VDP2_MPOPRA = 0x2020;
-
-    JO_VDP2_MPABRB = 0x2828;
-    JO_VDP2_MPCDRB = 0x2828;
-    JO_VDP2_MPEFRB = 0x2828;
-    JO_VDP2_MPGHRB = 0x2838;
-    JO_VDP2_MPIJRB = 0x2828;
-    JO_VDP2_MPKLRB = 0x2828;
-    JO_VDP2_MPMNRB = 0x2828;
-    JO_VDP2_MPOPRB = 0x2828;
-
-    JO_VDP2_ZMXIN0 = 0x1;
-    JO_VDP2_ZMYIN0 = 0x1;
-
-    JO_VDP2_ZMXIN1 = 0x1;
-    JO_VDP2_ZMYIN1 = 0x1;
-
-    JO_VDP2_BKTAU = 0x12F1;
-    JO_VDP2_BKTAL = 0xFFFF;
-
-    JO_VDP2_RPTAU = 0x1;
-    JO_VDP2_RPTAL = 0xFF80;
-
-    JO_VDP2_WPEX0 = 0x27E;
-    JO_VDP2_WPEY0 = 0x1BE;
-
-    JO_VDP2_WPEX1 = 0x27E;
-    JO_VDP2_WPEY1 = 0x1BE;
-
-    JO_VDP2_SPCTL = 0x23;
-
-    JO_VDP2_PRISA = 0x506;
-    JO_VDP2_PRISB = 0x505;
-    JO_VDP2_PRISC = 0x505;
-    JO_VDP2_PRISD = 0x505;
-    JO_VDP2_PRINA = 0x607;
-    JO_VDP2_PRINB = 0x102;
-    JO_VDP2_PRIR = 0x4;
-
-    jo_vdp2_clear_bitmap_nbg1(back_color);
-    jo_set_printf_color_index(0);
-#endif
 /*Credit: slinga-homebrew, fafling and Ponut64
   https://github.com/johannes-fetz/joengine/pull/58
 */
 # if defined(JO_480i)
-    JO_VDP2_CRAOFB = 0x0010 | (JO_VDP2_CRAOFB & 0xFF0F);
+    // Sprite color RAM address offset: 1
+    JO_VDP2_CRAOFB = JO_VDP2_CRAOFB_SPRITE_OFFSET(1) | (JO_VDP2_CRAOFB & ~JO_VDP2_CRAOFB_SPRITE_OFFSET_MASK);
 #  if defined(JO_COMPILE_WITH_PRINTF_SUPPORT)
     jo_vdp2_zoom_nbg0(0.5f);
 #  endif
@@ -299,7 +374,6 @@ static void         jo_core_init_vdp(const jo_color back_color)
 
 void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ...)
 {
-#if JO_COMPILE_USING_SGL
     va_list             va;
     int                 priority;
     jo_scroll_screen    screen;
@@ -309,33 +383,11 @@ void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ..
     screen = screen1;
     do
     {
-        switch (screen)
-        {
-            case JO_NBG0_SCREEN: slPriorityNbg0(priority); break;
-            case JO_NBG1_SCREEN: slPriorityNbg1(priority); break;
-            case JO_NBG2_SCREEN: slPriorityNbg2(priority); break;
-            case JO_NBG3_SCREEN: slPriorityNbg3(priority); break;
-            case JO_RBG0_SCREEN: slPriorityRbg0(priority); break;
-            case JO_SPRITE_SCREEN:
-                slPrioritySpr0(priority);
-                slPrioritySpr1(priority);
-                slPrioritySpr2(priority);
-                slPrioritySpr3(priority);
-                slPrioritySpr4(priority);
-                slPrioritySpr5(priority);
-                slPrioritySpr6(priority);
-                slPrioritySpr7(priority);
-                break;
-            default: break;
-        }
+        __jo_vdp2_set_priority(screen, priority);
         screen = va_arg(va, jo_scroll_screen);
         --priority;
     } while (screen != ((jo_scroll_screen)~0));
     va_end(va);
-#else
-    JO_UNUSED_ARG(screen1);
-    //TODO
-#endif // JO_COMPILE_USING_SGL
 }
 
 void			    jo_core_init(const jo_color back_color)
@@ -350,6 +402,12 @@ void			    jo_core_init(const jo_color back_color)
     is_memory_ok =
 #endif
     jo_init_memory();
+#if JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704
+    // 352 and 704 pixels width modes need the 28.6 MHz clock. The change resets the VDPs, the SCU and the slave CPU,
+    // and the SMPC sends an NMI to the master CPU: the routine of the Boot ROM does it (SYS_CHGSYSCK), before the
+    // slave CPU is started and before the registers of the VDPs are written
+    JO_BIOS_CHANGE_SYSTEM_CLOCK(JO_BIOS_SYSTEM_CLOCK_352);
+#endif
     jo_list_init(&__vblank_callbacks);
     jo_list_init(&__callbacks);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
@@ -357,9 +415,6 @@ void			    jo_core_init(const jo_color back_color)
 #endif
     jo_core_init_vdp(back_color);
     jo_core_add_vblank_callback(jo_get_inputs_vblank);
-#if !JO_COMPILE_USING_SGL
-    jo_input_init();
-#endif
 #if defined(JO_COMPILE_WITH_AUDIO_SUPPORT)
     jo_audio_init();
     jo_audio_set_volume(JO_DEFAULT_AUDIO_VOLUME);
@@ -370,16 +425,7 @@ void			    jo_core_init(const jo_color back_color)
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
     jo_init_storyboards();
 #endif
-#if JO_COMPILE_USING_SGL
-    slTVOn();
-#else
-    jo_vdp1_buffer_init();
-# if defined(JO_NTSC_VERSION)
-    JO_VDP2_TVMD = 0x8110;
-#else
-    JO_VDP2_TVMD = 0x8120;
-#endif
-#endif
+    jo_core_tv_on();
 #ifdef JO_DEBUG
     if (!is_memory_ok)
         jo_core_error("Please reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC");
@@ -402,6 +448,9 @@ void			    jo_core_init(const jo_color back_color)
 #endif
     jo_sprite_init();
     jo_time_init(JO_TIME_CKS_32_MODE);
+#ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
+    __jo_profile_init();
+#endif
     // random seed initialization
     jo_getdate(&dt);
     jo_random_seed = JO_MULT_BY_4096(dt.second) +
@@ -427,10 +476,6 @@ inline int			jo_core_add_vblank_callback(const jo_event_callback callback)
     node = jo_list_add_ptr(&__vblank_callbacks, callback);
     if (node == JO_NULL)
         return (0);
-#if JO_COMPILE_USING_SGL
-    if (__vblank_callbacks.count == 1)
-        slIntFunction(__jo_vblank_callbacks);
-#endif // JO_COMPILE_USING_SGL
     return (int)node;
 }
 
@@ -444,10 +489,6 @@ inline void    jo_core_remove_vblank_callback(const int vblank_event_id)
     }
 #endif
     jo_list_remove(&__vblank_callbacks, (jo_node *)vblank_event_id);
-#if JO_COMPILE_USING_SGL
-    if (__vblank_callbacks.count == 0)
-        slIntFunction(JO_NULL);
-#endif // JO_COMPILE_USING_SGL
 }
 
 inline int			jo_core_add_callback(const jo_event_callback callback)
@@ -481,19 +522,36 @@ inline void    jo_core_remove_callback(const int event_id)
 
 void            jo_goto_boot_menu(void)
 {
-#if JO_COMPILE_USING_SGL
-    SYS_Exit(0);
-#endif
+    __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
+    // Back to the boot ROM (multiplayer screen)
+    jo_smpc_begin_command();
+    jo_smpc_end_command(SystemReset);
+    for (;;)
+        ;
 }
 
 #ifdef JO_DEBUG
+
+void            __jo_core_errorf(const char *function, const char *format, ...)
+{
+    va_list     args;
+
+    va_start(args, format);
+    jo_vsprintf(__jo_last_error, format, args);
+    va_end(args);
+    __jo_core_error(__jo_last_error, function);
+}
 
 void            __jo_core_error(char *message, const char *function)
 {
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     int         usage;
 
-    jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Blue);
+    // (the NBG1 bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap(): the back color, the text stays on NBG0)
+    if (__jo_vdp2_reserve_nbg1_bitmap())
+        jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Blue);
+    else
+        jo_set_default_background_color(JO_COLOR_Blue);
     jo_set_printf_color_index(0);
     jo_printf(0, 13, "   >>> Jo Engine error handler <<<");
     usage = jo_memory_usage_percent();
@@ -519,7 +577,10 @@ void            __jo_core_error(char *message, const char *function)
 #else
     JO_UNUSED_ARG(message);
     JO_UNUSED_ARG(function);
-    jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Red);
+    if (__jo_vdp2_reserve_nbg1_bitmap())
+        jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Red);
+    else
+        jo_set_default_background_color(JO_COLOR_Red);
     jo_core_suspend();
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 }
@@ -556,12 +617,7 @@ void            jo_core_suspend(void)
             JO_ZERO(frame);
         }
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
-#if JO_COMPILE_USING_SGL
-        slSynch();
-#else
-        jo_wait_vblank_out();
-        jo_wait_vblank_in();
-#endif
+        __jo_core_synch();
         if (jo_is_pad1_available() && (jo_is_pad1_key_down(JO_KEY_START)
 #ifdef JO_COMPILE_WITH_KEYBOARD_SUPPORT
             || (jo_keyboard_get_special_key() == JO_KEYBOARD_ENTER)
@@ -584,18 +640,12 @@ void    jo_core_set_restart_game_callback(const jo_event_callback callback)
 
 void			        jo_core_run(void)
 {
+    jo_profile_begin(JO_PROFILE_FRAME);
     for (;;)
     {
-#if !JO_COMPILE_USING_SGL
-        jo_vdp1_buffer_reset();
-#endif
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
-    #if JO_COMPILE_USING_SGL
-        slUnitMatrix(0);
-    #else
-        /* TODO slUnitMatrix replacement */
-    #endif
+        __jo_3d_reset_matrix();
 #endif
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
@@ -619,21 +669,21 @@ void			        jo_core_run(void)
         if (__jo_fs_background_job_count)
             jo_fs_do_background_jobs();
 #endif
+        jo_profile_begin(JO_PROFILE_CALLBACKS);
         jo_list_foreach(&__callbacks, __jo_call_event);
+        jo_profile_end(JO_PROFILE_CALLBACKS);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)
             jo_core_wait_for_slave();
 #endif
 
-#if JO_COMPILE_USING_SGL
-        slSynch();
-#else
-        jo_vdp1_flush();
-        jo_wait_vblank_out();
-        __jo_vblank_callbacks();
-        jo_wait_vblank_in();
-#endif
+        __jo_core_synch();
         __jo_gouraud_shading_runtime_index = -1;
+#ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
+        jo_profile_end(JO_PROFILE_FRAME);
+        jo_profile_begin(JO_PROFILE_FRAME);
+        __jo_profile_end_frame();
+#endif
     }
     jo_goto_boot_menu();
 }
@@ -660,8 +710,7 @@ void                jo_dump_vdp2_registers(void)
 
 int     main(void)
 {
-	jo_memset(&_bstart, 0, &_bend - &_bstart);
-    jo_memset((void *)JO_WORK_RAM_SYSTEM_WORK, 0, JO_WORK_RAM_SYSTEM_WORK_SIZE);
+	// (the .bss is cleared by start.S)
 	jo_main();
 	return (0);
 }

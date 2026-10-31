@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -47,11 +47,12 @@
 
   makefile sample:
 
-    JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH = 1
     JO_COMPILE_WITH_VIDEO_MODULE = 0
     JO_COMPILE_WITH_BACKUP_MODULE = 1
     JO_COMPILE_WITH_TGA_MODULE = 1
     JO_COMPILE_WITH_AUDIO_MODULE = 1
+    JO_COMPILE_WITH_AUDIO_DRIVER_MODULE = 0      (the 68000 runs a sound driver: glides, tones; needs the audio module)
+    JO_COMPILE_WITH_AUDIO_DSP_MODULE = 0         (the DSP of the SCSP makes a reverberation; needs the audio module)
     JO_COMPILE_WITH_3D_MODULE = 1
     JO_COMPILE_WITH_PSEUDO_MODE7_MODULE = 1
     JO_COMPILE_WITH_EFFECTS_MODULE = 1
@@ -70,7 +71,6 @@
     JO_MAX_FILE_IN_IMAGE_PACK = 32
     JO_DEBUG = 1
     JO_NTSC = 0
-    JO_COMPILE_USING_SGL = 1
     SRCS=main.c
     include ../Compiler/COMMON/jo_engine_makefile
 */
@@ -81,8 +81,6 @@
 
 # if defined(JO_NTSC_VERSION)
     # if defined(JO_480i)
-        /** @brief Sega Saturn NTSC Screen resolution (internal use) */
-        # define JO_TV_RES							(TV_704x480)
         /** @brief NTSC Screen width */
         # define JO_TV_WIDTH						(704)
         /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
@@ -96,8 +94,6 @@
         /** @brief NTSC Screen height divided by 4 (math optimization purpose) */
         # define JO_TV_HEIGHT_4						(120)
     #else
-        /** @brief Sega Saturn NTSC Screen resolution (internal use) */
-        # define JO_TV_RES							(TV_320x240)
         /** @brief NTSC Screen width */
         # define JO_TV_WIDTH						(320)
         /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
@@ -113,8 +109,6 @@
     #endif
 #else /* PAL Version */
     # if defined(JO_480i)
-        /** @brief Sega Saturn PAL Screen resolution (internal use) */
-        # define JO_TV_RES							(TV_704x256)
         /** @brief PAL Screen width */
         # define JO_TV_WIDTH						(704)
         /** @brief PAL Screen width divided by 2 (math optimization purpose) */
@@ -128,8 +122,6 @@
         /** @brief PAL Screen height divided by 4 (math optimization purpose) */
         # define JO_TV_HEIGHT_4						(64)
     #else
-        /** @brief Sega Saturn PAL Screen resolution (internal use) */
-        # define JO_TV_RES							(TV_320x256)
         /** @brief PAL Screen width */
         # define JO_TV_WIDTH						(320)
         /** @brief PAL Screen width divided by 2 (math optimization purpose) */
@@ -147,14 +139,14 @@
 
 # if defined (JO_480i)
     /** @brief VDP2 Background bitmap size */
-    # define JO_VDP2_SIZE                       (BM_1024x512)
+    # define JO_VDP2_SIZE                       (0x0E) /* 1024x512 */
     /** @brief VDP2 Background bitmap width */
     # define JO_VDP2_WIDTH                      (1024)
     /** @brief VDP2 Background bitmap height */
     # define JO_VDP2_HEIGHT                     (512)
 #else
     /** @brief VDP2 Background bitmap size */
-    # define JO_VDP2_SIZE                       (BM_512x256)
+    # define JO_VDP2_SIZE                       (0x02) /* 512x256 */
     /** @brief VDP2 Background bitmap width */
     # define JO_VDP2_WIDTH                      (512)
     /** @brief VDP2 Background bitmap height */

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -157,6 +157,129 @@ static  __jo_force_inline void jo_smpc_end_command(jo_smpc_command command)
     jo_smpc_write_byte(CommandRegister, command);
     jo_smpc_wait();
 }
+
+/*
+** PERIPHERALS
+*/
+
+/** @brief Peripheral ID: nothing connected */
+# define JO_PERIPHERAL_ID_NOT_CONNECTED         (0xff)
+/** @brief Peripheral ID: standard pad */
+# define JO_PERIPHERAL_ID_STANDARD_PAD          (0x02)
+/** @brief Peripheral ID: racing wheel */
+# define JO_PERIPHERAL_ID_RACING_WHEEL          (0x13)
+/** @brief Peripheral ID: mission stick */
+# define JO_PERIPHERAL_ID_MISSION_STICK         (0x15)
+/** @brief Peripheral ID: 3D pad (NiGHTS pad) */
+# define JO_PERIPHERAL_ID_NIGHTS_PAD            (0x16)
+/** @brief Peripheral ID: mouse */
+# define JO_PERIPHERAL_ID_MOUSE                 (0x23)
+/** @brief Peripheral ID: shuttle mouse */
+# define JO_PERIPHERAL_ID_SHUTTLE_MOUSE         (0xe3)
+/** @brief Peripheral ID: keyboard */
+# define JO_PERIPHERAL_ID_KEYBOARD              (0x34)
+
+/** @brief Keyboard condition: caps lock is on */
+# define JO_PERIPHERAL_KEYBOARD_CAPS_LOCK       (1 << 6)
+/** @brief Keyboard condition: num lock is on */
+# define JO_PERIPHERAL_KEYBOARD_NUM_LOCK        (1 << 5)
+/** @brief Keyboard condition: scroll lock is on */
+# define JO_PERIPHERAL_KEYBOARD_SCROLL_LOCK     (1 << 4)
+/** @brief Keyboard condition: a key is pressed (make) */
+# define JO_PERIPHERAL_KEYBOARD_MAKE            (1 << 3)
+/** @brief Keyboard condition: a key is released (break) */
+# define JO_PERIPHERAL_KEYBOARD_BREAK           (1 << 0)
+
+/** @brief Digital peripheral data (gamepad)
+ *  @remarks Buttons are active low: a bit at 0 means pressed
+ */
+typedef struct
+{
+    unsigned char       id;         // JO_PERIPHERAL_ID_xxx
+    unsigned char       size;       // Data size
+    unsigned short      data;       // Current state
+    unsigned short      push;       // Pressed this frame
+    unsigned short      pull;       // Released this frame
+    unsigned int        reserved[4];
+}                       jo_peripheral;
+
+/** @brief Analog peripheral data (racing wheel, mission stick, 3D pad)
+ *  @remarks Inherits from jo_peripheral (cast friendly)
+ */
+typedef struct
+{
+    unsigned char       id;
+    unsigned char       size;
+    unsigned short      data;
+    unsigned short      push;
+    unsigned short      pull;
+    unsigned char       x;
+    unsigned char       y;
+    unsigned char       z;
+    unsigned char       w;
+    unsigned int        reserved[3];
+}                       jo_peripheral_analog;
+
+/** @brief Pointing peripheral data (mouse)
+ *  @remarks Inherits from jo_peripheral (cast friendly)
+ */
+typedef struct
+{
+    unsigned char       id;
+    unsigned char       size;
+    unsigned short      data;
+    unsigned short      push;
+    unsigned short      pull;
+    short               x;
+    short               y;
+    unsigned int        reserved[3];
+}                       jo_peripheral_pointer;
+
+/** @brief Keyboard data
+ *  @remarks Inherits from jo_peripheral (cast friendly)
+ */
+typedef struct
+{
+    unsigned char       id;
+    unsigned char       size;
+    unsigned short      data;
+    unsigned short      push;
+    unsigned short      pull;
+    unsigned char       condition;  // JO_PERIPHERAL_KEYBOARD_xxx flags
+    unsigned char       code;       // Key code
+    unsigned short      reserved1;
+    unsigned int        reserved2[3];
+}                       jo_peripheral_keyboard;
+
+/** @brief Number of peripherals per port (with a multitap) */
+# define JO_SMPC_PERIPHERAL_PER_PORT    (15)
+
+/** @brief Peripherals (Internal usage): 15 entries for port 1 followed by 15 entries for port 2 */
+extern jo_peripheral    __jo_smpc_peripherals[JO_SMPC_PERIPHERAL_PER_PORT * 2];
+
+/** @brief SMPC status (Internal usage) */
+typedef struct
+{
+    unsigned char       cond;
+    unsigned short      year;       // BCD
+    unsigned char       month;      // week << 4 | month
+    unsigned char       day;        // BCD
+    unsigned char       hour;       // BCD
+    unsigned char       minute;     // BCD
+    unsigned char       second;     // BCD
+    unsigned char       cartridge_code;
+    unsigned char       area_code;
+    unsigned short      system_status;
+    unsigned int        smpc_memory;
+}                       jo_smpc_status;
+
+/** @brief SMPC status, refreshed every frame (Internal usage) */
+extern jo_smpc_status   __jo_smpc_status;
+
+/** @brief Send a command to the SMPC and wait for the end of the command (Internal usage)
+ *  @param command SMPC command
+ */
+void                    __jo_smpc_command(const jo_smpc_command command);
 
 #endif /* !__JO_SMPC_H__ */
 

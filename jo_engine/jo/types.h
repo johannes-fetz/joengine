@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -42,11 +42,16 @@
 typedef unsigned short jo_color;
 
 /** @brief Fixed point Q16.16 number
- *  @remarks SGL compatible (FIXED)
  *  @remarks Integer part is located in the upper 16 bits and a decimal part in the lower 16 bits
  *  @remarks Valid range is -32767.99998 to 32767.99998
  */
 typedef int             jo_fixed;
+
+/** @brief Angle
+ *  @remarks 0x10000 = 360 degrees (0x4000 = 90 degrees)
+ *  @remarks Use jo_DEGtoANG() or JO_DEG_TO_ANGLE() to convert a degree
+ */
+typedef short           jo_angle;
 
 /** @brief 2D position */
 typedef struct
@@ -295,6 +300,7 @@ typedef struct
     void        *handle;
     char        *read_buffer;
     int         read_index;
+    int         read_buffer_size;
 }               jo_file;
 
 /** @brief 8 directions definition */

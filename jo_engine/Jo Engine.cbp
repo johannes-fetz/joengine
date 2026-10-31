@@ -13,7 +13,6 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add option="-DJO_COMPILE_USING_SGL" />
 			<Add option="-DJO_COMPILE_WITH_RAM_CARD_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_FS_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_TGA_SUPPORT" />
@@ -93,7 +92,6 @@
 		<Unit filename="jo/palette.h" />
 		<Unit filename="jo/physics.h" />
 		<Unit filename="jo/sega_saturn.h" />
-		<Unit filename="jo/sgl_prototypes.h" />
 		<Unit filename="jo/smpc.h" />
 		<Unit filename="jo/software_renderer.h" />
 		<Unit filename="jo/sprite_animator.h" />
@@ -147,6 +145,7 @@
 		<Unit filename="sprites.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="start.S" />
 		<Unit filename="storyboard.c">
 			<Option compilerVar="CC" />
 		</Unit>

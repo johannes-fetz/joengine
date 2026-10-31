@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "sgl_prototypes.h"
 #include "conf.h"
 #include "types.h"
 #include "sega_saturn.h"
@@ -70,6 +69,14 @@
 #include "mode7.h"
 #include "physics.h"
 #include "3d.h"
+#include "model.h"
+#include "light.h"
+#include "glow.h"
+#include "level.h"
+#include "entity.h"
+#include "cell.h"
+#include "weapon.h"
+#include "vehicle.h"
 #include "backup.h"
 #include "video.h"
 #include "effects.h"
@@ -77,6 +84,8 @@
 #include "storyboard.h"
 #include "software_renderer.h"
 #include "voxel.h"
+#include "profile.h"
+#include "dsp.h"
 
 #endif /* !__JO_H__ */
 

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -40,19 +39,77 @@
 #include "jo/core.h"
 #include "jo/malloc.h"
 #include "jo/list.h"
+#include "jo/time.h"
+#include "jo/profile.h"
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /*
+** The slave CPU executes the jobs of a queue in jo_slave_main(). The master CPU
+** adds a job and wakes it up by writing to 0x21000000, which sets the input
+** capture flag of the slave free running timer. The slave polls this on-chip
+** flag, so waiting does not use the external bus.
+**
+** The queue holds the jobs of the user (jo_core_exec_on_slave()) and of the
+** engine (__jo_core_add_slave_job(): the VDP1 commands of the previous frame are
+** sorted and copied by the slave CPU while the master CPU computes the next frame).
+** The master CPU never waits to add a job, unless the queue is full.
+**
+** The variables shared by the 2 CPUs are read and written through the
+** cache-through addresses (the cache of a CPU doesn't see the writes of the other).
+*/
+
+/*
 ** INTERNAL MACROS
 */
-# define SETSINT(_Num_, _Hdr_) ((**(void(**)(unsigned int, void *))0x6000310)((_Num_), (_Hdr_)))
-# define IPRA ((unsigned short *)0xfffffee2)
-# define IPRB ((unsigned short *)0xfffffe60)
-# define TIER ((unsigned char *)0xfffffe10)
-# define FTCSR ((unsigned char *)0xfffffe11)
+# define JO_SLAVE_ENTRY_POINT               (*(volatile unsigned int *)0x06000250)
+# define JO_SLAVE_STACK_POINTER             (*(volatile unsigned int *)0x060002AC)
+# define JO_SLAVE_WAKE_UP                   (*(volatile unsigned short *)0x21000000)
+/** @brief Any value can be written to wake up the slave CPU */
+# define JO_SLAVE_WAKE_UP_VALUE             (0xffff)
+/** @brief Maximum wait loop count for the slave CPU startup */
+# define JO_SLAVE_START_TIMEOUT             (0x100000)
+/** @brief Size of the job queue (power of 2) */
+# define JO_SLAVE_QUEUE_SIZE                (8)
+# define JO_SLAVE_RUNNING                   (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_running))
+/** @brief Jobs added by the master CPU (written by the master CPU only) */
+# define JO_SLAVE_QUEUE_HEAD                (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_queue_head))
+/** @brief Jobs done by the slave CPU (written by the slave CPU only) */
+# define JO_SLAVE_QUEUE_TAIL                (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_queue_tail))
+/** @brief User jobs done by the slave CPU (written by the slave CPU only) */
+# define JO_SLAVE_USER_DONE                 (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_user_done))
+/** @brief Ticks of the free running timer the slave CPU spent waiting, its user jobs done, before the master CPU waited
+ *  for it (written by the slave CPU only, see jo_core_slave_idle_time()) */
+# define JO_SLAVE_IDLE_TICKS                (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_idle_ticks))
+/** @brief User jobs added by the master CPU (written by the master CPU only) */
+# define JO_SLAVE_USER_ADDED                (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_user_added))
+/** @brief The master CPU waits in jo_core_wait_for_slave() (until it adds a new user job, written by the master CPU only) */
+# define JO_SLAVE_MASTER_WAITING            (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_master_waiting))
+/** @brief Microseconds per tick of the free running timers (clock / 32, see jo_time_init(): 26.8 MHz or 28.6 MHz) */
+# define JO_SLAVE_TICK_MICROSECONDS(TICKS)  ((JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704) ? ((TICKS) * 1000) / 895 : ((TICKS) * 1000) / 839)
+# define JO_SLAVE_JOB(INDEX)                (((volatile jo_slave_job *)JO_CACHE_THROUGH(__jo_slave_queue))[(INDEX) & (JO_SLAVE_QUEUE_SIZE - 1)])
+
+/** @brief Job of the slave CPU */
+typedef struct
+{
+    jo_slave_job_function           function;
+    void                            *argument;
+}                                   jo_slave_job;
 
 jo_list                             __slave_callbacks;
+static volatile unsigned int        __jo_slave_running;
+static jo_slave_job                 __jo_slave_queue[JO_SLAVE_QUEUE_SIZE];
+static volatile unsigned int        __jo_slave_queue_head;
+static volatile unsigned int        __jo_slave_queue_tail;
+static volatile unsigned int        __jo_slave_user_done;
+static volatile unsigned int        __jo_slave_idle_ticks;
+static volatile unsigned int        __jo_slave_master_waiting;
+/** @brief User jobs added (master CPU only, read by the slave CPU: JO_SLAVE_USER_ADDED) */
+static volatile unsigned int        __jo_slave_user_added;
+/** @brief Balance of the CPUs in the last frame (master CPU only, see jo_core_slave_idle_time())
+ *  @remarks idle: JO_SLAVE_IDLE_TICKS at the last jo_core_wait_for_slave(), waited: ticks the master CPU waited */
+static unsigned int                 __jo_slave_last_idle_ticks;
+static int                          __jo_slave_idle_time;
 
 inline int			jo_core_add_slave_callback(const jo_event_callback callback)
 {
@@ -83,103 +140,171 @@ inline void    jo_core_remove_slave_callback(const int event_id)
     jo_list_remove(&__slave_callbacks, (jo_node *)event_id);
 }
 
-#if JO_COMPILE_USING_SGL
-
-volatile bool __jo_slave_done_flag = false;
-
-void                                jo_core_slave_init(void)
+/** @brief Purge the cache of the current CPU
+ *  @remarks Needed after the other CPU changed the shared data
+ */
+static  __jo_force_inline void      jo_slave_cache_purge(void)
 {
-    jo_list_init(&__slave_callbacks);
+    unsigned char                   ccr;
+
+    ccr = JO_SH2_CCR;
+    // Disable the cache while purging it
+    JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE);
+    JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE;
+    JO_SH2_CCR = ccr;
 }
 
-static __jo_force_inline void      jo_core_slave_bootstrap(void *param)
+/** @brief Main loop of the slave CPU
+ *  @remarks Executes the jobs of the queue in order
+ *  @remarks The master CPU wakes up the slave CPU by writing to JO_SLAVE_WAKE_UP
+ */
+static void                         jo_slave_main(void)
 {
-    ((jo_slave_callback)param)();
-    __jo_slave_done_flag = true;
-}
+    jo_slave_job_function           function;
+    void                            *argument;
+    unsigned int                    tail;
+    unsigned int                    start;
+    bool                            counting;
 
-inline void                        jo_core_wait_for_slave(void)
-{
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#pragma GCC diagnostic push
-    while (!*((volatile bool *)(&__jo_slave_done_flag + 0x20000000)))
-        ;
-#pragma GCC diagnostic pop
-    __jo_slave_done_flag = false;
-    slCashPurge();
-}
-
-inline void                        jo_core_exec_on_slave(jo_slave_callback callback)
-{
-    slSlaveFunc(jo_core_slave_bootstrap, callback);
-}
-
-#else //!JO_COMPILE_USING_SGL
-
-static jo_slave_callback           __jo_current_callback = JO_NULL;
-
-inline void                        jo_core_wait_for_slave(void)
-{
-    while ((*(volatile unsigned short *)0x21000000));
-}
-
-inline void                        jo_core_exec_on_slave(jo_slave_callback callback)
-{
-    __jo_current_callback = callback;
-    *(volatile unsigned short *)0x21000000 = 0xffff;
-}
-
-static inline unsigned int	get_sr(void)
-{
-    unsigned int	sr;
-
-    asm volatile ( "stc\tsr,%0": "=r" (sr) );
-    return (sr);
-}
-
-static inline void	set_sr2(unsigned int sr)
-{
-    asm volatile ( "ldc\t%0,sr":: "r" (sr) );
-}
-
-static inline void	set_imask(unsigned int imask)
-{
-    unsigned int	sr = get_sr();
-
-    sr &= ~0x000000f0;
-    sr |= (imask << 4);
-    set_sr2(sr);
-}
-
-static void     __jo_slave_cpu_main(void)
-{
-    set_imask(0xF);
-    *IPRA = 0x0000;
-    *IPRB = 0x0000;
-    *TIER = 0x01;
+    __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
+    JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
+    JO_SH2_FRT_FTCSR = 0;
+    // Free running timer: clock / 32, like the master CPU (see jo_time_init())
+    jo_time_poke_byte(RegisterTCR, (jo_time_peek_byte(RegisterTCR) & ~JO_TIME_M_CKS) | JO_TIME_CKS_32_MODE);
+    // Purge and enable the cache
+    JO_SH2_CCR = JO_SH2_CCR_CACHE_PURGE;
+    JO_SH2_CCR = JO_SH2_CCR_CACHE_ENABLE;
+    JO_SLAVE_RUNNING = 1;
     for (;;)
     {
-        if ((*FTCSR & 0x80) == 0x80)
+        tail = JO_SLAVE_QUEUE_TAIL;
+        if (JO_SLAVE_QUEUE_HEAD == tail)
         {
-            jo_slave_callbacks();
-            //if (__jo_current_callback != JO_NULL)
-            //    __jo_current_callback();
-            //(*(void(*)(void))*(void**)((unsigned int)&__jo_current_callback + 0x20000000))();
-            *FTCSR = 0x00;
+            // The time spent waiting, the user jobs done, before the master CPU waits for the slave CPU (it wakes up the
+            // slave CPU then): the master CPU balances the work of the CPUs with it, see jo_core_slave_idle_time()
+            start = jo_time_get_frc();
+            counting = JO_SLAVE_USER_DONE == JO_SLAVE_USER_ADDED && !JO_SLAVE_MASTER_WAITING;
+            while (JO_SLAVE_QUEUE_HEAD == tail)
+            {
+                while (!(JO_SH2_FRT_FTCSR & JO_SH2_FRT_FTCSR_ICF))
+                    ;
+                JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_ICF;
+                if (counting && JO_SLAVE_MASTER_WAITING)
+                {
+                    JO_SLAVE_IDLE_TICKS = JO_SLAVE_IDLE_TICKS + ((jo_time_get_frc() - start) & 0xFFFF);
+                    counting = false;
+                }
+            }
+            if (counting)
+                JO_SLAVE_IDLE_TICKS = JO_SLAVE_IDLE_TICKS + ((jo_time_get_frc() - start) & 0xFFFF);
         }
+        // The data of the job were written by the master CPU
+        jo_slave_cache_purge();
+        __jo_profile_slave_job();
+        function = JO_SLAVE_JOB(tail).function;
+        argument = JO_SLAVE_JOB(tail).argument;
+        jo_profile_begin(JO_PROFILE_SLAVE);
+        function(argument);
+        jo_profile_end(JO_PROFILE_SLAVE);
+        JO_SLAVE_QUEUE_TAIL = tail + 1;
     }
 }
 
-static __jo_force_inline void       jo_core_slave_init(void)
+void                                jo_core_slave_init(void)
 {
-    jo_smpc_begin_command();
-    jo_smpc_end_command(DisableSlaveCPU);
-    jo_spin_wait(10);
-    SETSINT(0x94, (void*)&__jo_slave_cpu_main);
-    jo_smpc_begin_command();
-    jo_smpc_end_command(EnableSlaveCPU);
+    register unsigned int           timeout;
+
+    jo_list_init(&__slave_callbacks);
+    JO_SLAVE_RUNNING = 0;
+    JO_SLAVE_QUEUE_HEAD = 0;
+    JO_SLAVE_QUEUE_TAIL = 0;
+    JO_SLAVE_USER_DONE = 0;
+    JO_SLAVE_IDLE_TICKS = 0;
+    JO_SLAVE_MASTER_WAITING = 0;
+    JO_SLAVE_USER_ADDED = 0;
+    JO_ZERO(__jo_slave_last_idle_ticks);
+    JO_ZERO(__jo_slave_idle_time);
+    __jo_smpc_command(DisableSlaveCPU);
+    // Boot ROM: slave entry point and stack
+    JO_SLAVE_ENTRY_POINT = (unsigned int)jo_slave_main;
+    JO_SLAVE_STACK_POINTER = JO_WORK_RAM_SLAVE_STACK_TOP;
+    __jo_smpc_command(EnableSlaveCPU);
+    // Wait until the slave CPU is ready
+    for (JO_ZERO(timeout); !JO_SLAVE_RUNNING && timeout < JO_SLAVE_START_TIMEOUT; ++timeout)
+        ;
 }
 
-#endif
+bool                                __jo_core_is_slave_running(void)
+{
+    return (JO_SLAVE_RUNNING != 0);
+}
+
+void                                __jo_core_add_slave_job(const jo_slave_job_function function, void *argument)
+{
+    unsigned int                    head;
+
+    // The slave CPU didn't start: the job is done now by the master CPU
+    if (!JO_SLAVE_RUNNING)
+    {
+        function(argument);
+        return;
+    }
+    head = JO_SLAVE_QUEUE_HEAD;
+    // The queue is full: wait for the oldest job
+    while (head - JO_SLAVE_QUEUE_TAIL >= JO_SLAVE_QUEUE_SIZE)
+        ;
+    JO_SLAVE_JOB(head).function = function;
+    JO_SLAVE_JOB(head).argument = argument;
+    // The job is visible before the new head (the writes through the cache-through addresses are done in order)
+    JO_SLAVE_QUEUE_HEAD = head + 1;
+    // Wake up the slave CPU (FRT input capture)
+    JO_SLAVE_WAKE_UP = JO_SLAVE_WAKE_UP_VALUE;
+}
+
+/** @brief Execute a user callback and notify the master CPU
+ *  @param param Callback (jo_slave_callback)
+ */
+static void                         jo_core_slave_bootstrap(void *param)
+{
+    ((jo_slave_callback)param)();
+    JO_SLAVE_USER_DONE = JO_SLAVE_USER_DONE + 1;
+}
+
+inline void                        jo_core_wait_for_slave(void)
+{
+    unsigned int                    start;
+    unsigned int                    waited;
+    unsigned int                    idle;
+
+    jo_profile_begin(JO_PROFILE_WAIT_SLAVE);
+    // All the callbacks given to jo_core_exec_on_slave() are done (the slave CPU is woken up: it stops counting its idle time)
+    start = jo_time_get_frc();
+    JO_SLAVE_MASTER_WAITING = 1;
+    JO_SLAVE_WAKE_UP = JO_SLAVE_WAKE_UP_VALUE;
+    while (JO_SLAVE_USER_DONE != JO_SLAVE_USER_ADDED)
+        ;
+    waited = (jo_time_get_frc() - start) & 0xFFFF;
+    // The data written by the slave CPU
+    jo_slave_cache_purge();
+    // The balance of the frame: the slave CPU waited for its jobs (it can do more), or the master CPU waited for it
+    idle = JO_SLAVE_IDLE_TICKS;
+    __jo_slave_idle_time = JO_SLAVE_TICK_MICROSECONDS((int)(idle - __jo_slave_last_idle_ticks)) - JO_SLAVE_TICK_MICROSECONDS((int)waited);
+    __jo_slave_last_idle_ticks = idle;
+    jo_profile_end(JO_PROFILE_WAIT_SLAVE);
+}
+
+inline int                         jo_core_slave_idle_time(void)
+{
+    return (__jo_slave_idle_time);
+}
+
+inline void                        jo_core_exec_on_slave(jo_slave_callback callback)
+{
+    JO_SLAVE_MASTER_WAITING = 0;
+    JO_SLAVE_USER_ADDED = JO_SLAVE_USER_ADDED + 1;
+    // (when the slave CPU didn't start, the callback is executed now on the master CPU: jo_core_wait_for_slave() doesn't hang)
+    __jo_core_add_slave_job(jo_core_slave_bootstrap, (void *)callback);
+}
+
 
 #endif //!JO_COMPILE_WITH_DUAL_CPU_SUPPORT
