@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Jo Engine">
+  <defs>
+    <radialGradient id="jo-sphere" cx="36%" cy="30%" r="78%">
+      <stop offset="0" stop-color="#8ec2ff"/>
+      <stop offset=".45" stop-color="#3f74f0"/>
+      <stop offset="1" stop-color="#1a2a8c"/>
+    </radialGradient>
+    <radialGradient id="jo-shine" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="jo-steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7d8798"/>
+      <stop offset=".22" stop-color="#f4f6fa"/>
+      <stop offset=".5" stop-color="#aab3c2"/>
+      <stop offset=".78" stop-color="#eef1f6"/>
+      <stop offset="1" stop-color="#6c7586"/>
+    </linearGradient>
+    <linearGradient id="jo-steel-back" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4d5566"/>
+      <stop offset=".5" stop-color="#8a93a3"/>
+      <stop offset="1" stop-color="#4d5566"/>
+    </linearGradient>
+    <linearGradient id="jo-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe9a3"/>
+      <stop offset=".45" stop-color="#f6b62f"/>
+      <stop offset="1" stop-color="#c47a10"/>
+    </linearGradient>
+    <clipPath id="jo-front"><rect x="-20" y="80" width="280" height="100"/></clipPath>
+  </defs>
+  <mask id="jo-cut" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="240">
+    <rect x="-40" y="-40" width="320" height="240" fill="#fff"/>
+    <g transform="rotate(-20 120 80)" clip-path="url(#jo-front)">
+      <ellipse class="jo-ring" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="#000" stroke-width="21"/>
+    </g>
+  </mask>
+  <g class="jo-mark" transform="translate(0 0) scale(1.0)">
+    <g transform="rotate(-20 120 80)">
+      <ellipse class="jo-ring jo-ring--back" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="url(#jo-steel-back)" stroke-width="13"/>
+    </g>
+    <g mask="url(#jo-cut)">
+      <circle class="jo-sphere" cx="120" cy="80" r="59" fill="url(#jo-sphere)"/>
+      <ellipse cx="99" cy="55" rx="22" ry="14" fill="url(#jo-shine)" transform="rotate(-30 99 55)"/>
+    </g>
+    <g transform="rotate(-20 120 80)" clip-path="url(#jo-front)">
+      <ellipse class="jo-ring jo-ring--front" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="url(#jo-steel)" stroke-width="13"/>
+    </g>
+  </g>
+</svg>
