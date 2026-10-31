@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2019 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2018 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,19 +21,25 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-/* ISO C1X: 7.15 Alignment <stdalign.h>.  */
+/*
+ * ISO C Standard:  7.9  Alternative spellings  <iso646.h>
+ */
 
-#ifndef _STDALIGN_H
-#define _STDALIGN_H
+#ifndef _ISO646_H
+#define _ISO646_H
 
 #ifndef __cplusplus
-
-#define alignas _Alignas
-#define alignof _Alignof
-
-#define __alignas_is_defined 1
-#define __alignof_is_defined 1
-
+#define and	&&
+#define and_eq	&=
+#define bitand	&
+#define bitor	|
+#define compl	~
+#define not	!
+#define not_eq	!=
+#define or	||
+#define or_eq	|=
+#define xor	^
+#define xor_eq	^=
 #endif
 
-#endif	/* stdalign.h */
+#endif
