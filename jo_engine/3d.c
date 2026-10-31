@@ -82,7 +82,7 @@ jo_3d_quad                          *__jo_sprite_quad[JO_MAX_SPRITE];
 /** @brief Clipping: a vertex is "very far" outside of the screen when |x| or |y| > z * 2^shift (view space) */
 # define JO_3D_FAR_OUTSIDE_SHIFT            (7)
 /** @brief Screen position (pixels from the left or the top) beyond which a vertex is very far outside of the screen: its view
- *  space position is kept (see __jo_3d_transform_loop()) */
+ *  space position is kept (the assembly loop checks the projected position, see __jo_3d_transform_loop()) */
 # define JO_3D_FAR_LIMIT                    (16384)
 /** @brief Clipping: maximum vertices of a clipped polygon (4 + 1 per plane) */
 /** @brief Distortion of a texture (pixels, see jo_3d_subdivision_level()): more, the polygon is drawn in 2 x 2 parts
@@ -257,7 +257,14 @@ typedef struct
 /** @brief Levels of tiles of a texture (without the flag) */
 # define JO_3D_TILE_LEVEL_COUNT(T)          ((T)->levels & 3)
 
-jo_3d_texture_tiles                         __jo_3d_tiles[JO_MAX_SPRITE];
+/* (read by the assembly polygon loop: kept with their names by the link time optimization) */
+jo_3d_texture_tiles                         __jo_3d_tiles[JO_MAX_SPRITE] __attribute__((used, externally_visible));
+// (the assembly polygon loop reads levels at sprite x 12)
+_Static_assert(sizeof(jo_3d_texture_tiles) == 12, "__jo_3d_polygon_loop: size of jo_3d_texture_tiles");
+// (the assembly polygon loop uses these values, see its label 50)
+_Static_assert(JO_3D_SUBDIVISION_ERROR == 8 && JO_3D_TILES_NEAR_ONLY == 128 && (JO_3D_CODE_SCREEN | JO_3D_CODE_VIEW) == 79 &&
+               JO_3D_CODE_MASK == 127, "__jo_3d_polygon_loop: constants");
+_Static_assert(__builtin_offsetof(jo_3d_texture_tiles, depth) == 8, "__jo_3d_polygon_loop: offset of depth");
 _Static_assert(__builtin_offsetof(jo_3d_texture_tiles, error) == 1, "jo_3d_texture_tiles: the error in the padding after levels");
 
 /** @brief The rectangle of the screen where the objects can be seen (see jo_3d_set_view_rect()): the slopes of its 4 planes
@@ -299,9 +306,14 @@ typedef struct
     int                                     area[2];
 }                                           jo_3d_texture_mipmaps;
 
-jo_3d_texture_mipmaps                       __jo_3d_mipmaps[JO_MAX_SPRITE];
+jo_3d_texture_mipmaps                       __jo_3d_mipmaps[JO_MAX_SPRITE] __attribute__((used, externally_visible));
+// (the assembly polygon loop reads the copies at sprite x 20: the smaller copies were never used when the structure grew)
+_Static_assert(sizeof(jo_3d_texture_mipmaps) == 20, "__jo_3d_polygon_loop: size of jo_3d_texture_mipmaps");
+_Static_assert(__builtin_offsetof(jo_3d_texture_mipmaps, first) == 2 && __builtin_offsetof(jo_3d_texture_mipmaps, width) == 4 &&
+               __builtin_offsetof(jo_3d_texture_mipmaps, height) == 8 && __builtin_offsetof(jo_3d_texture_mipmaps, area) == 12,
+               "__jo_3d_polygon_loop: offsets of jo_3d_texture_mipmaps");
 
-/** @brief Flags of a texture for the polygon loop (see jo_3d_update_texture_flags()): one byte per texture, the
+/** @brief Flags of a texture for the assembly polygon loop (see jo_3d_update_texture_flags()): one byte per texture, the
  *  tiles and the smaller copies are read only when the texture has them (the 2 tables of 12 and 20 bytes per texture don't
  *  stay in the 4 KB cache) */
 # define JO_3D_TEXTURE_HAS_TILES            (1)
@@ -1310,7 +1322,7 @@ static  __jo_force_inline unsigned int      jo_3d_side_code(const jo_fixed x, co
 
 /*
 ** Transformation of the vertices by the SCU DSP (see jo_3d_enable_dsp()): the DSP computes the 3 x 3 part of the matrix
-** for a batch of vertices while the CPU projects the previous batch with __jo_3d_project_loop() (it adds
+** for a batch of vertices while the CPU projects the previous batch with the assembly loop (__jo_3d_project_loop(): it adds
 ** the translation). The DSP reads the vertices in the high work RAM by DMA and writes the results in 2 buffers of the
 ** high work RAM, used in turn.
 ** The results are the same as the CPU (48 bits products, bits 47 to 16 kept).
@@ -1375,11 +1387,17 @@ static  __jo_force_inline bool              jo_3d_dsp_can_read(const void * cons
 }
 
 /*
-** Transformation and projection of the vertices (the common path: a vertex in front of the near plane and not very far
-** outside of the screen). A vertex behind the near plane, or very far outside, is projected by __jo_3d_project_slow().
+** Transformation and projection of the vertices in assembly (the common path: a vertex in front of the near plane and
+** not very far outside of the screen).
+**
+** Registers of the loop: r8 input vertex, r9 output vertex, r10 columns of the matrix, r14 parameters,
+** r11/r12 view space x/y of the pending vertex (its division runs), r13 pending output vertex, r7 division unit.
+** The pending vertex is finished after the multiplications of the next vertex (the division unit needs 39 cycles).
+** A vertex of the slow path (near or far outside) is projected by __jo_3d_project_slow() and the pending vertex
+** becomes a scratch vertex of the stack frame (the stale quotient is written there).
 */
 
-/** @brief Parameters of __jo_3d_transform_loop() */
+/** @brief Parameters of __jo_3d_transform_loop() (the offsets are used by the assembly) */
 typedef struct
 {
     jo_fixed                                tx;         // 0: translation
@@ -1407,9 +1425,9 @@ typedef struct
  *  @param x View space position
  *  @param y View space position
  *  @param z View space depth
- *  @remarks Not inlined in the loop (the common path stays small)
+ *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
  */
-void __attribute__((noinline)) __jo_3d_project_slow(const jo_3d_transform_params * const k, jo_3d_vertex * const v,
+void __attribute__((noinline, used, externally_visible)) __jo_3d_project_slow(const jo_3d_transform_params * const k, jo_3d_vertex * const v,
                                                                  const jo_fixed x, const jo_fixed y, const jo_fixed z)
 {
     jo_3d_view_position                     *view;
@@ -1420,97 +1438,230 @@ void __attribute__((noinline)) __jo_3d_project_slow(const jo_3d_transform_params
     jo_3d_set_vertex(v, 0, 0, z, JO_3D_CODE_NEAR | JO_3D_CODE_VIEW | jo_3d_side_code(x, y, z, k->cx, k->cy, k->right, k->bottom, k->pd));
 }
 
-/** @brief Project a transformed vertex (view space) on the screen and set its outcode
- *  @param k Parameters
- *  @param v Vertex (output)
- *  @param x View space position
- *  @param y View space position
- *  @param z View space depth (beyond the near plane)
- *  @remarks The screen position is x * pd / z: the 64 bits dividend pd << 16 divided by z, then the high 32 bits of the
- *  product by x (the division unit and the multiply unit of the SH-2, see jo_fixed_div())
- */
-static  __jo_force_inline void              jo_3d_project_vertex(const jo_3d_transform_params * const k, jo_3d_vertex * const v,
-                                                                 const jo_fixed x, const jo_fixed y, const jo_fixed z)
-{
-    jo_fixed                                q;
-    int                                     sx;
-    int                                     sy;
-    unsigned int                            code;
-    jo_3d_view_position                     *view;
-
-    q = (jo_fixed)((((long long)k->pd_high << 32) | (unsigned int)k->pd_low) / z);
-    sx = k->cx + (int)(((long long)x * q) >> 32);
-    sy = k->cy + (int)(((long long)y * q) >> 32);
-    code = jo_3d_screen_code(sx, sy, k->right, k->bottom, k->guard);
-    // Outside of the guard band and very far outside of the screen: the view space position is kept (JO_3D_CODE_VIEW)
-    if ((code & JO_3D_CODE_GUARD) && (sx > k->far || sx < -k->far || sy > k->far || sy < -k->far))
-    {
-        view = (jo_3d_view_position *)((char *)v + k->view_delta);
-        view->x = x;
-        view->y = y;
-        code |= JO_3D_CODE_VIEW;
-    }
-    jo_3d_set_vertex(v, sx, sy, z, code);
-}
-
-/** @brief Transform and project the vertices (see jo_3d_transform_vertices())
+/** @brief Transform and project the vertices (assembly, see above)
  *  @param columns Columns of the matrix (see jo_3d_get_columns())
  *  @param in Vertices (model space)
  *  @param out Vertices (output)
  *  @param k Parameters (k->end: end of the input vertices, at least one vertex)
- *  @remarks x, y, z = columns . vertex (bits 47 to 16 of the 64 bits sums), then the translation
  */
-void                                        __jo_3d_transform_loop(const jo_fixed columns[9], const jo_pos3D_fixed *in, jo_3d_vertex *out,
-                                                                   const jo_3d_transform_params * const k)
-{
-    jo_fixed                                x;
-    jo_fixed                                y;
-    jo_fixed                                z;
-    const jo_fixed                          *p;
+extern void                                 __jo_3d_transform_loop(const jo_fixed columns[9], const jo_pos3D_fixed *in, jo_3d_vertex *out,
+                                                                   const jo_3d_transform_params * const k);
 
-    for (; in < k->end; ++in, ++out)
-    {
-        p = (const jo_fixed *)in;
-        x = (jo_fixed)(((long long)columns[0] * p[0] + (long long)columns[1] * p[1] + (long long)columns[2] * p[2]) >> 16) + k->tx;
-        y = (jo_fixed)(((long long)columns[3] * p[0] + (long long)columns[4] * p[1] + (long long)columns[5] * p[2]) >> 16) + k->ty;
-        z = (jo_fixed)(((long long)columns[6] * p[0] + (long long)columns[7] * p[1] + (long long)columns[8] * p[2]) >> 16) + k->tz;
-        if (z <= k->near_z)
-            __jo_3d_project_slow(k, out, x, y, z);
-        else
-            jo_3d_project_vertex(k, out, x, y, z);
-    }
-}
+/* FINISH: project the pending vertex (r11, r12, r7: view space x, y and z, r13: output): the quotient of the division
+   unit, the screen position, its outcode (JO_3D_CODE_LEFT 1, RIGHT 2, TOP 4, BOTTOM 8, GUARD 16, see jo_3d_screen_code()),
+   then the packed vertex (very far outside of the screen: the view space position in the parallel array, VIEW 64) */
+__asm__(
+"    .macro FINISH\n"
+"    mov.l 7f, r6\n"                     /* division unit */
+"    mov.l @(20, r6), r0\n"              /* DVDNTL: the quotient (the CPU waits for the end of the division) */
+"    dmuls.l r11, r0\n"
+"    mov.l @(24, r14), r6\n"             /* cx */
+"    sts mach, r4\n"
+"    dmuls.l r12, r0\n"
+"    add r6, r4\n"
+"    mov.l @(28, r14), r6\n"             /* cy */
+"    sts mach, r5\n"
+"    add r6, r5\n"
+"    mov.l @(32, r14), r6\n"             /* right */
+"    mov #0, r0\n"
+"    cmp/hi r6, r4\n"                    /* outside horizontally (x < 0 or x > right) */
+"    bf 1f\n"
+"    mov.l @(40, r14), r6\n"             /* guard band */
+"    cmp/pz r4\n"
+"    bf 2f\n"
+"    mov.l @(52, r14), r0\n"
+"    cmp/gt r0, r4\n"                    /* x > right + guard: outside of the guard band */
+"    movt r0\n"
+"    shll2 r0\n"
+"    shll2 r0\n"
+"    bra 1f\n"
+"    or #2, r0\n"
+"2:  neg r6, r6\n"
+"    cmp/gt r4, r6\n"                    /* x < -guard */
+"    movt r0\n"
+"    shll2 r0\n"
+"    shll2 r0\n"
+"    or #1, r0\n"
+"1:  mov.l @(36, r14), r6\n"             /* bottom */
+"    cmp/hi r6, r5\n"
+"    bf 3f\n"
+"    mov.l @(40, r14), r6\n"
+"    cmp/pz r5\n"
+"    bf 4f\n"
+"    mov.l @(56, r14), r6\n"
+"    cmp/gt r6, r5\n"                    /* y > bottom + guard */
+"    movt r6\n"
+"    shll2 r6\n"
+"    shll2 r6\n"
+"    or r6, r0\n"
+"    bra 3f\n"
+"    or #8, r0\n"
+"4:  neg r6, r6\n"
+"    cmp/gt r5, r6\n"
+"    movt r6\n"
+"    shll2 r6\n"
+"    shll2 r6\n"
+"    or r6, r0\n"
+"    or #4, r0\n"
+"3:  tst #16, r0\n"                     /* outside of the guard band: maybe very far (|x| or |y| > the far limit) */
+"    bt 11f\n"
+"    mov.l @(48, r14), r6\n"             /* far limit */
+"    cmp/gt r6, r4\n"
+"    bt 13f\n"
+"    neg r6, r6\n"
+"    cmp/gt r4, r6\n"
+"    bt 13f\n"
+"    neg r6, r6\n"
+"    cmp/gt r6, r5\n"
+"    bt 13f\n"
+"    neg r6, r6\n"
+"    cmp/gt r5, r6\n"
+"    bf 11f\n"
+"13: mov.l @(60, r14), r6\n"             /* very far outside: the view space position in the parallel array */
+"    add r13, r6\n"
+"    mov.l r11, @r6\n"
+"    mov.l r12, @(4, r6)\n"
+"    or #64, r0\n"
+"11: shll16 r4\n"                        /* the packed vertex */
+"    extu.w r5, r5\n"
+"    or r5, r4\n"
+"    mov.l r4, @r13\n"
+"    mov #-128, r6\n"
+"    and r6, r7\n"
+"    or r0, r7\n"
+"    mov.l r7, @(4, r13)\n"
+"    .endm\n"
+"    .macro TRANSFORM_LOOP name, rotate\n"
+"    .text\n"
+"    .align 2\n"
+"    .global \\name\n"
+"\\name:\n"
+"    mov.l r8, @-r15\n"
+"    mov.l r9, @-r15\n"
+"    mov.l r10, @-r15\n"
+"    mov.l r11, @-r15\n"
+"    mov.l r12, @-r15\n"
+"    mov.l r13, @-r15\n"
+"    mov.l r14, @-r15\n"
+"    sts.l pr, @-r15\n"
+"    add #-16, r15\n"                    /* scratch vertex and view position */
+"    mov r4, r10\n"
+"    mov r5, r8\n"
+"    mov r6, r9\n"
+"    mov r7, r14\n"
+"    mov #0, r11\n"
+"    mov #0, r12\n"
+"    mov #0, r7\n"
+"    mov r15, r13\n"
+"5:\n"
+"    .if \\rotate\n"
+     /* x, y, z = columns . vertex (bits 47 to 16 of the 64 bits sums) */
+"    clrmac\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    add #-12, r8\n"
+"    sts mach, r0\n"
+"    sts macl, r1\n"
+"    clrmac\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    xtrct r0, r1\n"
+"    add #-12, r8\n"
+"    sts mach, r0\n"
+"    sts macl, r2\n"
+"    clrmac\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    mac.l @r8+, @r10+\n"
+"    xtrct r0, r2\n"
+"    add #-36, r10\n"
+"    sts mach, r0\n"
+"    sts macl, r3\n"
+"    xtrct r0, r3\n"
+"    .else\n"
+     /* x, y, z: the vertex rotated by the DSP (r10 unused) */
+"    mov.l @r8+, r1\n"
+"    mov.l @r8+, r2\n"
+"    mov.l @r8+, r3\n"
+"    .endif\n"
+"    mov.l @(0, r14), r0\n"
+"    add r0, r1\n"
+"    mov.l @(4, r14), r0\n"
+"    add r0, r2\n"
+"    mov.l @(8, r14), r0\n"
+"    add r0, r3\n"
+"    FINISH\n"
+     /* behind the near plane: the slow path */
+"    mov.l @(12, r14), r0\n"
+"    cmp/ge r3, r0\n"
+"    bt 8f\n"
+     /* k = pd / z in the background: the vertex is pending */
+"    mov.l 7f, r6\n"
+"    mov.l r3, @(0, r6)\n"               /* DVSR */
+"    mov.l @(16, r14), r0\n"
+"    mov.l r0, @(16, r6)\n"              /* DVDNTH */
+"    mov.l @(20, r14), r0\n"
+"    mov.l r0, @(20, r6)\n"              /* DVDNTL: starts the division */
+"    mov r1, r11\n"
+"    mov r2, r12\n"
+"    mov r3, r7\n"
+"    mov r9, r13\n"
+"9:\n"
+"    add #8, r9\n"
+"    mov.l @(44, r14), r0\n"
+"    cmp/hs r0, r8\n"
+"    bf 5b\n"
+     /* the last pending vertex */
+"    FINISH\n"
+"    add #16, r15\n"
+"    lds.l @r15+, pr\n"
+"    mov.l @r15+, r14\n"
+"    mov.l @r15+, r13\n"
+"    mov.l @r15+, r12\n"
+"    mov.l @r15+, r11\n"
+"    mov.l @r15+, r10\n"
+"    mov.l @r15+, r9\n"
+"    rts\n"
+"    mov.l @r15+, r8\n"
+"8:\n"
+     /* slow path: __jo_3d_project_slow(k, v, x, y, z), then the scratch vertex is pending */
+"    mov r14, r4\n"
+"    mov r9, r5\n"
+"    mov r1, r6\n"
+"    mov r2, r7\n"
+"    mov.l 10f, r0\n"
+"    jsr @r0\n"
+"    mov.l r3, @-r15\n"
+"    add #4, r15\n"
+     /* (the scratch vertex is finished with the view space x and y of the vertex before: if it was very far outside, its
+        view space position was written at the scratch vertex + view_delta, under the stack (the blocks of jo_malloc()
+        there were broken). 0, 0: the center of the screen, never very far) */
+"    mov #0, r11\n"
+"    mov #0, r12\n"
+"    bra 9b\n"
+"    mov r15, r13\n"
+"    .align 2\n"
+"7:  .long 0xFFFFFF00\n"
+"10: .long ___jo_3d_project_slow\n"
+"    .endm\n"
+"    TRANSFORM_LOOP ___jo_3d_transform_loop, 1\n"
+"    TRANSFORM_LOOP ___jo_3d_project_loop, 0\n"
+);
 
-/** @brief Project vertices rotated by the DSP (see __jo_3d_transform_loop(): the same loop without the rotation)
+/** @brief Project vertices rotated by the DSP (assembly, see __jo_3d_transform_loop(): the same loop without the rotation)
  *  @param unused (the columns of __jo_3d_transform_loop())
  *  @param in Vertices rotated by the DSP (x, y, z, without the translation)
  *  @param out Vertices (output)
  *  @param k Parameters (k->end: end of the rotated vertices, at least one vertex)
  */
-void                                        __jo_3d_project_loop(const jo_fixed *unused, const jo_fixed *in, jo_3d_vertex *out,
-                                                                 const jo_3d_transform_params * const k)
-{
-    jo_fixed                                x;
-    jo_fixed                                y;
-    jo_fixed                                z;
-
-    JO_UNUSED_ARG(unused);
-    for (; in < (const jo_fixed *)k->end; in += 3, ++out)
-    {
-        x = in[0] + k->tx;
-        y = in[1] + k->ty;
-        z = in[2] + k->tz;
-        if (z <= k->near_z)
-            __jo_3d_project_slow(k, out, x, y, z);
-        else
-            jo_3d_project_vertex(k, out, x, y, z);
-    }
-}
-
+extern void                                 __jo_3d_project_loop(const jo_fixed *unused, const jo_fixed *in, jo_3d_vertex *out,
+                                                                 const jo_3d_transform_params * const k);
 
 /** @brief Transform the vertices with the DSP and project them (see jo_3d_transform_vertices()): the DSP rotates a batch
- *  while the CPU projects the previous one with __jo_3d_project_loop() (the results are the ones of the CPU)
- *  @param k Parameters of the loop (k->end is set for each batch)
+ *  while the CPU projects the previous one with the assembly loop (the results are the ones of the CPU)
+ *  @param k Parameters of the assembly loop (k->end is set for each batch)
  */
 static __attribute__((noinline)) void      jo_3d_transform_vertices_dsp(jo_3d_cpu_context * const ctx, const jo_pos3D_fixed *in, const unsigned int count,
                                                                          jo_3d_transform_params * const k)
@@ -1609,7 +1760,7 @@ static __attribute__((noinline)) void      jo_3d_transform_vertices(jo_3d_cpu_co
 }
 
 /** @brief Transform and project the vertices of the parts of an object, each one with its matrix (the bones of a
- *  skeleton, see jo_3d_transform_vertices()): the parameters of the loop are set once, then the matrix and the
+ *  skeleton, see jo_3d_transform_vertices()): the parameters of the assembly loop are set once, then the matrix and the
  *  vertices of each part (about 20 parts for a character: the setup of each call cost about a tenth)
  *  @param in Vertices of the object (model space)
  *  @param count Vertices of the object (the parts beyond are skipped)
@@ -1985,7 +2136,7 @@ static unsigned short                       jo_3d_gouraud_color(const unsigned s
  *  @param height Size on the screen (pixels) along the height of the texture
  *  @return Sprite to use
  */
-int __attribute__((noinline)) __jo_3d_mipmap_select(const int sprite_id, const int width, const int height)
+int __attribute__((noinline, used, externally_visible)) __jo_3d_mipmap_select(const int sprite_id, const int width, const int height)
 {
     const jo_3d_texture_mipmaps             *mip;
 
@@ -3839,9 +3990,11 @@ bool                                        jo_3d_set_texture_subdivision_near_o
 }
 
 /*
-** Loop of the polygons of an object: __jo_3d_polygon_loop() draws the polygons of a range through
-** __jo_3d_draw_polygon_slow(), the general case: the mirror, the front layer, the forced sort key and the tile of a part
-** (subdivided polygons), the tint, the environment map, the pixel count of the profiler.
+** Loop of the polygons of an object: the assembly loop __jo_3d_polygon_loop() tests the polygons and emits the common ones
+** (all the vertices projected, no subdivision, front face, rejected back face or back face of a dual plane polygon that is not
+** half transparent, sorted by their depths, a texture with its smaller copies or a color, without JO_3D_USE_LIGHT). The others
+** go through __jo_3d_draw_polygon_slow() (C). The C loop is used when the CPU context needs it: mirror, front layer, forced
+** sort key and tile of a part (subdivided polygons), tint, environment map, pixel count of the profiler.
 */
 
 /** @brief State of the slow path of the polygon loop */
@@ -3859,7 +4012,7 @@ typedef struct
     bool                                    env_ready;
 }                                           jo_3d_draw_state;
 
-/** @brief Parameters of __jo_3d_polygon_loop() */
+/** @brief Parameters of __jo_3d_polygon_loop() (the offsets are used by the assembly) */
 typedef struct
 {
     jo_3d_vertex                            *vertices;      // 0: transformed vertices of the CPU
@@ -3902,7 +4055,7 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
  *  @param p Polygon
  *  @param a Its attribute
  *  @return false if the command table is full (or an index is invalid)
- *  @remarks Not inlined in the loop (the common path stays small)
+ *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
  */
 static bool                                 jo_3d_draw_polygon_general(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
                                                                        const jo_3d_polygon_attribute * const a)
@@ -4197,9 +4350,9 @@ static const jo_3d_polygon                  *jo_3d_environment_upright(const jo_
  *  @param p Polygon
  *  @param a Its attribute
  *  @return false if the command table is full (or an index is invalid)
- *  @remarks Not inlined in the loop (the common path stays small)
+ *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
  */
-bool __attribute__((noinline)) __jo_3d_draw_polygon_slow(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
+bool __attribute__((noinline, used, externally_visible)) __jo_3d_draw_polygon_slow(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
                                                                       const jo_3d_polygon_attribute * const a)
 {
     jo_3d_cpu_context                       *ctx;
@@ -4216,14 +4369,14 @@ bool __attribute__((noinline)) __jo_3d_draw_polygon_slow(const jo_3d_polygon_loo
     return (result);
 }
 
-/** @brief Light the command of a polygon written by the loop (as jo_3d_emit_polygon() does after the command)
+/** @brief Light the command of a polygon written by the assembly loop (as jo_3d_emit_polygon() does after the command)
  *  @param k Parameters of the loop
  *  @param cmd The command
  *  @param p Polygon (JO_3D_USE_LIGHT)
  *  @param a Its attribute
- *  @remarks Not inlined in the loop (the common path stays small)
+ *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
  */
-void __attribute__((noinline)) __jo_3d_light_command(const jo_3d_polygon_loop * const k, jo_vdp1_command * const cmd,
+void __attribute__((noinline, used, externally_visible)) __jo_3d_light_command(const jo_3d_polygon_loop * const k, jo_vdp1_command * const cmd,
                                                                   const jo_3d_polygon * const p, const jo_3d_polygon_attribute * const a)
 {
     if (!jo_3d_is_lit(a))
@@ -4233,20 +4386,712 @@ void __attribute__((noinline)) __jo_3d_light_command(const jo_3d_polygon_loop * 
     jo_profile_end(JO_PROFILE_3D_LIGHT);
 }
 
-/** @brief Loop of the polygons of a range (see above)
+/** @brief Loop of the polygons of a range (assembly, see above)
  *  @param k Parameters
  *  @param p First polygon
  *  @param a Its attribute
  *  @return false if the command table is full
  */
-static bool                                 __jo_3d_polygon_loop(const jo_3d_polygon_loop * const k, const jo_3d_polygon *p,
-                                                                 const jo_3d_polygon_attribute *a)
-{
-    for (; p < k->end; ++p, ++a)
-        if (!__jo_3d_draw_polygon_slow(k, p, a))
-            return (false);
-    return (true);
-}
+extern bool                                 __jo_3d_polygon_loop(const jo_3d_polygon_loop * const k, const jo_3d_polygon *p,
+                                                                 const jo_3d_polygon_attribute *a);
+
+__asm__(
+     /* JO3DMIPABSMAX: acc = max(acc, |r0|). JO3DMIPEDGE: the longest of |dx| and |dy| of the edge p q in acc (r0, r3 used).
+        (the names of the macros of gas ignore the case: not the name of an instruction) */
+"    .macro JO3DMIPABSMAX acc\n"
+"    cmp/pz r0\n"
+"    bt 30f\n"
+"    neg r0, r0\n"
+"30: cmp/gt \\acc, r0\n"
+"    bf 31f\n"
+"    mov r0, \\acc\n"
+"31:\n"
+"    .endm\n"
+"    .macro JO3DMIPEDGE p, q, acc\n"
+"    mov \\q, r0\n"
+"    sub \\p, r0\n"
+"    exts.w r0, r0\n"
+"    JO3DMIPABSMAX \\acc\n"
+"    swap.w \\q, r0\n"
+"    swap.w \\p, r3\n"
+"    sub r3, r0\n"
+"    exts.w r0, r0\n"
+"    JO3DMIPABSMAX \\acc\n"
+"    .endm\n"
+     /* JO3DMIDDLE: acc += 2 x the longest of |dx| and |dy| of (q - p) + (r - s), the screen positions packed (r0, r3 and the
+        words 4 and 8 of the stack used) */
+"    .macro JO3DMIDDLE p, q, r, s, acc\n"
+"    mov \\q, r0\n"
+"    sub \\p, r0\n"
+"    exts.w r0, r0\n"
+"    mov \\r, r3\n"
+"    sub \\s, r3\n"
+"    exts.w r3, r3\n"
+"    add r3, r0\n"
+"    cmp/pz r0\n"
+"    bt 35f\n"
+"    neg r0, r0\n"
+"35: mov.l r0, @(4, r15)\n"
+"    swap.w \\r, r0\n"
+"    swap.w \\s, r3\n"
+"    sub r3, r0\n"
+"    exts.w r0, r0\n"
+"    mov.l r0, @(8, r15)\n"
+"    swap.w \\q, r0\n"
+"    swap.w \\p, r3\n"
+"    sub r3, r0\n"
+"    exts.w r0, r0\n"
+"    mov.l @(8, r15), r3\n"
+"    add r3, r0\n"
+"    cmp/pz r0\n"
+"    bt 36f\n"
+"    neg r0, r0\n"
+"36: mov.l @(4, r15), r3\n"
+"    cmp/gt r3, r0\n"
+"    bf 37f\n"
+"    mov r0, r3\n"
+"37: add r3, r3\n"
+"    add r3, \\acc\n"
+"    .endm\n"
+     /* JO3DRANGE v, x: the range [r2, r3] grows with the x (1) or y (0) of the screen position of the vertex v (r0 used) */
+"    .macro JO3DRANGE v, x\n"
+"    mov.l @\\v, r0\n"
+"    .if \\x\n"
+"    swap.w r0, r0\n"
+"    .endif\n"
+"    exts.w r0, r0\n"
+"    cmp/gt r0, r2\n"
+"    bf 38f\n"
+"    mov r0, r2\n"
+"38: cmp/gt r3, r0\n"
+"    bf 39f\n"
+"    mov r0, r3\n"
+"39:\n"
+"    .endm\n"
+     /* JO3DZRANGE v: the range [r2, r3] grows with the depth of the vertex v without its outcode (r11: the mask, r0 used) */
+"    .macro JO3DZRANGE v\n"
+"    mov.l @(4, \\v), r0\n"
+"    and r11, r0\n"
+"    cmp/gt r0, r2\n"
+"    bf 38f\n"
+"    mov r0, r2\n"
+"38: cmp/gt r3, r0\n"
+"    bf 39f\n"
+"    mov r0, r3\n"
+"39:\n"
+"    .endm\n"
+"    .text\n"
+"    .align 2\n"
+"    .global ___jo_3d_polygon_loop\n"
+"___jo_3d_polygon_loop:\n"
+"    mov.l r8, @-r15\n"
+"    mov.l r9, @-r15\n"
+"    mov.l r10, @-r15\n"
+"    mov.l r11, @-r15\n"
+"    mov.l r12, @-r15\n"
+"    mov.l r13, @-r15\n"
+"    mov.l r14, @-r15\n"
+"    sts.l pr, @-r15\n"
+"    add #-16, r15\n"                    /* 0: zmin, 4 and 8: JO3DMIDDLE, 12: end code flag */
+"    mov r4, r14\n"
+"    mov r5, r8\n"
+"    mov r6, r9\n"
+"    mov.l @(0, r14), r10\n"
+"    bra 11f\n"
+"    nop\n"
+     /* --- a polygon: r8 polygon, r9 attribute. The 4 vertices (r4 to r7): indexes checked, 8 bytes each. The indexes are
+        read 2 by 2 (offset 12 of a polygon: aligned on 4 bytes, the first index in the high half) */
+"5:  mov.l @(12, r8), r4\n"
+"    mov.l @(16, r8), r6\n"
+"    mov.l @(8, r14), r0\n"
+"    extu.w r4, r5\n"
+"    shlr16 r4\n"
+"    extu.w r6, r7\n"
+"    shlr16 r6\n"
+"    cmp/hs r0, r4\n"
+"    bt 8f\n"
+"    cmp/hs r0, r5\n"
+"    bt 8f\n"
+"    cmp/hs r0, r6\n"
+"    bt 8f\n"
+"    cmp/hs r0, r7\n"
+"    bt 8f\n"
+"    shll2 r4\n"
+"    add r4, r4\n"
+"    add r10, r4\n"
+"    shll2 r5\n"
+"    add r5, r5\n"
+"    add r10, r5\n"
+"    shll2 r6\n"
+"    add r6, r6\n"
+"    add r10, r6\n"
+"    shll2 r7\n"
+"    add r7, r7\n"
+"    add r10, r7\n"
+     /* depths and outcodes: all outside of the screen or behind the near plane, all too far */
+"    mov.l @(4, r4), r1\n"
+"    mov.l @(4, r5), r2\n"
+"    mov.l @(4, r6), r3\n"
+"    mov.l @(4, r7), r13\n"
+"    mov r1, r0\n"
+"    and r2, r0\n"
+"    and r3, r0\n"
+"    and r13, r0\n"
+"    tst #47, r0\n"
+"    bf 9f\n"
+"    mov r1, r0\n"
+"    cmp/gt r0, r2\n"
+"    bt 1f\n"
+"    mov r2, r0\n"
+"1:  cmp/gt r0, r3\n"
+"    bt 1f\n"
+"    mov r3, r0\n"
+"1:  cmp/gt r0, r13\n"
+"    bt 1f\n"
+"    mov r13, r0\n"
+"1:  mov.l @(4, r14), r11\n"
+"    cmp/gt r11, r0\n"
+"    bt 9f\n"
+"    mov.l r0, @r15\n"
+     /* crossing the near plane or very far outside: the slow path */
+"    mov r1, r0\n"
+"    or r2, r0\n"
+"    or r3, r0\n"
+"    or r13, r0\n"
+"    tst #48, r0\n"
+"    bf 8f\n"
+     /* --- facing: cross product of the diagonals of the screen positions. Inside of the guard band (no JO_3D_CODE_GUARD),
+        the differences of the coordinates fit in 16 bits: products of the low halves (muls.w), the coordinates are
+        subtracted in the words without sign extension (the low half of a difference only depends on the low halves) */
+"    mov.l @r4, r1\n"
+"    mov.l @r5, r2\n"
+"    mov.l @r6, r3\n"
+"    mov.l @r7, r13\n"
+"    swap.w r3, r11\n"
+"    swap.w r1, r0\n"
+"    sub r0, r11\n"                     /* x2 - x0 */
+"    mov r13, r12\n"
+"    sub r2, r12\n"                     /* y3 - y1 */
+"    muls.w r11, r12\n"
+"    swap.w r13, r11\n"
+"    swap.w r2, r0\n"
+"    sub r0, r11\n"                     /* x3 - x1 */
+"    mov r3, r12\n"
+"    sub r1, r12\n"                     /* y2 - y0 */
+"    sts macl, r0\n"
+"    muls.w r11, r12\n"
+"    sts macl, r11\n"
+"    sub r11, r0\n"
+"    cmp/pz r0\n"
+"    bt 3f\n"
+"    mov r0, r12\n"                     /* (the cross product of the diagonals: the area of the quad x 2) */
+"    mov.b @r9, r0\n"                   /* back face: a single plane polygon is skipped, a dual plane one is mirrored */
+"    tst r0, r0\n"
+"    bf 12f\n"
+     /* (a single plane quad is skipped when its 2 triangles face away: a quad of the ground is not flat, seen at a grazing
+        angle one of its triangles can face the camera, the quad was skipped and the sea was seen through the ground.
+        The area of the quad is the sum of the areas of the triangles 0 1 2 and 0 2 3) */
+"    swap.w r2, r11\n"
+"    swap.w r1, r0\n"
+"    sub r0, r11\n"                     /* x1 - x0 */
+"    mov r3, r13\n"
+"    sub r1, r13\n"                     /* y2 - y0 */
+"    muls.w r11, r13\n"
+"    mov r2, r11\n"
+"    sub r1, r11\n"                     /* y1 - y0 */
+"    swap.w r3, r13\n"
+"    sub r0, r13\n"                     /* x2 - x0 */
+"    sts macl, r0\n"
+"    muls.w r11, r13\n"
+"    sts macl, r11\n"
+"    sub r11, r0\n"                     /* area of the triangle 0 1 2 x 2 */
+"    cmp/pz r0\n"
+"    bt 3f\n"
+"    cmp/ge r0, r12\n"                  /* the triangle 0 2 3 faces the camera: area of the quad >= area of 0 1 2 */
+"    bt 3f\n"
+     /* --- next polygon (the branches of the loop meet here: in reach of the short branches) */
+"9:  add #20, r8\n"
+"    add #12, r9\n"
+"11: mov.l @(44, r14), r0\n"
+"    cmp/hs r0, r8\n"
+"    bf 5b\n"
+"    bra 10f\n"
+"    mov #1, r0\n"
+     /* --- back face of a dual plane polygon: drawn mirrored, the vertices 0 and 1, 2 and 3 swapped (as jo_3d_emit_polygon()
+        does: the same command). Half transparent: slow path (a big one mostly out of the screen is drawn in parts, see
+        jo_3d_subdivision_level()). The dual plane back faces were the first cause of the slow path */
+"12: mov.w @(4, r9), r0\n"
+"    and #3, r0\n"
+"    cmp/eq #3, r0\n"
+"    bt 8f\n"
+"    mov r4, r0\n"
+"    mov r5, r4\n"
+"    mov r0, r5\n"
+"    mov r6, r0\n"
+"    mov r7, r6\n"
+"    bra 3f\n"
+"    mov r0, r7\n"
+     /* --- slow path (the polygon is not done yet: r8, r9 are still on it) */
+"53:\n"
+"8:  mov r14, r4\n"
+"    mov r8, r5\n"
+"    mov r9, r6\n"
+"    mov.l 26f, r0\n"
+"    jsr @r0\n"
+"    nop\n"
+"    tst r0, r0\n"
+"    bf 9b\n"
+"    mov #0, r0\n"
+"10: add #16, r15\n"
+"    lds.l @r15+, pr\n"
+"    mov.l @r15+, r14\n"
+"    mov.l @r15+, r13\n"
+"    mov.l @r15+, r12\n"
+"    mov.l @r15+, r11\n"
+"    mov.l @r15+, r10\n"
+"    mov.l @r15+, r9\n"
+"    rts\n"
+"    mov.l @r15+, r8\n"
+     /* --- the sort flags stay in r12 (read once). A lit polygon (JO_3D_USE_LIGHT) is lit after its command (label 42) */
+"3:  mov.b @(1, r9), r0\n"
+"    mov r0, r12\n"
+     /* a textured polygon with tiles is drawn in parts when its depths are spread (see jo_3d_subdivision_level()): slow path */
+"    tst #4, r0\n"
+"    bt 2f\n"
+"    mov.w @(2, r9), r0\n"
+"    extu.w r0, r1\n"
+"    mov.l 27f, r3\n"                   /* the flags of the texture: tiles (JO_3D_TEXTURE_HAS_TILES) */
+"    mov r1, r0\n"
+"    mov.b @(r0, r3), r0\n"
+"    tst #1, r0\n"
+"    bt 2f\n"
+"    mov r1, r0\n"                      /* (sprite x 12: the size of jo_3d_texture_tiles) */
+"    add r0, r0\n"
+"    add r1, r0\n"
+"    add r0, r0\n"
+"    add r0, r0\n"
+"    mov.l 20f, r1\n"
+"    add r0, r1\n"                      /* r1: the tiles of the texture (jo_3d_texture_tiles) */
+     /* (the polygons farther than the depth of the tiles are not drawn in parts, see jo_3d_set_texture_subdivision_depth():
+      * fast path. 0: all the polygons) */
+"    mov.l @(8, r1), r0\n"
+"    tst r0, r0\n"
+"    bt 1f\n"
+"    mov.l @r15, r1\n"                  /* minimum depth */
+"    cmp/gt r0, r1\n"
+"    bt 8b\n"
+     /* (maximum depth (r1), only when it is needed: here and for JO_3D_SORT_MAX) */
+"1:  mov.l @(4, r4), r1\n"
+"    mov.l @(4, r5), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 1f\n"
+"    mov r0, r1\n"
+"1:  mov.l @(4, r6), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 1f\n"
+"    mov r0, r1\n"
+"1:  mov.l @(4, r7), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 1f\n"
+"    mov r0, r1\n"
+"1:  mov.l @r15, r0\n"
+"    sub r0, r1\n"
+"    shlr2 r0\n"                        /* (the depths are positive: no JO_3D_CODE_NEAR) */
+"    shlr r0\n"
+"    cmp/gt r1, r0\n"
+"    bt 2f\n"
+"    bra 50f\n"                         /* (spread: drawn in parts or not, see the label 50) */
+"    nop\n"
+     /* --- sort key: the depths (JO_3D_SORT_PREVIOUS: slow path) */
+"52:\n"
+"2:  mov r12, r0\n"
+"    and #3, r0\n"
+"    cmp/eq #0, r0\n"
+"    bt 8b\n"
+"    cmp/eq #1, r0\n"
+"    bf 1f\n"
+"    bra 4f\n"
+"    mov.l @r15, r1\n"                  /* minimum */
+"1:  cmp/eq #2, r0\n"
+"    bf 1f\n"
+"    mov.l @(4, r4), r1\n"              /* maximum */
+"    mov.l @(4, r5), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 2f\n"
+"    mov r0, r1\n"
+"2:  mov.l @(4, r6), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 2f\n"
+"    mov r0, r1\n"
+"2:  mov.l @(4, r7), r0\n"
+"    cmp/gt r1, r0\n"
+"    bf 4f\n"
+"    bra 4f\n"
+"    mov r0, r1\n"
+"1:  mov.l @(4, r4), r1\n"              /* average (the depths are positive) */
+"    shlr2 r1\n"
+"    mov.l @(4, r5), r0\n"
+"    shlr2 r0\n"
+"    add r0, r1\n"
+"    mov.l @(4, r6), r0\n"
+"    shlr2 r0\n"
+"    add r0, r1\n"
+"    mov.l @(4, r7), r0\n"
+"    shlr2 r0\n"
+"    add r0, r1\n"
+"4:  mov #-128, r0\n"
+"    and r0, r1\n"
+"    mov.l @(40, r14), r0\n"
+"    mov.l r1, @r0\n"
+     /* an untextured polygon that is not a polygon (lines): slow path */
+"    mov r12, r0\n"
+"    tst #4, r0\n"
+"    bf 1f\n"
+"    mov.w @(10, r9), r0\n"
+"    and #15, r0\n"
+"    cmp/eq #4, r0\n"
+"    bf 8b\n"
+"1:  swap.w r1, r0\n"
+"    exts.w r0, r0\n"
+"    mov.l @(28, r14), r1\n"
+"    add r1, r0\n"
+"    cmp/pz r0\n"
+"    bt 1f\n"
+"    mov #0, r0\n"
+"1:  mov.l 21f, r1\n"
+"    cmp/gt r1, r0\n"
+"    bf 1f\n"
+"    mov r1, r0\n"
+     /* --- the command: the table is full (slow path, it reports the error) */
+"1:  mov.l @(20, r14), r2\n"
+"    mov.l @r2, r3\n"
+"    mov.l @(24, r14), r11\n"
+"    cmp/hs r11, r3\n"
+"    bt 8b\n"
+"    mov.l @(16, r14), r11\n"
+"    mov r3, r13\n"
+"    add r13, r13\n"
+"    add r13, r11\n"
+"    mov.w r0, @r11\n"                  /* keys[used] */
+"    mov.l @(12, r14), r13\n"
+"    mov r3, r11\n"
+"    shll2 r11\n"
+"    shll2 r11\n"
+"    shll r11\n"
+"    add r11, r13\n"                    /* the command */
+"    add #1, r3\n"
+"    mov.l r3, @r2\n"
+"    mov.l @(36, r14), r2\n"
+"    mov.w @r2, r0\n"
+"    add #1, r0\n"
+"    mov.w r0, @r2\n"
+"    mov.l @r4, r0\n"
+"    mov.l r0, @(12, r13)\n"
+"    mov.l @r5, r0\n"
+"    mov.l r0, @(16, r13)\n"
+"    mov.l @r6, r0\n"
+"    mov.l r0, @(20, r13)\n"
+"    mov.l @r7, r0\n"
+"    mov.l r0, @(24, r13)\n"
+"    mov.w @(4, r9), r0\n"              /* gouraud table with the gouraud shading */
+"    tst #4, r0\n"
+"    bt 1f\n"
+"    mov.w @(8, r9), r0\n"
+"    bra 2f\n"
+"    shll16 r0\n"
+"1:  mov #0, r0\n"
+"2:  mov.l r0, @(28, r13)\n"
+"    mov #0, r0\n"
+"    mov.l r0, @(12, r15)\n"
+"    mov r12, r0\n"
+"    tst #4, r0\n"
+"    bf 33f\n"                        /* (7: out of reach of a conditional branch) */
+"    bra 7f\n"
+"    nop\n"
+     /* texture: distorted sprite with the flips, the end codes disabled by a horizontal flip, the smaller copy for the size */
+"33: mov.w @(10, r9), r0\n"
+"    extu.w r0, r12\n"
+"    and #48, r0\n"
+"    or #2, r0\n"
+"    shll16 r0\n"
+"    mov.l r0, @r13\n"
+"    mov.w @(2, r9), r0\n"
+"    extu.w r0, r1\n"
+"    mov r12, r0\n"
+"    tst #16, r0\n"
+"    bt 1f\n"
+"    mov.l 22f, r2\n"
+"    mov r1, r0\n"
+"    mov.b @(r0, r2), r0\n"
+"    tst r0, r0\n"
+"    bt 1f\n"
+"    mov #-128, r0\n"
+"    mov.l r0, @(12, r15)\n"
+"1:  mov.l 27f, r2\n"                   /* the flags of the texture: smaller copies (JO_3D_TEXTURE_HAS_MIPMAPS) */
+"    mov r1, r0\n"
+"    mov.b @(r0, r2), r0\n"
+"    tst #2, r0\n"
+"    bf 32f\n"
+"    bra 2f\n"
+"    nop\n"
+     /* the size on the screen (as __jo_3d_mipmap_select()): r11 the longest of the edges AB and DC, r12 of AD and BC (the
+        longest of |dx| and |dy|). The screen positions (x in the high half, y in the low half) are inside of the guard
+        band: the differences fit in 16 bits. The vertices (r4 to r7) are not used after */
+"32: mov.l @r4, r4\n"
+"    mov.l @r5, r5\n"
+"    mov.l @r6, r6\n"
+"    mov.l @r7, r7\n"
+"    mov #0, r11\n"
+"    mov #0, r12\n"
+"    JO3DMIPEDGE r4, r5, r11\n"
+"    JO3DMIPEDGE r7, r6, r11\n"
+"    JO3DMIPEDGE r4, r7, r12\n"
+"    JO3DMIPEDGE r5, r6, r12\n"
+     /* __jo_3d_mipmaps[sprite]: 20 bytes per texture (levels 0, first 2, width 4, height 8, area 12) */
+"    mov.l 23f, r2\n"
+"    mov r1, r0\n"
+"    shll2 r0\n"
+"    mov r0, r3\n"
+"    shll2 r0\n"
+"    add r3, r0\n"
+"    add r0, r2\n"
+"    mul.l r11, r12\n"
+"    sts macl, r3\n"                   /* the area */
+"    mov.l @(12, r2), r0\n"            /* bigger than the half size: the texture */
+"    cmp/gt r0, r3\n"
+"    bt 2f\n"
+"    mov.w @(4, r2), r0\n"
+"    extu.w r0, r0\n"
+"    cmp/gt r0, r11\n"
+"    bt 2f\n"
+"    mov.w @(8, r2), r0\n"
+"    extu.w r0, r0\n"
+"    cmp/gt r0, r12\n"
+"    bt 2f\n"
+"    mov.w @(2, r2), r0\n"             /* the half size */
+"    extu.w r0, r1\n"
+"    mov.b @r2, r0\n"
+"    cmp/eq #1, r0\n"
+"    bt 2f\n"
+"    mov.l @(16, r2), r0\n"
+"    cmp/gt r0, r3\n"
+"    bt 2f\n"
+"    mov.w @(6, r2), r0\n"
+"    extu.w r0, r0\n"
+"    cmp/gt r0, r11\n"
+"    bt 2f\n"
+"    mov.w @(10, r2), r0\n"
+"    extu.w r0, r0\n"
+"    cmp/gt r0, r12\n"
+"    bt 2f\n"
+"    add #1, r1\n"                     /* the quarter size */
+"2:  mov.l 25f, r2\n"                   /* texture address and size */
+"    mov r1, r3\n"
+"    shll2 r3\n"
+"    add r3, r3\n"
+"    add r2, r3\n"
+"    mov.w @(4, r3), r0\n"
+"    shll16 r0\n"
+"    mov r0, r2\n"
+"    mov.w @(6, r3), r0\n"
+"    extu.w r0, r0\n"
+"    or r0, r2\n"
+"    bra 1f\n"
+"    mov.l r2, @(8, r13)\n"
+     /* polygon: no texture. Without a gouraud table (the table of the polygon: the colors in the order of its vertices), its
+        vertices are rotated by one when the VDP1 draws it with fewer lines, as jo_3d_polygon_rotation_is_faster(): the lines
+        max(DA, BC) + 1 (r12) and max(AB, CD) + 1 of the rotated polygon (r11), the costs x 6 (78 + AB + CD + 2 x |B + C - A - D|)
+        x r12 (r3) and (78 + BC + DA + 2 x |C + D - A - B|) x r11 (r0) */
+"7:  mov.w @(4, r9), r0\n"
+"    tst #4, r0\n"
+"    bf 34f\n"
+"    bra 40f\n"                       /* (out of line: the literals above stay in reach) */
+"    nop\n"
+"34: mov #4, r0\n"
+"    shll16 r0\n"
+"    mov.l r0, @r13\n"
+"    mov #0, r0\n"
+"    mov.l r0, @(8, r13)\n"
+     /* draw mode with the clipping of the window and the end code flag, color */
+"1:  mov.w @(4, r9), r0\n"
+"    extu.w r0, r11\n"
+"    mov.l @(32, r14), r0\n"
+"    or r0, r11\n"
+"    mov.l @(12, r15), r0\n"
+"    extu.b r0, r0\n"
+"    or r0, r11\n"
+"    shll16 r11\n"
+"    mov.w @(6, r9), r0\n"
+"    extu.w r0, r0\n"
+"    or r0, r11\n"
+"    mov.l r11, @(4, r13)\n"
+"    mov.b @(1, r9), r0\n"
+"    tst #8, r0\n"
+"    bf 42f\n"
+"    bra 9b\n"
+"    nop\n"
+     /* lit polygon: __jo_3d_light_command(k, command, polygon, attribute) changes its color or its gouraud table */
+"42: mov r14, r4\n"
+"    mov r13, r5\n"
+"    mov r8, r6\n"
+"    mov r9, r7\n"
+"    mov.l 28f, r0\n"
+"    jsr @r0\n"
+"    nop\n"
+"    bra 9b\n"
+"    nop\n"
+"    .align 2\n"
+"20: .long ___jo_3d_tiles\n"
+"21: .long 0xFFFF\n"
+"22: .long ___jo_sprite_end_codes\n"
+"23: .long ___jo_3d_mipmaps\n"
+"27: .long ___jo_3d_texture_flags\n"
+"25: .long ___jo_sprite_def\n"
+"26: .long ___jo_3d_draw_polygon_slow\n"
+"28: .long ___jo_3d_light_command\n"
+     /* --- an untextured polygon: its vertices rotated by one when the VDP1 draws it faster (see the label 7) */
+"40: mov.l @r4, r4\n"
+"    mov.l @r5, r5\n"
+"    mov.l @r6, r6\n"
+"    mov.l @r7, r7\n"
+"    mov #0, r1\n"
+"    JO3DMIPEDGE r4, r5, r1\n"           /* AB */
+"    mov #0, r11\n"
+"    JO3DMIPEDGE r6, r7, r11\n"          /* CD */
+"    mov #0, r2\n"
+"    JO3DMIPEDGE r5, r6, r2\n"           /* BC */
+"    mov #0, r12\n"
+"    JO3DMIPEDGE r7, r4, r12\n"          /* DA */
+"    mov r1, r0\n"
+"    cmp/gt r0, r11\n"
+"    bf 1f\n"
+"    mov r11, r0\n"
+"1:  add r11, r1\n"                     /* AB + CD */
+"    add #1, r0\n"
+"    mov r0, r11\n"                     /* lines of the rotated polygon */
+"    mov r12, r0\n"
+"    cmp/gt r0, r2\n"
+"    bf 1f\n"
+"    mov r2, r0\n"
+"1:  add r12, r2\n"                     /* BC + DA */
+"    add #1, r0\n"
+"    mov r0, r12\n"                     /* lines of the polygon */
+"    JO3DMIDDLE r4, r5, r6, r7, r1\n"    /* + 2 x |(B - A) + (C - D)| */
+"    JO3DMIDDLE r5, r6, r7, r4, r2\n"    /* + 2 x |(C - B) + (D - A)| */
+"    add #78, r1\n"
+"    mul.l r12, r1\n"
+"    sts macl, r3\n"
+"    add #78, r2\n"
+"    mul.l r11, r2\n"
+"    sts macl, r0\n"
+"    cmp/hs r3, r0\n"
+"    bt 41f\n"
+"    mov.l r5, @(12, r13)\n"
+"    mov.l r6, @(16, r13)\n"
+"    mov.l r7, @(20, r13)\n"
+"    mov.l r4, @(24, r13)\n"
+"41: bra 34b\n"
+"    nop\n"
+     /* --- a textured polygon with tiles whose depths are spread: not drawn in parts in these cases, as
+        jo_3d_subdivision_level() (else the slow path): no vertex out of the screen (JO_3D_CODE_SCREEN, JO_3D_CODE_VIEW), the
+        window without clipping (jo_3d_draw_polygon_general() skips the polygons out of its rectangle), and the tiles only for
+        the near plane (JO_3D_TILES_NEAR_ONLY), or the size on the screen under 4 x the distortion allowed, or a distortion
+        surely under it: size x (zmax - zmin) < 4 x (distortion + 1) x (zmax + zmin - 2) (the distortion computed by
+        jo_3d_subdivision_level_unbudgeted() is at most size x (zmax - zmin) / (zmax + zmin - 2) / 4, the halves of the depths
+        rounded down). About 1 polygon out of 3 sent to the slow path in a level, then drawn as one polygon */
+"50: mov.l @(32, r14), r0\n"
+"    tst r0, r0\n"
+"    bt 56f\n"                         /* 54 is beyond the range of bf: same code as the assembler would make */
+"    bra 54f\n"
+"    nop\n"
+"56:\n"
+"    mov.l @(4, r4), r0\n"
+"    mov.l @(4, r5), r1\n"
+"    or r1, r0\n"
+"    mov.l @(4, r6), r1\n"
+"    or r1, r0\n"
+"    mov.l @(4, r7), r1\n"
+"    or r1, r0\n"
+"    tst #79, r0\n"
+"    bt 57f\n"                         /* the same */
+"    bra 54f\n"
+"    nop\n"
+"57:\n"
+"    mov.w @(2, r9), r0\n"               /* the tiles of the texture (sprite x 12) */
+"    extu.w r0, r1\n"
+"    mov r1, r0\n"
+"    add r0, r0\n"
+"    add r1, r0\n"
+"    add r0, r0\n"
+"    add r0, r0\n"
+"    mov.l 51f, r1\n"
+"    add r0, r1\n"
+"    mov.b @r1, r0\n"
+"    tst #128, r0\n"
+"    bf 55f\n"
+"    mov.b @(1, r1), r0\n"               /* the distortion allowed (0: JO_3D_SUBDIVISION_ERROR) */
+"    extu.b r0, r0\n"
+"    tst r0, r0\n"
+"    bf 1f\n"
+"    mov #8, r0\n"
+"1:  add #1, r0\n"
+"    shll2 r0\n"
+"    mov r0, r13\n"                      /* 4 x (distortion + 1) */
+"    add #-4, r0\n"
+"    mov r0, r11\n"                      /* 4 x distortion */
+     /* the size on the screen: the longest of the ranges of x and y (r1) */
+"    mov.l @r4, r0\n"
+"    swap.w r0, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 1\n"
+"    JO3DRANGE r6, 1\n"
+"    JO3DRANGE r7, 1\n"
+"    sub r2, r3\n"
+"    mov r3, r1\n"
+"    mov.l @r4, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 0\n"
+"    JO3DRANGE r6, 0\n"
+"    JO3DRANGE r7, 0\n"
+"    sub r2, r3\n"
+"    cmp/gt r1, r3\n"
+"    bf 1f\n"
+"    mov r3, r1\n"
+"1:  cmp/gt r1, r11\n"
+"    bt 55f\n"
+     /* the depths without their outcodes: zmin (r2), zmax (r3) */
+"    mov #-128, r11\n"
+"    mov.l @(4, r4), r2\n"
+"    and r11, r2\n"
+"    mov r2, r3\n"
+"    JO3DZRANGE r5\n"
+"    JO3DZRANGE r6\n"
+"    JO3DZRANGE r7\n"
+"    mov r3, r0\n"
+"    sub r2, r0\n"
+"    dmulu.l r1, r0\n"                   /* size x (zmax - zmin): r11, r0 */
+"    add r2, r3\n"
+"    add #-2, r3\n"
+"    sts mach, r11\n"
+"    sts macl, r0\n"
+"    dmulu.l r13, r3\n"                  /* 4 x (distortion + 1) x (zmax + zmin - 2): r2, r3 */
+"    sts mach, r2\n"
+"    sts macl, r3\n"
+"    cmp/hs r2, r11\n"
+"    bf 55f\n"
+"    cmp/eq r2, r11\n"
+"    bf 54f\n"
+"    cmp/hs r3, r0\n"
+"    bf 55f\n"
+"54: bra 53b\n"
+"    nop\n"
+"55: bra 52b\n"
+"    nop\n"
+"    .align 2\n"
+"51: .long ___jo_3d_tiles\n"
+);
 
 /** @brief Draw the polygons of an object with the state of a CPU
  *  @param ctx State of the CPU (its matrix is used)
@@ -4396,8 +5241,8 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     jo_profile_count(JO_PROFILE_3D_VERTEX_COUNT, count);
     jo_profile_count(JO_PROFILE_3D_POLYGON_COUNT, polygon_count);
     jo_profile_begin(JO_PROFILE_3D_POLYGONS);
-    // Polygons (a clipped polygon can use several commands): __jo_3d_polygon_loop(), or __jo_3d_draw_polygon_slow() for
-    // each polygon when the CPU context needs the general case
+    // Polygons (a clipped polygon can use several commands): the common ones by the assembly loop, the others by
+    // __jo_3d_draw_polygon_slow()
     state.ctx = ctx;
     state.near_z = near_z;
     state.w = w;
