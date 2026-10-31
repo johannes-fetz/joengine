@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -142,6 +142,7 @@ static  __jo_force_inline void      jo_list_remove_at(jo_list * const list, cons
  */
 static  __jo_force_inline void	    jo_list_free_and_remove(jo_list * const list, const jo_node * const node_to_delete)
 {
+    if (node_to_delete == JO_NULL) return ;
     if (node_to_delete->data.ptr != JO_NULL) jo_free(node_to_delete->data.ptr);
     jo_list_remove(list, node_to_delete);
 }

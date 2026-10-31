@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,14 @@
 ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚══════╝
 */
 
-/** @brief PI value */
-# define JO_PI                      (3.1415927)
+/** @brief PI value
+ *  @remarks float constant: a double constant made the whole expression use the double precision, even slower than
+ *  the float on the SH-2 (no FPU, both are computed by libgcc)
+ */
+# define JO_PI                      (3.1415927f)
 
 /** @brief PI/2 value */
-# define JO_PI_2                    (1.5707963)
+# define JO_PI_2                    (1.5707963f)
 
 /*
 ███╗   ███╗██╗   ██╗██╗  ████████╗ ██╗██████╗ ██╗██╗   ██╗
@@ -292,12 +295,12 @@
 /** @brief Convert radians to degrees
  *  @param A operand
  */
-# define JO_RAD_TO_DEG(A)                  (180.0 * (A) / JO_PI)
+# define JO_RAD_TO_DEG(A)                  ((A) * 57.295780f)
 
 /** @brief Convert degrees to radians
  *  @param A operand
  */
-# define JO_DEG_TO_RAD(A)                  (JO_PI * (A) / 180.0)
+# define JO_DEG_TO_RAD(A)                  ((A) * 0.017453292f)
 
 /** @brief Check if A is odd
  *  @param A operand
@@ -307,14 +310,24 @@
 /** @brief Swap A and B values
  *  @param A operand
  *  @param B operand
+ *  @remarks With a temporary variable: the XOR swap gave 0 when A and B were the same variable
  */
-# define JO_SWAP(A, B)                      { (A) = (A) ^ (B); (B) = (A) ^ (B); (A) = (A) ^ (B); }
+# define JO_SWAP(A, B)                      { __typeof__((A) + 0) __jo_swap_tmp = (A); (A) = (B); (B) = __jo_swap_tmp; }
 
-/** @brief Compute percent (100 / TOTAL * (TOTAL - FREE))
- *  @param TOTAL Total
- *  @param FREE Free
+/** @brief Hide the value of a variable from the optimizer of the compiler (no instruction)
+ *  @param VAR Variable (in a register)
+ *  @remarks GCC replaces "x != 1 ? y / x : y" by a division in all the cases (y / 1 = y) and a product by a variable
+ *           power of 2 by a shift by a variable amount: calls of the library of the compiler on the SH-2 (no division
+ *           instruction, no barrel shifter). The variable hidden in the branch, or before the product, keeps the code written
  */
-# define JO_PERCENT_USED(TOTAL, FREE)       (int)(100.0f / (float)(TOTAL) * (float)((TOTAL) - (FREE)))
+# define JO_OPAQUE(VAR)                     __asm__ ("" : "+r" (VAR))
+
+/** @brief Compute percent ((TOTAL - FREE) x 100 / TOTAL, rounded down)
+ *  @param TOTAL Total (42 949 672 at most, 0: 0 %)
+ *  @param FREE Free
+ *  @remarks Integers: the float version linked the float emulation of the compiler in every program (about 2 KB)
+ */
+# define JO_PERCENT_USED(TOTAL, FREE)       ((TOTAL) == 0 ? 0 : (int)((unsigned int)((TOTAL) - (FREE)) * 100u / (unsigned int)(TOTAL)))
 
 /** @brief Square computation (x²)
  *  @param A operand
@@ -444,6 +457,20 @@
  *  @param X operand
  */
 # define JO_FIXED_TO_INT(X)         JO_DIV_BY_65536(X)
+/** @brief Decimal part mask of a jo_fixed */
+# define JO_FIXED_DECIMAL_MASK      (0xFFFF)
+/** @brief Convert a float to jo_fixed
+ *  @param X Float (constant expression friendly, usable in static initializers)
+ */
+# define JO_FLOAT_TO_FIXED(X)       ((jo_fixed)(65536.0f * (X)))
+/** @brief Convert a degree to jo_angle
+ *  @param X Degree (constant expression friendly, usable in static initializers)
+ */
+# define JO_DEG_TO_ANGLE(X)         ((jo_angle)((65536.0 * (X)) / 360.0))
+/** @brief Convert a radian to jo_angle
+ *  @param X Radian (constant expression friendly, usable in static initializers)
+ */
+# define JO_RAD_TO_ANGLE(X)         ((jo_angle)((65536.0 * (X)) / (2.0 * 3.14159265358979)))
 
 /** @brief Convert int to jo engine fixed
  *  @param x Float to convert
@@ -514,24 +541,137 @@ jo_fixed                                jo_fixed_pow(jo_fixed x, jo_fixed y);
  *  @param x First operand
  *  @param y Second operand
  *  @return x * y
+ *  @remarks Compiled as a single SH-2 instruction (dmuls.l) + 3 register moves
  */
-jo_fixed                                jo_fixed_mult(jo_fixed x, jo_fixed y);
+static __jo_force_inline jo_fixed       jo_fixed_mult(const jo_fixed x, const jo_fixed y)
+{
+    return ((jo_fixed)(((long long)x * y) >> 16));
+}
+
+/** @brief Multiply to fixed number and keep the integer part: jo_fixed2int(jo_fixed_mult(x, y)), without overflow
+ *  @param x First operand
+ *  @param y Second operand
+ *  @return Integer part of x * y (rounded down)
+ *  @remarks The high word of the 64 bits product (dmuls.l + sts mach): faster than jo_fixed_mult() then a shift
+ */
+static __jo_force_inline int            jo_fixed_mult_to_int(const jo_fixed x, const jo_fixed y)
+{
+    int                                 high;
+
+    __asm__ ("dmuls.l %1, %2\n\t"
+             "sts mach, %0"
+             : "=r" (high)
+             : "r" (x), "r" (y)
+             : "mach", "macl");
+    return (high);
+}
 
 /** @brief Dot product two fixed 3D points
  *  @param ptA Point A (first operand)
  *  @param ptB	Point B (second operand)
- *	@warning Will overflow easily with values >(147<<16)
  *  @return ptA · ptB
+ *  @remarks The sum is computed on 64 bits by the SH-2 multiply and accumulate unit (mac.l), so only the result must fit in a jo_fixed
+ *  @remarks It's about twice faster than 3 calls of jo_fixed_mult()
  */
-jo_fixed								jo_fixed_dot(jo_fixed ptA[3], jo_fixed ptB[3]);
+static __jo_force_inline jo_fixed       jo_fixed_dot(const jo_fixed ptA[3], const jo_fixed ptB[3])
+{
+    const jo_fixed                      *a;
+    const jo_fixed                      *b;
+    jo_fixed                            high;
+    jo_fixed                            low;
+
+    a = ptA;
+    b = ptB;
+    __asm__ ("clrmac\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "sts mach, %0\n\t"
+             "sts macl, %1\n\t"
+             "xtrct %0, %1"
+             : "=&r" (high), "=&r" (low), "+r" (a), "+r" (b)
+             : "m" (*(const jo_fixed (*)[3])ptA), "m" (*(const jo_fixed (*)[3])ptB)
+             : "mach", "macl");
+    return (low);
+}
 
 /** @brief Divide fixed-point numbers (expresses dividend / divisor)
  *  @param dividend (first operand)
  *  @param divisor  (second operand)
- *	@warning speculative real-hardware delay and unit testing?
  *  @return dividend / divisor
+ *  @remarks Uses the SH-2 division unit (64 bits / 32 bits in 39 cycles). The CPU waits automatically for the result.
+ *  @warning The result is undefined if divisor is 0 or if the quotient doesn't fit in a jo_fixed
  */
-jo_fixed								jo_fixed_div(jo_fixed dividend, jo_fixed divisor);
+static __jo_force_inline jo_fixed       jo_fixed_div(const jo_fixed dividend, const jo_fixed divisor)
+{
+    JO_SH2_DVSR = divisor;
+    // 64 bits dividend: (dividend << 16)
+    JO_SH2_DVDNTH = dividend >> 16;
+    // Writing the low part starts the division
+    JO_SH2_DVDNTL = dividend << 16;
+    return ((jo_fixed)JO_SH2_DVDNTL);
+}
+
+/** @brief Divide 2 integers (dividend / divisor, rounded toward 0 as in C)
+ *  @param dividend (first operand)
+ *  @param divisor  (second operand)
+ *  @return dividend / divisor
+ *  @remarks Uses the SH-2 division unit (32 bits / 32 bits in 39 cycles): faster than the division of the compiler
+ *           (___sdivsi3, a routine of the library: about 3 times slower)
+ *  @warning The result is undefined if divisor is 0
+ */
+static __jo_force_inline int            jo_int_div(const int dividend, const int divisor)
+{
+    JO_SH2_DVSR = divisor;
+    // (writing the dividend starts the division. The quotient read in DVDNTL, as jo_fixed_div(): the register saved and
+    // restored by the VBLANK interrupt)
+    JO_SH2_DVDNT = dividend;
+    return (JO_SH2_DVDNTL);
+}
+
+/** @brief Arithmetic right shift by 8 bits (x >> 8, rounded toward minus infinity) of any value
+ *  @param x Value
+ *  @return x >> 8
+ *  @remarks The SH-2 shifts arithmetically by one bit only: GCC calls a routine of its library (___ashiftrt_r4_8). Here
+ *  the logical shift (shlr8) of x or of its complement
+ */
+static __jo_force_inline int            jo_shift_right8(const int x)
+{
+    return (x < 0 ? (int)~(~(unsigned int)x >> 8) : (int)((unsigned int)x >> 8));
+}
+
+/** @brief Arithmetic right shift by 8 bits (x >> 8) of a value in [-2^23, 2^23) (a 16 bits value x 0 to 256 for example)
+ *  @param x Value
+ *  @return x >> 8
+ *  @remarks Without a branch: the logical shift of x + 2^23 (positive), minus 2^15
+ *  @warning The result is wrong out of the range
+ */
+static __jo_force_inline int            jo_shift_right8_small(const int x)
+{
+    return ((int)(((unsigned int)x + (1u << 23)) >> 8) - (1 << 15));
+}
+
+/** @brief Start a fixed-point division in the background (see jo_fixed_div_result())
+ *  @param dividend (first operand)
+ *  @param divisor  (second operand)
+ *  @remarks The SH-2 division unit computes the quotient in 39 cycles while the CPU executes other instructions
+ *  @warning Don't start another division before reading the result
+ */
+static __jo_force_inline void           jo_fixed_div_start(const jo_fixed dividend, const jo_fixed divisor)
+{
+    JO_SH2_DVSR = divisor;
+    JO_SH2_DVDNTH = dividend >> 16;
+    JO_SH2_DVDNTL = dividend << 16;
+}
+
+/** @brief Get the result of the division started by jo_fixed_div_start()
+ *  @return dividend / divisor
+ *  @remarks The CPU waits automatically if the division is not finished
+ */
+static __jo_force_inline jo_fixed       jo_fixed_div_result(void)
+{
+    return ((jo_fixed)JO_SH2_DVDNTL);
+}
 
 /** @brief Convert fixed degree to fixed radian
  *  @param deg Fixed angle in degree
@@ -585,6 +725,7 @@ extern int                      jo_random_seed;
 /** @brief Get a random number
  *  @param max maximum value
  *  @return 1 to max
+ *  @remarks Park-Miller generator (16807 * seed mod 2^31 - 1) computed without division (same sequence as before)
  */
 int                             jo_random(int max);
 
@@ -607,15 +748,52 @@ static  __jo_force_inline int	jo_random_using_multiple(int max, int multiple)
 ╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝   ╚═╝
 */
 
+/** @brief Index of the highest bit set in a value (31 - number of leading zeros)
+ *  @param x Value
+ *  @return 0 to 31 (0 if x is 0 or 1)
+ *  @remarks Binary search in 5 steps: the SH-2 has no instruction for it
+ */
+static  __jo_force_inline unsigned int  jo_highest_bit(unsigned int x)
+{
+    unsigned int                        bit;
+
+    bit = 0;
+    if (x & 0xffff0000)
+    {
+        bit = 16;
+        x >>= 16;
+    }
+    if (x & 0xff00)
+    {
+        bit += 8;
+        x >>= 8;
+    }
+    if (x & 0xf0)
+    {
+        bit += 4;
+        x >>= 4;
+    }
+    if (x & 0xc)
+    {
+        bit += 2;
+        x >>= 2;
+    }
+    if (x & 0x2)
+        ++bit;
+    return (bit);
+}
+
 /** @brief Fast Square root using fixed number
  *  @param value Value
- *  @return Sqrt(value)
+ *  @return Sqrt(value), rounded down to 1/65536 (JO_FIXED_OVERFLOW if value is negative)
+ *  @remarks A table and one step of Newton's method with the division unit (see jo_sqrt())
  */
 jo_fixed                        jo_fixed_sqrt(jo_fixed value);
 
 /** @brief Fast square root
  *  @param value Value
- *  @return Sqrt(value)
+ *  @return Integer part of Sqrt(value)
+ *  @remarks A table and one step of Newton's method with the division unit (about 70 cycles)
  */
 unsigned int                    jo_sqrt(unsigned int value);
 
@@ -626,10 +804,17 @@ unsigned int                    jo_sqrt(unsigned int value);
  */
 static  __jo_force_inline float jo_sqrtf(float value)
 {
-    unsigned int i = *(unsigned int*)(void *)&value;
-    i += 127 << 23;
-    i >>= 1;
-    return *(float*)(void *)&i;
+    // A union avoids the strict aliasing issue of *(unsigned int *)&value (undefined behavior with -O2)
+    union
+    {
+        float           f;
+        unsigned int    i;
+    }                   bits;
+
+    bits.f = value;
+    bits.i += 127 << 23;
+    bits.i >>= 1;
+    return (bits.f);
 }
 
 /*
@@ -667,52 +852,113 @@ float           jo_rsqrt(float value);
 /** @brief See https://github.com/johannes-fetz/joengine/issues/42 */
 # define __JO_DEG_TO_ANGLE_MAGIC    (182)
 
-/** @brief Replacement for DEGtoANG using floating number
+/** @brief Convert a degree to jo_angle using floating number
  *  @param deg Degree
- *  @return SGL ANGLE
+ *  @return jo_angle
  */
-static  __jo_force_inline ANGLE     jo_DEGtoANG(const float deg)
+static  __jo_force_inline jo_angle     jo_DEGtoANG(const float deg)
 {
-#ifdef JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
-    return ((ANGLE)(__JO_DEG_TO_ANGLE_MAGIC * (deg)));
-#else
-    return ((ANGLE)((65536.0 * (deg)) / 360.0));
-#endif
+    // One float multiplication (65536 / 360), not a double multiplication and a double division
+    return ((jo_angle)(deg * (65536.0f / 360.0f)));
 }
 
-/** @brief Replacement for DEGtoANG using interger
+/** @brief Convert a degree to jo_angle using interger
  *  @param deg Degree
- *  @return SGL ANGLE
+ *  @return jo_angle
  */
-static  __jo_force_inline ANGLE     jo_DEGtoANG_int(const int deg)
+static  __jo_force_inline jo_angle     jo_DEGtoANG_int(const int deg)
 {
-#ifdef JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
-    return ((ANGLE)(__JO_DEG_TO_ANGLE_MAGIC * (deg)));
-#else
-    return ((ANGLE)(JO_MULT_BY_65536(deg) / 360.0));
-#endif
+    int                                 n;
+    int                                 a;
+
+    // deg * 65536 / 360 = deg * 8192 / 45: multiplication by 2^32 / 45 (rounded up) instead of a division.
+    // Same result as the division for |deg| < 37000
+    n = deg < 0 ? -deg : deg;
+    a = (int)(((long long)(n * 8192) * 95443718LL) >> 32);
+    return ((jo_angle)(deg < 0 ? -a : a));
 }
 
-#if JO_COMPILE_USING_SGL
 
-/** @brief Convert fixed radian to SGL ANGLE
+/** @brief Convert fixed radian to jo_angle
  *  @param rad Jo Engine fixed radian
- *  @return SGL ANGLE
+ *  @return jo_angle
  */
-static  __jo_force_inline ANGLE     jo_fixed_rad2ANGLE(const jo_fixed rad)
+static  __jo_force_inline jo_angle     jo_fixed_rad2ANGLE(const jo_fixed rad)
 {
-    return (RADtoANG(jo_fixed2float(rad)));
+    // rad * 65536 / (2 pi) without floating point: 65536 / (2 pi) = 683565276 / 2^32 (Q16.16 input)
+    return ((jo_angle)(((long long)rad * 683565276LL) >> 32));
 }
 
-#endif
 
-/** @brief Convert fixed degree to SGL ANGLE
- *  @param deg Jo Engine fixed degree
- *  @return SGL ANGLE
+/** @brief Sinus table: sin(x) for x in [0, pi/2] (1024 steps, Q16.16) (Internal usage, see math.c) */
+extern const jo_fixed               __jo_sin_table[1025];
+
+/** @brief Sinus of a table index (Internal usage)
+ *  @param index 0 to 4095 (4096 steps per turn)
+ *  @return Q16.16 fixed number
  */
-static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
+static  __jo_force_inline jo_fixed     __jo_sin_index(const unsigned int index)
 {
-    return (jo_DEGtoANG(jo_fixed2float(deg)));
+    if (index < 1024)
+        return (__jo_sin_table[index]);
+    if (index < 2048)
+        return (__jo_sin_table[2048 - index]);
+    if (index < 3072)
+        return (-__jo_sin_table[index - 2048]);
+    return (-__jo_sin_table[4096 - index]);
+}
+
+/** @brief Table index of an angle (Internal usage)
+ *  @param angle jo_angle
+ *  @return 0 to 4095 (4096 steps per turn, rounded to the nearest)
+ */
+static  __jo_force_inline unsigned int __jo_angle_to_sin_index(const jo_angle angle)
+{
+    return (((((unsigned short)angle) + 8) >> 4) & 0xfff);
+}
+
+/** @brief Sinus of an angle (table lookup, fast)
+ *  @param angle jo_angle (0x10000 = 360 degrees, it wraps: for instance (jo_angle)(degrees * 182) for an angle that grows)
+ *  @return Q16.16 fixed number
+ *  @remarks Inlined: a table lookup costs less than a function call
+ */
+static  __jo_force_inline jo_fixed     jo_sin_angle(const jo_angle angle)
+{
+    return (__jo_sin_index(__jo_angle_to_sin_index(angle)));
+}
+
+/** @brief Cosinus of an angle (table lookup, fast)
+ *  @param angle jo_angle (0x10000 = 360 degrees, it wraps)
+ *  @return Q16.16 fixed number
+ */
+static  __jo_force_inline jo_fixed     jo_cos_angle(const jo_angle angle)
+{
+    return (__jo_sin_index((__jo_angle_to_sin_index(angle) + 1024) & 0xfff));
+}
+
+/** @brief Sinus and cosinus of the same angle (table lookup, fast)
+ *  @param angle jo_angle (0x10000 = 360 degrees, it wraps)
+ *  @param sin_value Sinus (Q16.16 fixed number)
+ *  @param cos_value Cosinus (Q16.16 fixed number)
+ *  @remarks Same values as jo_sin_angle() and jo_cos_angle(), the angle is converted once
+ */
+static  __jo_force_inline void         jo_sincos_angle(const jo_angle angle, jo_fixed * const sin_value, jo_fixed * const cos_value)
+{
+    unsigned int                        index;
+
+    index = __jo_angle_to_sin_index(angle);
+    *sin_value = __jo_sin_index(index);
+    *cos_value = __jo_sin_index((index + 1024) & 0xfff);
+}
+
+/** @brief Convert fixed degree to jo_angle
+ *  @param deg Jo Engine fixed degree
+ *  @return jo_angle
+ */
+static  __jo_force_inline jo_angle     jo_fixed_deg2ANGLE(const jo_fixed deg)
+{
+    // deg * 65536 / 360 without floating point: 1 / 360 = 11930465 / 2^32 (Q16.16 input)
+    return ((jo_angle)(((long long)deg * 11930465LL) >> 32));
 }
 
 /*
@@ -727,8 +973,12 @@ static  __jo_force_inline ANGLE     jo_fixed_deg2ANGLE(const jo_fixed deg)
 /** @brief Fast sinus computation using fixed number
  *  @param rad Fixed angle in radian
  *  @return Sin(rad)
+ *  @remarks Table lookup (jo_sin_angle())
  */
-jo_fixed                            jo_fixed_sin(jo_fixed rad);
+static  __jo_force_inline jo_fixed	jo_fixed_sin(const jo_fixed rad)
+{
+    return (jo_sin_angle(jo_fixed_rad2ANGLE(rad)));
+}
 
 /** @brief Fast sinus computation
  *  @param deg Angle in degree
@@ -736,7 +986,8 @@ jo_fixed                            jo_fixed_sin(jo_fixed rad);
  */
 static  __jo_force_inline jo_fixed	jo_sin(const int deg)
 {
-    return (jo_fixed_sin(jo_fixed_deg2rad(jo_int2fixed(deg))));
+    // Table lookup, without floating point
+    return (jo_sin_angle(jo_DEGtoANG_int(deg)));
 }
 
 /** @brief Sinus computation
@@ -773,10 +1024,11 @@ static  __jo_force_inline float	jo_sin_radf(const float rad)
  *  @param deg Angle in degree
  *  @param value Value
  *  @return value * Sin(deg)
+ *  @remarks 64 bits product: value * Sin(deg) overflowed from |value| > 32767
  */
 static  __jo_force_inline int	jo_sin_mult(const int value, const int deg)
 {
-    return (jo_fixed2int(value * jo_sin(deg)));
+    return (jo_fixed_mult(value, jo_sin(deg)));
 }
 
 /** @brief Fast sinus multiplication
@@ -802,8 +1054,12 @@ static  __jo_force_inline float	jo_sinf_mult(const float value, const int deg)
 /** @brief Fast cosinus computation using fixed number
  *  @param rad Fixed angle in radian
  *  @return Cos(rad)
+ *  @remarks Table lookup (jo_cos_angle())
  */
-jo_fixed                            jo_fixed_cos(jo_fixed rad);
+static  __jo_force_inline jo_fixed	jo_fixed_cos(const jo_fixed rad)
+{
+    return (jo_cos_angle(jo_fixed_rad2ANGLE(rad)));
+}
 
 /** @brief Fast cosinus computation
  *  @param deg Angle in degree
@@ -811,7 +1067,19 @@ jo_fixed                            jo_fixed_cos(jo_fixed rad);
  */
 static  __jo_force_inline jo_fixed	jo_cos(const int deg)
 {
-    return (jo_fixed_cos(jo_fixed_deg2rad(jo_int2fixed(deg))));
+    // Table lookup, without floating point
+    return (jo_cos_angle(jo_DEGtoANG_int(deg)));
+}
+
+/** @brief Sinus and cosinus of the same angle in degree (table lookup, fast)
+ *  @param deg Angle in degree
+ *  @param sin_value Fixed Sin(deg)
+ *  @param cos_value Fixed Cos(deg)
+ *  @remarks Same values as jo_sin() and jo_cos(), the angle is converted once
+ */
+static  __jo_force_inline void	jo_sincos(const int deg, jo_fixed * const sin_value, jo_fixed * const cos_value)
+{
+    jo_sincos_angle(jo_DEGtoANG_int(deg), sin_value, cos_value);
 }
 
 /** @brief Cosinus computation
@@ -848,10 +1116,11 @@ static  __jo_force_inline float	jo_cos_radf(const float rad)
  *  @param deg Angle in degree
  *  @param value Value
  *  @return value * Cos(deg)
+ *  @remarks 64 bits product: value * Cos(deg) overflowed from |value| > 32767
  */
 static  __jo_force_inline int	jo_cos_mult(const int value, const int deg)
 {
-    return (jo_fixed2int(value * jo_cos(deg)));
+    return (jo_fixed_mult(value, jo_cos(deg)));
 }
 
 /** @brief Fast cosinus multiplication
@@ -880,7 +1149,11 @@ static  __jo_force_inline float	jo_cosf_mult(const float value, const int deg)
  */
 static __jo_force_inline jo_fixed    jo_tan(const int deg)
 {
-    return jo_fixed_div(jo_sin(deg), jo_cos(deg));
+    jo_fixed                         sin_value;
+    jo_fixed                         cos_value;
+
+    jo_sincos(deg, &sin_value, &cos_value);
+    return jo_fixed_div(sin_value, cos_value);
 }
 
 /** @brief Tangent computation
@@ -900,7 +1173,11 @@ static __jo_force_inline float    jo_tanf(const float deg)
  */
 static __jo_force_inline jo_fixed    jo_tan_rad(const float rad)
 {
-    return jo_fixed_div(jo_sin_rad(rad), jo_cos_rad(rad));
+    jo_fixed                         sin_value;
+    jo_fixed                         cos_value;
+
+    jo_sincos_angle(jo_fixed_rad2ANGLE(jo_float2fixed(rad)), &sin_value, &cos_value);
+    return jo_fixed_div(sin_value, cos_value);
 }
 
 /** @brief Tangent computation
@@ -922,13 +1199,14 @@ static __jo_force_inline float  jo_tan_radf(const float rad)
 ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
 */
 
-/** @brief Fast Arc Cosinus computation
- *  @param angle Angle in radian
- *  @return Acos(angle) using floating number
+/** @brief Fast Arc Cosinus computation (linear approximation)
+ *  @param angle Cosinus (-1 to 1)
+ *  @return Acos(angle) in radian using floating number: PI for -1, PI/2 for 0, 0 for 1
+ *  @warning Rough: error up to about 0.21 radian (12 degrees)
  */
 static  __jo_force_inline float	jo_acos_radf(const float angle)
 {
-    return (3.14159f - 1.57079f * angle);
+    return (1.5707963f - 1.5707963f * angle);
 }
 
 /*
@@ -958,6 +1236,55 @@ float                           jo_atan2f_rad(const float y, const float x);
 static __jo_force_inline int    jo_atan2f(const float y, const float x)
 {
     return (int)JO_RAD_TO_DEG(jo_atan2f_rad(y, x));
+}
+
+/** @brief ATAN2 as a jo_angle (65536 per turn, like jo_sin_angle() and the rotations of the 3D)
+ *  @param y First value
+ *  @param x Second value
+ *  @return Angle (-32768 to 32767)
+ *  @remarks Finer than jo_atan2_degrees() (a degree is 182 units of jo_angle): a camera aimed with it does not shake
+ */
+static __jo_force_inline jo_angle   jo_atan2_angle(const float y, const float x)
+{
+    return ((jo_angle)(int)(jo_atan2f_rad(y, x) * (32768.0f / JO_PI)));
+}
+
+/** @brief ATAN2 in degree without floating point (fixed numbers)
+ *  @param y First value (Q16.16)
+ *  @param x Second value (Q16.16)
+ *  @warning Y is the first operand (like Math.Atan2() in C#)
+ *  @return ATAN2(Y, X) in degree, -179 to 180 (0 if x and y are 0). Error: about 1 degree at most (rounded down)
+ *  @remarks Much faster than jo_atan2f() (the SH-2 has no FPU): a division and a polynomial. The heading of a vector
+ *  (x = cos, z = sin, like jo_cos() / jo_sin()) is jo_atan2_degrees(z, x)
+ */
+int                             jo_atan2_degrees(const jo_fixed y, const jo_fixed x);
+
+/** @brief Turn an angle toward another angle, by the shortest way
+ *  @param angle Current angle in degree (0 to 359)
+ *  @param target Target angle in degree (any value)
+ *  @param max_step Largest change in degree (positive)
+ *  @return New angle in degree (0 to 359)
+ */
+static __jo_force_inline int    jo_turn_toward(const int angle, const int target, const int max_step)
+{
+    int                         d;
+
+    // Shortest difference: -180 to 179 (the modulo, a division by libgcc, only when the angles are not 0 to 359)
+    d = target - angle;
+    if (d >= 360 || d <= -360)
+        d %= 360;
+    if (d >= 180)
+        d -= 360;
+    else if (d < -180)
+        d += 360;
+    if (d > max_step)
+        d = max_step;
+    else if (d < -max_step)
+        d = -max_step;
+    d += angle;
+    if (d >= 360 || d <= -360)
+        d %= 360;
+    return (d < 0 ? d + 360 : d);
 }
 
 /*
@@ -1062,13 +1389,13 @@ static __jo_force_inline void jo_vector4_fixed_cross(const jo_vector4_fixed * co
  */
 static __jo_force_inline jo_fixed jo_vector4_fixed_dot(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b)
 {
-    return (jo_fixed_mult(a->x, b->x) + jo_fixed_mult(a->y, b->y) + jo_fixed_mult(a->z, b->z));
+    // x, y, z are contiguous (w is ignored)
+    return (jo_fixed_dot((const jo_fixed *)a, (const jo_fixed *)b));
 }
 
-/** @brief Dot product of 2 vectors4 (using fixed numbers)
+/** @brief Swap 2 vectors4 (using fixed numbers)
  *  @param a First vector4
  *  @param b Second vector4
- *  @return Dot product
  */
 static __jo_force_inline void jo_vector4_swap(jo_vector4_fixed * const a, jo_vector4_fixed * const b)
 {
@@ -1196,9 +1523,13 @@ static __jo_force_inline void jo_vectorf_div(const jo_vectorf * const a, const j
  */
 static __jo_force_inline void jo_vectorf_divs(const jo_vectorf * const a, const float s, jo_vectorf * const result)
 {
-    result->x = a->x / s;
-    result->y = a->y / s;
-    result->z = a->z / s;
+    float                       inv;
+
+    // One division (libgcc on the SH-2) and 3 multiplications instead of 3 divisions
+    inv = 1.0f / s;
+    result->x = a->x * inv;
+    result->y = a->y * inv;
+    result->z = a->z * inv;
 }
 
 /** @brief Get the length of a vector (using floating numbers)
@@ -1230,9 +1561,11 @@ static __jo_force_inline void jo_vectorf_normalize(const jo_vectorf * const a, j
     float len = jo_vectorf_length(a);
     if (len > 0)
     {
-        result->x = a->x / len;
-        result->y = a->y / len;
-        result->z = a->z / len;
+        // One division (libgcc on the SH-2) and 3 multiplications instead of 3 divisions
+        float inv = 1.0f / len;
+        result->x = a->x * inv;
+        result->y = a->y * inv;
+        result->z = a->z * inv;
     }
     else
     {
@@ -1272,7 +1605,8 @@ static __jo_force_inline void jo_vectorf_cross(const jo_vectorf * const a, const
  */
 static __jo_force_inline float jo_vectorf_angle_between_radf(const jo_vectorf * const a, const jo_vectorf * const b)
 {
-    return jo_acos_radf(jo_vectorf_dot(a, b) / (jo_vectorf_length(a) * jo_vectorf_length(b)));
+    // One square root: sqrt(|a|^2 * |b|^2) = |a| * |b|
+    return jo_acos_radf(jo_vectorf_dot(a, b) / jo_sqrtf(jo_vectorf_dot(a, a) * jo_vectorf_dot(b, b)));
 }
 
 /*
@@ -1370,8 +1704,8 @@ static __jo_force_inline void jo_matrixf_scaling(const jo_vectorf * const scale,
 static __jo_force_inline void jo_matrix_rotation_x_rad(const float angle_in_rad, jo_matrix * const result)
 {
     jo_matrix_identity(result);
-    result->m11 = jo_cos_rad(angle_in_rad);
-    result->m12 = jo_sin_rad(angle_in_rad);
+    // The float angle is converted once (same values as jo_cos_rad() and jo_sin_rad())
+    jo_sincos_angle(jo_fixed_rad2ANGLE(jo_float2fixed(angle_in_rad)), &result->m12, &result->m11);
     result->m21 = -result->m12;
     result->m22 = result->m11;
 }
@@ -1396,8 +1730,8 @@ static __jo_force_inline void jo_matrixf_rotation_x_rad(const float angle_in_rad
 static __jo_force_inline void jo_matrix_rotation_y_rad(const float angle_in_rad, jo_matrix * const result)
 {
     jo_matrix_identity(result);
-    result->m00 = jo_cos_rad(angle_in_rad);
-    result->m20 = jo_sin_rad(angle_in_rad);
+    // The float angle is converted once (same values as jo_cos_rad() and jo_sin_rad())
+    jo_sincos_angle(jo_fixed_rad2ANGLE(jo_float2fixed(angle_in_rad)), &result->m20, &result->m00);
     result->m02 = -result->m20;
     result->m22 = result->m00;
 }
@@ -1422,8 +1756,8 @@ static __jo_force_inline void jo_matrixf_rotation_y_rad(const float angle_in_rad
 static __jo_force_inline void jo_matrix_rotation_z_rad(const float angle_in_rad, jo_matrix * const result)
 {
     jo_matrix_identity(result);
-    result->m00 = jo_cos_rad(angle_in_rad);
-    result->m01 = jo_sin_rad(angle_in_rad);
+    // The float angle is converted once (same values as jo_cos_rad() and jo_sin_rad())
+    jo_sincos_angle(jo_fixed_rad2ANGLE(jo_float2fixed(angle_in_rad)), &result->m01, &result->m00);
     result->m10 = -result->m01;
     result->m11 = result->m00;
 }
@@ -1505,29 +1839,54 @@ static __jo_force_inline void   jo_matrix_mul_vector4(const jo_matrix * const m,
     result->w = jo_fixed_mult(m->m03, v->x) + jo_fixed_mult(m->m13, v->y) + jo_fixed_mult(m->m23, v->z) + jo_fixed_mult(m->m33, v->w);
 }
 
+/** @brief Dot product of 2 vectors of 4 fixed numbers (Internal usage)
+ *  @param ptA First vector (4 contiguous fixed numbers)
+ *  @param ptB Second vector (4 contiguous fixed numbers)
+ *  @return ptA · ptB
+ *  @remarks Sum on 64 bits by the multiply and accumulate unit (mac.l), like jo_fixed_dot()
+ */
+static __jo_force_inline jo_fixed       __jo_fixed_dot4(const jo_fixed ptA[4], const jo_fixed ptB[4])
+{
+    const jo_fixed                      *a;
+    const jo_fixed                      *b;
+    jo_fixed                            high;
+    jo_fixed                            low;
+
+    a = ptA;
+    b = ptB;
+    __asm__ ("clrmac\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "mac.l @%2+, @%3+\n\t"
+             "sts mach, %0\n\t"
+             "sts macl, %1\n\t"
+             "xtrct %0, %1"
+             : "=&r" (high), "=&r" (low), "+r" (a), "+r" (b)
+             : "m" (*(const jo_fixed (*)[4])ptA), "m" (*(const jo_fixed (*)[4])ptB)
+             : "mach", "macl");
+    return (low);
+}
+
 /** @brief Multiply 2 matrix (using fixed numbers)
  *  @param a First matrix
  *  @param b Second matrix
  *  @param result Result matrix
  *  @warning a, b and result parameters must not be the same address
+ *  @remarks Each element is a sum of 4 products on 64 bits (mac.l). The sum was a float before: slow (no FPU) and
+ *  only 24 bits of precision
  */
 static __jo_force_inline void   jo_matrix_mul(const jo_matrix * const a, const jo_matrix * const b, jo_matrix * const result)
 {
+    jo_matrix                   at;
     register int                i;
     register int                j;
-    register int                k;
-    register float              sum;
 
+    // The columns of a become contiguous rows: result->m[i][j] = sum of a->m[k][j] * b->m[i][k]
+    jo_matrix_transpose(a, &at);
     for (i = 0; i < 4; ++i)
-    {
         for (j = 0; j < 4; ++j)
-        {
-            sum = 0;
-            for (k = 0; k < 4; ++k)
-                sum += jo_fixed_mult(a->m[k][j], b->m[i][k]);
-            result->m[i][j] = sum;
-        }
-    }
+            result->m[i][j] = __jo_fixed_dot4(at.m[j], b->m[i]);
 }
 
 /** @brief Multiply 2 matrix (using floating numbers)
@@ -1613,7 +1972,7 @@ static __jo_force_inline void jo_matrixf_perspective(const float vertical_field_
                                                     const float near_view_distance, const float far_view_distance, jo_matrixf * const result)
 {
     jo_matrixf_identity(result);
-    result->m11 = 1.0f / jo_tan_radf((vertical_field_of_view_in_deg / 180 * JO_PI) / 2.0f);
+    result->m11 = 1.0f / jo_tan_radf(vertical_field_of_view_in_deg * (JO_PI / 360.0f));
     result->m00 = result->m11 / aspect_ratio;
     result->m22 = (far_view_distance + near_view_distance) / (near_view_distance - far_view_distance);
     result->m32 = (2 * far_view_distance * near_view_distance) / (near_view_distance - far_view_distance);
@@ -1676,15 +2035,17 @@ static __jo_force_inline void jo_matrixf_invert_affine(const jo_matrixf * const 
     float c02 = matrix->m10 * matrix->m21 - matrix->m11 * matrix->m20;
     float c12 = -(matrix->m00 * matrix->m21 - matrix->m01 * matrix->m20);
     float c22 = matrix->m00 * matrix->m11 - matrix->m01 * matrix->m10;
-    float i00 = c00 / det;
-    float i10 = c01 / det;
-    float i20 = c02 / det;
-    float i01 = c10 / det;
-    float i11 = c11 / det;
-    float i21 = c12 / det;
-    float i02 = c20 / det;
-    float i12 = c21 / det;
-    float i22 = c22 / det;
+    // One division (libgcc on the SH-2) and 9 multiplications instead of 9 divisions
+    float inv_det = 1.0f / det;
+    float i00 = c00 * inv_det;
+    float i10 = c01 * inv_det;
+    float i20 = c02 * inv_det;
+    float i01 = c10 * inv_det;
+    float i11 = c11 * inv_det;
+    float i21 = c12 * inv_det;
+    float i02 = c20 * inv_det;
+    float i12 = c21 * inv_det;
+    float i22 = c22 * inv_det;
 
     result->m00 = i00;
     result->m10 = i10;
@@ -1714,9 +2075,11 @@ static __jo_force_inline void jo_matrixf_mul_pos(const jo_matrixf * const matrix
     result->z = matrix->m02 * position->x + matrix->m12 * position->y + matrix->m22 * position->z + matrix->m32;
     if (w != 0 && w != 1)
     {
-        result->x /= w;
-        result->y /= w;
-        result->z /= w;
+        // One division (libgcc on the SH-2) and 3 multiplications instead of 3 divisions
+        float inv_w = 1.0f / w;
+        result->x *= inv_w;
+        result->y *= inv_w;
+        result->z *= inv_w;
     }
 }
 
@@ -1734,9 +2097,11 @@ static __jo_force_inline void jo_matrixf_mul_dir(const jo_matrixf * const matrix
     result->z = matrix->m02 * direction->x + matrix->m12 * direction->y + matrix->m22 * direction->z;
     if (w != 0 && w != 1)
     {
-        result->x /= w;
-        result->y /= w;
-        result->z /= w;
+        // One division (libgcc on the SH-2) and 3 multiplications instead of 3 divisions
+        float inv_w = 1.0f / w;
+        result->x *= inv_w;
+        result->y *= inv_w;
+        result->z *= inv_w;
     }
 }
 

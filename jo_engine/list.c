@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -120,6 +119,9 @@ void            jo_list_remove(jo_list * const list, const jo_node * const node_
     jo_node     *prev;
     jo_node     *next;
 
+    // Invalid index (jo_list_remove_at()) or empty list (jo_list_remove_last(), etc)
+    if (node_to_delete == JO_NULL)
+        return ;
     prev = node_to_delete->prev;
     next = node_to_delete->next;
     if (prev != JO_NULL)

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2025, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -34,9 +34,9 @@
 static int g_serial_initialized = 0;
 
 // error callback functions
-static jo_serial_error_callback g_orer = NULL;
-static jo_serial_error_callback g_fer = NULL;
-static jo_serial_error_callback g_per = NULL;
+static jo_serial_error_callback g_orer = JO_NULL;
+static jo_serial_error_callback g_fer = JO_NULL;
+static jo_serial_error_callback g_per = JO_NULL;
 
 void jo_serial_async_init(void)
 {

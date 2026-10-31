@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -117,7 +117,8 @@ void            jo_add_memory_zone(unsigned char *ptr, const unsigned int size_i
  */
 static  __jo_force_inline jo_extended_ram_cartridge_type      jo_get_extended_ram_cartridge_type(void)
 {
-    return *((char *)0x24FFFFFF) == 0x5a ? CART_8MBits : *((char *)0x24FFFFFF) == 0x5c ? CART_32MBits : CART_NONE;
+    return (JO_RAM_CARTRIDGE_ID == JO_RAM_CARTRIDGE_ID_8MBITS ? CART_8MBits :
+            JO_RAM_CARTRIDGE_ID == JO_RAM_CARTRIDGE_ID_32MBITS ? CART_32MBits : CART_NONE);
 }
 
 #endif

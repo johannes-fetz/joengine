@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,7 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
+#include <stdarg.h>
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -48,95 +48,147 @@
 */
 char			            __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 
-#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
-
-#if !JO_COMPILE_USING_SGL
-
-unsigned char               __jo_printf_current_palette_index = JO_COLOR_INDEX_Black;
-
-static unsigned char __jo_font[] =
+/** @brief Write an unsigned number in a base (10 or 16), backward from the end of a buffer
+ *  @return The first character
+ */
+static char                 *__jo_format_unsigned(unsigned int value, const unsigned int base, const char * const digits, char *end)
 {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0x81, 0xA5, 0x81, 0xBD, 0x99, 0x81, 0x7E,
-    0x7E, 0xFF, 0xDB, 0xFF, 0xC3, 0xE7, 0xFF, 0x7E, 0x6C, 0xFE, 0xFE, 0xFE, 0x7C, 0x38, 0x10, 0x00,
-    0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x10, 0x00, 0x38, 0x7C, 0x38, 0xFE, 0xFE, 0x7C, 0x38, 0x7C,
-    0x10, 0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x7C, 0x00, 0x00, 0x18, 0x3C, 0x3C, 0x18, 0x00, 0x00,
-    0xFF, 0xFF, 0xE7, 0xC3, 0xC3, 0xE7, 0xFF, 0xFF, 0x00, 0x3C, 0x66, 0x42, 0x42, 0x66, 0x3C, 0x00,
-    0xFF, 0xC3, 0x99, 0xBD, 0xBD, 0x99, 0xC3, 0xFF, 0x0F, 0x07, 0x0F, 0x7D, 0xCC, 0xCC, 0xCC, 0x78,
-    0x3C, 0x66, 0x66, 0x66, 0x3C, 0x18, 0x7E, 0x18, 0x3F, 0x33, 0x3F, 0x30, 0x30, 0x70, 0xF0, 0xE0,
-    0x7F, 0x63, 0x7F, 0x63, 0x63, 0x67, 0xE6, 0xC0, 0x99, 0x5A, 0x3C, 0xE7, 0xE7, 0x3C, 0x5A, 0x99,
-    0x80, 0xE0, 0xF8, 0xFE, 0xF8, 0xE0, 0x80, 0x00, 0x02, 0x0E, 0x3E, 0xFE, 0x3E, 0x0E, 0x02, 0x00,
-    0x18, 0x3C, 0x7E, 0x18, 0x18, 0x7E, 0x3C, 0x18, 0x66, 0x66, 0x66, 0x66, 0x66, 0x00, 0x66, 0x00,
-    0x7F, 0xDB, 0xDB, 0x7B, 0x1B, 0x1B, 0x1B, 0x00, 0x3E, 0x63, 0x38, 0x6C, 0x6C, 0x38, 0xCC, 0x78,
-    0x00, 0x00, 0x00, 0x00, 0x7E, 0x7E, 0x7E, 0x00, 0x18, 0x3C, 0x7E, 0x18, 0x7E, 0x3C, 0x18, 0xFF,
-    0x18, 0x3C, 0x7E, 0x18, 0x18, 0x18, 0x18, 0x00, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x3C, 0x18, 0x00,
-    0x00, 0x18, 0x0C, 0xFE, 0x0C, 0x18, 0x00, 0x00, 0x00, 0x30, 0x60, 0xFE, 0x60, 0x30, 0x00, 0x00,
-    0x00, 0x00, 0xC0, 0xC0, 0xC0, 0xFE, 0x00, 0x00, 0x00, 0x24, 0x66, 0xFF, 0x66, 0x24, 0x00, 0x00,
-    0x00, 0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x7E, 0x3C, 0x18, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x78, 0x78, 0x78, 0x30, 0x00, 0x30, 0x00,
-    0x6C, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6C, 0x6C, 0xFE, 0x6C, 0xFE, 0x6C, 0x6C, 0x00,
-    0x30, 0x7C, 0xC0, 0x78, 0x0C, 0xF8, 0x30, 0x00, 0x00, 0xC6, 0xCC, 0x18, 0x30, 0x66, 0xC6, 0x00,
-    0x38, 0x6C, 0x38, 0x76, 0xDC, 0xCC, 0x76, 0x00, 0x60, 0x60, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x18, 0x30, 0x60, 0x60, 0x60, 0x30, 0x18, 0x00, 0x60, 0x30, 0x18, 0x18, 0x18, 0x30, 0x60, 0x00,
-    0x00, 0x66, 0x3C, 0xFF, 0x3C, 0x66, 0x00, 0x00, 0x00, 0x30, 0x30, 0xFC, 0x30, 0x30, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x30, 0x60, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x30, 0x00, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xC0, 0x80, 0x00,
-    0x7C, 0xC6, 0xCE, 0xDE, 0xF6, 0xE6, 0x7C, 0x00, 0x30, 0x70, 0x30, 0x30, 0x30, 0x30, 0xFC, 0x00,
-    0x78, 0xCC, 0x0C, 0x38, 0x60, 0xCC, 0xFC, 0x00, 0x78, 0xCC, 0x0C, 0x38, 0x0C, 0xCC, 0x78, 0x00,
-    0x1C, 0x3C, 0x6C, 0xCC, 0xFE, 0x0C, 0x1E, 0x00, 0xFC, 0xC0, 0xF8, 0x0C, 0x0C, 0xCC, 0x78, 0x00,
-    0x38, 0x60, 0xC0, 0xF8, 0xCC, 0xCC, 0x78, 0x00, 0xFC, 0xCC, 0x0C, 0x18, 0x30, 0x30, 0x30, 0x00,
-    0x78, 0xCC, 0xCC, 0x78, 0xCC, 0xCC, 0x78, 0x00, 0x78, 0xCC, 0xCC, 0x7C, 0x0C, 0x18, 0x70, 0x00,
-    0x00, 0x30, 0x30, 0x00, 0x00, 0x30, 0x30, 0x00, 0x00, 0x30, 0x30, 0x00, 0x00, 0x30, 0x30, 0x60,
-    0x18, 0x30, 0x60, 0xC0, 0x60, 0x30, 0x18, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x00, 0xFC, 0x00, 0x00,
-    0x60, 0x30, 0x18, 0x0C, 0x18, 0x30, 0x60, 0x00, 0x78, 0xCC, 0x0C, 0x18, 0x30, 0x00, 0x30, 0x00,
-    0x7C, 0xC6, 0xDE, 0xDE, 0xDE, 0xC0, 0x78, 0x00, 0x30, 0x78, 0xCC, 0xCC, 0xFC, 0xCC, 0xCC, 0x00,
-    0xFC, 0x66, 0x66, 0x7C, 0x66, 0x66, 0xFC, 0x00, 0x3C, 0x66, 0xC0, 0xC0, 0xC0, 0x66, 0x3C, 0x00,
-    0xF8, 0x6C, 0x66, 0x66, 0x66, 0x6C, 0xF8, 0x00, 0x7E, 0x60, 0x60, 0x78, 0x60, 0x60, 0x7E, 0x00,
-    0x7E, 0x60, 0x60, 0x78, 0x60, 0x60, 0x60, 0x00, 0x3C, 0x66, 0xC0, 0xC0, 0xCE, 0x66, 0x3E, 0x00,
-    0xCC, 0xCC, 0xCC, 0xFC, 0xCC, 0xCC, 0xCC, 0x00, 0x78, 0x30, 0x30, 0x30, 0x30, 0x30, 0x78, 0x00,
-    0x1E, 0x0C, 0x0C, 0x0C, 0xCC, 0xCC, 0x78, 0x00, 0xE6, 0x66, 0x6C, 0x78, 0x6C, 0x66, 0xE6, 0x00,
-    0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00, 0xC6, 0xEE, 0xFE, 0xFE, 0xD6, 0xC6, 0xC6, 0x00,
-    0xC6, 0xE6, 0xF6, 0xDE, 0xCE, 0xC6, 0xC6, 0x00, 0x38, 0x6C, 0xC6, 0xC6, 0xC6, 0x6C, 0x38, 0x00,
-    0xFC, 0x66, 0x66, 0x7C, 0x60, 0x60, 0xF0, 0x00, 0x78, 0xCC, 0xCC, 0xCC, 0xDC, 0x78, 0x1C, 0x00,
-    0xFC, 0x66, 0x66, 0x7C, 0x6C, 0x66, 0xE6, 0x00, 0x78, 0xCC, 0xE0, 0x70, 0x1C, 0xCC, 0x78, 0x00,
-    0xFC, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x00, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xFC, 0x00,
-    0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x78, 0x30, 0x00, 0xC6, 0xC6, 0xC6, 0xD6, 0xFE, 0xEE, 0xC6, 0x00,
-    0xC6, 0xC6, 0x6C, 0x38, 0x38, 0x6C, 0xC6, 0x00, 0xCC, 0xCC, 0xCC, 0x78, 0x30, 0x30, 0x78, 0x00,
-    0xFE, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xFE, 0x00, 0x78, 0x60, 0x60, 0x60, 0x60, 0x60, 0x78, 0x00,
-    0xC0, 0x60, 0x30, 0x18, 0x0C, 0x06, 0x02, 0x00, 0x78, 0x18, 0x18, 0x18, 0x18, 0x18, 0x78, 0x00,
-    0x10, 0x38, 0x6C, 0xC6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
-    0x30, 0x30, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x0C, 0x7C, 0xCC, 0x76, 0x00,
-    0xE0, 0x60, 0x60, 0x7C, 0x66, 0x66, 0xDC, 0x00, 0x00, 0x00, 0x78, 0xCC, 0xC0, 0xCC, 0x78, 0x00,
-    0x1C, 0x0C, 0x0C, 0x7C, 0xCC, 0xCC, 0x76, 0x00, 0x00, 0x00, 0x78, 0xCC, 0xFC, 0xC0, 0x78, 0x00,
-    0x38, 0x6C, 0x60, 0xF0, 0x60, 0x60, 0xF0, 0x00, 0x00, 0x00, 0x76, 0xCC, 0xCC, 0x7C, 0x0C, 0xF8,
-    0xE0, 0x60, 0x6C, 0x76, 0x66, 0x66, 0xE6, 0x00, 0x30, 0x00, 0x70, 0x30, 0x30, 0x30, 0x78, 0x00,
-    0x0C, 0x00, 0x0C, 0x0C, 0x0C, 0xCC, 0xCC, 0x78, 0xE0, 0x60, 0x66, 0x6C, 0x78, 0x6C, 0xE6, 0x00,
-    0x70, 0x30, 0x30, 0x30, 0x30, 0x30, 0x78, 0x00, 0x00, 0x00, 0xCC, 0xFE, 0xFE, 0xD6, 0xC6, 0x00,
-    0x00, 0x00, 0xF8, 0xCC, 0xCC, 0xCC, 0xCC, 0x00, 0x00, 0x00, 0x78, 0xCC, 0xCC, 0xCC, 0x78, 0x00,
-    0x00, 0x00, 0xDC, 0x66, 0x66, 0x7C, 0x60, 0xF0, 0x00, 0x00, 0x76, 0xCC, 0xCC, 0x7C, 0x0C, 0x1E,
-    0x00, 0x00, 0xDC, 0x76, 0x66, 0x60, 0xF0, 0x00, 0x00, 0x00, 0x7C, 0xC0, 0x78, 0x0C, 0xF8, 0x00,
-    0x10, 0x30, 0x7C, 0x30, 0x30, 0x34, 0x18, 0x00, 0x00, 0x00, 0xCC, 0xCC, 0xCC, 0xCC, 0x76, 0x00,
-    0x00, 0x00, 0xCC, 0xCC, 0xCC, 0x78, 0x30, 0x00, 0x00, 0x00, 0xC6, 0xD6, 0xFE, 0xFE, 0x6C, 0x00,
-    0x00, 0x00, 0xC6, 0x6C, 0x38, 0x6C, 0xC6, 0x00, 0x00, 0x00, 0xCC, 0xCC, 0xCC, 0x7C, 0x0C, 0xF8,
-    0x00, 0x00, 0xFC, 0x98, 0x30, 0x64, 0xFC, 0x00, 0x1C, 0x30, 0x30, 0xE0, 0x30, 0x30, 0x1C, 0x00,
-    0x18, 0x18, 0x18, 0x00, 0x18, 0x18, 0x18, 0x00, 0xE0, 0x30, 0x30, 0x1C, 0x30, 0x30, 0xE0, 0x00,
-    0x76, 0xDC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x38, 0x6C, 0xC6, 0xC6, 0xFE, 0x00
-};
-
-static              void jo_putchar(const int x, const int y, const char v, const jo_color text_color)
-{
-    unsigned char   b;
-    int             r;
-    int             c;
-
-    for (r = 0; r < 8; ++r)
+    // (constant divisors: a multiplication, no call of the division of the C library)
+    if (base == 16)
     {
-        b = __jo_font[JO_MULT_BY_8(v) | r];
-        for (c = 0; c < 8; c++)
-            jo_vdp2_put_pixel_bitmap_nbg1(((x * 8) | c), ((y * 8) | r), (b & (0x80 >> c) ? text_color : JO_COLOR_Transparent));
+        do
+        {
+            *--end = digits[value & 15];
+            value >>= 4;
+        } while (value != 0);
+        return (end);
     }
+    do
+    {
+        *--end = digits[value % 10u];
+        value /= 10u;
+    } while (value != 0);
+    return (end);
 }
 
-#endif
+int                         jo_vsprintf(char * const str, const char * format, va_list args)
+{
+    char                    number[12];
+    char                    *out;
+    const char              *text;
+    int                     length;
+    int                     width;
+    int                     value;
+    bool                    left;
+    bool                    zero;
+    bool                    negative;
+    char                    c;
+
+    out = str;
+    for (; *format != '\0'; ++format)
+    {
+        if (*format != '%')
+        {
+            *out++ = *format;
+            continue;
+        }
+        ++format;
+        left = false;
+        zero = false;
+        for (;; ++format)
+        {
+            if (*format == '-')
+                left = true;
+            else if (*format == '0')
+                zero = true;
+            else
+                break;
+        }
+        for (JO_ZERO(width); *format >= '0' && *format <= '9'; ++format)
+            width = width * 10 + *format - '0';
+        // (the long type is an int: the l and h modifiers change nothing)
+        while (*format == 'l' || *format == 'h')
+            ++format;
+        negative = false;
+        c = *format;
+        switch (c)
+        {
+            case 'd':
+            case 'i':
+                value = va_arg(args, int);
+                negative = value < 0;
+                text = __jo_format_unsigned(negative ? 0u - (unsigned int)value : (unsigned int)value, 10, "0123456789", number + sizeof(number));
+                break;
+            case 'u':
+                text = __jo_format_unsigned(va_arg(args, unsigned int), 10, "0123456789", number + sizeof(number));
+                break;
+            case 'x':
+                text = __jo_format_unsigned(va_arg(args, unsigned int), 16, "0123456789abcdef", number + sizeof(number));
+                break;
+            case 'X':
+            case 'p':
+                text = __jo_format_unsigned(va_arg(args, unsigned int), 16, "0123456789ABCDEF", number + sizeof(number));
+                break;
+            case 'c':
+                number[0] = (char)va_arg(args, int);
+                text = number;
+                zero = false;
+                break;
+            case 's':
+                text = va_arg(args, const char *);
+                if (text == JO_NULL)
+                    text = "(null)";
+                zero = false;
+                break;
+            case '%':
+                *out++ = '%';
+                continue;
+            case '\0':
+                --format;
+                continue;
+            default:
+                // (not supported, %f...: written as it is)
+                *out++ = '%';
+                *out++ = c;
+                continue;
+        }
+        if (c == 'c')
+            length = 1;
+        else if (c == 's')
+            length = (int)jo_strlen(text);
+        else
+            length = (int)(number + sizeof(number) - text);
+        width -= length + (negative ? 1 : 0);
+        if (negative && zero)
+            *out++ = '-';
+        if (!left)
+            for (; width > 0; --width)
+                *out++ = zero ? '0' : ' ';
+        if (negative && !zero)
+            *out++ = '-';
+        for (; length > 0; --length)
+            *out++ = *text++;
+        for (; width > 0; --width)
+            *out++ = ' ';
+    }
+    *out = '\0';
+    return ((int)(out - str));
+}
+
+int                         jo_sprintf(char * const str, const char * const format, ...)
+{
+    va_list                 args;
+    int                     length;
+
+    va_start(args, format);
+    length = jo_vsprintf(str, format, args);
+    va_end(args);
+    return (length);
+}
+
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+
+void            __jo_vdp2_print(const int x, const int y, const char * str);
 
 void            jo_print(int x, int y, char * str)
 {
@@ -147,36 +199,17 @@ void            jo_print(int x, int y, char * str)
         return;
     }
 #endif
-#if JO_COMPILE_USING_SGL
-    slPrint(str, slLocate((x), (y)));
-#else
-    int         i;
-    jo_color    text_color;
-
-    text_color = *(((unsigned short *)JO_VDP2_CRAM) + 1 + JO_MULT_BY_256(__jo_printf_current_palette_index));
-    for (JO_ZERO(i); str[i]; ++i)
-        jo_putchar(x + i, y, str[i], text_color);
-#endif
+    __jo_vdp2_print(x, y, str);
 }
 
 void                    jo_clear_screen_line(const int y)
 {
-    register int        x;
-
-    for (JO_ZERO(x);
+    // One call for the whole line (40 or 44 characters)
 # if defined(JO_480i)
-x < 44;
+    __jo_vdp2_print(0, y, "                                            ");
 #else
-x < 40;
+    __jo_vdp2_print(0, y, "                                        ");
 #endif
-++x)
-    {
-#if JO_COMPILE_USING_SGL
-        slPrint(" ", slLocate(x, y));
-#else
-        jo_putchar(x, y, ' ', JO_COLOR_Transparent);
-#endif
-    }
 }
 
 void                    jo_clear_screen(void)
@@ -189,11 +222,23 @@ void                    jo_clear_screen(void)
 
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 
-#if JO_COMPILE_USING_SGL
+
+/** @brief Convert a BCD value to an integer
+ *  @param bcd Binary coded decimal value (0x1234 = 1234)
+ *  @return Integer value
+ */
+static unsigned int             jo_bcd_to_int(unsigned int bcd)
+{
+    unsigned int                result;
+    unsigned int                factor;
+
+    for (JO_ZERO(result), factor = 1; bcd; bcd >>= 4, factor *= 10)
+        result += (bcd & 0xf) * factor;
+    return (result);
+}
 
 void                    jo_getdate(jo_datetime *now)
 {
-    SmpcDateTime        *time;
 #ifdef JO_DEBUG
    if (now == JO_NULL)
    {
@@ -201,70 +246,26 @@ void                    jo_getdate(jo_datetime *now)
 	 	return;
    }
 #endif
-	slGetStatus();
-    time = &(Smpc_Status->rtc);
-    now->year = (unsigned short)slDec2Hex(time->year);
-    now->month = (unsigned char)(time->month & 0x0f);
-    now->week = (unsigned char)(time->month >> 4);
-    now->day = (unsigned char)slDec2Hex(time->date);
-    now->hour = (unsigned char)slDec2Hex(time->hour);
-    now->minute = (unsigned char)slDec2Hex(time->minute);
-    now->second = (unsigned char)slDec2Hex(time->second);
+    // The SMPC status is refreshed every frame
+    now->year = (unsigned short)jo_bcd_to_int(__jo_smpc_status.year);
+    now->month = (unsigned char)(__jo_smpc_status.month & 0x0f);
+    now->week = (unsigned char)(__jo_smpc_status.month >> 4);
+    now->day = (unsigned char)jo_bcd_to_int(__jo_smpc_status.day);
+    now->hour = (unsigned char)jo_bcd_to_int(__jo_smpc_status.hour);
+    now->minute = (unsigned char)jo_bcd_to_int(__jo_smpc_status.minute);
+    now->second = (unsigned char)jo_bcd_to_int(__jo_smpc_status.second);
 }
 
-#else
-
-void                        jo_getdate(jo_datetime *now)
-{
-#ifdef JO_DEBUG
-    if (now == JO_NULL)
-    {
-        jo_core_error("now is null");
-        return;
-    }
-#endif
-
-    jo_smpc_begin_command();
-    jo_smpc_write_byte(InputRegister0, 0x01);
-    jo_smpc_write_byte(InputRegister1, 0x08);
-    jo_smpc_write_byte(InputRegister2, 0xF0);
-    jo_smpc_end_command(FetchStatusAndPeripheralData);
-    now->day = (JO_BCD_INT(jo_smpc_read_byte(OutputRegister4) & 0xF0)) +
-               (JO_BCD_INT(jo_smpc_read_byte(OutputRegister4) & 0x0F));
-    now->month = (JO_BCD_INT(jo_smpc_read_byte(OutputRegister3) & 0x0F));
-    now->year = (JO_BCD_INT(jo_smpc_read_byte(OutputRegister1)& 0x0F)) * 1000 +
-                (JO_BCD_INT(jo_smpc_read_byte(OutputRegister1) & 0xF0)) * 100 +
-                (JO_BCD_INT(jo_smpc_read_byte(OutputRegister2)& 0x0F)) +
-                (JO_BCD_INT(jo_smpc_read_byte(OutputRegister2) & 0xF0));
-    now->week = (unsigned char)(now->month & 0x0F); //FIX ME
-    now->hour = JO_BCD_INT(jo_smpc_read_byte(OutputRegister5));
-    now->minute = JO_BCD_INT(jo_smpc_read_byte(OutputRegister6));
-    now->second = JO_BCD_INT(jo_smpc_read_byte(OutputRegister7));
-}
-
-#endif
 
 jo_language     jo_get_current_language(void)
 {
-#if JO_COMPILE_USING_SGL
-    switch (slGetLanguage())
-    {
-    case SMPC_ITALIANO:
-        return Italiano;
-    case SMPC_DEUTSCH:
-        return Deutsch;
-    case SMPC_JAPAN:
-        return Japanese;
-    case SMPC_FRANCAIS:
-        return French;
-    case SMPC_ESPANOL:
-        return Espanol;
-    default:
-        return English;
-    }
-#else
-    return English;
-#endif
+    unsigned int    language;
+
+    // The language is stored in the SMPC battery-backed memory
+    language = (__jo_smpc_status.smpc_memory >> 24) & 0x0f;
+    if (language > Japanese)
+        return (English);
+    return ((jo_language)language);
 }
 
 /*
@@ -343,6 +344,58 @@ inline bool             jo_endwith(const char * restrict str, const char * restr
     return (true);
 }
 
+unsigned int                        jo_lz_decompress(const unsigned char * const src, unsigned char * const dst)
+{
+    register const unsigned char    *s;
+    register unsigned char          *d;
+    const unsigned char             *m;
+    unsigned char                   *end;
+    unsigned int                    size;
+    unsigned int                    flags;
+    unsigned int                    bits;
+    unsigned int                    v;
+    unsigned int                    n;
+
+    size = jo_lz_size(src);
+    s = src + 4;
+    d = dst;
+    end = dst + size;
+    JO_ZERO(flags);
+    JO_ZERO(bits);
+    while (d < end)
+    {
+        if (bits == 0)
+        {
+            flags = *s++;
+            bits = 8;
+        }
+        if (flags & 0x80)
+            *d++ = *s++;
+        else
+        {
+            v = ((unsigned int)s[0] << 8) | s[1];
+            s += 2;
+            m = d - ((v >> 4) + 1);
+            for (n = (v & 15) + 3; n > 0 && d < end; --n)
+                *d++ = *m++;
+        }
+        flags <<= 1;
+        --bits;
+    }
+    return (size);
+}
+
+int                                 jo_memcmp(const void * const p1, const void * const p2, unsigned int num)
+{
+    register const unsigned char    *s1 = (const unsigned char *)p1;
+    register const unsigned char    *s2 = (const unsigned char *)p2;
+
+    for (; num > 0; --num, ++s1, ++s2)
+        if (*s1 != *s2)
+            return (*s1 - *s2);
+    return (0);
+}
+
 int                                 jo_strcmp(const char * restrict p1, const char * restrict p2)
 {
     register const unsigned char    *s1 = (const unsigned char *)p1;
@@ -375,18 +428,250 @@ void                        jo_memset(const void * const restrict ptr, const int
     x = value & 0xff;
     xx = value & 0xff;
     pp = (unsigned char*)ptr;
-    while (((unsigned int)pp & 3) && num--)
+    // (num must not wrap around when it is smaller than the misalignment)
+    while (((unsigned int)pp & 3) && num != 0)
+    {
         *pp++ = xx;
+        --num;
+    }
     p = (unsigned int*)pp;
     tail = num & 3;
     x |= x << 8;
     x |= x << 16;
     num >>= 2;
+    // 4 words per iteration (fewer loop instructions)
+    for (; num >= 4; num -= 4)
+    {
+        p[0] = x;
+        p[1] = x;
+        p[2] = x;
+        p[3] = x;
+        p += 4;
+    }
     while (num--)
         *p++ = x;
     pp = (unsigned char*)p;
     while (tail--)
         *pp++ = xx;
+}
+
+void                            jo_memcpy(void * const restrict dst, const void * const restrict src, unsigned int size)
+{
+    register unsigned char          *d8;
+    register const unsigned char    *s8;
+    register unsigned int           *d32;
+    register const unsigned int     *s32;
+    register unsigned short         *d16;
+    register const unsigned short   *s16;
+
+    d8 = (unsigned char *)dst;
+    s8 = (const unsigned char *)src;
+    // Same misalignment: the first bytes are copied one by one, then the 32 bits (or 16 bits) copy is used
+    if (((((unsigned int)d8) ^ ((unsigned int)s8)) & 3) == 0)
+    {
+        while ((((unsigned int)d8) & 3) && size)
+        {
+            *d8++ = *s8++;
+            --size;
+        }
+    }
+    else if (((((unsigned int)d8) ^ ((unsigned int)s8)) & 1) == 0 && (((unsigned int)d8) & 1) && size)
+    {
+        *d8++ = *s8++;
+        --size;
+    }
+    if (((((unsigned int)d8) | ((unsigned int)s8)) & 3) == 0)
+    {
+        d32 = (unsigned int *)d8;
+        s32 = (const unsigned int *)s8;
+        for (; size >= 16; size -= 16)
+        {
+            d32[0] = s32[0];
+            d32[1] = s32[1];
+            d32[2] = s32[2];
+            d32[3] = s32[3];
+            d32 += 4;
+            s32 += 4;
+        }
+        for (; size >= 4; size -= 4)
+            *d32++ = *s32++;
+        d8 = (unsigned char *)d32;
+        s8 = (const unsigned char *)s32;
+    }
+    else if (((((unsigned int)d8) | ((unsigned int)s8)) & 1) == 0)
+    {
+        d16 = (unsigned short *)d8;
+        s16 = (const unsigned short *)s8;
+        // (unrolled like the 32 bits copy: the keys of the commands of the slave CPU, for instance)
+        for (; size >= 8; size -= 8)
+        {
+            d16[0] = s16[0];
+            d16[1] = s16[1];
+            d16[2] = s16[2];
+            d16[3] = s16[3];
+            d16 += 4;
+            s16 += 4;
+        }
+        for (; size >= 2; size -= 2)
+            *d16++ = *s16++;
+        d8 = (unsigned char *)d16;
+        s8 = (const unsigned char *)s16;
+    }
+    while (size--)
+        *d8++ = *s8++;
+}
+
+/*
+** DMA (DMA controller of the SH-2)
+*/
+
+/** @brief Smallest copy done by the DMA controller (the CPU is faster for smaller copies) */
+# define JO_DMA_MIN_SIZE                (64)
+
+/** @brief Check if a copy is in progress on the DMA channel 0 of the current CPU
+ *  @return true if the copy is not finished
+ */
+static  __jo_force_inline bool  jo_dma_busy(void)
+{
+    return ((JO_SH2_CHCR0 & (JO_SH2_CHCR_ENABLE | JO_SH2_CHCR_TRANSFER_END)) == JO_SH2_CHCR_ENABLE);
+}
+
+/** @brief Invalidate the cache lines of a memory area written by the DMA controller
+ *  @param addr Address
+ *  @param size Size in bytes
+ *  @remarks The cache is write-through: the lines are only invalidated (the cache-through areas are ignored)
+ */
+static void                     jo_dma_purge_cache(const void * const addr, const unsigned int size)
+{
+    register unsigned int       a;
+    unsigned int                end;
+
+    a = (unsigned int)addr;
+    // Only the cache area (0x00000000 to 0x1FFFFFFF) uses the cache
+    if (a >= 0x20000000)
+        return;
+    end = a + size;
+    for (a &= ~(JO_SH2_CACHE_LINE_SIZE - 1); a < end; a += JO_SH2_CACHE_LINE_SIZE)
+        *(volatile unsigned int *)(JO_SH2_CACHE_PURGE_AREA | a) = 0;
+}
+
+/** @brief Start a transfer on the DMA channel 0 of the current CPU
+ *  @param src Source
+ *  @param dest Destination
+ *  @param size Size in bytes
+ *  @param src_mode JO_SH2_CHCR_SRC_INCREMENT or 0 (the source address doesn't change)
+ *  @return false if the transfer is too small or unaligned (nothing is done)
+ */
+static bool                     jo_dma_start(const void * const src, void * const dest, const unsigned int size, const unsigned int src_mode)
+{
+    unsigned int                align;
+    unsigned int                unit;
+    unsigned int                chcr;
+    unsigned int                sr;
+
+    if (size < JO_DMA_MIN_SIZE)
+        return (false);
+    align = ((unsigned int)src) | ((unsigned int)dest) | size;
+    if ((align & 3) == 0)
+    {
+        unit = 4;
+        chcr = JO_SH2_CHCR_SIZE_32;
+    }
+    else if ((align & 1) == 0)
+    {
+        unit = 2;
+        chcr = JO_SH2_CHCR_SIZE_16;
+    }
+    else
+        return (false);
+    // The lines of the destination must be loaded again from the memory after the transfer
+    jo_dma_purge_cache(dest, size);
+    // The previous transfer must be finished (an interrupt handler can also use the channel)
+    for (;;)
+    {
+        jo_dma_wait();
+        sr = __jo_core_disable_interrupts();
+        if (!jo_dma_busy())
+            break;
+        __jo_core_restore_interrupts(sr);
+    }
+    // TE has been read by jo_dma_busy(): writing 0 clears it
+    JO_SH2_CHCR0 = 0;
+    JO_SH2_SAR0 = (unsigned int)src;
+    JO_SH2_DAR0 = (unsigned int)dest;
+    // (a shift: the division was a call of the library of the compiler)
+    JO_SH2_TCR0 = unit == 4 ? JO_DIV_BY_4(size) : JO_DIV_BY_2(size);
+    // Clears the address error and NMI flags (read, then write 0) and enables the DMA
+    if (JO_SH2_DMAOR != JO_SH2_DMAOR_ENABLE)
+        JO_SH2_DMAOR = JO_SH2_DMAOR_ENABLE;
+    JO_SH2_CHCR0 = JO_SH2_CHCR_DEST_INCREMENT | src_mode | chcr | JO_SH2_CHCR_AUTO_REQUEST | JO_SH2_CHCR_ENABLE;
+    __jo_core_restore_interrupts(sr);
+    return (true);
+}
+
+void                            jo_dma_wait(void)
+{
+    while (jo_dma_busy())
+        ;
+}
+
+void                            jo_dma_copy_async(const void * const src, void * const dest, const unsigned int size)
+{
+    if (jo_dma_start(src, dest, size, JO_SH2_CHCR_SRC_INCREMENT))
+        return;
+    // Small or unaligned: the CPU copies it (after the previous transfer, to keep the order)
+    jo_dma_wait();
+    jo_memcpy(dest, src, size);
+}
+
+void                            jo_dma_copy(const void * const src, void * const dest, const unsigned int size)
+{
+    if (!jo_dma_start(src, dest, size, JO_SH2_CHCR_SRC_INCREMENT))
+    {
+        jo_dma_wait();
+        jo_memcpy(dest, src, size);
+        return;
+    }
+    jo_dma_wait();
+    // The CPU may have loaded a line shared with the destination during the transfer
+    jo_dma_purge_cache(dest, size);
+}
+
+void                            jo_dma_fill32(void * const dest, const unsigned int value, const unsigned int size)
+{
+    volatile unsigned int       source;
+    register unsigned int       *ptr;
+    register unsigned int       i;
+
+    // The DMA controller reads the value in memory (the cache is write-through)
+    source = value;
+    if (jo_dma_start((const void *)&source, dest, size, 0))
+    {
+        jo_dma_wait();
+        jo_dma_purge_cache(dest, size);
+        return;
+    }
+    ptr = (unsigned int *)dest;
+    for (JO_ZERO(i); i < JO_DIV_BY_4(size); ++i)
+        ptr[i] = value;
+}
+
+void                            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size)
+{
+    register volatile unsigned int  *src;
+    register unsigned int       *ptr;
+    register unsigned int       i;
+
+    if (jo_dma_start((const void *)port, dest, size, 0))
+    {
+        jo_dma_wait();
+        jo_dma_purge_cache(dest, size);
+        return;
+    }
+    src = (volatile unsigned int *)port;
+    ptr = (unsigned int *)dest;
+    for (JO_ZERO(i); i < JO_DIV_BY_4(size); ++i)
+        ptr[i] = *src;
 }
 
 void                    jo_map_to_vram(unsigned short * restrict data, unsigned short * restrict vram_addr,

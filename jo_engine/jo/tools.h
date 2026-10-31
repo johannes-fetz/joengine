@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,7 @@
 ** INCLUDES
 */
 #include "math.h"
+#include <stdarg.h>
 
 /** @brief Fixed value of JO_TV_WIDTH */
 #define JO_FIXED_TV_WIDTH   JO_INT_TO_FIXED(JO_TV_WIDTH)
@@ -81,6 +82,24 @@ static  __jo_force_inline int        jo_swap_endian_int(int value)
     return ((((value) & 0xff000000) >> 24) | (((value) & 0x00ff0000) >>  8) | (((value) & 0x0000ff00) <<  8) | (((value) & 0x000000ff) << 24));
 }
 
+/** @brief Read a big endian unsigned short (16 bits) from any address (the bytes of a file, aligned or not)
+  * @param p Address of the first byte
+  * @return Value
+  */
+static  __jo_force_inline unsigned short        jo_read_big_endian_ushort(const unsigned char * const p)
+{
+    return ((unsigned short)((p[0] << 8) | p[1]));
+}
+
+/** @brief Read a big endian unsigned int (32 bits) from any address (the bytes of a file, aligned or not)
+  * @param p Address of the first byte
+  * @return Value
+  */
+static  __jo_force_inline unsigned int        jo_read_big_endian_uint(const unsigned char * const p)
+{
+    return (((unsigned int)p[0] << 24) | ((unsigned int)p[1] << 16) | ((unsigned int)p[2] << 8) | p[3]);
+}
+
 /** @brief sprintf prototypes
  *  @param str String
  *  @param format Format string
@@ -88,6 +107,23 @@ static  __jo_force_inline int        jo_swap_endian_int(int value)
  *  @return If successful, the total number of characters written is returned excluding the null-character appended at the end of the string, otherwise a negative number is returned in case of failure.
  */
 int				sprintf(char* str, const char* format, ...);
+
+/** @brief A small sprintf of the engine (jo_printf()...): %d %i %u %x %X %c %s %%, the flags - and 0, a width. Faster and
+ *  smaller than the one of the C library (which handles the floats: %f is not supported here, written as it is)
+ *  @param str String (big enough)
+ *  @param format Format string
+ *  @param ... Arguments
+ *  @return The number of characters written (without the null character)
+ */
+int                 jo_sprintf(char * const str, const char * const format, ...);
+
+/** @brief jo_sprintf() with a list of arguments
+ *  @param str String (big enough)
+ *  @param format Format string
+ *  @param args Arguments
+ *  @return The number of characters written (without the null character)
+ */
+int                 jo_vsprintf(char * const str, const char * format, va_list args);
 
 #ifdef JO_DEBUG
 
@@ -104,9 +140,6 @@ extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
-#if !JO_COMPILE_USING_SGL
-extern unsigned char    __jo_printf_current_palette_index;
-#endif
 
 /** @brief Print implementation
  *  @param x Horizontal position from top left screen corner
@@ -120,7 +153,7 @@ void jo_print(int x, int y, char * str);
  *  @param Y Vertical position from top left screen corner
  *  @param ... Arguments
  */
-# define jo_printf(X, Y, ...)		do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_print(X, Y, __jo_sprintf_buf); } while(0)
+# define jo_printf(X, Y, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_print(X, Y, __jo_sprintf_buf); } while(0)
 
 /** @brief printf implementation
  *  @param X Horizontal position from top left screen corner
@@ -130,16 +163,15 @@ void jo_print(int x, int y, char * str);
  */
 # define jo_printf_with_color(X, Y, COLOR_INDEX, ...)  do { jo_set_printf_color_index(COLOR_INDEX); jo_printf(X, Y, __VA_ARGS__); } while(0)
 
+/** @brief Printf palette (Internal usage) */
+extern unsigned short   __jo_vdp2_printf_palette;
+
 /** @brief Set printf foreground color index
   * @param index palette color index
   */
 static  __jo_force_inline void        jo_set_printf_color_index(const unsigned char index)
 {
-#if JO_COMPILE_USING_SGL
-    slCurColor(index);
-#else
-    __jo_printf_current_palette_index = index;
-#endif
+    __jo_vdp2_printf_palette = (unsigned short)((index & 7) << 12);
 }
 
 /** @brief Clear screen (usefull for printf)
@@ -155,20 +187,52 @@ void            jo_clear_screen_line(const int y);
 
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 
-/** @brief DMA copy
+/** @brief Copies size bytes from the object pointed to by src to the object pointed to by dst
+ *  @param dst Destination
+ *  @param src Data source
+ *  @param size Number of bytes to copy
+ *  @remarks No return value in this implementation
+ */
+void            jo_memcpy(void * const restrict dst, const void * const restrict src, unsigned int size);
+
+/** @brief Start a copy with the DMA controller of the current CPU (the function doesn't wait for the end of the copy)
   * @param src Data source
   * @param dest Destination
-  * @param size Size of source
-  * @todo Implementation without SGL
+  * @param size Size in bytes
+  * @remarks The CPU keeps working during the copy (the DMA controller steals bus cycles).
+  *          Each CPU (master and slave) has its own DMA controller.
+  * @remarks Small or unaligned (odd address or size) copies are done by the CPU with jo_memcpy() before returning.
+  * @warning Don't change the source and don't read the destination before jo_dma_wait()
   */
-static  __jo_force_inline void        jo_dma_copy(void *src, void *dest, unsigned int size)
-{
-#if JO_COMPILE_USING_SGL
-    slDMACopy(src, dest, size);
-#else
-    slDMACopy(src, dest, size); // TODO
-#endif
-}
+void            jo_dma_copy_async(const void * const src, void * const dest, const unsigned int size);
+
+/** @brief Wait for the end of the copy started by jo_dma_copy_async() on the current CPU
+  * @remarks Returns immediately if no copy is in progress
+  */
+void            jo_dma_wait(void);
+
+/** @brief Copy with the DMA controller of the current CPU and wait for the end of the copy
+  * @param src Data source
+  * @param dest Destination
+  * @param size Size in bytes
+  * @remarks Faster than jo_memcpy() for big copies, especially to VRAM or sound RAM.
+  *          Small or unaligned (odd address or size) copies use jo_memcpy().
+  */
+void            jo_dma_copy(const void * const src, void * const dest, const unsigned int size);
+
+/** @brief Fill memory with a 32 bits value using the DMA controller of the current CPU (waits for the end)
+  * @param dest Destination (4 bytes aligned)
+  * @param value Value
+  * @param size Size in bytes (multiple of 4)
+  */
+void            jo_dma_fill32(void * const dest, const unsigned int value, const unsigned int size);
+
+/** @brief Read a 32 bits I/O port into memory with the DMA controller of the current CPU (Internal usage)
+  * @param port Port address (the address doesn't change)
+  * @param dest Destination (4 bytes aligned)
+  * @param size Size in bytes (multiple of 4)
+  */
+void            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size);
 
 /** @brief NULL implementation
  */
@@ -283,6 +347,33 @@ bool            jo_endwith(const char * restrict str, const char * restrict end)
  *  @remarks No return value in this implementation
  */
 void            jo_memset(const void * const restrict ptr, const int value, unsigned int num);
+
+/** @brief memcmp implementation
+ *  @param p1 First block of memory
+ *  @param p2 Second block of memory
+ *  @param num Number of bytes to compare
+ *  @return 0 if the num first bytes are the same, else the difference of the first different bytes (as unsigned char)
+ */
+int             jo_memcmp(const void * const p1, const void * const p2, unsigned int num);
+
+/** @brief Size of the data compressed by Compiler/COMMON/jo_lz.py (the 4 bytes at its start, big endian)
+ *  @param src Compressed data
+ *  @return Size of the data once decompressed (bytes)
+ */
+static  __jo_force_inline unsigned int  jo_lz_size(const unsigned char * const src)
+{
+    return (((unsigned int)src[0] << 24) | ((unsigned int)src[1] << 16) | ((unsigned int)src[2] << 8) | src[3]);
+}
+
+/** @brief Decompress data compressed by Compiler/COMMON/jo_lz.py (LZSS: a byte of 8 flags, 1 a byte as it is, 0 a copy of 3 to 18
+ *  bytes from 1 to 4096 bytes before: 12 bits of distance, 4 bits of length)
+ *  @param src Compressed data (the size first, see jo_lz_size())
+ *  @param dst Decompressed data (jo_lz_size() bytes)
+ *  @return Size of the data once decompressed (bytes)
+ *  @remarks About 4 times smaller in RAM than a model of a car with its textures: kept in RAM, read from the CD once
+ *  (the CD audio goes on)
+ */
+unsigned int    jo_lz_decompress(const unsigned char * const src, unsigned char * const dst);
 
 /** @brief Little pause possible
  */
