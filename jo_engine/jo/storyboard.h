@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -178,12 +178,20 @@ static  __jo_force_inline void              jo_storyboard_add_object(jo_storyboa
 {
     jo_storyboard_object_cache              *tmp = (jo_storyboard_object_cache *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
 
+    if (tmp == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        return ;
+    }
     tmp->user = (jo_3d_object_attributes *)object;
     tmp->dx = JO_MULT_BY_8(tmp->user->x);
     tmp->dy = JO_MULT_BY_8(tmp->user->y);
     JO_ZERO(tmp->current_cos);
     JO_ZERO(tmp->current_sin);
-    jo_list_add_ptr(&storyboard->objects, tmp);
+    if (jo_list_add_ptr(&storyboard->objects, tmp) == JO_NULL)
+        jo_free(tmp);
 }
 
 /** @brief Remove object from storyboard
@@ -196,7 +204,8 @@ static  __jo_force_inline void                  jo_storyboard_remove_object(jo_s
     for (tmp = storyboard->objects.first; tmp != JO_NULL; tmp = tmp->next)
         if (((jo_storyboard_object_cache *)tmp->data.ptr)->user == object)
         {
-            jo_list_remove(&storyboard->objects, tmp);
+            // The cache was allocated by jo_storyboard_add_object()
+            jo_list_free_and_remove(&storyboard->objects, tmp);
             return ;
         }
 }

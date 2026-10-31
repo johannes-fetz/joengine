@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -64,11 +63,22 @@ jo_storyboard                       *jo_storyboard_create(const bool autoplay, c
 {
     jo_storyboard                   *storyboard  = (jo_storyboard *)jo_malloc_with_behaviour(sizeof(*storyboard), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
 
+    if (storyboard == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        return (JO_NULL);
+    }
     storyboard->pause = !autoplay;
     storyboard->repeat = repeat;
     jo_list_init(&storyboard->objects);
     jo_list_init(&storyboard->animations);
-    jo_list_add_ptr(&__storyboards, storyboard);
+    if (jo_list_add_ptr(&__storyboards, storyboard) == JO_NULL)
+    {
+        jo_free(storyboard);
+        return (JO_NULL);
+    }
     return storyboard;
 }
 
@@ -77,6 +87,7 @@ void                                jo_storyboard_destroy(jo_storyboard * const 
     jo_list_free_and_clear(&storyboard->objects);
     jo_list_free_and_clear(&storyboard->animations);
     jo_list_remove_first_value(&__storyboards, (jo_list_data)(void *)storyboard);
+    jo_free(storyboard);
 }
 
 static void                         animate_object(jo_animation * const animation, jo_storyboard_object_cache * const object)
@@ -185,10 +196,21 @@ jo_animation                        *jo_storyboard_create_animation(jo_storyboar
 {
     jo_animation                    *tmp = (jo_animation *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
 
+    if (tmp == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        return (JO_NULL);
+    }
     jo_memset(tmp, 0, sizeof(*tmp));
     tmp->frame_skip = frame_skip;
     tmp->limit = duration;
-    jo_list_add_ptr(&storyboard->animations, tmp);
+    if (jo_list_add_ptr(&storyboard->animations, tmp) == JO_NULL)
+    {
+        jo_free(tmp);
+        return (JO_NULL);
+    }
     return tmp;
 }
 

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -43,6 +42,7 @@
 #include "jo/malloc.h"
 #include "jo/math.h"
 #include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
@@ -140,7 +140,16 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
     else
         first_sprite_id = jo_sprite_add_tga_tileset(sub_dir, filename, transparent_color, font_tileset, char_count);
 #endif
-    font->lookup_table = (char *)jo_malloc_with_behaviour(sizeof(*font->lookup_table) * (font->end_ascii - font->start_ascii + 1), JO_MALLOC_TRY_REUSE_BLOCK);
+    if (first_sprite_id < 0)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Fail to load %s", filename);
+#endif
+        jo_free(font);
+        jo_free(font_tileset);
+        return (JO_NULL);
+    }
+    font->lookup_table = (short *)jo_malloc_with_behaviour(sizeof(*font->lookup_table) * (font->end_ascii - font->start_ascii + 1), JO_MALLOC_TRY_REUSE_BLOCK);
     if (font->lookup_table == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -150,7 +159,8 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
         jo_free(font_tileset);
         return (JO_NULL);
     }
-    for (JO_ZERO(i); i < char_count; ++i)
+    // Unknown characters are displayed with the first sprite
+    for (JO_ZERO(i); i <= font->end_ascii - font->start_ascii; ++i)
         font->lookup_table[i] = first_sprite_id;
     for (JO_ZERO(i); i < char_count; ++i)
         font->lookup_table[(charmap[i] -  font->start_ascii)] = first_sprite_id + i;
@@ -225,6 +235,19 @@ void            jo_font_print_centered(const jo_font * const font, int x, int y,
         x += spacing;
     }
     jo_sprite_restore_sprite_scale();
+}
+
+void                jo_font_free(jo_font * const font)
+{
+#ifdef JO_DEBUG
+    if (font == JO_NULL)
+    {
+        jo_core_error("font is null");
+        return ;
+    }
+#endif
+    jo_free(font->lookup_table);
+    jo_free(font);
 }
 
 /*

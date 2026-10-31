@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -44,15 +43,36 @@
 
 #ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
 
+/** @brief Size of the line buffer (maximum output width) */
+# define JO_MODE7_LINE_BUFFER_SIZE     (1024)
+
 static unsigned short * __mode7_buffer = JO_NULL;
+
+/** @brief Free the cache of the previous initialization if the output height changed
+ *  @param params Mode7 parameters
+ *  @param height New output height
+ */
+static void     jo_mode7_check_cache_size(jo_mode7 * const params, const unsigned short height)
+{
+    if (params->__cache.output_height != height)
+        jo_free_mode7(params);
+}
 
 static bool     jo_common_init_mode7(jo_mode7 * const params, const unsigned short tile_width, const unsigned short tile_height)
 {
     int         screen_y;
     int         fconst_zy;
 
+    if (params->__cache.output_width > JO_MODE7_LINE_BUFFER_SIZE)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Output too wide (max=%d)", JO_MODE7_LINE_BUFFER_SIZE);
+#endif
+        return (false);
+    }
     if (__mode7_buffer == JO_NULL)
-        __mode7_buffer = jo_malloc(1024 * sizeof(*__mode7_buffer));
+        // 2 line buffers: a line is copied by the DMA controller while the next one is computed
+        __mode7_buffer = jo_malloc(2 * JO_MODE7_LINE_BUFFER_SIZE * sizeof(*__mode7_buffer));
     if (__mode7_buffer == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -97,21 +117,26 @@ static bool     jo_common_init_mode7(jo_mode7 * const params, const unsigned sho
 inline void     jo_update_screen_output_coord_for_mode7(jo_mode7 * const params)
 {
     params->__cache.output_y_start = params->horizon + params->output_top;
-    params->__cache.output = ((unsigned short *)VDP2_VRAM_A0 + params->__cache.output_y_start * JO_VDP2_WIDTH) + params->output_left;
+    params->__cache.output = ((unsigned short *)JO_VDP2_VRAM_A0 + params->__cache.output_y_start * JO_VDP2_WIDTH) + params->output_left;
 }
 
 bool        jo_init_mode7_for_screen_output(jo_mode7 * const params, const unsigned short tile_width, const unsigned short tile_height)
 {
+    // (the output: the NBG1 bitmap, allocated at its first use)
+    if (!__jo_vdp2_reserve_nbg1_bitmap())
+        return (false);
+    jo_mode7_check_cache_size(params, JO_TV_HEIGHT);
     params->__cache.output_width = JO_TV_WIDTH;
     params->__cache.output_height = JO_TV_HEIGHT;
     params->__cache.output_y_start = params->horizon + params->output_top;
-    params->__cache.output = ((unsigned short *)VDP2_VRAM_A0 + params->__cache.output_y_start * JO_VDP2_WIDTH) + params->output_left;
+    params->__cache.output = ((unsigned short *)JO_VDP2_VRAM_A0 + params->__cache.output_y_start * JO_VDP2_WIDTH) + params->output_left;
     params->__cache.output_line_width = JO_VDP2_WIDTH;
     return (jo_common_init_mode7(params, tile_width, tile_height));
 }
 
 bool        jo_init_mode7_for_image_output(jo_mode7 *const params, const unsigned short tile_width, const unsigned short tile_height, jo_img * const output_image)
 {
+    jo_mode7_check_cache_size(params, output_image->height);
     params->__cache.output_width = output_image->width;
     params->__cache.output_height = output_image->height;
     params->__cache.output_line_width = output_image->width;
@@ -150,21 +175,32 @@ void                jo_do_mode7_floor(const jo_img * const tile, const int cam_y
     register int    i;
     unsigned short  *tile_ptr;
     unsigned short  *dst;
+    unsigned short  *buffer;
+    int             dy;
     const int       cam_y_fixed_value = JO_MULT_BY_1024(cam_y);
+    // Local copies: the stores in the line buffer could alias the cache fields (they would be reloaded for each pixel)
+    const int       width = params->__cache.output_width;
+    const int       tile_width = tile->width;
+    const unsigned int tile_mask_y = params->__cache.tile_mask_y;
 
     dst = params->__cache.output;
     for (output_y = params->__cache.output_y_start; output_y < params->__cache.output_height; ++output_y)
     {
-        fspace_y = cam_y_fixed_value - params->__cache.output_width_div2 * params->__cache.line_dy[output_y];
+        // The copy of this buffer (2 lines before) is finished: jo_dma_copy_async() waits for the previous copy
+        buffer = __mode7_buffer + (output_y & 1) * JO_MODE7_LINE_BUFFER_SIZE;
+        dy = params->__cache.line_dy[output_y];
+        fspace_y = cam_y_fixed_value - params->__cache.output_width_div2 * dy;
         tile_ptr = tile->data + ((cam_x + JO_DIV_BY_1024(params->__cache.distance[output_y])) & params->__cache.tile_mask_x);
-        for (JO_ZERO(i); i < params->__cache.output_width; ++i)
+        for (JO_ZERO(i); i < width; ++i)
         {
-            __mode7_buffer[i] = *(tile_ptr + ((JO_DIV_BY_1024(fspace_y) & params->__cache.tile_mask_y) * tile->width));
-            fspace_y += params->__cache.line_dy[output_y];
+            // Unsigned shift: 2 instructions instead of a call to the libgcc (same result after the mask)
+            buffer[i] = *(tile_ptr + (((unsigned int)fspace_y >> 10) & tile_mask_y) * tile_width);
+            fspace_y += dy;
         }
-        jo_dma_copy(__mode7_buffer, dst, params->__cache.output_width_sizeof);
+        jo_dma_copy_async(buffer, dst, params->__cache.output_width_sizeof);
         dst += params->__cache.output_line_width;
     }
+    jo_dma_wait();
 }
 
 #endif /* !JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT */

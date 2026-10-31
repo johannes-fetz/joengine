@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -47,6 +46,7 @@
 #include "jo/fs.h"
 #include "jo/image.h"
 #include "jo/tga.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/vdp2.h"
 #include "jo/console_builtins.h"

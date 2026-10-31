@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@ typedef struct
 {
     char        start_ascii;
     char        end_ascii;
-    char        *lookup_table;
+    short       *lookup_table;
     char        spacing;
     int         z_index;
 }               jo_font;
@@ -49,7 +49,7 @@ typedef struct
  *  @param Y Vertical location from the top border of the screen
  *  @param S Font scale
  */
-# define jo_font_printf(F, X, Y, S, ...)		        do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
+# define jo_font_printf(F, X, Y, S, ...)		        do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
 
 /** @brief Print arguments using a specific font (using screen center coordinates)
  *  @param F The font (returned by jo_font_load())
@@ -57,7 +57,7 @@ typedef struct
  *  @param Y Vertical location from the center of the screen
  *  @param S Font scale
  */
-# define jo_font_printf_centered(F, X, Y, S, ...)		do {sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print_centered((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
+# define jo_font_printf_centered(F, X, Y, S, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print_centered((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
@@ -92,6 +92,12 @@ void            jo_font_print(const jo_font * const font, int x, int y, float sc
  *  @param str The string
  */
 void            jo_font_print_centered(const jo_font * const font, int x, int y, float scale, char * str);
+
+/** @brief Free a font loaded with jo_font_load()
+ *  @param font The font (returned by jo_font_load())
+ *  @remarks The sprites of the font are not freed (see jo_sprite_free_from())
+ */
+void            jo_font_free(jo_font * const font);
 
 #endif /* !__JO_FONT_H__ */
 

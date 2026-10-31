@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -151,6 +151,30 @@ void            jo_map_draw_background(const unsigned int layer, const short x, 
 static  __jo_force_inline void	jo_vdp2_map_draw_nbg1(const unsigned int layer, const short x, const short y)
 {
     jo_map_draw_background(layer, x, y);
+}
+
+/** @brief Draw the specific layer on the background (NBG1) using the hardware scroll (no flickering)
+ *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
+ *  @param x relative horizontal position between the screen and the map (like jo_map_draw_background())
+ *  @param y relative vertical position between the screen and the map (like jo_map_draw_background())
+ *  @param clear_color Color of the pixels without tile (JO_COLOR_Transparent to see the screens behind)
+ *  @remarks Call it every frame: only the columns and lines that will appear on the screen are drawn, outside of the visible area
+ *  @remarks The NBG1 scroll position is changed by this function (jo_vdp2_move_nbg1())
+ *  @remarks Don't clear the NBG1 bitmap between 2 calls
+ *  @warning Only works with full color images (not 8 bits). Animated tiles are not updated while they stay on the screen
+ */
+void            jo_map_scroll_background(const unsigned int layer, const short x, const short y, const jo_color clear_color);
+
+/** @brief Draw the specific layer on the background (NBG1) using the hardware scroll (no flickering)
+ *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
+ *  @param x relative horizontal position between the screen and the map
+ *  @param y relative vertical position between the screen and the map
+ *  @param clear_color Color of the pixels without tile (JO_COLOR_Transparent to see the screens behind)
+ *  @remarks See jo_map_scroll_background()
+ */
+static  __jo_force_inline void	jo_vdp2_map_scroll_nbg1(const unsigned int layer, const short x, const short y, const jo_color clear_color)
+{
+    jo_map_scroll_background(layer, x, y, clear_color);
 }
 
 /** @brief Move specific tiles by their attributes

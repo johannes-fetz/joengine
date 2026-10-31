@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -222,7 +222,15 @@ static  __jo_force_inline void                            jo_background_3d_plane
     jo_vdp2_set_rbg0_plane_b_8bits_image(img, palette_id, repeat, vertical_flip);
 }
 
-#if JO_COMPILE_USING_SGL
+
+/** @brief Hide the farthest part of the 3D planes (the background color is visible instead)
+ *  @param max_zoom_out Biggest reduction of the texture (0: no limit, 16: the plane stops where 16 texels are in 1 pixel)
+ *  @remarks Far away, a plane is very reduced and looks noisy: with a background color like the horizon, it fades in the distance
+ */
+static  __jo_force_inline void  jo_background_3d_plane_far_limit(const int max_zoom_out)
+{
+    jo_vdp2_set_rbg0_far_limit(max_zoom_out);
+}
 
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
@@ -232,7 +240,7 @@ static  __jo_force_inline void  jo_background_3d_plane_a_draw(const bool use_scr
     jo_vdp2_draw_rbg0_plane_a(use_scroll_format_matrix);
 }
 
-/** @brief Draw plane A
+/** @brief Draw plane B
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
  */
 static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scroll_format_matrix)
@@ -240,7 +248,17 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
     jo_vdp2_draw_rbg0_plane_b(use_scroll_format_matrix);
 }
 
-#endif
+/** @brief Draw plane B as a flat image, without perspective: a sky behind the plane A (sea, ground)
+ *  @param x Horizontal position in the image of the left of the screen (pixels, the image is repeated horizontally)
+ *  @param y Vertical position in the image of the top of the screen (pixels)
+ *  @remarks The plane B is displayed where the plane A is transparent (above its horizon). Above the image, the top left
+ *  cell (8 x 8 pixels) of the image is repeated (see jo_vdp2_draw_rbg0_plane_b_flat())
+ */
+static  __jo_force_inline void  jo_background_3d_plane_b_draw_flat(const int x, const int y)
+{
+    jo_vdp2_draw_rbg0_plane_b_flat(x, y);
+}
+
 
 /*
 ██╗  ██╗ ██████╗ ██████╗ ██╗███████╗ ██████╗ ███╗   ██╗████████╗ █████╗ ██╗
