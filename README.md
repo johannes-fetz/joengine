@@ -5,6 +5,8 @@ Jo Engine is an open source 2D and 3D game engine for the Sega Saturn written in
 It allows to develop game easily without extensive knowledge in embedded development.
 And... games run on emulator and also on the original system !
 
+Development on Windows, Linux and macOS (for macOS, see [Compiler/MACOS/README.txt](Compiler/MACOS/README.txt)).
+
 Website: https://jo-engine.org/
 
 Main forum: https://segaxtreme.net/forums/saturn-dev.34/
