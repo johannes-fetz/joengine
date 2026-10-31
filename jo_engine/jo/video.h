@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -69,13 +69,13 @@ bool                            jo_video_play(const jo_video_onstop_callback ons
 bool                            jo_video_pause(void);
 
 /** @brief Stop the movie (must be called after jo_video_play())
- *  @return true if succeeded
  *  @warning To play the movie again, you must reopen the movie (jo_video_open_file())
  */
 void                            jo_video_stop(void);
 
 /** @brief Get video sprite Id
  *  @return sprite Id
+ *  @remarks The movie uses 2 sprites (double buffering), so call it every frame: the sprite Id changes when a new frame is ready
  */
 static  __jo_force_inline int   jo_get_video_sprite(void)
 {

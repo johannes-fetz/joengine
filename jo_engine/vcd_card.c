@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2025, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,7 @@ typedef int (*bios_get_vcd_card_rom_fn)(unsigned int index, unsigned int size, v
 
 int jo_vcd_card_is_present(void)
 {
-    bios_is_vcd_card_present_fn bios_is_vcd_card_present = NULL;
+    bios_is_vcd_card_present_fn bios_is_vcd_card_present = JO_NULL;
 
     // call into the BIOS to detect if the VCD card is present
     bios_is_vcd_card_present = (bios_is_vcd_card_present_fn)(*(unsigned int*)BIOS_IS_VCD_CARD_PRESENT);
@@ -55,7 +55,7 @@ int jo_vcd_card_is_present(void)
 
 int jo_vcd_card_get_vcd_card_rom(unsigned int index, unsigned int num_indexes, void* dest, unsigned int dest_size)
 {
-    bios_get_vcd_card_rom_fn bios_get_vcd_card_rom = NULL;
+    bios_get_vcd_card_rom_fn bios_get_vcd_card_rom = JO_NULL;
 
     if(!dest || !dest_size)
     {

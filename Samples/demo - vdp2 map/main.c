@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -34,9 +34,11 @@ static int map_pos_y = 0;
 
 void			my_draw(void)
 {
-    jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Black);
-    jo_vdp2_map_draw_nbg1(WORLD_MAP_ID, map_pos_x, map_pos_y);
-    //You can also use jo_vdp2_move_nbg1(), jo_enable_screen_mozaic(), etc after
+    /* Only the new columns and lines are drawn outside of the screen, then the map is moved by the VDP2 (hardware scroll).
+       Redrawing the whole bitmap each frame (jo_vdp2_clear_bitmap_nbg1() + jo_vdp2_map_draw_nbg1()) causes flickering because
+       the VDP2 displays the bitmap while the CPU draws it. */
+    jo_vdp2_map_scroll_nbg1(WORLD_MAP_ID, map_pos_x, map_pos_y, JO_COLOR_Black);
+    //You can also use jo_enable_screen_mozaic(), etc after
 }
 
 void			my_gamepad(void)

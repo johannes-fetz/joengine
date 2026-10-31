@@ -43,7 +43,7 @@ void GetFrameBufferVDP1()
     // Copy part of the frame buffer
     for (int i = 0; i < BUFFER_HEIGHT; i++)
     {
-        DMA_ScuMemCopy((void*)(&FrameBuffer.data[i * BUFFER_WIDTH]), (void*)(JO_VDP1_FB + TV_NTSC_WIDTH + (i << BUFFER_VSKIP)), BUFFER_WIDTH * 2);
+        jo_dma_copy((void*)(JO_VDP1_FB + TV_NTSC_WIDTH + (i << BUFFER_VSKIP)), (void*)(&FrameBuffer.data[i * BUFFER_WIDTH]), BUFFER_WIDTH * 2);
     }
 }
 
@@ -103,8 +103,8 @@ void CreateInsideCube()
     {
         jo_3d_set_texture(&CubeInsideQuads[i], 0);
 
-        // This will make quad draw only inside of slWindow (jo_3d_window)
-        JO_ADD_FLAG(CubeInsideQuads[i].data.attbl[0].atrb, Window_In);
+        // This will make quad draw only inside of the window (jo_3d_window)
+        JO_ADD_FLAG(CubeInsideQuads[i].data.attributes[0].draw_mode, JO_VDP1_WINDOW_IN);
     }
 }
 
@@ -124,8 +124,8 @@ void CreateOutsideCube()
     {
         jo_3d_set_texture(&CubeOutsideQuads[i], 1);
 
-        // This will make quad draw only inside of slWindow (jo_3d_window)
-        JO_ADD_FLAG(CubeOutsideQuads[i].data.attbl[0].atrb, Window_In);
+        // This will make quad draw only inside of the window (jo_3d_window)
+        JO_ADD_FLAG(CubeOutsideQuads[i].data.attributes[0].draw_mode, JO_VDP1_WINDOW_IN);
     }
 }
 
@@ -135,12 +135,12 @@ void CreateOutsideCube()
 void ClearFrameBuffer(const jo_color color)
 {
     // Define sprite attributes (solid color polygon)
-    SPR_ATTR attribute = SPR_ATTRIBUTE(No_Texture, color, No_Gouraud, Window_In, sprPolygon);
+    jo_vdp1_sprite_attribute attribute = JO_VDP1_SPRITE_ATTRIBUTE(0, color, JO_VDP1_NO_GOURAUD, JO_VDP1_WINDOW_IN, JO_VDP1_POLYGON);
 
     // Define sprite points
-    FIXED x = jo_int2fixed(BUFFER_WIDTH >> 1);
-    FIXED y = jo_int2fixed(BUFFER_HEIGHT >> 1);
-    FIXED fourPoints[4][2] = {
+    jo_fixed x = jo_int2fixed(BUFFER_WIDTH >> 1);
+    jo_fixed y = jo_int2fixed(BUFFER_HEIGHT >> 1);
+    jo_pos2D_fixed fourPoints[4] = {
         { -x, -y },
         { x, -y },
         { x, y },
@@ -148,7 +148,7 @@ void ClearFrameBuffer(const jo_color color)
     };
 
     // Draw this solid colored sprite, that will clear frame buffer
-    slDispSprite4P((FIXED *)fourPoints, (FIXED)jo_int2fixed(ZLIMIT), &attribute);
+    __jo_vdp1_draw_sprite_4p(fourPoints, jo_int2fixed(ZLIMIT), &attribute);
 }
 
 /** @brief Main demo loop
@@ -175,7 +175,7 @@ void DemoDraw()
 
     // We will render the outside area first to have it ready for transfer by the time rendering loop ends or vblank fires
     // Set window to outside region
-    slCurWindow(winFar);
+    jo_3d_select_window(JO_3D_FAR_WINDOW);
     jo_3d_window(
         TV_NTSC_WIDTH_2,                        // This sets X offset from left
         0,                                      // This sets Y offset from top
@@ -206,8 +206,8 @@ void jo_main(void)
     // Initialize Jo-Engine with default back background
     jo_core_init(JO_COLOR_Black);
 
-    // Set window size to 512 (this allows us to have VDP1 render outside of the visible area)
-    *(Uint16*)(JO_VDP1_VRAM+20)=511;
+    // Set drawing area width to 512 (this allows us to have VDP1 render outside of the visible area)
+    jo_sprite_set_system_clipping_area(512, JO_TV_HEIGHT);
 
     // Initialize our frame buffer (image where render from VDP1 will be)
     FrameBuffer.width = BUFFER_WIDTH;

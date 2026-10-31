@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,6 @@
 
 #include <jo/jo.h>
 #include <jo/vcd_card.h>
-#include <string.h>
 
 int g_sprite_vcd_card = 0;
 int g_sprite_x = 0;

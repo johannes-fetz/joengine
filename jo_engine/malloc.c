@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -75,6 +74,92 @@ void                    jo_add_memory_zone(unsigned char *ptr, const unsigned in
     ++__jo_memory_zone_index;
 }
 
+/** @brief Merge a free block with the next free blocks of its zone
+ *  @param zone Memory zone
+ *  @param block Free block
+ *  @return false if the block was the last block of the zone (it is given back to the zone)
+ */
+static bool             jo_malloc_merge_free_blocks(jo_memory_zone * const zone, jo_memory_block * const block)
+{
+    jo_memory_block     *next;
+
+    next = (jo_memory_block *)(((unsigned char *)block) + block->size);
+    while ((unsigned char *)next < zone->high && next->zone == JO_BLOCK_FREE)
+    {
+        block->size += next->size;
+        next = (jo_memory_block *)(((unsigned char *)block) + block->size);
+    }
+    if ((unsigned char *)next >= zone->high)
+    {
+        zone->high = (unsigned char *)block;
+        return (false);
+    }
+    return (true);
+}
+
+/** @brief Find a free block in a zone
+ *  @param zone Zone index
+ *  @param n Block size (header included, multiple of 4)
+ *  @param same_size Only reuse a block with the same size
+ *  @return The block or JO_NULL
+ *  @remarks The adjacent free blocks are merged and a bigger block is split
+ */
+static jo_memory_block  *jo_malloc_find_free_block(const int zone, const unsigned int n, const bool same_size)
+{
+    jo_memory_block     *block;
+    jo_memory_block     *remaining;
+
+    block = (jo_memory_block *)memory_zones[zone].begin;
+    while ((unsigned char *)block < memory_zones[zone].high)
+    {
+#ifdef JO_DEBUG
+        if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
+        {
+            jo_core_error("Memory corrupt: Block size is null");
+            return (JO_NULL);
+        }
+#endif
+        if (block->zone == JO_BLOCK_FREE)
+        {
+            if (!jo_malloc_merge_free_blocks(&memory_zones[zone], block))
+                return (JO_NULL);
+            if (block->size == n || (!same_size && block->size >= n))
+            {
+                // Split the block if the remaining part can hold another block
+                if (block->size >= n + sizeof(*block) + sizeof(int))
+                {
+                    remaining = (jo_memory_block *)(((unsigned char *)block) + n);
+                    remaining->zone = JO_BLOCK_FREE;
+                    remaining->size = block->size - n;
+                    block->size = n;
+                }
+                block->zone = zone;
+                return (block);
+            }
+        }
+        block = (jo_memory_block *)(((unsigned char *)block) + block->size);
+    }
+    return (JO_NULL);
+}
+
+/** @brief Allocate a block at the end of the used area of a zone
+ *  @param zone Zone index
+ *  @param n Block size (header included, multiple of 4)
+ *  @return The block or JO_NULL if the zone is full
+ */
+static jo_memory_block  *jo_malloc_new_block(const int zone, const unsigned int n)
+{
+    jo_memory_block     *block;
+
+    block = (jo_memory_block *)memory_zones[zone].high;
+    if (((unsigned char *)block + n) > memory_zones[zone].end)
+        return (JO_NULL);
+    memory_zones[zone].high += n;
+    block->zone = zone;
+    block->size = n;
+    return (block);
+}
+
 void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_behaviour behaviour)
 {
     register int        zone;
@@ -92,54 +177,21 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
         ++n;
     for (JO_ZERO(zone); zone < __jo_memory_zone_index; ++zone)
     {
-        if (behaviour == JO_FAST_ALLOCATION)
-        {
-malloc_new_segment:
-            block = (jo_memory_block *)memory_zones[zone].high;
-            if (((unsigned char *)block + n) <= memory_zones[zone].end)
-            {
-                memory_zones[zone].high += n;
-                goto malloc_new_block;
-            }
-            if (behaviour == JO_MALLOC_TRY_REUSE_BLOCK)
-                continue;
-        }
-        block = (jo_memory_block *)memory_zones[zone].begin;
-        while (((unsigned char *)block + n) <= memory_zones[zone].high)
-        {
-            if (block->zone == JO_BLOCK_FREE)
-            {
-#ifdef JO_DEBUG
-                if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
-                {
-                    jo_core_error("Memory corrupt: Block size is null");
-                    goto malloc_new_block;
-                }
-#endif
-                if (behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)
-                {
-                    if (block->size == n)
-                    {
-                        block->zone = zone;
-                        return (block + 1);
-                    }
-                }
-                else if (block->size >= n)
-                {
-                    block->zone = zone;
-                    return (block + 1);
-                }
-            }
-            block = (jo_memory_block *)(((unsigned char *)block) + block->size);
-        }
-        if (behaviour != JO_FAST_ALLOCATION)
-            goto malloc_new_segment;
+        // Try to reuse a freed block first
+        if (behaviour != JO_FAST_ALLOCATION &&
+            (block = jo_malloc_find_free_block(zone, n, behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) != JO_NULL)
+            return (block + 1);
+        // New block at the end of the used area
+        if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
+            return (block + 1);
+        // The zone is full: any freed block is fine
+        if ((block = jo_malloc_find_free_block(zone, n, false)) != JO_NULL)
+            return (block + 1);
+        // The last freed blocks may have been given back to the zone by jo_malloc_find_free_block()
+        if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
+            return (block + 1);
     }
     return (JO_NULL);
-malloc_new_block:
-    block->zone = zone;
-    block->size = n;
-    return (block + 1);
 }
 
 void                            jo_reduce_memory_fragmentation(void)
@@ -170,6 +222,7 @@ void                            jo_reduce_memory_fragmentation(void)
 inline void                     jo_free(const void * const p)
 {
     jo_memory_block             *block;
+    jo_memory_zone              *zone;
 
 #ifdef JO_DEBUG
     if (p == JO_NULL)
@@ -185,11 +238,16 @@ inline void                     jo_free(const void * const p)
         jo_core_error("Bad pointer: %x", (unsigned int)p);
         return ;
     }
+    if (block->zone == JO_BLOCK_FREE)
+    {
+        jo_core_error("Pointer already freed: %x", (unsigned int)p);
+        return ;
+    }
 #endif
-    if ((((unsigned char *)block) + block->size) == memory_zones[block->zone].high)
-        memory_zones[block->zone].high = (unsigned char *)block;
-    else
-        block->zone = JO_BLOCK_FREE;
+    zone = &memory_zones[block->zone];
+    block->zone = JO_BLOCK_FREE;
+    // Merged with the next free blocks, or given back to the zone if it's the last block
+    jo_malloc_merge_free_blocks(zone, block);
 }
 
 #ifdef JO_DEBUG

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,10 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
+#include "jo/smpc.h"
 #include "jo/keyboard.h"
 
 #ifdef JO_COMPILE_WITH_KEYBOARD_SUPPORT
@@ -42,10 +42,10 @@
 
 jo_keyboard_special_key   jo_keyboard_get_special_key(void)
 {
-    PerKeyBoard                                     *keyboard;
+    jo_peripheral_keyboard                                     *keyboard;
 
-	keyboard = (PerKeyBoard *)&Smpc_Peripheral[0];
-	if ((keyboard->cond & PER_KBD_MK) == 0)
+	keyboard = (jo_peripheral_keyboard *)&__jo_smpc_peripherals[0];
+	if ((keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0)
         return JO_KEYBOARD_NO_SPECIAL_KEY;
     switch (keyboard->code)
     {

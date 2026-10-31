@@ -18,7 +18,7 @@
 void set_background(char* filename, char* folder){
     jo_img bg;
 
-    bg.data = NULL;
+    bg.data = JO_NULL;
     jo_tga_loader(&bg, folder, filename, JO_COLOR_Green);
     jo_set_background_sprite(&bg, 0, 0);
     jo_free_img(&bg);

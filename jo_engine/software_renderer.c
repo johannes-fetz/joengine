@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -41,6 +40,7 @@
 #include "jo/tools.h"
 #include "jo/malloc.h"
 #include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/fs.h"
 #include "jo/math.h"
@@ -73,6 +73,15 @@ static __jo_force_inline void               __jo_software_renderer_clear_zbuffer
 
     ptr = gfx->depth_buffer;
     end = ptr + gfx->depth_buffer_dword_size;
+    // 4 values per iteration
+    while (ptr + 4 <= end)
+    {
+        ptr[0] = JO_FIXED_MIN;
+        ptr[1] = JO_FIXED_MIN;
+        ptr[2] = JO_FIXED_MIN;
+        ptr[3] = JO_FIXED_MIN;
+        ptr += 4;
+    }
     while (ptr < end)
         *ptr++ = JO_FIXED_MIN;
 }
@@ -90,6 +99,9 @@ void                                        jo_software_renderer_free(jo_softwar
         jo_free(gfx->color_buffer);
     if (gfx->depth_buffer != JO_NULL)
         jo_free(gfx->depth_buffer);
+    // The sprite can only be freed if it's the last one (see jo_sprite_free_from())
+    if (gfx->sprite_id >= 0 && gfx->sprite_id == jo_sprite_count() - 1)
+        jo_sprite_free_from(gfx->sprite_id);
     jo_free(gfx);
 }
 
@@ -106,6 +118,9 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
 #endif
         return (JO_NULL);
     }
+    // jo_software_renderer_free() can be called on error
+    gfx->color_buffer = JO_NULL;
+    gfx->depth_buffer = JO_NULL;
     img.height = height;
     img.width = width;
     img.data = JO_NULL;
@@ -128,6 +143,12 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
             break;
         case JO_NBG1_SCREEN:
             jo_vdp2_set_nbg1_image(&img, 0, 0);
+            // (JO_NULL: the bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap())
+            if (nbg1_bitmap == JO_NULL)
+            {
+                jo_software_renderer_free(gfx);
+                return (JO_NULL);
+            }
             gfx->vram = nbg1_bitmap;
             gfx->vram_size.width = JO_VDP2_WIDTH;
             gfx->vram_size.height = JO_VDP2_HEIGHT;
@@ -182,9 +203,16 @@ void                                        jo_software_renderer_flush(jo_softwa
         return ;
     }
 #endif
-    jo_dma_copy(gfx->color_buffer, gfx->vram, gfx->color_buffer_size);
-    if (gfx->depth_buffer != JO_NULL)
-        __jo_software_renderer_clear_zbuffer(gfx);
+    if (gfx->depth_buffer == JO_NULL)
+    {
+        jo_dma_copy(gfx->color_buffer, gfx->vram, gfx->color_buffer_size);
+        return;
+    }
+    // The depth buffer is cleared during the copy (the DMA controller steals cycles: the CPU keeps working). The
+    // destination is in the VRAM (cache-through): no cache line to purge after the transfer
+    jo_dma_copy_async(gfx->color_buffer, gfx->vram, gfx->color_buffer_size);
+    __jo_software_renderer_clear_zbuffer(gfx);
+    jo_dma_wait();
 }
 
 /*
@@ -200,9 +228,30 @@ void                                        jo_software_renderer_clear(const jo_
 {
     register jo_color                       *ptr;
     register jo_color                       *end;
+    register unsigned int                   *ptr32;
+    register unsigned int                   *end32;
+    unsigned int                            color32;
 
     ptr = gfx->color_buffer;
-    for (end = ptr + JO_DIV_BY_2(gfx->color_buffer_size); ptr < end; ++ptr)
+    end = ptr + JO_DIV_BY_2(gfx->color_buffer_size);
+    // 2 pixels per 32 bits write
+    if (((unsigned int)ptr & 2) && ptr < end)
+        *ptr++ = color;
+    color32 = ((unsigned int)color << 16) | color;
+    ptr32 = (unsigned int *)ptr;
+    end32 = ptr32 + JO_DIV_BY_2(end - ptr);
+    while (ptr32 + 4 <= end32)
+    {
+        ptr32[0] = color32;
+        ptr32[1] = color32;
+        ptr32[2] = color32;
+        ptr32[3] = color32;
+        ptr32 += 4;
+    }
+    while (ptr32 < end32)
+        *ptr32++ = color32;
+    ptr = (jo_color *)ptr32;
+    if (ptr < end)
         *ptr = color;
 }
 
@@ -276,15 +325,30 @@ void                                        jo_software_renderer_draw_line3D(con
     }
     jo_fixed incr_t = jo_fixed_div(JO_FIXED_1, ax);
     jo_fixed t = JO_FIXED_0;
+    const bool gradient = color0 != color1;
+    const bool depth = gfx->depth_buffer != JO_NULL;
+    // Color gradient: jo_lerp(C0 << 16, C1 << 16, t) is exactly (C0 << 16) + t * (C1 - C0) (no rounding), so the components
+    // are 32 bits accumulators instead of 6 multiplications per pixel
+    jo_fixed r = jo_int2fixed(JO_COLOR_SATURN_GET_R(color0));
+    jo_fixed g = jo_int2fixed(JO_COLOR_SATURN_GET_G(color0));
+    jo_fixed b = jo_int2fixed(JO_COLOR_SATURN_GET_B(color0));
+    const jo_fixed incr_r = incr_t * (JO_COLOR_SATURN_GET_R(color1) - JO_COLOR_SATURN_GET_R(color0));
+    const jo_fixed incr_g = incr_t * (JO_COLOR_SATURN_GET_G(color1) - JO_COLOR_SATURN_GET_G(color0));
+    const jo_fixed incr_b = incr_t * (JO_COLOR_SATURN_GET_B(color1) - JO_COLOR_SATURN_GET_B(color0));
     for (n = JO_DIV_BY_2(ax); i <= ax; i += JO_FIXED_1)
     {
-        if (color0 != color1)
+        if (gradient)
         {
-            c = JO_COLOR_SATURN_RGB(jo_fixed2int(jo_lerp(jo_int2fixed(JO_COLOR_SATURN_GET_R(color0)), jo_int2fixed(JO_COLOR_SATURN_GET_R(color1)), t)),
-                             jo_fixed2int(jo_lerp(jo_int2fixed(JO_COLOR_SATURN_GET_G(color0)), jo_int2fixed(JO_COLOR_SATURN_GET_G(color1)), t)),
-                             jo_fixed2int(jo_lerp(jo_int2fixed(JO_COLOR_SATURN_GET_B(color0)), jo_int2fixed(JO_COLOR_SATURN_GET_B(color1)), t)));
+            c = JO_COLOR_SATURN_RGB(jo_fixed2int(r), jo_fixed2int(g), jo_fixed2int(b));
+            r += incr_r;
+            g += incr_g;
+            b += incr_b;
         }
-        __jo_software_renderer_draw_pixel(gfx, x0, y0, jo_lerp(z0, z1, t), c);
+        // The depth is only computed with a depth buffer
+        if (depth)
+            __jo_software_renderer_draw_pixel(gfx, x0, y0, jo_lerp(z0, z1, t), c);
+        else
+            __jo_software_renderer_plot_pixel(gfx, x0, y0, c);
         n += ay;
         x0 += n >= ax ? dx1 : dx2;
         y0 += n >= ax ? dy1 : dy2;

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -71,12 +70,28 @@ static  __jo_force_inline int           __jo_time_frame_count_to_mcr(int count)
     return (__jo_time_get_clock_speed() * count * __jo_time_get_clock_mode());
 }
 
+/** @brief Free running timer ticks since the previous call
+ *  @param previous Value of the timer at the previous call (updated)
+ *  @return Ticks
+ *  @remarks The timer is not reset: it is also used by the profiler (see jo_profile_begin())
+ */
+static  __jo_force_inline int           jo_time_elapsed_frc(unsigned short *previous)
+{
+    unsigned short                      now;
+    unsigned short                      elapsed;
+
+    now = (unsigned short)jo_time_get_frc();
+    elapsed = now - *previous;
+    *previous = now;
+    return (elapsed);
+}
+
 unsigned int                            jo_get_ticks(void)
 {
     static unsigned int                 ticks = 0;
+    static unsigned short               previous = 0;
 
-    ticks += __jo_time_frame_count_to_mcr(jo_time_get_frc()) / 1000;
-    jo_time_set_frc(0);
+    ticks += __jo_time_frame_count_to_mcr(jo_time_elapsed_frc(&previous)) / 1000;
     return (ticks);
 }
 
@@ -87,14 +102,14 @@ unsigned int                            jo_get_ticks(void)
 static jo_fixed oldtime = 0;
 jo_fixed time_in_seconds = 0;
 jo_fixed delta_time = 0;
+static unsigned short previous_frc = 0;
 
 void                                    jo_fixed_point_time(void)
 {
 	oldtime = time_in_seconds;
-	jo_fixed time_add = (__jo_time_get_clock_speed() * jo_time_get_frc() * __jo_time_get_clock_mode() / 1000000) * 65536.0;
+	jo_fixed time_add = (__jo_time_get_clock_speed() * jo_time_elapsed_frc(&previous_frc) * __jo_time_get_clock_mode() / 1000000) * 65536.0;
 	time_in_seconds += time_add;
 	delta_time = time_in_seconds - oldtime;
-	jo_time_set_frc(0);
 }
 
 /*

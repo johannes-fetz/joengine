@@ -1,0 +1,67 @@
+/*
+** Jo Engine linker script
+**
+** 0x06004000 - ...        : program and user data, then the engine work area (VDP1 command lists, 3D buffers...)
+** ...        - 0x060FBC00 : free (given to jo_malloc(), see jo_init_memory())
+** 0x060FBC00 - 0x060FFC00 : master CPU stack
+*/
+SECTIONS {
+    JO_START 0x06004000 : {
+        ___Start = .;
+        *(JO_START)
+    }
+    .text ALIGN(0x20) :
+    {
+        *(.text)
+        *(.text.*)
+        *(.strings)
+        __etext = .;
+    }
+    .rodata ALIGN(0x20) :
+    {
+        *(.rodata)
+        *(.rodata.*)
+    }
+    .tors ALIGN(0x10) :
+    {
+        ___ctors = . ;
+        *(.ctors)
+        ___ctors_end = . ;
+        ___dtors = . ;
+        *(.dtors)
+        ___dtors_end = . ;
+    }
+    .data ALIGN(0x10) :
+    {
+        *(.data)
+        *(.data.*)
+        __edata = . ;
+    }
+    .bss ALIGN(0x10) (NOLOAD) :
+    {
+        __bstart = . ;
+        *(.bss)
+        *(.bss.*)
+        * ( COMMON )
+        . = ALIGN(4);
+        __bend = . ;
+        _end = .;
+    }
+    JO_WORK ALIGN(0x4000) (NOLOAD) :
+    {
+        __jo_work_start = . ;
+        /* (the buffers with a big alignment first, 16 KB at most: no hole between the others; the high work RAM between
+           the end of the program and this area is given to jo_malloc()) */
+        *(JO_WORK_ALIGNED)
+        *(SORT_BY_ALIGNMENT(JO_WORK))
+        . = ALIGN(4);
+        __jo_work_end = . ;
+    }
+    /DISCARD/ :
+    {
+        *(.comment)
+        *(.eh_frame)
+        *(.eh_frame_hdr)
+    }
+}
+ASSERT(__jo_work_end <= 0x060FBC00, "Program too big: the program and the engine work area overlap the stack at 0x060FBC00")

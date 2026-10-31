@@ -19,7 +19,6 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add option="-DJO_COMPILE_USING_SGL" />
 			<Add option="-DJO_COMPILE_WITH_RAM_CARD_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_FS_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_TGA_SUPPORT" />

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -42,7 +41,8 @@
 
 jo_sprite_anim		__jo_sprite_anim_tab[JO_MAX_SPRITE_ANIM];
 static int			__jo_sprite_anim_id = -1;
-static char			__jo_sprite_anim_callback_event_id = 0;
+/* Value returned by jo_core_add_callback() (an address: it doesn't fit in a char) */
+static int			    __jo_sprite_anim_callback_event_id = 0;
 
 static void			__jo_internal_frame_animator(void)
 {
@@ -146,7 +146,7 @@ void jo_remove_sprite_anim(const int anim_id)
             --__jo_sprite_anim_id;
         }
 
-        if (__jo_sprite_anim_id < 0 && __jo_sprite_anim_callback_event_id > 0)
+        if (__jo_sprite_anim_id < 0 && __jo_sprite_anim_callback_event_id != 0)
         {
             jo_core_remove_callback(__jo_sprite_anim_callback_event_id);
             JO_ZERO(__jo_sprite_anim_callback_event_id);
@@ -157,7 +157,7 @@ void jo_remove_sprite_anim(const int anim_id)
 void    jo_clear_all_sprite_anim(void)
 {
     __jo_sprite_anim_id = -1;
-    if (__jo_sprite_anim_callback_event_id > 0)  // Avoid calling with an invalid value.
+    if (__jo_sprite_anim_callback_event_id != 0)  // Avoid calling with an invalid value.
     {
         jo_core_remove_callback(__jo_sprite_anim_callback_event_id);
         JO_ZERO(__jo_sprite_anim_callback_event_id); // Prevents reuse of an invalid value.

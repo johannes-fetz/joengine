@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 714 160" role="img" aria-labelledby="jo-t">
+  <title id="jo-t">Jo Engine</title>
+  <defs>
+    <radialGradient id="jo-sphere" cx="36%" cy="30%" r="78%">
+      <stop offset="0" stop-color="#8ec2ff"/>
+      <stop offset=".45" stop-color="#3f74f0"/>
+      <stop offset="1" stop-color="#1a2a8c"/>
+    </radialGradient>
+    <radialGradient id="jo-shine" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="jo-steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7d8798"/>
+      <stop offset=".22" stop-color="#f4f6fa"/>
+      <stop offset=".5" stop-color="#aab3c2"/>
+      <stop offset=".78" stop-color="#eef1f6"/>
+      <stop offset="1" stop-color="#6c7586"/>
+    </linearGradient>
+    <linearGradient id="jo-steel-back" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4d5566"/>
+      <stop offset=".5" stop-color="#8a93a3"/>
+      <stop offset="1" stop-color="#4d5566"/>
+    </linearGradient>
+    <linearGradient id="jo-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe9a3"/>
+      <stop offset=".45" stop-color="#f6b62f"/>
+      <stop offset="1" stop-color="#c47a10"/>
+    </linearGradient>
+    <clipPath id="jo-front"><rect x="-20" y="80" width="280" height="100"/></clipPath>
+  </defs>
+  <mask id="jo-cut" maskUnits="userSpaceOnUse" x="-40" y="-40" width="320" height="240">
+    <rect x="-40" y="-40" width="320" height="240" fill="#fff"/>
+    <g transform="rotate(-20 120 80)" clip-path="url(#jo-front)">
+      <ellipse class="jo-ring" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="#000" stroke-width="21"/>
+    </g>
+  </mask>
+  <g class="jo-mark" transform="translate(0 0) scale(1.0)">
+    <g transform="rotate(-20 120 80)">
+      <ellipse class="jo-ring jo-ring--back" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="url(#jo-steel-back)" stroke-width="13"/>
+    </g>
+    <g mask="url(#jo-cut)">
+      <circle class="jo-sphere" cx="120" cy="80" r="59" fill="url(#jo-sphere)"/>
+      <ellipse cx="99" cy="55" rx="22" ry="14" fill="url(#jo-shine)" transform="rotate(-30 99 55)"/>
+    </g>
+    <g transform="rotate(-20 120 80)" clip-path="url(#jo-front)">
+      <ellipse class="jo-ring jo-ring--front" cx="120" cy="80" rx="104" ry="29" fill="none" stroke="url(#jo-steel)" stroke-width="13"/>
+    </g>
+  </g>
+  <path d="M263.84 100.868V88.908H275.984V96.636L280.676 101.328H292.912L297.328 97.004V47.599999999999994H309.84V101.236L299.076 112.0H274.88Z" fill="#ecebff"/>
+  <ellipse cx="348.4" cy="79.8" rx="20.6" ry="25.7" fill="none" stroke="url(#jo-gold)" stroke-width="13.0" transform="rotate(18 348.4 79.8)"/>
+  <path d="M409.46000000000004 47.599999999999994H456.012V58.18H421.97200000000004V74.464H453.344V84.86H421.97200000000004V101.42H456.012V112.0H409.46000000000004ZM464.752 66.184H475.976V73.82L483.612 66.184H498.42400000000004L508.636 76.396V112.0H496.492V79.708L493.36400000000003 76.488H485.636L476.896 85.32V112.0H464.752ZM563.5600000000001 66.184V122.488L553.624 132.332H528.692L520.1360000000001 123.868V117.612H532.28V120.372L534.028 122.212H548.288L551.416 118.992V106.02L545.068 112.0H527.772L518.296 102.432V75.75200000000001L527.772 66.184H545.804L552.336 72.44V66.184ZM551.416 82.1 545.1600000000001 76.488H533.936L530.44 80.076V98.108L533.936 101.696H543.964L551.416 94.06ZM574.14 56.616V50.728L578.3720000000001 46.495999999999995H584.812L589.0440000000001 50.728V56.616L584.812 60.848H578.3720000000001ZM575.5200000000001 66.184H587.664V112.0H575.5200000000001ZM599.624 66.184H610.8480000000001V73.82L618.484 66.184H633.296L643.508 76.396V112.0H631.364V79.708L628.236 76.488H620.508L611.768 85.32V112.0H599.624ZM653.168 102.616V75.75200000000001L662.644 66.184H688.496L698.064 75.75200000000001V93.14H665.312V99.028L668.256 102.064H683.252L686.012 99.212V96.82H697.972V102.8L688.864 112.0H662.46ZM685.92 84.676V79.34L682.792 76.12H668.4399999999999L665.312 79.34V84.676Z" fill="#ecebff"/>
+</svg>

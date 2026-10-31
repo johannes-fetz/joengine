@@ -1,0 +1,30 @@
+# Small house (Y up): source of cd/HOUSE.JOM
+# python3 ../../../Compiler/COMMON/jo_model.py house.obj -o ../cd/HOUSE.JOM --embed-textures
+mtllib house.mtl
+
+v -20 0 -20 0.5 0.5 0.5
+v 20 0 -20 0.5 0.5 0.5
+v 20 30 -20 0.4 0.4 0.4
+v -20 30 -20 0.4 0.4 0.4
+v -20 0 20 0.5 0.5 0.5
+v 20 0 20 0.5 0.5 0.5
+v 20 30 20 0.4 0.4 0.4
+v -20 30 20 0.4 0.4 0.4
+v 0 50 0 0.75 0.6 0.45
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+
+o walls
+usemtl brick
+f 1/2 4/3 3/4 2/1
+f 5/1 6/2 7/3 8/4
+f 5/2 8/3 4/4 1/1
+f 2/2 3/3 7/4 6/1
+o roof
+usemtl roof
+f 3 4 9
+f 7 3 9
+f 8 7 9
+f 4 8 9

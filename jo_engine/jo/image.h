@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -75,6 +75,15 @@ int		jo_sprite_add_bin_tileset(const char * const sub_dir, const char * const fi
  *  @return Sprite Id or -1 if failed
  */
 int		jo_sprite_add_bin(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
+
+/** @brief Add a sprite from a BIN file as a 16 colors texture with its color lookup table when it has 14 colors at most (the index 15 is the end code) (see
+ *  jo_sprite_add_image_4bits_lut(): 4 times less VRAM), else as an RGB sprite
+ *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
+ *  @param filename Filename (upper case and shorter as possible like "A.BIN")
+ *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @return Sprite Id or -1 if failed
+ */
+int		jo_sprite_add_bin_4bits_lut(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
 
 /** @brief Add a set of image from a TEX file format
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)

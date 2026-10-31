@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
  *
  *  @brief Jo Engine 3D basics
  *  @bug No known bugs.
- *  @todo Mesh loader, Gouraud shading and advanced 3D processing
  */
 
 #ifndef __JO_3D_H__
@@ -87,33 +86,135 @@
 /** @brief Vertice structure */
 typedef jo_pos3D    jo_vertice;
 
+/** @brief Default perspective angle in degree (see jo_3d_perspective_angle()) */
+# define JO_3D_DEFAULT_PERSPECTIVE_ANGLE    (90)
+
+/** @brief Default display level (see jo_3d_display_level()) */
+# define JO_3D_DEFAULT_DISPLAY_LEVEL        (3)
+
+/*
+** 3D model data
+*/
+
+/** @brief Polygon sort: same depth as the previous polygon */
+# define JO_3D_SORT_PREVIOUS                (0)
+/** @brief Polygon sort: depth of the nearest vertex */
+# define JO_3D_SORT_MIN                     (1)
+/** @brief Polygon sort: depth of the farthest vertex */
+# define JO_3D_SORT_MAX                     (2)
+/** @brief Polygon sort: average depth of the 4 vertices */
+# define JO_3D_SORT_CENTER                  (3)
+/** @brief Polygon sort mask */
+# define JO_3D_SORT_MASK                    (3)
+
+/** @brief Polygon hidden when seen from the back */
+# define JO_3D_SINGLE_PLANE                 (0)
+/** @brief Polygon always displayed */
+# define JO_3D_DUAL_PLANE                   (1)
+
+/** @brief Polygon option: no option */
+# define JO_3D_NO_OPTION                    (0)
+/** @brief Polygon option: textured polygon */
+# define JO_3D_USE_TEXTURE                  (JO_VDP1_OPTION_USE_TEXTURE)
+/** @brief Polygon option: lighting (see jo_3d_light()) */
+# define JO_3D_USE_LIGHT                    (1 << 3)
+/** @brief Polygon option: the color is a palette (no lighting) */
+# define JO_3D_USE_PALETTE                  (1 << 5)
+/** @brief No texture */
+# define JO_3D_NO_TEXTURE                   (0)
+
+/** @brief Polygon (quadrilateral, a triangle repeats the last vertex) */
+typedef struct
+{
+    jo_pos3D_fixed      normal;         // Normal vector (unit vector) used for lighting
+    unsigned short      vertices[4];    // Vertex indexes
+}                       jo_3d_polygon;
+
+/** @brief Polygon attribute */
+typedef struct
+{
+    unsigned char       plane;          // JO_3D_SINGLE_PLANE or JO_3D_DUAL_PLANE
+    unsigned char       sort;           // JO_3D_SORT_xxx | JO_3D_USE_xxx options
+    unsigned short      texture_id;     // Sprite id
+    unsigned short      draw_mode;      // JO_VDP1_COLOR_MODE_xxx | JO_VDP1_COLOR_CALC_xxx | ...
+    unsigned short      color;          // RGB color or palette
+    unsigned short      gouraud_table;  // Gouraud table address / 8
+    unsigned short      direction;      // JO_VDP1_FUNCTION_xxx | flip
+}                       jo_3d_polygon_attribute;
+
+/** @brief Polygon data (3D model) */
+typedef struct
+{
+    jo_pos3D_fixed              *points;
+    unsigned int                point_count;
+    jo_3d_polygon               *polygons;
+    unsigned int                polygon_count;
+    jo_3d_polygon_attribute     *attributes;
+}                               jo_3d_polygon_data;
+
+/** @brief Range of polygons of a mesh (see jo_3d_mesh_draw_ranges()) */
+typedef struct
+{
+    unsigned short              first;          // Index of the first polygon
+    unsigned short              count;          // Number of polygons
+}                               jo_3d_polygon_range;
+
+/** @brief Polygon attribute initializer
+ *  @param PLANE JO_3D_SINGLE_PLANE or JO_3D_DUAL_PLANE
+ *  @param SORT JO_3D_SORT_xxx
+ *  @param TEXTURE Sprite id (JO_3D_NO_TEXTURE)
+ *  @param COLOR RGB color or palette
+ *  @param GOURAUD Gouraud table address / 8 (JO_VDP1_NO_GOURAUD)
+ *  @param DRAW_MODE JO_VDP1_COLOR_MODE_xxx | JO_VDP1_COLOR_CALC_xxx | ...
+ *  @param DIRECTION JO_VDP1_SPRITE_NO_FLIP, JO_VDP1_POLYGON, etc
+ *  @param OPTIONS JO_3D_USE_xxx (JO_3D_NO_OPTION)
+ */
+# define JO_3D_ATTRIBUTE(PLANE, SORT, TEXTURE, COLOR, GOURAUD, DRAW_MODE, DIRECTION, OPTIONS) \
+    {(PLANE), (SORT) | JO_VDP1_DIRECTION_OPTIONS(DIRECTION) | (OPTIONS), (TEXTURE), (DRAW_MODE) | JO_VDP1_DIRECTION_DRAW_MODE(DIRECTION), \
+     (COLOR), (GOURAUD), JO_VDP1_DIRECTION_COMMAND(DIRECTION)}
+
+/** @brief Polygon normal initializer
+ *  @param X Normal X (float)
+ *  @param Y Normal Y (float)
+ *  @param Z Normal Z (float)
+ */
+# define JO_3D_NORMAL(X, Y, Z)              {JO_FLOAT_TO_FIXED(X), JO_FLOAT_TO_FIXED(Y), JO_FLOAT_TO_FIXED(Z)}
+
+/** @brief Polygon vertices initializer
+ *  @param A First vertex index
+ *  @param B Second vertex index
+ *  @param C Third vertex index
+ *  @param D Fourth vertex index (same as C for a triangle)
+ */
+# define JO_3D_VERTICES(A, B, C, D)         {(A), (B), (C), (D)}
+
 /** @brief Camera structure */
 typedef struct
 {
     union
     {
-        FIXED       viewpoint[XYZ];
+        jo_fixed    viewpoint[3];
         jo_pos3D    viewpoint_pos;
     };
     union
     {
-        FIXED       target[XYZ];
+        jo_fixed    target[3];
         jo_pos3D    target_pos;
     };
-    ANGLE           z_angle;
+    jo_angle        z_angle;
 }                   jo_camera;
 
 /** @brief Quadrilateral shape structure */
 typedef struct
 {
-    PDATA       data;
-    ATTR        attribute;
+    jo_3d_polygon_data       data;
+    jo_3d_polygon_attribute        attribute;
 }               jo_3d_quad;
 
 /** @brief Mesh structure */
 typedef struct
 {
-    PDATA       data;
+    jo_3d_polygon_data       data;
 }               jo_3d_mesh;
 
 /** @brief Sprite quads (internal engine usage)
@@ -122,7 +223,6 @@ typedef struct
 extern jo_3d_quad *__jo_sprite_quad[JO_MAX_SPRITE];
 bool    jo_3d_create_sprite_quad(const int sprite_id);
 
-#if JO_COMPILE_USING_SGL
 
 /*
  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗
@@ -133,6 +233,102 @@ bool    jo_3d_create_sprite_quad(const int sprite_id);
  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
 
 */
+
+/*
+** Internal usage
+*/
+/** @brief Polygon count of the current frame (Internal usage) */
+extern unsigned short               __jo_3d_polygon_count;
+/** @brief Vertice count of the current frame (Internal usage) */
+extern unsigned short               __jo_3d_vertice_count;
+/** @brief Displayed polygon count of the current frame (Internal usage) */
+extern unsigned short               __jo_3d_displayed_polygon_count;
+/** @brief Multiply the current matrix by a camera matrix (Internal usage)
+ *  @param camera Camera position (x, y, z)
+ *  @param target Point looked at by the camera (x, y, z)
+ *  @param angle Rotation around the view axis
+ *  @remarks Y axis goes down, so the world "up" vector is -Y
+ */
+void                                __jo_3d_look_at(const jo_fixed * const camera, const jo_fixed * const target, const jo_angle angle);
+/** @brief Translate the current matrix (Internal usage)
+ *  @param x Horizontal translation
+ *  @param y Vertical translation
+ *  @param z Depth translation
+ */
+void                                __jo_3d_translate(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+/** @brief Scale the current matrix (Internal usage)
+ *  @param x Horizontal scale (JO_FIXED_1 = no scale)
+ *  @param y Vertical scale (JO_FIXED_1 = no scale)
+ *  @param z Depth scale (JO_FIXED_1 = no scale)
+ */
+void                                __jo_3d_scale(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+/** @brief X axis for __jo_3d_rotate() */
+# define JO_3D_AXIS_X                       (0)
+/** @brief Y axis for __jo_3d_rotate() */
+# define JO_3D_AXIS_Y                       (1)
+/** @brief Z axis for __jo_3d_rotate() */
+# define JO_3D_AXIS_Z                       (2)
+/** @brief Rotate the current matrix around an axis (Internal usage)
+ *  @param axis JO_3D_AXIS_X, JO_3D_AXIS_Y or JO_3D_AXIS_Z
+ *  @param angle Rotation angle (0x10000 = 360 degrees)
+ */
+void                                __jo_3d_rotate(const int axis, const jo_angle angle);
+/** @brief Set light direction (Internal usage)
+ *  @param light Light direction (unit vector) in the current matrix space
+ *  @remarks The vector is transformed by the current matrix, so call it after jo_3d_camera_look_at()
+ */
+void                                __jo_3d_light(const jo_pos3D_fixed * const light);
+/** @brief Set perspective angle (Internal usage)
+ *  @param angle Horizontal field of view (0x4000 = 90 degrees)
+ *  @remarks Changes the projection distance used by 3D polygons, 3D sprites and the rotation scroll screen
+ */
+void                                __jo_3d_set_perspective(const jo_angle angle);
+/** @brief The next 3D polygons (of the master CPU) are a front layer: drawn after (over) all the other polygons, sorted
+ *  among themselves with the depth divided by 2^shift (a rear-view mirror: its content is far away, but in front of the
+ *  view of the camera; draw a background first)
+ *  @param shift The depth is divided by 2^shift (the sort keys of the layer stay small: 1 + z / 2^shift), -1: the normal
+ *  sort again
+ *  @remarks The sort keys of the other polygons must stay bigger: their depth bias (see jo_3d_set_depth_bias())
+ */
+void                                jo_3d_set_front_layer(const int shift);
+
+/** @brief Points of a mesh transformed by their own matrix (see __jo_3d_draw_parts()) */
+typedef struct
+{
+    jo_fixed                        (*matrix)[3];   // 4 rows of 3 (the matrix of the camera and of the part)
+    unsigned short                  first;          // First point
+    unsigned short                  count;          // Number of points
+}                                   jo_3d_part;
+
+/** @brief Draw polygons whose points are in parts, each one transformed by its own matrix: the bones of a skeleton
+ *  (one draw for the whole model, see jo_3d_model_draw_pose()) (Internal usage)
+ *  @param pdata Polygon data (vertices, polygons and attributes)
+ *  @param parts Parts (the points not in a part are not transformed: the polygons must not use them)
+ *  @param part_count Number of parts
+ *  @return false if the VDP1 command table is full
+ */
+bool                                __jo_3d_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
+                                                       const int part_count);
+
+/** @brief Draw polygons using the current matrix (Internal usage)
+ *  @param pdata Polygon data (vertices, polygons and attributes)
+ *  @param point_count Number of points transformed (the first ones of pdata)
+ *  @param ranges Ranges of polygons drawn (JO_NULL: all the polygons)
+ *  @param range_count Number of ranges
+ *  @return false if the VDP1 command table is full
+ *  @remarks Hidden polygons (behind the camera, outside the window or seen from the back) are skipped
+ */
+bool                                __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
+                                                        const jo_3d_polygon_range * const ranges, const int range_count);
+
+/** @brief Draw polygons using the current matrix (Internal usage)
+ *  @param pdata Polygon data (vertices, polygons and attributes)
+ *  @return false if the VDP1 command table is full
+ */
+static  __jo_force_inline bool      __jo_3d_draw(const jo_3d_polygon_data * const pdata)
+{
+    return (__jo_3d_draw_ranges(pdata, pdata->point_count, JO_NULL, 0));
+}
 
 /** @brief Set the viewpoint of the camera (where the cameraman is)
  *  @param cam Pointer to a camera struct
@@ -184,7 +380,7 @@ static  __jo_force_inline void      jo_3d_camera_init(jo_camera * const cam)
  */
 static  __jo_force_inline void      jo_3d_camera_look_at(jo_camera * const cam)
 {
-    slLookAt(cam->viewpoint, cam->target, cam->z_angle);
+    __jo_3d_look_at(cam->viewpoint, cam->target, cam->z_angle);
 }
 
 /*
@@ -203,8 +399,7 @@ static  __jo_force_inline void      jo_3d_camera_look_at(jo_camera * const cam)
  */
 static  __jo_force_inline unsigned int       jo_3d_get_polygon_count(void)
 {
-    extern Uint16 TotalPolygons;
-    return TotalPolygons;
+    return (__jo_3d_polygon_count);
 }
 
 /** @brief Get vertice count
@@ -213,8 +408,7 @@ static  __jo_force_inline unsigned int       jo_3d_get_polygon_count(void)
  */
 static  __jo_force_inline unsigned int       jo_3d_get_vertices_count(void)
 {
-    extern Uint16 TotalVertices;
-    return TotalVertices;
+    return (__jo_3d_vertice_count);
 }
 
 /** @brief Get displayed polygon count
@@ -223,8 +417,7 @@ static  __jo_force_inline unsigned int       jo_3d_get_vertices_count(void)
  */
 static  __jo_force_inline unsigned int       jo_3d_get_displayed_polygon_count(void)
 {
-    extern Uint16 DispPolygons;
-    return DispPolygons;
+    return (__jo_3d_displayed_polygon_count);
 }
 
 /*
@@ -250,6 +443,7 @@ static  __jo_force_inline unsigned int       jo_3d_get_displayed_polygon_count(v
  *  @param normals An array of jo_vector (quad_count)
  *  @return The mesh
  *  @remarks The return type can be casted to (jo_3d_mesh *)
+ *  @remarks Returns JO_NULL if out of memory. The polygons are white by default
  */
 jo_3d_mesh       *jo_3d_create_mesh_from_vertices_and_normals(const unsigned int quad_count, jo_vertice * const vertices, jo_vector * const normals);
 
@@ -274,8 +468,22 @@ static  __jo_force_inline jo_3d_mesh       *jo_3d_create_mesh(const unsigned int
     return (jo_3d_create_mesh_from_vertices_and_normals(quad_count, JO_NULL, JO_NULL));
 }
 
+/** @brief Create a sphere (UV sphere)
+ *  @param radius Radius
+ *  @param slices Number of vertical slices (around the Y axis, 3 minimum)
+ *  @param stacks Number of horizontal stacks (from the top to the bottom, 2 minimum)
+ *  @return The mesh (slices * stacks polygons) or JO_NULL if out of memory
+ *  @remarks The polygons are white (see jo_3d_set_mesh_color(), jo_3d_set_mesh_texture(), jo_3d_set_mesh_light(), etc)
+ *  @remarks The normals are computed, so the lighting works (see jo_3d_set_mesh_light())
+ *  @remarks The polygons near the poles are triangles. The back faces are not drawn (single plane polygons)
+ *  @remarks Free the mesh with jo_3d_free_mesh()
+ *  @warning The VDP1 draws polygons and not pixels, so keep slices * stacks low (for instance 12 * 8 = 96 polygons)
+ */
+jo_3d_mesh       *jo_3d_create_sphere(const int radius, const unsigned int slices, const unsigned int stacks);
+
 /** @brief Free a mesh created with jo_3d_create_mesh()
  *  @param mesh The mesh to free
+ *  @remarks The mesh itself is also freed, so don't use it anymore
  */
 void                        jo_3d_free_mesh(const jo_3d_mesh * const mesh);
 
@@ -361,7 +569,7 @@ void                        jo_3d_set_mesh_polygon_wireframe(jo_3d_mesh * const 
  */
 static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * const mesh, const int palette_id, const unsigned int index)
 {
-    mesh->data.attbl[index].colno = JO_MULT_BY_256(palette_id);
+    mesh->data.attributes[index].color = JO_MULT_BY_256(palette_id);
 }
 
 /** @brief Set a palette on one polygon on the mesh
@@ -370,7 +578,7 @@ static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * 
  */
 static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const mesh, const int palette_id)
 {
-    for (unsigned int i = 0; i < mesh->data.nbPolygon; ++i)
+    for (unsigned int i = 0; i < mesh->data.polygon_count; ++i)
         jo_3d_set_mesh_polygon_palette(mesh, palette_id, i);
 }
 
@@ -380,7 +588,7 @@ static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const me
  */
 static  __jo_force_inline void      jo_3d_set_palette(jo_3d_quad * const quad, const int palette_id)
 {
-    quad->attribute.colno = JO_MULT_BY_256(palette_id);
+    quad->attribute.color = JO_MULT_BY_256(palette_id);
 }
 
 /** @brief Set a palette on a sprite (3D)
@@ -426,9 +634,9 @@ void                                jo_3d_set_mesh_high_speed_shrink(jo_3d_mesh 
  */
 static  __jo_force_inline void      jo_3d_set_mesh_vertice(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
 {
-    mesh->data.pntbl[index][0] = x;
-    mesh->data.pntbl[index][1] = y;
-    mesh->data.pntbl[index][2] = z;
+    mesh->data.points[index].x = x;
+    mesh->data.points[index].y = y;
+    mesh->data.points[index].z = z;
 }
 
 /** @brief Set quad normal in mesh
@@ -440,9 +648,9 @@ static  __jo_force_inline void      jo_3d_set_mesh_vertice(jo_3d_mesh * const me
  */
 static  __jo_force_inline void      jo_3d_set_mesh_normal(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
 {
-    mesh->data.pltbl[index].norm[0] = x;
-    mesh->data.pltbl[index].norm[1] = y;
-    mesh->data.pltbl[index].norm[2] = z;
+    mesh->data.polygons[index].normal.x = x;
+    mesh->data.polygons[index].normal.y = y;
+    mesh->data.polygons[index].normal.z = z;
 }
 
 /*
@@ -462,11 +670,12 @@ static  __jo_force_inline void      jo_3d_set_mesh_normal(jo_3d_mesh * const mes
  */
 static  __jo_force_inline void      jo_3d_light(const int x, const int y, const int z)
 {
-    FIXED p[XYZ];
-    p[X] = JO_MULT_BY_65536(x);
-    p[Y] = JO_MULT_BY_65536(y);
-    p[Z] = JO_MULT_BY_65536(z);
-    slLight(p);
+    jo_pos3D_fixed  p;
+
+    p.x = JO_MULT_BY_65536(x);
+    p.y = JO_MULT_BY_65536(y);
+    p.z = JO_MULT_BY_65536(z);
+    __jo_3d_light(&p);
 }
 
 /** @brief Enable/Disable light on one polygon on the mesh
@@ -610,17 +819,11 @@ static  __jo_force_inline void      jo_3d_set_color(jo_3d_quad * const quad, con
 
 /** @brief Push 3D matrix
  */
-static  __jo_force_inline void      jo_3d_push_matrix(void)
-{
-    slPushMatrix();
-}
+void                                jo_3d_push_matrix(void);
 
 /** @brief Pop 3D matrix
  */
-static  __jo_force_inline void      jo_3d_pop_matrix(void)
-{
-    slPopMatrix();
-}
+void                                jo_3d_pop_matrix(void);
 
 /*
 ███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗    ██████╗  ██████╗ ████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
@@ -639,9 +842,9 @@ static  __jo_force_inline void      jo_3d_pop_matrix(void)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix(short x, short y, short z)
 {
-    slRotX(jo_DEGtoANG_int(x));
-    slRotY(jo_DEGtoANG_int(y));
-    slRotZ(jo_DEGtoANG_int(z));
+    __jo_3d_rotate(JO_3D_AXIS_X, jo_DEGtoANG_int(x));
+    __jo_3d_rotate(JO_3D_AXIS_Y, jo_DEGtoANG_int(y));
+    __jo_3d_rotate(JO_3D_AXIS_Z, jo_DEGtoANG_int(z));
 }
 
 /** @brief Rotate 3D matrix using degree (X axis)
@@ -649,7 +852,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix(short x, short y, short 
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_x(short x)
 {
-    slRotX(jo_DEGtoANG_int(x));
+    __jo_3d_rotate(JO_3D_AXIS_X, jo_DEGtoANG_int(x));
 }
 
 /** @brief Rotate 3D matrix using degree (Y axis)
@@ -657,7 +860,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_x(short x)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_y(short y)
 {
-    slRotY(jo_DEGtoANG_int(y));
+    __jo_3d_rotate(JO_3D_AXIS_Y, jo_DEGtoANG_int(y));
 }
 
 /** @brief Rotate 3D matrix using degree (Z axis)
@@ -665,7 +868,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_y(short y)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_z(short z)
 {
-    slRotZ(jo_DEGtoANG_int(z));
+    __jo_3d_rotate(JO_3D_AXIS_Z, jo_DEGtoANG_int(z));
 }
 
 /** @brief Rotate 3D matrix using radian
@@ -675,9 +878,9 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_z(short z)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, float z)
 {
-    slRotX(RADtoANG(x));
-    slRotY(RADtoANG(y));
-    slRotZ(RADtoANG(z));
+    __jo_3d_rotate(JO_3D_AXIS_X, JO_RAD_TO_ANGLE(x));
+    __jo_3d_rotate(JO_3D_AXIS_Y, JO_RAD_TO_ANGLE(y));
+    __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
 }
 
 /** @brief Rotate 3D matrix using radian (X axis)
@@ -685,7 +888,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, fl
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
 {
-    slRotX(RADtoANG(x));
+    __jo_3d_rotate(JO_3D_AXIS_X, JO_RAD_TO_ANGLE(x));
 }
 
 /** @brief Rotate 3D matrix using radian (Y axis)
@@ -693,7 +896,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
 {
-    slRotY(RADtoANG(y));
+    __jo_3d_rotate(JO_3D_AXIS_Y, JO_RAD_TO_ANGLE(y));
 }
 
 /** @brief Rotate 3D matrix using radian (Z axis)
@@ -701,7 +904,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
 {
-    slRotZ(RADtoANG(z));
+    __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
 }
 
 /*
@@ -721,7 +924,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
  */
 static  __jo_force_inline void      jo_3d_translate_matrixf(float x, float y, float z)
 {
-    slTranslate(toFIXED(x), toFIXED(y), toFIXED(z));
+    __jo_3d_translate(JO_FLOAT_TO_FIXED(x), JO_FLOAT_TO_FIXED(y), JO_FLOAT_TO_FIXED(z));
 }
 
 /** @brief Translate 3D matrix
@@ -731,7 +934,7 @@ static  __jo_force_inline void      jo_3d_translate_matrixf(float x, float y, fl
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_fixed(jo_fixed x, jo_fixed y, jo_fixed z)
 {
-    slTranslate(x, y, z);
+    __jo_3d_translate(x, y, z);
 }
 
 /** @brief Translate 3D matrix
@@ -741,7 +944,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_fixed(jo_fixed x, jo_
  */
 static  __jo_force_inline void      jo_3d_translate_matrix(int x, int y, int z)
 {
-    slTranslate(jo_int2fixed(x), jo_int2fixed(y), jo_int2fixed(z));
+    __jo_3d_translate(jo_int2fixed(x), jo_int2fixed(y), jo_int2fixed(z));
 }
 
 /** @brief Translate 3D matrix (X axis)
@@ -749,7 +952,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix(int x, int y, int z)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_x(int x)
 {
-    slTranslate(jo_int2fixed(x), 0, 0);
+    __jo_3d_translate(jo_int2fixed(x), 0, 0);
 }
 
 /** @brief Translate 3D matrix (Y axis)
@@ -757,7 +960,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_x(int x)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_y(int y)
 {
-    slTranslate(0, jo_int2fixed(y), 0);
+    __jo_3d_translate(0, jo_int2fixed(y), 0);
 }
 
 /** @brief Translate 3D matrix (Z axis)
@@ -765,7 +968,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_y(int y)
  */
 static  __jo_force_inline void      jo_3d_translate_matrix_z(int z)
 {
-    slTranslate(0, 0, jo_int2fixed(z));
+    __jo_3d_translate(0, 0, jo_int2fixed(z));
 }
 
 /*
@@ -783,7 +986,7 @@ static  __jo_force_inline void      jo_3d_translate_matrix_z(int z)
  */
 static  __jo_force_inline void      jo_3d_draw(jo_3d_quad *const quad)
 {
-    slPutPolygon(&quad->data);
+    __jo_3d_draw(&quad->data);
 }
 
 /** @brief Draw a mesh
@@ -791,7 +994,22 @@ static  __jo_force_inline void      jo_3d_draw(jo_3d_quad *const quad)
  */
 static  __jo_force_inline void      jo_3d_mesh_draw(jo_3d_mesh *const mesh)
 {
-    slPutPolygon(&mesh->data);
+    __jo_3d_draw(&mesh->data);
+}
+
+/** @brief Draw some ranges of polygons of a mesh, without copying them (the points are transformed once)
+ *  @param mesh Mesh
+ *  @param point_count Number of points used by these polygons (the first points of the mesh are transformed). With all the
+ *         points of the mesh, the points used by a few polygons are searched (only these ones are transformed); with fewer
+ *         points, they are all transformed (the caller knows the points of its ranges)
+ *  @param ranges Ranges of polygons
+ *  @param range_count Number of ranges
+ *  @return false if the VDP1 command table is full or a polygon uses a point after point_count
+ */
+static  __jo_force_inline bool      jo_3d_mesh_draw_ranges(const jo_3d_mesh * const mesh, const unsigned int point_count,
+                                                           const jo_3d_polygon_range * const ranges, const int range_count)
+{
+    return (__jo_3d_draw_ranges(&mesh->data, point_count, ranges, range_count));
 }
 
 /** @brief Get polygon count on the mesh
@@ -800,7 +1018,7 @@ static  __jo_force_inline void      jo_3d_mesh_draw(jo_3d_mesh *const mesh)
  */
 static  __jo_force_inline unsigned int       jo_3d_get_mesh_polygon_count(jo_3d_mesh * const mesh)
 {
-    return mesh->data.nbPolygon;
+    return mesh->data.polygon_count;
 }
 
 /** @brief Internal usage for polygon display
@@ -908,7 +1126,7 @@ static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite
  */
 static  __jo_force_inline void      jo_3d_set_scalef(const float x, const float y, const float z)
 {
-    slScale(toFIXED(x), toFIXED(y), toFIXED(z));
+    __jo_3d_scale(JO_FLOAT_TO_FIXED(x), JO_FLOAT_TO_FIXED(y), JO_FLOAT_TO_FIXED(z));
 }
 
 /** @brief Change scale
@@ -918,7 +1136,7 @@ static  __jo_force_inline void      jo_3d_set_scalef(const float x, const float 
  */
 static  __jo_force_inline void      jo_3d_set_scale(const int x, const int y, const int z)
 {
-    slScale(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y), JO_MULT_BY_65536(z));
+    __jo_3d_scale(JO_MULT_BY_65536(x), JO_MULT_BY_65536(y), JO_MULT_BY_65536(z));
 }
 
 /** @brief Change scale using fixed number
@@ -928,14 +1146,14 @@ static  __jo_force_inline void      jo_3d_set_scale(const int x, const int y, co
  */
 static  __jo_force_inline void      jo_3d_set_scale_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z)
 {
-    slScale(x, y, z);
+    __jo_3d_scale(x, y, z);
 }
 
 /** @brief Restore default scale for every 3d model displayed after this call
  */
 static  __jo_force_inline void	jo_3d_restore_scale(void)
 {
-    slScale(JO_NO_ZOOM, JO_NO_ZOOM, JO_NO_ZOOM);
+    __jo_3d_scale(JO_NO_ZOOM, JO_NO_ZOOM, JO_NO_ZOOM);
 }
 
 /*
@@ -960,7 +1178,34 @@ static  __jo_force_inline void	jo_3d_restore_scale(void)
  */
 static  __jo_force_inline bool      jo_3d_window(const int left, const int top, const int right, const int bottom, const int z_limit, const int center_x, const int center_y)
 {
-    return slWindow(left, top, right, bottom, z_limit, center_x, center_y) != 0;
+    __jo_vdp1_set_window(left, top, right, bottom, z_limit, center_x, center_y);
+    return (true);
+}
+
+/** @brief The 3D polygons drawn in the current window are clipped by the VDP1 to its rectangle (user clipping: a mirror,
+ *  a rear-view mirror), or not (default: the whole screen)
+ *  @param clip true: clipped to the rectangle of jo_3d_window()
+ */
+static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
+{
+    __jo_vdp1_windows[__jo_vdp1_current_window].clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
+}
+
+/** @brief Near window (default) for jo_3d_select_window() */
+# define JO_3D_NEAR_WINDOW                  (0)
+
+/** @brief Far window for jo_3d_select_window() */
+# define JO_3D_FAR_WINDOW                   (1)
+
+/** @brief Second far window for jo_3d_select_window() (a second mirror) */
+# define JO_3D_FAR_WINDOW_2                 (2)
+
+/** @brief Select the window used by jo_3d_window() and by the next drawings
+ *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
+ */
+static  __jo_force_inline void      jo_3d_select_window(const int window)
+{
+    __jo_vdp1_select_window(window);
 }
 
 /** @brief Set the perspective angle
@@ -972,7 +1217,7 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
     if (angle < 10 || angle > 160)
         jo_core_error("Valid angle range is 10 to 160");
 #endif
-    slPerspective(jo_DEGtoANG_int(angle));
+    __jo_3d_set_perspective(jo_DEGtoANG_int(angle));
 }
 
 /** @brief Set the display level of the viewing volume
@@ -980,10 +1225,500 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
  */
 static  __jo_force_inline void      jo_3d_display_level(const unsigned short level)
 {
-    slZdspLevel(level);
+    __jo_vdp1_display_level = level;
+    __jo_vdp1_update_near_clip();
 }
 
-#endif
+/** @brief Transform the vertices with the SCU DSP (the third processor of the Saturn)
+ *  @param slave_cpu false: for the objects drawn by the master CPU (jo_3d_mesh_draw(), etc), true: for the objects drawn by
+ *         the slave CPU (jo_3d_slave_mesh_draw())
+ *  @remarks The DSP computes the rotation of the vertices of a batch while the CPU projects the previous batch: the CPU time of
+ *           the vertices is about 2 times smaller (the results are the same)
+ *  @remarks Only for the vertices in the high work RAM (the DSP can't read the low work RAM) and the objects of 12 vertices or more
+ *  @remarks The DSP is used by one CPU only. The program of the DSP is loaded by this function: call it again after using the DSP
+ *           for something else (see dsp.h)
+ */
+void                                jo_3d_enable_dsp(const bool slave_cpu);
+
+/** @brief Stop using the SCU DSP to transform the vertices (see jo_3d_enable_dsp()) */
+void                                jo_3d_disable_dsp(void);
+
+/** @brief Biggest guard band around the screen (pixels): the coordinates of the VDP1 are limited */
+# define JO_3D_MAX_GUARD_BAND               (512)
+/** @brief Default guard band around the screen (pixels, see jo_3d_set_guard_band()): only the polygons that go very far outside
+ *  of the screen are clipped by the CPU */
+# define JO_3D_DEFAULT_GUARD_BAND           (JO_3D_MAX_GUARD_BAND)
+
+/** @brief Guard band (internal engine usage, see jo_3d_set_guard_band()) */
+extern int                          __jo_3d_guard_band;
+
+/** @brief Set the guard band around the screen used by the clipping of the polygons drawn after this call
+ *  @param pixels Distance outside of the screen (0 to JO_3D_MAX_GUARD_BAND pixels). A polygon that goes further is clipped by the CPU
+ *  (at the edges of the screen), a polygon that stays inside is drawn by the VDP1 as it is
+ *  @remarks The VDP1 also spends time on the pixels outside of the screen: a small guard band (64 pixels for instance) saves VDP1 time,
+ *  a big one saves CPU time. A big guard band is useful for big polygons near the camera that always go a little outside of the screen
+ *  (the weapon of a first person game for instance)
+ *  @warning The VDP1 maps the whole texture on each part of a clipped polygon: the texture of a clipped polygon is distorted.
+ *  A small guard band is fine for detail textures (ground, grass) but not for a texture with lines (a grid for instance)
+ *  @remarks The default is JO_3D_DEFAULT_GUARD_BAND (only the polygons too big for the VDP1 are clipped).
+ *  The guard band isn't reset at the end of the frame
+ */
+static  __jo_force_inline void      jo_3d_set_guard_band(const int pixels)
+{
+    __jo_3d_guard_band = pixels < 0 ? 0 : (pixels > JO_3D_MAX_GUARD_BAND ? JO_3D_MAX_GUARD_BAND : pixels);
+}
+
+/** @brief Wireframe mode: the polygons and the standing sprites (distorted sprites) are drawn as their outline, in one
+ *  color; the normal and scaled sprites (a HUD for instance) are drawn as they are
+ *  @param enabled true: wireframe, false: normal drawing
+ *  @remarks From the next frame (applied when the commands of a frame are copied into the VRAM)
+ */
+static  __jo_force_inline void      jo_3d_set_wireframe(const bool enabled)
+{
+    __jo_vdp1_wireframe = enabled;
+}
+
+/** @brief Check the wireframe mode (see jo_3d_set_wireframe())
+ *  @return true: wireframe
+ */
+static  __jo_force_inline bool      jo_3d_is_wireframe(void)
+{
+    return (__jo_vdp1_wireframe);
+}
+
+/** @brief Set a depth added to the polygons and sprites drawn after this call, to sort them (the farthest are drawn first)
+ *  @param bias Depth (units). For instance, in a first person game the world is drawn with a positive bias and
+ *  the weapon without bias: the weapon is always over the world, even when a wall is nearer than the weapon
+ *  @remarks The depth used to sort is limited to 0 to 65535: the depth plus the bias must stay in this range
+ *  @remarks The bias isn't reset at the end of the frame
+ */
+static  __jo_force_inline void      jo_3d_set_depth_bias(const int bias)
+{
+    __jo_vdp1_depth_bias = bias;
+}
+
+/** @brief Get the depth added to the polygons and sprites (see jo_3d_set_depth_bias())
+ *  @return Depth (units)
+ */
+static  __jo_force_inline int       jo_3d_get_depth_bias(void)
+{
+    return (__jo_vdp1_depth_bias);
+}
+
+
+/** @brief Transform a point by the current matrix (for instance a world position into the view space, after
+ *  jo_3d_camera_look_at() or the rotations and translations of the camera)
+ *  @param in Point
+ *  @param out Transformed point (output)
+ */
+void                                jo_3d_transform_point(const jo_pos3D_fixed * const in, jo_pos3D_fixed *out);
+
+/** @brief Transform a point by a matrix (see jo_3d_transform_point(): the same result with the current matrix)
+ *  @param m Matrix: 4 rows of 3 (the 3 axes, then the translation), for instance the matrix of a bone (see jo_3d_bone_callback)
+ *  @param in Point
+ *  @param out Transformed point (output)
+ */
+void                                jo_3d_transform_point_by(const jo_fixed (* const m)[3], const jo_pos3D_fixed * const in,
+                                                             jo_pos3D_fixed * const out);
+
+/** @brief The matrix of a bone (Internal usage, see jo_3d_model_draw_pose()): the matrix of its parent turned around its
+ *  joint (the same operations as jo_3d_translate_matrix_fixed() and __jo_3d_rotate() on the current matrix)
+ *  @param out Matrix of the bone (output)
+ *  @param parent Matrix of its parent
+ *  @param pivot Joint
+ *  @param angles Around X, Y and Z
+ */
+void                                __jo_3d_bone_matrix(jo_fixed (* const out)[3], const jo_fixed (* const parent)[3],
+                                                        const jo_pos3D_fixed * const pivot, const jo_angle * const angles);
+
+/** @brief The current matrix (Internal usage): 4 rows of 3 */
+jo_fixed                            (*__jo_3d_current_matrix(void))[3];
+
+/** @brief Copy the current matrix
+ *  @param m Output: 12 values, 4 rows of 3 values. Rows 0 to 2: the rotation (m[2], m[5], m[8] is the direction of the
+ *  view in the world when the matrix only has the rotations of the camera), row 3: the translation
+ */
+void                                jo_3d_get_matrix(jo_fixed *m);
+
+/** @brief Multiply the current matrix by a reflection through a plane (a mirror: the camera matrix of the reflected view)
+ *  @param normal Normal of the plane (unit vector, world space)
+ *  @param distance The plane is n.p = distance (world units, Q16.16)
+ *  @remarks The winding of the polygons is reversed in the reflected view: see jo_3d_set_mirror()
+ */
+void                                jo_3d_reflect_matrix(const jo_pos3D_fixed * const normal, const jo_fixed distance);
+
+/** @brief The next polygons of the master CPU are seen in a mirror: their front faces are counterclockwise on the screen
+ *  @param mirror true in a reflected view (see jo_3d_reflect_matrix()), false after it
+ */
+void                                jo_3d_set_mirror(const bool mirror);
+
+/** @brief Get the projection distance (distance of the projection plane, in pixels)
+ *  @return Q16.16 distance: a point of the view space (x, y, z) is drawn at (x * distance / z, y * distance / z)
+ *  @remarks See jo_3d_perspective_angle()
+ */
+static  __jo_force_inline jo_fixed  jo_3d_get_projection_distance(void)
+{
+    return (__jo_vdp1_projection_distance);
+}
+
+/** @brief Check if a sphere (in the view space) can be seen (view frustum of the screen)
+ *  @param center Center of the sphere in the view space (see jo_3d_transform_point())
+ *  @param radius Radius (Q16.16)
+ *  @param max_distance Farthest distance (Q16.16)
+ *  @return true if a part of the sphere may be in the view (the test is conservative)
+ */
+bool                                jo_3d_is_sphere_visible(const jo_pos3D_fixed * const center, const jo_fixed radius, const jo_fixed max_distance);
+
+/** @brief jo_3d_is_sphere_visible() for the slave CPU: with the rectangle of jo_3d_set_view_rect() as it was at
+ *  jo_3d_slave_begin() (the master CPU can change it while the slave CPU draws)
+ *  @param center Center of the sphere in the view space (see jo_3d_slave_transform_point())
+ *  @param radius Radius (Q16.16)
+ *  @param max_distance Farthest distance (Q16.16)
+ *  @return true if a part of the sphere may be in the view (the test is conservative)
+ */
+bool                                jo_3d_slave_is_sphere_visible(const jo_pos3D_fixed * const center, const jo_fixed radius, const jo_fixed max_distance);
+
+/** @brief A rectangle of the screen (pixels, the edges are in it) */
+typedef struct
+{
+    short                           left;
+    short                           top;
+    short                           right;
+    short                           bottom;
+}                                   jo_3d_rect;
+
+/** @brief The objects are seen only in a rectangle of the screen: jo_3d_is_sphere_visible() is false for the spheres
+ *  outside of it (the camera is in a building: the outside is seen only through its door, see jo_cells_outside_view())
+ *  @param rect Rectangle (left > right: nothing is seen, but the spheres around the camera), JO_NULL: the whole screen
+ *  @remarks Used by both CPUs: set it before jo_core_exec_on_slave()
+ */
+void                                jo_3d_set_view_rect(const jo_3d_rect * const rect);
+
+/** @brief The rectangle of jo_3d_set_view_rect()
+ *  @param rect The rectangle (output)
+ *  @return false if there is none (the whole screen)
+ */
+bool                                jo_3d_get_view_rect(jo_3d_rect * const rect);
+
+/** @brief Bounding sphere of the points of a mesh (the sphere around their bounding box)
+ *  @param mesh Mesh
+ *  @param center Center of the sphere (output, in the space of the mesh, whole units)
+ *  @return Radius (whole units: 2 more than the half diagonal of the box, the points are rounded to whole units)
+ *  @remarks Computed once (when the mesh is loaded), then used with jo_3d_is_sphere_visible() to skip the meshes outside
+ *  of the view
+ */
+int                                 jo_3d_mesh_get_bounding_sphere(const jo_3d_mesh * const mesh, jo_pos3D_fixed * const center);
+
+/** @brief Plane of a polygon for the rays (see jo_3d_mesh_create_ray_planes()): the normal and its distance, without the
+ *  vertices (the models are in the slow work RAM) */
+typedef struct
+{
+    short               nx;             // Normal (Q14)
+    short               ny;
+    short               nz;
+    short               unused;
+    int                 d;              // n.a (a: the first vertex, whole units)
+    short               box[6];         // Box of the polygon (whole units, a margin of 1): x, y, z min, then max
+}                       jo_3d_ray_plane;
+
+/** @brief First polygon of a mesh hit by a ray (the bullets: the walls of a building, the rooms of a level...)
+ *  @param mesh Mesh
+ *  @param origin Origin (in the space of the mesh)
+ *  @param dir Direction (unit vector, in the space of the mesh)
+ *  @param best Distance of the nearest hit (Q16.16): give the length of the ray, updated when a nearer polygon is hit
+ *  @param normal Normal of the polygon hit (in the space of the mesh): updated
+ *  @return true if a nearer polygon was hit
+ *  @remarks Only the front faces are hit. 32 bits integers (whole units, polygons up to 4000 units): the 64 bits
+ *  operations are slow on the SH-2
+ */
+bool                                jo_3d_mesh_ray_hit(const jo_3d_mesh * const mesh, const jo_pos3D_fixed * const origin,
+                                                       const jo_pos3D_fixed * const dir, jo_fixed * const best,
+                                                       jo_pos3D_fixed * const normal);
+
+/** @brief The planes of the polygons of a mesh for jo_3d_mesh_ray_hit_with_planes() (the rays are faster: the most polygons are
+ *  rejected by their plane)
+ *  @param mesh Mesh (its polygons don't change)
+ *  @return The planes (jo_free() them before the mesh), JO_NULL if the memory is full
+ */
+jo_3d_ray_plane                     *jo_3d_mesh_create_ray_planes(const jo_3d_mesh * const mesh);
+
+/** @brief jo_3d_mesh_ray_hit() with the planes of the polygons of the mesh (the same result, faster)
+ *  @param mesh Mesh
+ *  @param planes The planes of the mesh (see jo_3d_mesh_create_ray_planes()), JO_NULL: without them
+ *  @param origin Origin (in the space of the mesh)
+ *  @param dir Direction (unit vector, in the space of the mesh)
+ *  @param best Distance of the nearest hit (Q16.16): give the length of the ray, updated when a nearer polygon is hit
+ *  @param normal Normal of the polygon hit (in the space of the mesh): updated
+ *  @return true if a nearer polygon was hit
+ */
+bool                                jo_3d_mesh_ray_hit_with_planes(const jo_3d_mesh * const mesh, const jo_3d_ray_plane * const planes,
+                                                                   const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir,
+                                                                   jo_fixed * const best, jo_pos3D_fixed * const normal);
+
+/** @brief Draw a sprite standing on the ground and facing the camera (trees, grass, characters far away...)
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga(), jo_sprite_add_bin(), etc
+ *  @param foot Position of the bottom center of the sprite (world space, Q16.16)
+ *  @param width Width (world units, Q16.16)
+ *  @param height Height (world units, Q16.16)
+ *  @param sway Horizontal offset of the top of the sprite (world units, Q16.16): wind
+ *  @param flip Horizontal flip
+ *  @return true if it is drawn (false: behind the camera, outside of the screen or too near)
+ *  @remarks The sprite is sorted with the depth of its foot (see jo_3d_set_depth_bias())
+ */
+bool                                jo_3d_draw_standing_sprite(const int sprite_id, const jo_pos3D_fixed * const foot, const jo_fixed width,
+                                                               const jo_fixed height, const jo_fixed sway, const bool flip);
+
+/** @brief Create an empty mesh made of shared points and polygons (indexes of the points)
+ *  @param point_count Point count
+ *  @param polygon_count Polygon count
+ *  @return The mesh (points, polygons and attributes cleared) or JO_NULL if out of memory
+ *  @remarks Set the points, the vertices of the polygons and their attributes (see jo_3d_set_mesh_polygon_texture()).
+ *  Free the mesh with jo_3d_free_mesh()
+ */
+jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned int point_count, const unsigned int polygon_count);
+
+/** @brief Draw the polygons that use a texture in parts when they are near the camera (2 x 2 or 4 x 4 parts, each part
+ *  with its tile of the texture)
+ *  @param sprite_id Texture (RGB sprite, width multiple of 16: 2 x 2 tiles, of 32: 4 x 4 tiles too)
+ *  @return true if the tiles were created
+ *  @remarks The VDP1 maps a texture without perspective: a big polygon near the camera (a wall, the ground) is distorted,
+ *  and the parts of a polygon clipped by the near plane get the whole texture. In parts, each part keeps its piece of the
+ *  texture, the distortion stays small and the parts are sorted with their own depth (fewer sorting errors near the camera).
+ *  A polygon is drawn in parts when its farthest vertex is 1.5 times (2 x 2) or 3 times (4 x 4) farther than its nearest
+ *  vertex, or when it crosses the near plane
+ *  @remarks The tiles are new sprites (copies of the texture: about twice the VRAM of the texture). Call it once, after the
+ *  texture was added (jo_sprite_add(), jo_sprite_add_bin(), etc)
+ */
+bool                                jo_3d_set_texture_subdivision(const int sprite_id);
+
+/** @brief Like jo_3d_set_texture_subdivision(), but only the polygons that cross the near plane (or go very far outside of
+ *  the screen) are drawn in parts: a model already cut in small quads when it was made (the walls of a level, their quads
+ *  share their edges) keeps its quads as they are, the parts of a quad next to a whole quad overlapped it
+ *  @param sprite_id Texture (see jo_3d_set_texture_subdivision())
+ *  @return true if the tiles were created
+ */
+bool                                jo_3d_set_texture_subdivision_near_only(const int sprite_id);
+
+/** @brief Draw in parts (see jo_3d_set_texture_subdivision()) only the polygons of a texture whose nearest vertex is nearer
+ *  than a depth: the ground next to the camera, where its texture slides the most (farther, the parts cost CPU time for
+ *  little)
+ *  @param sprite_id Texture (see jo_3d_set_texture_subdivision())
+ *  @param depth Depth in the view space (fixed), 0: all the polygons (default)
+ */
+void                                jo_3d_set_texture_subdivision_depth(const int sprite_id, const jo_fixed depth);
+
+/** @brief Distortion of a texture over which its polygons are drawn in parts (see jo_3d_set_texture_subdivision()): a
+ *  pattern with straight lines (a tiled floor) shows the distortion more, the lines bend where a part meets a whole polygon
+ *  @param sprite_id Texture (see jo_3d_set_texture_subdivision())
+ *  @param pixels Distortion (pixels on the screen, 1 to 255), 0: the default (8). 4: the lines of a tiled floor stay
+ *  straight; about 1 ms more for each CPU in a room of a level (more polygons drawn in parts)
+ */
+void                                jo_3d_set_texture_subdivision_error(const int sprite_id, const int pixels);
+
+/** @brief Create smaller copies of a texture (half and quarter size, "mipmaps") used when the texture is drawn small
+ *  @param sprite_id Texture (RGB sprite, width multiple of 16: half size, of 32: quarter size too)
+ *  @return true if the copies were created
+ *  @remarks The VDP1 reads all the texels of a texture, even when it is drawn small: a polygon far away costs as much as
+ *  its texture. The smallest copy that has at least as many texels as pixels on the screen is used: the polygons and the
+ *  standing sprites (jo_3d_draw_standing_sprite()) far away cost less VDP1 time, and their texture flickers less
+ *  @remarks The copies are new sprites (a third of the VRAM of the texture). Call it once, after the texture was added
+ */
+bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
+
+/** @brief Forget the tiles and the smaller copies of the textures freed from a sprite (Internal usage, see
+ *  jo_3d_model_free_textures_from())
+ *  @param sprite_id First sprite freed
+ */
+void                                __jo_3d_forget_sprites_from(const int sprite_id);
+
+/** @brief Forget the tinted copies of the gouraud tables of a mesh: its polygons got other tables (Internal usage, see
+ *  jo_3d_point_lights_add_mesh())
+ *  @param pdata Polygons of the mesh
+ */
+void                                __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata);
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
+/*
+** 3D on the slave CPU: the slave CPU draws objects at the same time as the master CPU (for instance the ground on the
+** slave CPU, the characters and the buildings on the master CPU). Sequence of a frame:
+**   master CPU: camera matrix, jo_3d_slave_begin(), jo_core_exec_on_slave(my_slave_function), other drawings,
+**               jo_core_wait_for_slave(), jo_3d_slave_end()
+**   slave CPU (my_slave_function): jo_3d_slave_mesh_draw() for each object (jo_3d_slave_transform_point() to cull them)
+** The slave CPU starts with the matrix of the camera given to jo_3d_slave_begin(), it has its own (small) matrix stack
+*/
+
+/** @brief Prepare the 3D drawing of the slave CPU (call it on the master CPU, before jo_core_exec_on_slave())
+ *  @remarks The slave CPU uses a copy of the current matrix, the current depth bias and the current window
+ */
+void                                jo_3d_slave_begin(void);
+
+/** @brief Change the depth bias of the objects drawn by the slave CPU (call it on the slave CPU)
+ *  @param bias Depth (see jo_3d_set_depth_bias())
+ */
+void                                jo_3d_slave_set_depth_bias(const int bias);
+
+/** @brief Change the guard band of the objects drawn by the slave CPU (call it on the slave CPU, see jo_3d_set_guard_band())
+ *  @param pixels Distance outside of the screen (0 to JO_3D_MAX_GUARD_BAND)
+ *  @remarks jo_3d_slave_begin() copies the guard band of the master CPU: the change lasts until the next frame
+ */
+void                                jo_3d_slave_set_guard_band(const int pixels);
+
+/** @brief Transform a point by the matrix of the slave CPU (call it on the slave CPU, see jo_3d_transform_point())
+ *  @param in Point
+ *  @param out Transformed point (output)
+ */
+void                                jo_3d_slave_transform_point(const jo_pos3D_fixed * const in, jo_pos3D_fixed *out);
+
+/** @brief Push the matrix of the slave CPU (call it on the slave CPU, see jo_3d_push_matrix())
+ *  @return false if the stack of the slave CPU is full (4 matrices)
+ */
+bool                                jo_3d_slave_push_matrix(void);
+
+/** @brief Pop the matrix of the slave CPU (call it on the slave CPU, see jo_3d_pop_matrix()) */
+void                                jo_3d_slave_pop_matrix(void);
+
+/** @brief Translate the matrix of the slave CPU (call it on the slave CPU, see jo_3d_translate_matrix_fixed())
+ *  @param x X (Q16.16)
+ *  @param y Y (Q16.16)
+ *  @param z Z (Q16.16)
+ */
+void                                jo_3d_slave_translate_matrix_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+
+/** @brief Rotate the matrix of the slave CPU (call it on the slave CPU, see jo_3d_rotate_matrix())
+ *  @param x X angle (degrees)
+ *  @param y Y angle (degrees)
+ *  @param z Z angle (degrees)
+ */
+void                                jo_3d_slave_rotate_matrix(const int x, const int y, const int z);
+
+/** @brief Rotate the matrix of the slave CPU around an axis by a precise angle (call it on the slave CPU): a slow turn
+ *  (a big wheel, a fan) moves by less than a degree per frame
+ *  @param axis JO_3D_AXIS_X, JO_3D_AXIS_Y or JO_3D_AXIS_Z
+ *  @param angle Angle (jo_angle: 65536 = 360 degrees)
+ */
+void                                jo_3d_slave_rotate(const int axis, const jo_angle angle);
+
+/** @brief Scale the matrix of the slave CPU (call it on the slave CPU, see jo_3d_set_scale_fixed())
+ *  @param x X scale (Q16.16)
+ *  @param y Y scale (Q16.16)
+ *  @param z Z scale (Q16.16)
+ */
+void                                jo_3d_slave_set_scale_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+
+/** @brief Draw some ranges of polygons of a mesh on the slave CPU, without copying them (see jo_3d_mesh_draw_ranges())
+ *  @param mesh Mesh
+ *  @param point_count Number of points used by these polygons (512 at most)
+ *  @param ranges Ranges of polygons
+ *  @param range_count Number of ranges
+ *  @return false if the command table of the slave CPU is full (960 commands) or a polygon uses a point after point_count
+ */
+bool                                jo_3d_slave_mesh_draw_ranges(const jo_3d_mesh * const mesh, const unsigned int point_count,
+                                                                 const jo_3d_polygon_range * const ranges, const int range_count);
+
+/** @brief Draw a mesh on the slave CPU (call it on the slave CPU, between jo_3d_slave_begin() and jo_3d_slave_end())
+ *  @param mesh Mesh (512 points at most)
+ *  @return false if the command table of the slave CPU is full (960 commands)
+ */
+static  __jo_force_inline bool      jo_3d_slave_mesh_draw(const jo_3d_mesh * const mesh)
+{
+    return (jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, JO_NULL, 0));
+}
+
+/** @brief VDP1 commands used by the slave CPU in the last frame (see jo_3d_slave_end())
+ *  @return Command count (polygons and their parts)
+ *  @remarks With jo_3d_slave_get_max_commands(): the room left for more objects on the slave CPU
+ */
+int                                 jo_3d_slave_get_command_count(void);
+
+/** @brief Draw a sprite standing on the ground and facing the camera on the slave CPU (see jo_3d_draw_standing_sprite())
+ *  @param sprite_id Sprite Id
+ *  @param foot Position of the bottom center of the sprite (world space, Q16.16)
+ *  @param width Width (world units, Q16.16)
+ *  @param height Height (world units, Q16.16)
+ *  @param sway Horizontal offset of the top of the sprite (world units, Q16.16): wind
+ *  @param flip Horizontal flip
+ *  @return true if it is drawn (false: behind the camera, outside of the screen, too near, or the commands of the slave CPU
+ *  are used up)
+ *  @remarks The sprite attributes are the ones of the master CPU at jo_3d_slave_begin(), the depth bias the one of the
+ *  slave CPU (jo_3d_slave_set_depth_bias())
+ */
+bool                                jo_3d_slave_draw_standing_sprite(const int sprite_id, const jo_pos3D_fixed * const foot,
+                                                                     const jo_fixed width, const jo_fixed height,
+                                                                     const jo_fixed sway, const bool flip);
+
+/** @brief Commands drawn by the slave CPU since jo_3d_slave_begin() (0 after jo_3d_slave_end())
+ *  @return Command count
+ *  @remarks Called by the master CPU while the slave CPU draws: the count at this moment
+ */
+int                                 jo_3d_slave_get_current_command_count(void);
+
+/** @brief Commands the slave CPU can draw in a frame (the others are dropped, jo_3d_slave_mesh_draw() returns false)
+ *  @return Command count
+ */
+int                                 jo_3d_slave_get_max_commands(void);
+
+/** @brief Points of the biggest object the slave CPU can draw (a bigger object is not drawn)
+ *  @return Point count
+ */
+int                                 jo_3d_slave_get_max_vertices(void);
+
+/** @brief Add the polygons drawn by the slave CPU to the frame (call it on the master CPU, after jo_core_wait_for_slave())
+ *  @remarks The commands kept for what is drawn after it are not used (see jo_3d_slave_set_kept_commands()): the last polygons
+ *  of the slave CPU are dropped when there is no room left
+ */
+void                                jo_3d_slave_end(void);
+
+/** @brief VDP1 commands kept for what is drawn after jo_3d_slave_end() (the weapon, the HUD): the polygons of the slave CPU
+ *  don't take them. Without it, a frame full of polygons left no room for the HUD (and JO_DEBUG stopped the game: "Too many
+ *  VDP1 commands in a frame")
+ *  @param count Commands (0 by default)
+ */
+void                                jo_3d_slave_set_kept_commands(const int count);
+
+#endif /* !JO_COMPILE_WITH_DUAL_CPU_SUPPORT */
+
+/** @brief Add gouraud tables in the VDP1 VRAM (4 colors per table, one per vertex of a polygon)
+ *  @param tables Colors (4 per table), or JO_NULL to only reserve the memory (black)
+ *  @param count Table count
+ *  @return Address / 8 of the first table (gouraud_table of a polygon attribute, the next table is + 1), 0 if out of memory
+ *  @remarks The tables use the memory of the sprites (2 tables per line of a sprite of 8 pixels wide).
+ *  A color of a table is added to the color of the polygon: 16 for each component (JO_COLOR_SATURN_RGB(16, 16, 16)) doesn't change it
+ */
+unsigned short                      jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count);
+
+/** @brief Tint the next meshes drawn by the master CPU: added to the colors of their gouraud tables (the light of a lamp on
+ *  a character, see jo_3d_point_lights_sample()), jo_3d_set_tint(0, 0, 0) to stop
+ *  @param r Red added (gouraud units, -31 to 31, steps of 2)
+ *  @param g Green added
+ *  @param b Blue added
+ *  @remarks Only the polygons with a gouraud table. Each mesh keeps a few tinted copies of its tables in the VDP1 VRAM
+ *  (a copy is written when a new tint is needed: a tint that changes at each frame costs a copy at each frame). The
+ *  polygons tinted are drawn by the C loop (not the assembly loop)
+ */
+void                                jo_3d_set_tint(const int r, const int g, const int b);
+
+/** @brief Environment map of a mesh (a reflection, like the paint of a car): its polygons set by
+ *  jo_3d_set_mesh_polygon_environment() show a tile of a picture of the surroundings, the tile of the direction of their
+ *  normal in the view. The picture is cut in tiles x tiles tiles: the tile (i, j) is for the normals that point to the left
+ *  (i = 0) or to the right (i = tiles - 1), up (j = 0) or down (j = tiles - 1): a sphere seen from the front (a "matcap").
+ *  The reflection moves on the object when the camera or the object turns
+ *  @param mesh Mesh (the normals of its polygons are computed)
+ *  @param sprite_id The picture (RGB, its width / tiles a multiple of 8 pixels)
+ *  @param tiles Tiles on a side (4 to 8: more tiles, a smoother reflection on round objects)
+ *  @return false if the picture can't be cut, or too many meshes have a reflection (8)
+ *  @remarks The polygons of the mesh are drawn by the C loop of the master CPU (the matrix of the object: not the bones of
+ *  a pose)
+ */
+bool                                jo_3d_set_mesh_environment(jo_3d_mesh * const mesh, const int sprite_id, const int tiles);
+
+/** @brief A polygon shows the environment map of its mesh (see jo_3d_set_mesh_environment()): its gouraud table tints the
+ *  reflection (16: the picture as it is)
+ *  @param mesh Mesh
+ *  @param index Polygon
+ *  @return false if the mesh has no environment map
+ */
+bool                                jo_3d_set_mesh_polygon_environment(jo_3d_mesh * const mesh, const unsigned int index);
 
 #endif /* !JO_COMPILE_WITH_3D_SUPPORT */
 

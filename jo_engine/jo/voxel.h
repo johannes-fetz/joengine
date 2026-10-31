@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -105,14 +105,20 @@ void            jo_voxel_redraw(const jo_voxel * const voxel_data);
  */
 void            jo_voxel_run(jo_voxel * const voxel_data);
 
+/** @brief Draw voxels to gfx (internal engine usage, see jo_voxel_redraw() and jo_voxel_redraw_and_flush())
+ *  @param voxel_data Voxel
+ *  @param clear Clear the pixels that are not drawn in black
+ */
+void            __jo_voxel_redraw(const jo_voxel * const voxel_data, const bool clear);
+
 /** @brief Draw voxels and flush the buffer
  *  @param voxel_data Voxel
  *  @remarks It's just an helper method
  */
 static  __jo_force_inline void      jo_voxel_redraw_and_flush(const jo_voxel * const voxel_data)
 {
-    jo_software_renderer_clear(voxel_data->gfx, JO_COLOR_Black);
-    jo_voxel_redraw(voxel_data);
+    // (the pixels that are not drawn are cleared in black: the buffer is not cleared first)
+    __jo_voxel_redraw(voxel_data, true);
     jo_software_renderer_flush(voxel_data->gfx);
 }
 
@@ -127,7 +133,7 @@ static  __jo_force_inline void      jo_voxel_redraw_and_flush(const jo_voxel * c
 
 /** @brief Set scale (camera.scale)
  *  @param voxel_data Voxel
- *  @param Scale fixed value (see also jo_int2fixed() or jo_float2fixed())
+ *  @param scale Scale: fixed value (see also jo_int2fixed() or jo_float2fixed())
  */
 static  __jo_force_inline void      jo_voxel_set_scale(jo_voxel * const voxel_data, const jo_fixed scale)
 {

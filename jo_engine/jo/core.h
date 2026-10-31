@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2025, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,10 @@
  */
 extern char		__jo_last_error[JO_PRINTF_BUF_SIZE];
 void    __jo_core_error(char *message, const char *function);
-# define jo_core_error(...)		do {sprintf(__jo_last_error, __VA_ARGS__); __jo_core_error(__jo_last_error, __FUNCTION__);} while(0)
+/** @brief The message formatted, then __jo_core_error() (Internal usage): one call at each of the hundreds of
+ *  jo_core_error() (the formatting at each of them was about 4 KB of code), out of the hot code (cold) */
+void    __jo_core_errorf(const char *function, const char *format, ...) __attribute__((cold, noinline));
+# define jo_core_error(...)		__jo_core_errorf(__FUNCTION__, __VA_ARGS__)
 
 #endif
 
@@ -54,6 +57,9 @@ void    __jo_core_error(char *message, const char *function);
 */
 /** @brief Function prototype for jo_core_add_callback() */
 typedef void	(*jo_event_callback)(void);
+
+/** @brief Function prototype for interrupt handlers (Internal usage) */
+typedef void	(*jo_interrupt_handler)(void);
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
@@ -125,12 +131,41 @@ void    jo_goto_boot_menu(void);
 
 /** @brief Execute a callback on the slave CPU
  *  @param callback Function name with no parameters and no return value
+ *  @remarks The callback is added to the jobs of the slave CPU: the master CPU doesn't wait (unless 8 jobs are waiting).
+ *           The slave CPU may first finish a job of the engine (the VDP1 commands of the previous frame are sorted and
+ *           copied by the slave CPU, see JO_COMPILE_WITH_DUAL_CPU_SUPPORT)
+ *  @remarks If the slave CPU didn't start, the callback is executed on the master CPU
  */
 void    jo_core_exec_on_slave(jo_slave_callback callback);
 
-/** @brief Wait until slave callback is completed
+/** @brief Wait until all the callbacks given to jo_core_exec_on_slave() are completed
+ *  @remarks Then the master CPU can read the data written by the slave CPU (its cache is purged)
  */
 void    jo_core_wait_for_slave(void);
+
+/** @brief Balance of the CPUs in the last frame (between the 2 last calls of jo_core_wait_for_slave())
+ *  @return Microseconds the slave CPU spent waiting for a job (it can take more work), negative: microseconds the
+ *  master CPU waited for the slave CPU in jo_core_wait_for_slave() (the slave CPU has too much work)
+ *  @remarks To move the drawing of some objects from a CPU to the other: the frame takes the time of the slowest CPU
+ */
+int     jo_core_slave_idle_time(void);
+
+/** @brief Function of a job of the slave CPU (Internal usage) */
+typedef void	(*jo_slave_job_function)(void *argument);
+
+/** @brief Check if the slave CPU started (Internal usage)
+ *  @return false if the slave CPU didn't start (the jobs are executed by the master CPU)
+ */
+bool    __jo_core_is_slave_running(void);
+
+/** @brief Add a job to the queue of the slave CPU (Internal usage)
+ *  @param function Function executed by the slave CPU
+ *  @param argument Argument of the function
+ *  @remarks The jobs are executed in order. The master CPU waits only if the queue is full.
+ *           If the slave CPU didn't start, the function is executed now by the master CPU
+ *  @remarks The slave CPU purges its cache before each job: the job reads the data written by the master CPU before this call
+ */
+void    __jo_core_add_slave_job(const jo_slave_job_function function, void *argument);
 
 #endif
 
@@ -152,16 +187,19 @@ static  __jo_force_inline void jo_core_enable_reset(void)
 
 /** @brief Turn OFF scroll drawing processing in the monitor
  */
-static  __jo_force_inline void      jo_core_tv_off(void)
-{
-    slTVOff();
-}
+void    jo_core_tv_off(void);
 
 /** @brief Turn ON scroll drawing processing in the monitor
  */
-static  __jo_force_inline void      jo_core_tv_on(void)
+void    jo_core_tv_on(void);
+
+/** @brief Get the refresh rate of the console
+ *  @return 50 for a PAL console, 60 for a NTSC console
+ *  @remarks This is the number of VBLANK per second (see jo_core_add_vblank_callback())
+ */
+static  __jo_force_inline int      jo_core_get_refresh_rate(void)
 {
-    slTVOn();
+    return ((JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_PAL) ? 50 : 60);
 }
 
 /** @brief Exit program and return to the Saturn multiplayer (CD player) screen
@@ -218,6 +256,83 @@ void                jo_dump_vdp2_registers(void);
  *  @warning Use jo_core_set_screens_order instead
  */
 void                                __jo_core_set_screens_order(jo_scroll_screen screen1, ...);
+
+/*
+** Internal usage
+*/
+
+/** @brief Number of VBLANK since startup (Internal usage) */
+extern volatile unsigned int        __jo_core_vblank_count;
+
+/** @brief Get the number of VBLANK since startup (60 per second in NTSC, 50 in PAL)
+ *  @return VBLANK count (it is incremented by the VBLANK interrupt)
+ *  @remarks Measure the time of a frame or the frames per second without a timer
+ */
+static  __jo_force_inline unsigned int  jo_core_get_vblank_count(void)
+{
+    return (__jo_core_vblank_count);
+}
+
+/** @brief Wait for the end of the current frame (Internal usage)
+ *  @remarks Send the VDP1 commands and wait for JO_FRAMERATE VBLANK
+ */
+void                                __jo_core_synch(void);
+
+/** @brief Set an interrupt handler in the vector table (Internal usage)
+ *  @param vector Interrupt vector number (JO_VECTOR_VBLANK_IN, etc)
+ *  @param handler Function declared with __attribute__((interrupt_handler))
+ */
+void                                __jo_core_set_interrupt_handler(const unsigned int vector, jo_interrupt_handler handler);
+
+/** @brief Unmask SCU interrupts (Internal usage)
+ *  @param mask Interrupts (JO_SCU_INT_VBLANK_IN, etc)
+ */
+void                                __jo_core_enable_scu_interrupts(const unsigned int mask);
+
+/** @brief Write the SCU interrupt mask again at the end of a SCU interrupt handler (Internal usage)
+ *  @remarks When the CPU takes a SCU interrupt, the SCU masks all its interrupts (JO_SCU_IMS = JO_SCU_INT_ALL):
+ *           without this call, no other SCU interrupt happens (the BIOS handlers do the same)
+ */
+void                                __jo_core_restore_scu_mask(void);
+
+/** @brief Get CPU status register (Internal usage)
+ *  @return Status register value
+ */
+static  __jo_force_inline unsigned int  __jo_core_get_sr(void)
+{
+    unsigned int                    sr;
+
+    __asm__ volatile ("stc sr, %0" : "=r" (sr));
+    return (sr);
+}
+
+/** @brief Set CPU status register (Internal usage)
+ *  @param sr Status register value (JO_SH2_SR_INTERRUPT_MASK bits: interrupt mask level)
+ */
+static  __jo_force_inline void      __jo_core_set_sr(const unsigned int sr)
+{
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
+}
+
+/** @brief Mask all interrupts (Internal usage)
+ *  @return Previous status register for __jo_core_restore_interrupts()
+ */
+static  __jo_force_inline unsigned int  __jo_core_disable_interrupts(void)
+{
+    unsigned int                    sr;
+
+    sr = __jo_core_get_sr();
+    __jo_core_set_sr(sr | JO_SH2_SR_INTERRUPT_MASK);
+    return (sr);
+}
+
+/** @brief Restore interrupts masked by __jo_core_disable_interrupts() (Internal usage)
+ *  @param sr Value returned by __jo_core_disable_interrupts()
+ */
+static  __jo_force_inline void      __jo_core_restore_interrupts(const unsigned int sr)
+{
+    __jo_core_set_sr(sr);
+}
 
 #endif /* !__JO_CORE_H__ */
 

@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -74,6 +74,15 @@ char*                                       jo_fs_read_file_in_dir(const char *c
  */
 char                                        *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len);
 
+/** @brief Statistics of the files read by jo_fs_read_file_ptr() (the time of a loading: the CD or the CPU)
+ *  @param vblanks Time spent reading (VBLANK count), JO_NULL: not wanted
+ *  @param bytes Bytes read
+ *  @param files Files read
+ *  @param reset The counts start again from 0
+ */
+void                                        jo_fs_get_read_stats(unsigned int * const vblanks, unsigned int * const bytes,
+                                                                 unsigned int * const files, const bool reset);
+
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param len return the file length
@@ -116,6 +125,12 @@ bool                                        jo_fs_open(jo_file * const file, con
  */
 void                                        jo_fs_close(jo_file * const file);
 
+/** @brief Set the size of the read buffer of the files opened by jo_fs_open()
+ *  @param count Number of sectors (2048 bytes) read at once by jo_fs_read_next_bytes() (1 by default)
+ *  @remarks Only the files opened after this call use the new size
+ */
+void                                        jo_fs_set_read_sector_count(const int count);
+
 /** @brief Read bytes from a file
  *  @param file Pointer to an allocated and valid jo_file struct
  *  @param buffer Pointer to an allocated buffer (length >= nbytes)
@@ -130,6 +145,91 @@ int                                         jo_fs_read_next_bytes(jo_file * cons
  *  @return true if succeed
  */
 bool                                        jo_fs_seek_forward(jo_file * const file, unsigned int nbytes);
+
+/*
+** Internal usage
+*/
+
+/** @brief Get the identifier of a file in the current directory (Internal usage)
+ *  @param filename Filename (upper case, like "A.TXT")
+ *  @return File identifier or -1 if the file doesn't exist
+ */
+int                                         __jo_fs_get_file_id(const char * const filename);
+
+/** @brief Open a file (Internal usage)
+ *  @param file_id File identifier (see __jo_fs_get_file_id())
+ *  @return File handle or JO_NULL if the identifier is invalid or if too many files are opened
+ *  @remarks JO_MAX_FS_BACKGROUND_JOBS files can be opened at the same time
+ */
+void                                        *__jo_fs_open(const int file_id);
+
+/** @brief Close a file opened with __jo_fs_open() (Internal usage)
+ *  @param handle File handle (JO_NULL is ignored)
+ */
+void                                        __jo_fs_close(void *handle);
+
+/** @brief Get the size of a file in bytes (Internal usage)
+ *  @param handle File handle
+ *  @return File size in bytes
+ */
+int                                         __jo_fs_get_file_size(void *handle);
+
+/** @brief Get the size of a file in sectors (Internal usage)
+ *  @param handle File handle
+ *  @return File size in sectors (2048 bytes)
+ */
+int                                         __jo_fs_get_sector_count(void *handle);
+
+/** @brief Set the current position of a file (Internal usage)
+ *  @param handle File handle
+ *  @param sector Sector index from the beginning of the file
+ *  @return false if the position is outside of the file
+ */
+bool                                        __jo_fs_seek_sector(void *handle, const int sector);
+
+/** @brief Read sectors from the current position of a file (Internal usage)
+ *  @param handle File handle
+ *  @param sector_count Number of sectors to read
+ *  @param buf Output buffer
+ *  @param buf_size Size of the output buffer (bytes after it are not written)
+ *  @return Number of bytes stored in buf, 0 at the end of the file, or -1 if the read failed
+ *  @remarks The current position moves forward even if buf is too small
+ */
+int                                         __jo_fs_read_sectors(void *handle, int sector_count, void *buf, const int buf_size);
+
+/** @brief Play CD audio tracks (Internal usage)
+ *  @param from_track First track (the first audio track is usually 2)
+ *  @param to_track Last track (played until its end)
+ *  @param play_mode 0x00: no repeat, 0x01~0x0e: maximum repeats, 0x0f: endless repeat
+ *  @remarks Any data read in progress is cancelled
+ */
+void                                        __jo_cd_play_tracks(const int from_track, const int to_track, const unsigned char play_mode);
+
+/** @brief Play CD audio from a sector (Internal usage)
+ *  @param fad First sector (frame address)
+ *  @param from_track First track (played from its start if fad is not before the end of to_track)
+ *  @param to_track Last track (played until its end)
+ *  @param play_mode 0x00: no repeat, 0x01~0x0e: maximum repeats, 0x0f: endless repeat
+ *  @remarks Used to resume the CD audio after a pause. Any data read in progress is cancelled
+ */
+void                                        __jo_cd_play_from_fad(const unsigned int fad, const int from_track, const int to_track,
+                                                                  const unsigned char play_mode);
+
+/** @brief Drive status: the drive is paused */
+# define JO_CD_DRIVE_PAUSE                          (0x01)
+/** @brief Drive status: the drive is playing (audio or data) */
+# define JO_CD_DRIVE_PLAY                           (0x03)
+
+/** @brief Get the CD drive status (Internal usage)
+ *  @param fad Current sector (frame address) of the pickup (output, can be JO_NULL)
+ *  @return Drive status (JO_CD_DRIVE_PAUSE, JO_CD_DRIVE_PLAY, etc) or -1 if the CD block doesn't answer
+ */
+int                                         __jo_cd_get_status(unsigned int *fad);
+
+/** @brief Pause the CD drive (Internal usage)
+ *  @remarks Stops the CD audio, the pickup stays at the current position
+ */
+void                                        __jo_cd_pause(void);
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 

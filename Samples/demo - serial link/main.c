@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,6 @@
 
 #include <jo/jo.h>
 #include <jo/serial.h>
-#include <string.h>
 
 // heartbeat message to send periodically
 const char g_heartbeat[] = "LOOC si sihT ";
@@ -207,7 +206,11 @@ void			my_frame_counter(void)
 
 void			prepend_array(unsigned char* array, unsigned int array_size, unsigned char val)
 {
-	memmove(array + 1, array, array_size -1);
+	unsigned int	i;
+
+	// Shift the bytes by one (from the end: the source and the destination overlap)
+	for (i = array_size - 1; i > 0; --i)
+		array[i] = array[i - 1];
 	array[0] = val;
 }
 

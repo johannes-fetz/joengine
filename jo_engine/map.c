@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -38,6 +37,7 @@
 #include "jo/core.h"
 #include "jo/colors.h"
 #include "jo/math.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
@@ -78,6 +78,7 @@ typedef struct
 
 static jo_map_tile                      *gl_map[JO_MAP_MAX_LAYER];
 static unsigned short                   gl_map_tile_count[JO_MAP_MAX_LAYER];
+static unsigned short                   gl_map_max_tile_count[JO_MAP_MAX_LAYER];
 static int                              gl_map_depth_fixed[JO_MAP_MAX_LAYER];
 
 int                                     jo_map_per_pixel_vertical_collision(const unsigned int layer, int x, int y, unsigned char * restrict attribute)
@@ -99,7 +100,7 @@ int                                     jo_map_per_pixel_vertical_collision(cons
             current_pic = &__jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id];
             x -= current_tile->real_x;
             y -= current_tile->real_y;
-            if (current_pic->color_mode == COL_256)
+            if (current_pic->color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
             {
                 img_data_8bits = ((unsigned char *)current_pic->data);
                 if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
@@ -172,8 +173,16 @@ int                                     jo_map_hitbox_detection_custom_boundarie
 
 bool					                    jo_map_create(const unsigned int layer, const unsigned short max_tile_count, const short depth)
 {
+#ifdef JO_DEBUG
+    if (layer >= JO_MAP_MAX_LAYER)
+    {
+        jo_core_error("layer (%d) is too high (max=%d)", layer, JO_MAP_MAX_LAYER - 1);
+        return (false);
+    }
+#endif
+    // The layer can be created again: the previous tiles are freed
+    jo_map_free(layer);
     gl_map_depth_fixed[layer] = depth;
-    JO_ZERO(gl_map_tile_count[layer]);
     gl_map[layer] = (jo_map_tile *)jo_malloc(max_tile_count * sizeof(jo_map_tile));
     if (gl_map[layer] == JO_NULL)
     {
@@ -182,6 +191,7 @@ bool					                    jo_map_create(const unsigned int layer, const unsig
 #endif
         return (false);
     }
+    gl_map_max_tile_count[layer] = max_tile_count;
     return (true);
 }
 
@@ -197,6 +207,13 @@ static void             __internal_jo_map_add_tile(const unsigned int layer, con
     int					                sprite_id;
     register jo_map_tile                *new_tile;
 
+    if (gl_map_tile_count[layer] >= gl_map_max_tile_count[layer])
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Too many tiles in layer %d (max=%d)", layer, gl_map_max_tile_count[layer]);
+#endif
+        return ;
+    }
     new_tile = &gl_map[layer][gl_map_tile_count[layer]];
     new_tile->pos.z = gl_map_depth_fixed[layer];
     new_tile->is_visible_on_screen = false;
@@ -250,6 +267,84 @@ void						jo_map_draw_background(const unsigned int layer, const short x, const 
     }
 }
 
+/** @brief Draw a region of a layer in the NBG1 bitmap (the bitmap wraps around like the NBG1 scroll)
+ *  @param layer layer level (between 0 and JO_MAP_MAX_LAYER)
+ *  @param x Horizontal position of the region in the map
+ *  @param y Vertical position of the region in the map
+ *  @param width Region width
+ *  @param height Region height
+ *  @param clear_color Color of the pixels without tile
+ */
+static void                 jo_map_draw_background_region(const unsigned int layer, const int x, const int y, const int width, const int height, const jo_color clear_color)
+{
+    register jo_map_tile    *current_tile;
+    register int            i;
+    jo_img                  img;
+    int                     left;
+    int                     top;
+    int                     right;
+    int                     bottom;
+
+    if (width <= 0 || height <= 0)
+        return ;
+    __jo_vdp2_nbg1_bitmap_fill(x, y, width, height, clear_color);
+    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
+    {
+        current_tile = &gl_map[layer][i];
+        // Intersection between the tile and the region
+        left = JO_MAX(x, current_tile->real_x);
+        top = JO_MAX(y, current_tile->real_y);
+        right = JO_MIN(x + width, current_tile->real_x + current_tile->width);
+        bottom = JO_MIN(y + height, current_tile->real_y + current_tile->height);
+        if (left >= right || top >= bottom)
+            continue;
+        img.width = current_tile->width;
+        img.height = current_tile->height;
+        img.data = __jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id].data;
+        __jo_vdp2_nbg1_bitmap_blit(&img, left - current_tile->real_x, top - current_tile->real_y, right - left, bottom - top, left, top);
+    }
+}
+
+void						jo_map_scroll_background(const unsigned int layer, const short x, const short y, const jo_color clear_color)
+{
+    static bool             drawn = false;
+    static unsigned int     drawn_layer;
+    static int              view_x;
+    static int              view_y;
+    int                     new_x;
+    int                     new_y;
+    int                     dx;
+    int                     dy;
+
+    // Top-left corner of the screen in the map
+    new_x = -x;
+    new_y = -y;
+    dx = new_x - view_x;
+    dy = new_y - view_y;
+    if (!drawn || drawn_layer != layer || JO_ABS(dx) > JO_VDP2_WIDTH - JO_TV_WIDTH || JO_ABS(dy) > JO_VDP2_HEIGHT - JO_TV_HEIGHT)
+    {
+        // First call or too big move: draw the whole screen
+        jo_map_draw_background_region(layer, new_x, new_y, JO_TV_WIDTH, JO_TV_HEIGHT, clear_color);
+        drawn = true;
+        drawn_layer = layer;
+    }
+    else
+    {
+        // Only the new columns and lines (outside of the screen until the scroll registers change at the next VBLANK)
+        if (dx > 0)
+            jo_map_draw_background_region(layer, view_x + JO_TV_WIDTH, new_y, dx, JO_TV_HEIGHT, clear_color);
+        else if (dx < 0)
+            jo_map_draw_background_region(layer, new_x, new_y, -dx, JO_TV_HEIGHT, clear_color);
+        if (dy > 0)
+            jo_map_draw_background_region(layer, new_x, view_y + JO_TV_HEIGHT, JO_TV_WIDTH, dy, clear_color);
+        else if (dy < 0)
+            jo_map_draw_background_region(layer, new_x, new_y, JO_TV_WIDTH, -dy, clear_color);
+    }
+    view_x = new_x;
+    view_y = new_y;
+    jo_vdp2_move_nbg1(new_x & (JO_VDP2_WIDTH - 1), new_y & (JO_VDP2_HEIGHT - 1));
+}
+
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 void						jo_map_3d_draw(const unsigned int layer, const int x, const int y, const int z)
 {
@@ -290,7 +385,11 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
 
 void					jo_map_free(const unsigned int layer)
 {
-    jo_free(gl_map[layer]);
+    if (gl_map[layer] != JO_NULL)
+        jo_free(gl_map[layer]);
+    gl_map[layer] = JO_NULL;
+    JO_ZERO(gl_map_tile_count[layer]);
+    JO_ZERO(gl_map_max_tile_count[layer]);
 }
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
@@ -307,13 +406,17 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
     char				attribute[JO_MAP_PARSER_BUF_SIZE];
     unsigned char       attribute_value;
     register int		i;
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
+    int                 sprite_id;
+#endif
 
     if ((stream = jo_fs_read_file_in_dir(filename, sub_dir, 0)) == JO_NULL)
         return (false);
     stream_begin = stream;
+    // One tile per line (the last line may not end with a newline)
     JO_ZERO(tile_count);
     for (tmp = stream; *tmp; ++tmp)
-        if (*tmp == '\n')
+        if (*tmp == '\n' || tmp[1] == '\0')
             ++tile_count;
     if (tile_count <= 0)
     {
@@ -337,14 +440,15 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
         }
         for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
         {
-#ifdef JO_DEBUG
-            if (i >= JO_MAX_FILENAME_LENGTH)
+            if (i >= JO_MAX_FILENAME_LENGTH - 1)
             {
+#ifdef JO_DEBUG
                 jo_core_error("Filename too long: %s", stream);
-                jo_free(stream_begin);
-                return (0);
-            }
 #endif
+                jo_free(stream_begin);
+                jo_map_free(layer);
+                return (false);
+            }
             sprite[i] = *stream++;
         }
         JO_ZERO(sprite[i]);
@@ -352,14 +456,15 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
             ++stream;
         for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
         {
-#ifdef JO_DEBUG
-            if (i >= JO_MAP_PARSER_BUF_SIZE)
+            if (i >= JO_MAP_PARSER_BUF_SIZE - 1)
             {
+#ifdef JO_DEBUG
                 jo_core_error("X coord too big");
-                jo_free(stream);
-                return (0);
-            }
 #endif
+                jo_free(stream_begin);
+                jo_map_free(layer);
+                return (false);
+            }
             x[i] = *stream++;
         }
         JO_ZERO(x[i]);
@@ -367,14 +472,15 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
             ++stream;
         for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
         {
-#ifdef JO_DEBUG
-            if (i >= JO_MAP_PARSER_BUF_SIZE)
+            if (i >= JO_MAP_PARSER_BUF_SIZE - 1)
             {
+#ifdef JO_DEBUG
                 jo_core_error("Y coord too big");
-                jo_free(stream_begin);
-                return (0);
-            }
 #endif
+                jo_free(stream_begin);
+                jo_map_free(layer);
+                return (false);
+            }
             y[i] = *stream++;
         }
         JO_ZERO(y[i]);
@@ -384,14 +490,15 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
                 ++stream;
             for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
             {
-#ifdef JO_DEBUG
-                if (i >= JO_MAP_PARSER_BUF_SIZE)
+                if (i >= JO_MAP_PARSER_BUF_SIZE - 1)
                 {
+#ifdef JO_DEBUG
                     jo_core_error("Attribute too big");
-                    jo_free(stream_begin);
-                    return (0);
-                }
 #endif
+                    jo_free(stream_begin);
+                    jo_map_free(layer);
+                    return (false);
+                }
                 attribute[i] = *stream++;
             }
             JO_ZERO(attribute[i]);
@@ -400,8 +507,12 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
         if (sprite[0] == '@')
             __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), jo_tools_atoi(sprite + 1), true, attribute_value);
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
+        else if ((sprite_id = jo_sprite_name2id(sprite)) >= 0)
+            __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), sprite_id, false, attribute_value);
+#ifdef JO_DEBUG
         else
-            __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), jo_sprite_name2id(sprite), false, attribute_value);
+            jo_core_error("%s: Sprite not found", sprite);
+#endif
 #endif
     }
     jo_free(stream_begin);

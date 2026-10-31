@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -49,6 +48,7 @@
 #include "jo/tools.h"
 #include "jo/malloc.h"
 #include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/fs.h"
 #include "jo/math.h"
@@ -74,43 +74,159 @@ void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data)
     voxel_data->__cache.deltay_incr = jo_fixed_mult(py, voxel_data->__cache.inv_zfar);
 }
 
-void                        jo_voxel_redraw(const jo_voxel * const voxel_data)
+/** @brief Size of the table of the scales by distance (see __jo_voxel_redraw()): the farther samples divide */
+# define JO_VOXEL_SCALE_TABLE_SIZE  (512)
+
+/** @brief camera.scale / z for each distance z of the samples (1, 2, 3...), filled by each redraw */
+static jo_fixed             __jo_voxel_scales[JO_VOXEL_SCALE_TABLE_SIZE];
+
+/** @brief Check the depth of a pixel (see __jo_software_renderer_draw_pixel())
+ *  @param mode Depth test
+ *  @param z Depth of the pixel
+ *  @param depth Depth in the buffer
+ *  @return true if the pixel is drawn
+ */
+static __jo_force_inline bool   jo_voxel_depth_test(const jo_software_renderer_depth_mode mode, const jo_fixed z, const jo_fixed depth)
 {
-    register jo_fixed       deltax = voxel_data->__cache.deltax_0;
-    register jo_fixed       deltay = voxel_data->__cache.deltay_0;
-    const bool              use_zbuffer = voxel_data->use_zbuffer;
-    const int               mapwidth_minus_1 = voxel_data->__cache.map_width_minus_1;
-
-    for (int x = 0; x < voxel_data->gfx->clipping_size.width; ++x)
+    switch (mode)
     {
-        register jo_fixed rx = voxel_data->camera.x;
-        register jo_fixed ry = voxel_data->camera.y;
-        int maxheight = voxel_data->gfx->clipping_size.height;
+        case JO_SR_DEPTH_LESS: return (z < depth);
+        case JO_SR_DEPTH_LESS_OR_EQUAL: return (z <= depth);
+        case JO_SR_DEPTH_GREATER_OR_EQUAL: return (z >= depth);
+        case JO_SR_DEPTH_GREATER: return (z > depth);
+        case JO_SR_DEPTH_NOT_EQUAL: return (z != depth);
+        case JO_SR_DEPTH_EQUAL: return (z == depth);
+        default: return (true);
+    }
+}
 
-        for (jo_fixed z = JO_FIXED_1; z < voxel_data->camera.zfar; z += JO_FIXED_1)
+/** @brief Draw the terrain in a column of the buffer
+ *  @param scales camera.scale / z for each sample (JO_NULL: divided for each sample)
+ *  @return The height of the column above the terrain
+ *  @remarks Inlined twice: with the table of the scales and with the division
+ */
+static __jo_force_inline int    jo_voxel_draw_column(const jo_voxel * const voxel_data, const int x, jo_fixed rx, jo_fixed ry,
+                                                     const jo_fixed deltax, const jo_fixed deltay, const jo_fixed * const above,
+                                                     const jo_fixed * const scales, const int count, const bool clear)
+{
+    jo_software_renderer_gfx * const gfx = voxel_data->gfx;
+    const int               pitch = gfx->vram_size.width;
+    jo_color * const        color_buffer = gfx->color_buffer;
+    jo_fixed * const        depth_buffer = voxel_data->use_zbuffer ? gfx->depth_buffer : JO_NULL;
+    const int               mapwidth_minus_1 = voxel_data->__cache.map_width_minus_1;
+    const int               terrain_width = voxel_data->terrain_img.width;
+    const unsigned char     *height_data = voxel_data->height_img.data;
+    const unsigned char     *terrain_data = voxel_data->terrain_img.data;
+    const jo_color          *terrain_pal = voxel_data->terrain_pal.data;
+    const jo_fixed          camera_scale = voxel_data->camera.scale;
+    const jo_fixed          camera_horizon = voxel_data->camera.horizon;
+    int                     maxheight;
+    int                     k;
+
+    maxheight = gfx->clipping_size.height;
+    for (JO_ZERO(k); k < count; ++k)
+    {
+        rx += deltax;
+        ry += deltay;
+        const int mapoffset = ((terrain_width * (jo_fixed2int(ry) & mapwidth_minus_1)) + (jo_fixed2int(rx) & mapwidth_minus_1));
+        const jo_fixed h = above[height_data[mapoffset]];
+        const int projheight = jo_fixed2int((scales != JO_NULL ? jo_fixed_mult(h, scales[k]) :
+                                             jo_fixed_mult(jo_fixed_div(h, jo_int2fixed(k + 1)), camera_scale)) + camera_horizon);
+        if (projheight < maxheight)
         {
-            rx += deltax;
-            ry += deltay;
-            const int mapoffset = ((voxel_data->terrain_img.width * (jo_fixed2int(ry) & mapwidth_minus_1)) + (jo_fixed2int(rx) & mapwidth_minus_1));
-            // JO_COLOR_SATURN_GET_R: we use the red component arbitrary because it's a grayscale image
-            const jo_fixed c = jo_int2fixed(JO_COLOR_SATURN_GET_R(voxel_data->height_pal.data[voxel_data->height_img.data[mapoffset] - 1]));
-            const int projheight = jo_fixed2int(jo_fixed_mult(jo_fixed_div(voxel_data->camera.height - c, z), voxel_data->camera.scale) + voxel_data->camera.horizon);
-            if (projheight < maxheight)
+            const jo_color color = terrain_pal[terrain_data[mapoffset] - 1];
+            int y = (projheight >= 0) ? projheight : 0;
+            jo_color *pixel = color_buffer + x + y * pitch;
+            if (depth_buffer != JO_NULL)
             {
-                const jo_color color = voxel_data->terrain_pal.data[voxel_data->terrain_img.data[mapoffset] - 1];
-                for (int y = (projheight >= 0) ? projheight : 0; y < maxheight; ++y)
+                // (the pixels of the column are inside the clipping rectangle: no clipping)
+                const jo_software_renderer_depth_mode depth_mode = gfx->depth_mode_testing;
+                const jo_fixed z = jo_int2fixed(k + 1);
+                jo_fixed *depth = depth_buffer + x + y * pitch;
+                for (; y < maxheight; ++y, pixel += pitch, depth += pitch)
                 {
-                    if (use_zbuffer)
-                        jo_software_renderer_draw_pixel3D(voxel_data->gfx, jo_int2fixed(x), jo_int2fixed(y), z, color);
-                    else
-                        voxel_data->gfx->color_buffer[x + y * voxel_data->gfx->vram_size.width] = color;
+                    if (!jo_voxel_depth_test(depth_mode, z, *depth))
+                    {
+                        // (hidden: the pixel of a cleared buffer, each pixel of the column is visited once)
+                        if (clear)
+                            *pixel = JO_COLOR_Black;
+                        continue;
+                    }
+                    *pixel = color;
+                    *depth = z;
                 }
-                maxheight = projheight;
             }
+            else
+            {
+                for (; y < maxheight; ++y, pixel += pitch)
+                    *pixel = color;
+            }
+            maxheight = projheight;
+            // The column is full: the farther samples are hidden
+            if (maxheight <= 0)
+                break;
         }
+    }
+    return (maxheight);
+}
+
+void                        __jo_voxel_redraw(const jo_voxel * const voxel_data, const bool clear)
+{
+    jo_software_renderer_gfx * const gfx = voxel_data->gfx;
+    const int               width = gfx->clipping_size.width;
+    const int               height = gfx->clipping_size.height;
+    const int               pitch = gfx->vram_size.width;
+    jo_color * const        color_buffer = gfx->color_buffer;
+    const jo_color          *height_pal = voxel_data->height_pal.data;
+    const jo_fixed          camera_height = voxel_data->camera.height;
+    const jo_fixed          camera_scale = voxel_data->camera.scale;
+    const jo_fixed          zfar = voxel_data->camera.zfar;
+    jo_fixed                deltax = voxel_data->__cache.deltax_0;
+    jo_fixed                deltay = voxel_data->__cache.deltay_0;
+    // camera.height - height of each index of the height map (the palette is read once, not for each sample)
+    jo_fixed                above[256];
+    jo_fixed                z;
+    jo_color                *pixel;
+    int                     count;
+    int                     maxheight;
+    int                     x;
+    int                     y;
+
+    for (JO_ZERO(x); x < 256; ++x)
+        // JO_COLOR_SATURN_GET_R: we use the red component arbitrary because it's a grayscale image
+        above[x] = camera_height - jo_int2fixed(JO_COLOR_SATURN_GET_R(height_pal[x - 1]));
+    // The samples: z = 1, 2, 3... while z < zfar
+    for (JO_ZERO(count), z = JO_FIXED_1; z < zfar; z += JO_FIXED_1)
+        ++count;
+    // camera.scale / z for each distance: a product for each sample instead of a division
+    if (count <= JO_VOXEL_SCALE_TABLE_SIZE)
+        for (JO_ZERO(x); x < count; ++x)
+            __jo_voxel_scales[x] = jo_fixed_div(camera_scale, jo_int2fixed(x + 1));
+    for (JO_ZERO(x); x < width; ++x)
+    {
+        if (count <= JO_VOXEL_SCALE_TABLE_SIZE)
+            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, above,
+                                             __jo_voxel_scales, count, clear);
+        else
+            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, above,
+                                             JO_NULL, count, clear);
+        // (instead of clearing the whole buffer first: the pixels of the column above the terrain)
+        if (clear)
+            for (JO_ZERO(y), pixel = color_buffer + x; y < maxheight; ++y, pixel += pitch)
+                *pixel = JO_COLOR_Black;
         deltax += voxel_data->__cache.deltax_incr;
         deltay += voxel_data->__cache.deltay_incr;
     }
+    // (the rest of the buffer, outside of the clipping rectangle: cleared like jo_software_renderer_clear() does)
+    if (clear && pitch > width)
+        for (JO_ZERO(y); y < height; ++y)
+            for (x = width, pixel = color_buffer + y * pitch; x < pitch; ++x)
+                pixel[x] = JO_COLOR_Black;
+}
+
+void                        jo_voxel_redraw(const jo_voxel * const voxel_data)
+{
+    __jo_voxel_redraw(voxel_data, false);
 }
 
 void            jo_voxel_run(jo_voxel * const voxel_data)

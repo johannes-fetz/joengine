@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -91,6 +91,8 @@
 /** @brief Internal, you should not use this macro. */
 # define JO_COLOR_SATURN_RGB(R,G,B)	((jo_color)(0x8000 | ((B) << 10) | ((G) << 5) | (R)))
 /** @brief Internal, you should not use this macro. */
+/** @brief MSB of a Saturn color (RGB color flag) */
+# define JO_COLOR_SATURN_MSB        (0x8000)
 # define JO_COLOR_SATURN_GET_R(C)   ((C) & 0x1f)
 # define JO_COLOR_SATURN_GET_G(C)   (((C) >> 5) & 0x1f)
 # define JO_COLOR_SATURN_GET_B(C)   (((C) >> 10) & 0x1f)
@@ -103,7 +105,24 @@
 */
 # define JO_COLOR_RGB(R,G,B)	    JO_COLOR_SATURN_RGB(JO_COLOR_SATURN(R), JO_COLOR_SATURN(G), JO_COLOR_SATURN(B))
 
-#if JO_COMPILE_USING_SGL
+/** @brief A color between 2 colors (each component interpolated)
+ *  @param a First color (t = 0)
+ *  @param b Second color (t = 256)
+ *  @param t 0 to 256
+ *  @return jo_color
+ */
+static  __jo_force_inline jo_color  jo_color_mix(const jo_color a, const jo_color b, const int t)
+{
+    int                             r;
+    int                             g;
+    int                             bl;
+
+    r = (a & 31) + (((b & 31) - (a & 31)) * t >> 8);
+    g = ((a >> 5) & 31) + ((((b >> 5) & 31) - ((a >> 5) & 31)) * t >> 8);
+    bl = ((a >> 10) & 31) + ((((b >> 10) & 31) - ((a >> 10) & 31)) * t >> 8);
+    return (JO_COLOR_SATURN_RGB(r, g, bl));
+}
+
 
 /** @brief Set color filter A for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_SPRITE_SCREEN|JO_NBG0_SCREEN)
@@ -111,11 +130,7 @@
  *  @param g Green offset value (signed 9 bits)
  *  @param b Blue offset value (signed 9 bits)
  */
-static  __jo_force_inline void      jo_set_screen_color_filter_a(jo_scroll_screen screens, short r, short g, short b)
-{
-    slColOffsetA(r, g, b);
-    slColOffsetAUse(screens);
-}
+void    jo_set_screen_color_filter_a(const jo_scroll_screen screens, const short r, const short g, const short b);
 
 /** @brief Set color filter A for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_SPRITE_SCREEN|JO_NBG0_SCREEN)
@@ -123,19 +138,21 @@ static  __jo_force_inline void      jo_set_screen_color_filter_a(jo_scroll_scree
  *  @param g Green offset value (signed 9 bits)
  *  @param b Blue offset value (signed 9 bits)
  */
-static  __jo_force_inline void      jo_set_screen_color_filter_b(jo_scroll_screen screens, short r, short g, short b)
-{
-    slColOffsetB(r, g, b);
-    slColOffsetBUse(screens);
-}
+void    jo_set_screen_color_filter_b(const jo_scroll_screen screens, const short r, const short g, const short b);
 
 /** @brief Disable color filter for scroll screen
  *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_SPRITE_SCREEN|JO_NBG0_SCREEN)
  */
-static  __jo_force_inline void      jo_disable_screen_color_filter(jo_scroll_screen screens)
-{
-    slColOffsetOff(screens);
-}
+void    jo_disable_screen_color_filter(const jo_scroll_screen screens);
+
+/** @brief Fade scroll screens: their color filter A from a level to another, a step at each VBLANK (waits for the end)
+ *  @param screens Scroll screens (You can pass multiple value using pipe(|). Example: JO_SPRITE_SCREEN|JO_NBG1_SCREEN)
+ *  @param from First level (-255: black, 0: the colors as they are, 255: white)
+ *  @param to Last level (the color filter A stays at it: 0 then jo_disable_screen_color_filter())
+ *  @param frames Number of VBLANK of the fade
+ *  @remarks Used before jo_core_run() too (a loading screen): the VBLANK interrupt applies the registers
+ */
+void    jo_fade_screens(const jo_scroll_screen screens, const short from, const short to, const int frames);
 
 /** @brief Disable color filter for all scroll screen
  */
@@ -144,7 +161,6 @@ static  __jo_force_inline void      jo_disable_all_screen_color_filter(void)
     jo_disable_screen_color_filter(JO_ALL_SCROLL_SCREEN);
 }
 
-#endif
 
 #endif /* !__JO_COLORS_H__ */
 

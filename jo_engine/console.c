@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -303,13 +302,7 @@ void                    jo_console_show_dialog(void)
         __jo_console_draw_prompt("~$", frame >= __JO_CONSOLE_CURSOR_BLINKING_FRAME_START, __jo_history_count, &prompt, cursor);
         if (frame > __JO_CONSOLE_TOTAL_FRAME)
             JO_ZERO(frame);
-#if JO_COMPILE_USING_SGL
-        slSynch();
-#else
-        jo_input_update();
-        jo_wait_vblank_out();
-        jo_wait_vblank_in();
-#endif
+        __jo_core_synch();
     }
     jo_set_printf_color_index(0);
     jo_list_clear(&prompt);

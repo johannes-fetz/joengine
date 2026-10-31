@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2020, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ void                    load_background_image()
 {
     jo_img_8bits        img;
 
-    img.data = NULL;
+    img.data = JO_NULL;
     jo_tga_8bits_loader(&img, "BG", "BG.TGA", 0);
     jo_set_background_8bits_sprite(&img, image_pal.id, false);
     jo_free_img(&img);

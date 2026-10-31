@@ -1,0 +1,11 @@
+# Materials of the house (options: see Compiler/COMMON/jo_model.py)
+newmtl brick
+Kd 1 1 1
+map_Kd brick.png
+jo_gouraud 0
+jo_mipmaps 1
+
+newmtl roof
+Kd 0.6 0.25 0.15
+jo_gouraud 1
+

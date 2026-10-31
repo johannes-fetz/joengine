@@ -10,14 +10,40 @@ ifeq (${COMPILER_DIR},)
 	COMPILER_DIR=../../Compiler
 endif
 
-ifeq (${JO_FRAMERATE},)
+#
+# Game information written in the IP.BIN (see https://segaretro.org/ROM_header#Saturn)
+# You can override these variables in your makefile (before the include)
+#
+ifeq (${JO_GAME_TITLE},)
+	JO_GAME_TITLE = JO ENGINE
+endif
+ifeq (${JO_GAME_VERSION},)
+	JO_GAME_VERSION = V1.000
+endif
+ifeq (${JO_GAME_RELEASE_DATE},)
+	JO_GAME_RELEASE_DATE = 20150923
+endif
+ifeq (${JO_GAME_MAKER_ID},)
+	JO_GAME_MAKER_ID = JO-ENGINE
+endif
+ifeq (${JO_GAME_PRODUCT_NUMBER},)
+	JO_GAME_PRODUCT_NUMBER =
+endif
+# J: Control pad, A: Analog controller, M: Mouse, K: Keyboard, S: Steering wheel, T: Multitap, G: Gun, W: RAM cartridge, E: 3D controller, F: Floppy drive, P: Video CD card, C: Link cable
+ifeq (${JO_GAME_PERIPHERALS},)
+	JO_GAME_PERIPHERALS = J
+endif
+
+# JO_FRAMERATE: the game runs every n VBLANK (1: 60 FPS, 2: 30 FPS...). A frame that takes longer than n VBLANK delays
+# the next one (the rate is not divided). JO_FRAMERATE_DYNAMIC = 1: the game runs as soon as a frame is done (up to
+# 60 FPS), the frame buffers change when the VDP1 has drawn the frame (no frame left half drawn): with a game whose
+# frames take a variable time, and whose movements follow the time of the frames (see jo_get_ticks())
+ifeq (${JO_FRAMERATE_DYNAMIC},1)
+	CCFLAGS += -DJO_FRAMERATE=1 -DJO_FRAMERATE_DYNAMIC
+else ifeq (${JO_FRAMERATE},)
 	CCFLAGS += -DJO_FRAMERATE=1
 else
 	CCFLAGS += -DJO_FRAMERATE=${JO_FRAMERATE}
-endif
-
-ifeq (${JO_COMPILE_USING_SGL},)
-	JO_COMPILE_USING_SGL = 1
 endif
 
 ifeq (${JO_COMPILE_WITH_FS_MODULE},)
@@ -33,14 +59,6 @@ ifeq (1,${JO_COMPILE_WITH_CONSOLE_SUPPORT})
 	JO_COMPILE_WITH_KEYBOARD_SUPPORT = 1
 endif
 
-ifeq (1,${JO_COMPILE_USING_SGL})
-	CCFLAGS += -DJO_COMPILE_USING_SGL
-endif
-
-ifeq (1,${JO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH})
-	CCFLAGS += -DJO_COMPILE_WITH_FAST_BUT_LESS_ACCURATE_MATH
-endif
-
 ifeq (1,${JO_COMPILE_WITH_KEYBOARD_SUPPORT})
 	CCFLAGS += -DJO_COMPILE_WITH_KEYBOARD_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/keyboard.c
@@ -53,10 +71,6 @@ ifeq (1,${JO_COMPILE_WITH_CONSOLE_SUPPORT})
 endif
 
 ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
-	ifeq (1,${JO_COMPILE_USING_SGL})
-		LIBS += $(SGLLDR)/LIBCPK.A $(SGLLDR)/LIBSND.A
-	endif
-
 	CCFLAGS += -DJO_COMPILE_WITH_VIDEO_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/video.c
 endif
@@ -91,9 +105,25 @@ ifeq (1,${JO_COMPILE_WITH_AUDIO_MODULE})
 	SRCS += $(JO_ENGINE_SRC_DIR)/audio.c
 endif
 
+# The sound driver of the 68000 (the commands of the SH-2, the glides, the tones: jo_audio_play_tone())
+ifeq (1,${JO_COMPILE_WITH_AUDIO_DRIVER_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_AUDIO_DRIVER_SUPPORT
+endif
+
+# The reverberation of the DSP of the SCSP (jo_audio_set_reverb(): the last 16 KB of the sound RAM)
+ifeq (1,${JO_COMPILE_WITH_AUDIO_DSP_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_AUDIO_DSP_SUPPORT
+endif
+
 ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_3D_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c $(JO_ENGINE_SRC_DIR)/model.c $(JO_ENGINE_SRC_DIR)/light.c $(JO_ENGINE_SRC_DIR)/glow.c
+endif
+
+# Levels (.JOL files, see Documentation/level_format.md)
+ifeq (1,${JO_COMPILE_WITH_LEVEL_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_LEVEL_SUPPORT
+	SRCS += $(JO_ENGINE_SRC_DIR)/level.c $(JO_ENGINE_SRC_DIR)/entity.c $(JO_ENGINE_SRC_DIR)/cell.c $(JO_ENGINE_SRC_DIR)/weapon.c $(JO_ENGINE_SRC_DIR)/vehicle.c
 endif
 
 ifeq (1,${JO_COMPILE_WITH_FS_MODULE})
@@ -111,6 +141,11 @@ ifeq (1,${JO_COMPILE_WITH_PSEUDO_MODE7_MODULE})
 	SRCS += $(JO_ENGINE_SRC_DIR)/mode7.c
 endif
 
+ifeq (1,${JO_COMPILE_WITH_PROFILER_MODULE})
+	CCFLAGS += -DJO_COMPILE_WITH_PROFILER_SUPPORT
+	SRCS += $(JO_ENGINE_SRC_DIR)/profile.c
+endif
+
 ifeq (1,${JO_COMPILE_WITH_EFFECTS_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_EFFECTS_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/effects.c
@@ -120,6 +155,11 @@ ifeq (${JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC},)
 	CCFLAGS += -DJO_GLOBAL_MEMORY_SIZE_FOR_MALLOC=393216
 else
 	CCFLAGS += -DJO_GLOBAL_MEMORY_SIZE_FOR_MALLOC=${JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC}
+endif
+
+# Maximum VDP1 commands per frame (1000 by default, see jo/vdp1_command_pipeline.h): smaller to save RAM
+ifneq (${JO_VDP1_MAX_COMMANDS},)
+	CCFLAGS += -DJO_VDP1_MAX_COMMANDS=${JO_VDP1_MAX_COMMANDS}
 endif
 
 ifeq (${JO_MAX_SPRITE},)
@@ -166,6 +206,13 @@ else
 	ifeq (1,${JO_COMPILE_WITH_PRINTF_MODULE})
 		CCFLAGS += -DJO_COMPILE_WITH_PRINTF_SUPPORT
 	endif
+endif
+
+# Compatibility flags: the old behavior of the engine (1 in the makefile of the game)
+# JO_COMPATIBILITY_NBG1_BITMAP_AT_INIT: the NBG1 bitmap (512 x 256 pixels, 32768 colors: 256 KB of the VDP2 VRAM, the
+# banks A0 and A1) is allocated and displayed by jo_core_init(), else at its first use (see __jo_vdp2_reserve_nbg1_bitmap())
+ifeq (1,${JO_COMPATIBILITY_NBG1_BITMAP_AT_INIT})
+	CCFLAGS += -DJO_COMPATIBILITY_NBG1_BITMAP_AT_INIT
 endif
 
 ifeq (${JO_COMPILE_WITH_SPRITE_HASHTABLE},)
@@ -215,26 +262,30 @@ SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC
 		$(JO_ENGINE_SRC_DIR)/math.c $(JO_ENGINE_SRC_DIR)/malloc.c $(JO_ENGINE_SRC_DIR)/tools.c $(JO_ENGINE_SRC_DIR)/palette.c \
 		$(JO_ENGINE_SRC_DIR)/sprites.c $(JO_ENGINE_SRC_DIR)/map.c $(JO_ENGINE_SRC_DIR)/list.c $(JO_ENGINE_SRC_DIR)/sprite_animator.c \
 		$(JO_ENGINE_SRC_DIR)/image.c $(JO_ENGINE_SRC_DIR)/vdp2.c $(JO_ENGINE_SRC_DIR)/time.c $(JO_ENGINE_SRC_DIR)/vdp1_command_pipeline.c \
-		$(JO_ENGINE_SRC_DIR)/vdp2_malloc.c
+		$(JO_ENGINE_SRC_DIR)/vdp2_malloc.c $(JO_ENGINE_SRC_DIR)/smpc.c $(JO_ENGINE_SRC_DIR)/dsp.c
 
-SYSOBJS =
-
-# remove the comment below when nosgl.linker is fixed
-#ifeq (1,${JO_COMPILE_USING_SGL})
-	SYSOBJS += $(SGLLDR)/SGLAREA.O
-#endif
+SYSOBJS = $(JO_ENGINE_SRC_DIR)/start.o
 
 OBJS = $(SRCS:.c=.o)
 
-# remove the comment below when nosgl.linker is fixed
-#ifeq (1,${JO_COMPILE_USING_SGL})
-	LIBS +=  $(SGLLDR)/SEGA_SYS.A $(SGLLDR)/LIBCD.A $(SGLLDR)/LIBSGL.A
-#endif
-
 ifeq ($(OS), Windows_NT)
+	# The commands are run by Windows (cmd.exe), not by the MSYS sh.exe: sh.exe (msys-1.0.dll) fails sometimes with
+	# "Couldn't reserve space for cygwin's heap". The commands of this makefile don't need a Unix shell
+	SHELL = cmd.exe
 	CC=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-gcc.exe
 	CONV=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-objcopy.exe
 	CUE_MAKER=JoEngineCueMaker.exe
+else ifeq ($(shell uname -s), Darwin)
+	# macOS: toolchain built by Compiler/MACOS/build_toolchain.sh, otherwise sh-elf-gcc from the PATH (SaturnSDK, etc.)
+	ifneq ($(wildcard $(COMPILER_DIR)/MACOS/bin/sh-elf-gcc),)
+		CC=$(COMPILER_DIR)/MACOS/bin/sh-elf-gcc
+		CONV=$(COMPILER_DIR)/MACOS/bin/sh-elf-objcopy
+	else
+		CC=sh-elf-gcc
+		CONV=sh-elf-objcopy
+	endif
+	CUE_MAKER=sh "$(COMPILER_DIR)/COMMON/cuemaker.sh"
+	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
@@ -246,47 +297,31 @@ ASSETS_DIR=./cd
 MKISOFS=mkisofs
 RM = rm -rf
 
-# remove the comment below when nosgl.linker is fixed
-#ifeq (1,${JO_COMPILE_USING_SGL})
-	SGLDIR = $(COMPILER_DIR)/COMMON/SGL_302j
-	SGLIDR = $(SGLDIR)/INC
-	SGLLDR = $(SGLDIR)/LIB_ELF
-#endif
-
 CMNDIR = $(COMPILER_DIR)/COMMON
 
-ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
-	CCFLAGS += -w \
-	-Winline -Wno-strict-aliasing \
-	-fno-common -ffast-math \
-	-fms-extensions -std=gnu99 \
-	-fmerge-all-constants -fmerge-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
-	-fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -Os -nodefaultlibs -nostdlib -fno-builtin \
-	-m2 -c -I$(JO_ENGINE_SRC_DIR)
-else
-	CCFLAGS += -fkeep-inline-functions -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment \
-	-Winline -Wsign-compare -Wextra -Wno-strict-aliasing \
-	-fno-common -ffast-math \
-	--param max-inline-insns-single=50 -fms-extensions -std=gnu99 \
+# -O2: faster than -O3 (bigger code, the cache of the SH-2 is 4 KB) and -Os on the Saturn (measured on a 3D level)
+# A pointer to another type is an error: a pointer to a short array read as int (the rays of the cells went through the
+# walls) or the other way corrupts the data silently
+# -fno-isolate-erroneous-paths-dereference: a path that writes through a null pointer (an allocation not checked, out of
+# memory) is not replaced by a call of abort(): abort() linked the signals of the C library and their data (about 2.5 KB of
+# RAM in 7 samples). The write at the address 0 goes to the BIOS ROM of the Saturn: nothing is written
+CCFLAGS += -fno-isolate-erroneous-paths-dereference
+CCFLAGS += -W -Wall -Wshadow -Wbad-function-cast -Winline -Wcomment -Wsign-compare -Wextra -Wno-strict-aliasing -Werror=incompatible-pointer-types \
+	-fno-common -ffast-math -fms-extensions -std=gnu99 \
 	-fmerge-all-constants -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
-	-fomit-frame-pointer -fstrength-reduce -frerun-loop-opt -O2 -nodefaultlibs -nostdlib -fno-builtin \
+	-O2 -nodefaultlibs -nostdlib -fno-builtin \
 	-m2 -c -I$(JO_ENGINE_SRC_DIR)
-endif
 
-ifneq ($(OS), Windows_NT)
+# Link time optimization: the functions of the engine are inlined in the game (and the reverse)
 CCFLAGS += -flto
+ifneq ($(OS), Windows_NT)
+ifeq ($(shell uname -s), Darwin)
+# Recent GCC versions (macOS toolchain) don't inline some functions declared inline in .c files
+CCFLAGS += -Wno-inline
 endif
-
-# remove the comment below when nosgl.linker is fixed
-#ifeq (1,${JO_COMPILE_USING_SGL})
-	CCFLAGS += -I$(SGLIDR)
-#endif
+endif
 
 LDFLAGS = -m2
-# remove the comment below when nosgl.linker is fixed
-#ifeq (1,${JO_COMPILE_USING_SGL})
-	LDFLAGS += -L$(SGLLDR)
-#endif
 LDFLAGS +=-Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
 ifneq ($(OS), Windows_NT)
@@ -299,23 +334,41 @@ TARGET1  = $(TARGET:.elf=.raw)
 TARGET2  = $(TARGET:.elf=.iso)
 TARGET3  = $(TARGET:.elf=.cue)
 MPFILE   = $(TARGET:.elf=.map)
-IPFILE   = $(CMNDIR)/IP.BIN
-ifeq (1,${JO_COMPILE_USING_SGL})
-	LDFILE   = $(CMNDIR)/sgl.linker
-else
-	LDFILE   = $(CMNDIR)/nosgl.linker
-endif
+IPTEMPLATE = $(CMNDIR)/IP.BIN
+IPSRC    = $(CMNDIR)/ip.S
+IPFILE   = $(TARGET:.elf=.ip.bin)
+IPOBJ    = $(TARGET:.elf=.ip.o)
+IPFLAGS  = -DJO_IP_TITLE="\"$(JO_GAME_TITLE)\"" -DJO_IP_VERSION="\"$(JO_GAME_VERSION)\"" \
+	-DJO_IP_RELEASE_DATE="\"$(JO_GAME_RELEASE_DATE)\"" -DJO_IP_MAKER_ID="\"$(JO_GAME_MAKER_ID)\"" \
+	-DJO_IP_PRODUCT_NUMBER="\"$(JO_GAME_PRODUCT_NUMBER)\"" -DJO_IP_PERIPHERALS="\"$(JO_GAME_PERIPHERALS)\""
+LDFILE   = $(CMNDIR)/jo.linker
 
 MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" -sectype 2352 \
 	-publisher "SEGA ENTERPRISES, LTD." -preparer "SEGA ENTERPRISES, LTD." -appid "SaturnApp" \
 	-abstract "$(ASSETS_DIR)/ABS.TXT" -copyright "$(ASSETS_DIR)/CPY.TXT" -biblio "$(ASSETS_DIR)/BIB.TXT" -generic-boot $(IPFILE) \
 	-full-iso9660-filenames -o $(TARGET2) $(ASSETS_DIR) $(ENTRYPOINT)
+# The order of the files on the disc (optional, cd.sort next to the makefile: "./cd/NAME weight" per line, the highest
+# weight first): the files read one after the other are next to each other, the CD reads them without seeking
+ifneq ($(wildcard cd.sort),)
+MKISOFS_SORT = -sort cd.sort
+endif
 
 MAKEFILE = makefile
+
+# The objects of the engine are shared by the games (jo_engine/*.o): they are rebuilt when the options change (another
+# game, a module added to the makefile, other test flags). The options of the last build: jo_engine/jo_options.txt
+# (GNU Make 4.2 or more: $(file))
+JO_OPTIONS_FILE = $(JO_ENGINE_SRC_DIR)/jo_options.txt
+JO_OPTIONS = $(strip $(CCFLAGS) $(_CCFLAGS) $(DFLAGS))
+ifneq ($(strip $(file < $(JO_OPTIONS_FILE))),$(JO_OPTIONS))
+$(file > $(JO_OPTIONS_FILE),$(JO_OPTIONS))
+endif
 
 .PHONY : all clean re
 
 all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3)
+
+$(OBJS) $(SYSOBJS): $(JO_OPTIONS_FILE)
 
 $(TARGET) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 	$(CC) $(LDFLAGS) $(SYSOBJS) $(OBJS) $(LIBS) -o $@
@@ -323,9 +376,13 @@ $(TARGET) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 $(TARGET1) : $(TARGET) $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 	$(CONV) -O binary $(TARGET) $(TARGET1)
 
-$(TARGET2): $(TARGET1)
+$(IPFILE): $(IPSRC) $(IPTEMPLATE) $(MAKEFILE)
+	$(CC) -m2 -c $(IPFLAGS) -Wa,-I$(CMNDIR) $(IPSRC) -o $(IPOBJ)
+	$(CONV) -O binary $(IPOBJ) $(IPFILE)
+
+$(TARGET2): $(TARGET1) $(IPFILE)
 	$(CONV) -O binary $(TARGET) cd/0.bin
-	$(MKISOFS) $(MKISOFS_FLAGS)
+	$(MKISOFS) $(MKISOFS_SORT) $(MKISOFS_FLAGS)
 
 $(TARGET3): $(TARGET1) $(TARGET2)
 	$(CUE_MAKER)
@@ -333,7 +390,10 @@ $(TARGET3): $(TARGET1) $(TARGET2)
 .c.o:
 	$(CC) $< $(DFLAGS) $(CCFLAGS) $(_CCFLAGS) -o $@
 
+$(JO_ENGINE_SRC_DIR)/start.o: $(JO_ENGINE_SRC_DIR)/start.S
+	$(CC) -m2 -c $< -o $@
+
 clean:
-	$(RM) $(OBJS) $(TARGET) $(TARGET1) $(TARGET2) $(MPFILE) cd/0.bin
+	$(RM) $(OBJS) $(SYSOBJS) $(TARGET) $(TARGET1) $(TARGET2) $(MPFILE) $(IPFILE) $(IPOBJ) cd/0.bin
 
 re: clean all

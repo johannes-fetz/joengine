@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -43,6 +42,7 @@
 #include "jo/image.h"
 #include "jo/tga.h"
 #include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/math.h"
 #include "jo/vdp2.h"
@@ -174,7 +174,8 @@ static char                             *__jo_tga_read_header(char * restrict st
 
         palette = __jo_tga_default_palette;
         palette_length = jo_swap_endian_short(header->color_map_length);
-        if (palette != JO_NULL || (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL))
+        // palette->data is JO_NULL when the color RAM is full (see jo_create_palette())
+        if ((palette != JO_NULL || (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL)) && palette->data != JO_NULL)
         {
             for (JO_ZERO(idx); idx < palette_length && idx < JO_PALETTE_MAX_COLORS; ++idx)
             {
@@ -274,6 +275,26 @@ t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, con
     return (__jo_tga_any_loader((jo_raw_img *)img, sub_dir, filename, transparent_color, &bits));
 }
 
+/** @brief Free the tiles allocated by jo_tga_8bits_tileset_loader() when an error occurs
+ *  @param output_tiles Tiles
+ *  @param allocated Bitset of the tiles allocated by jo_tga_8bits_tileset_loader()
+ *  @param count Number of tiles to check
+ *  @remarks Tiles allocated by the caller are not freed
+ */
+static void                 jo_tga_free_allocated_tiles(jo_raw_img *output_tiles, const unsigned char * const allocated, const unsigned int count)
+{
+    register unsigned int   i;
+
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        if (allocated[JO_DIV_BY_8(i)] & (1 << JO_MOD_POW2(i, 8)))
+        {
+            jo_free(output_tiles[i].data);
+            output_tiles[i].data = JO_NULL;
+        }
+    }
+}
+
 t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count, jo_raw_img *output_tiles)
 {
     t_tga_error_code        response;
@@ -287,7 +308,9 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
     int                     bits;
     int                     delta;
     bool                    row_top;
+    unsigned char           allocated[JO_DIV_BY_8(tile_count) + 1];
 
+    jo_memset(allocated, 0, sizeof(allocated));
     stream = JO_NULL;
     full_image.data = (unsigned short *)-1;/* Disable allocation in __jo_tga_load() */
     response = __jo_tga_load(&full_image, sub_dir, filename, &stream, &bits);
@@ -301,6 +324,7 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
         if (JO_MOD_POW2(tileset[i].width, 8) != 0)
         {
             jo_core_error("%s: Tile width must be multiple of 8", filename);
+            jo_tga_free_allocated_tiles(output_tiles, allocated, i);
             jo_free(stream_begin);
             return (JO_TGA_UNSUPPORTED_FORMAT);
         }
@@ -312,12 +336,14 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
             output_tiles[i].data = jo_malloc_with_behaviour(output_tiles[i].height * output_tiles[i].width * (bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)), JO_FAST_ALLOCATION);
             if (output_tiles[i].data == JO_NULL)
             {
-    #ifdef JO_DEBUG
+#ifdef JO_DEBUG
                 jo_core_error("%s: Out of memory", filename);
-    #endif
+#endif
+                jo_tga_free_allocated_tiles(output_tiles, allocated, i);
                 jo_free(stream_begin);
                 return (JO_TGA_OUT_OF_MEMORY);
             }
+            allocated[JO_DIV_BY_8(i)] |= (1 << JO_MOD_POW2(i, 8));
         }
         for (JO_ZERO(y); y < output_tiles[i].height; ++y)
         {
@@ -372,6 +398,8 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
         if (JO_MOD_POW2(tileset[i].width, 8) != 0)
         {
             jo_core_error("%s: Tile width must be multiple of 8", filename);
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
             jo_free(stream_begin);
             return (-1);
         }
@@ -384,6 +412,9 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
 #ifdef JO_DEBUG
             jo_core_error("%s: Out of memory", filename);
 #endif
+            // Remove the tiles already added
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
             jo_free(stream_begin);
             return (-1);
         }

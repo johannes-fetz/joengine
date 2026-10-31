@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -88,12 +88,14 @@ jo_color            jo_get_palette_register(const unsigned short palette_index);
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
 /** @brief Set foreground palette color for the specific index
-  * @param index Palette index (0 and 1 are reserved)
+  * @param index Printf color index (0 to 7, see jo_set_printf_color_index())
   * @param color Color (Example: JO_COLOR_Red)
+  * @remarks The printf colors are in the first 256 colors of the color RAM (reserved), so they don't conflict with the palettes created by jo_create_palette()
   */
 static  __jo_force_inline void        jo_set_printf_palette_color(const unsigned short index, const unsigned short color)
 {
-    jo_set_palette_register(1 + JO_MULT_BY_256(index), color);
+    // Color 1 of the 16 colors palette "index"
+    jo_set_palette_register(1 + JO_MULT_BY_16(index), color);
 }
 
 #endif

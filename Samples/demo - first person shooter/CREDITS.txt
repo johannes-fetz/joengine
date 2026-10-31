@@ -1,0 +1,18 @@
+Credits of the first person shooter demo
+
+Music (music.wav, the audio track of the CD, see game.cue):
+    "Goldeneye 64 - Facility Remix" by Animattronic
+
+Sound effects (cd/*.WAV): made from free recordings of Pixabay (Pixabay Content License: free to use, attribution not
+required), cut, resampled and mixed with the echo of the rooms:
+    "Door open close"       freesound_community, 45475
+    "AK-47 firing"          microsammy, 8760
+    "Gun reload"            dragon-studio, 504026
+    "Handgun clip in"       freesound_community, 89711
+    "9mm gunshot"           freesound_community, 104571
+    "Slide door sound"      alex_jauk, 221389
+    "Broken glass impact"   universfield, 454859
+    "Grunt sound"           freesound_community, 91784
+    "Pain noises"           freesound_community, 98469 (the 4 cries of pain of the guards)
+
+Textures, models and level: made for this demo (procedural), nothing is taken from another game.
