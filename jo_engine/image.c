@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,6 @@
 ** INCLUDES
 */
 #include <stdbool.h>
-#include "jo/sgl_prototypes.h"
 #include "jo/conf.h"
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -42,6 +41,7 @@
 #include "jo/image.h"
 #include "jo/math.h"
 #include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/tga.h"
 
@@ -92,9 +92,12 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
 {
     register int        i;
     register int        size;
+    unsigned short      *data;
 
-    img->width = jo_swap_endian_ushort(*stream);
-    img->height = jo_swap_endian_ushort(*(stream + 1));
+    // The header and the pixels are 16 bits values (big endian)
+    data = (unsigned short *)stream;
+    img->width = jo_swap_endian_ushort(*data);
+    img->height = jo_swap_endian_ushort(*(data + 1));
     if (img->data == JO_NULL)
         img->data = (unsigned short *)jo_malloc(img->height * img->width * sizeof(*img->data));
     if (img->data == JO_NULL)
@@ -104,11 +107,11 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
 #endif
         return (false);
     }
-    stream += 2; /* Jump header */
+    data += 2; /* Jump header */
     size = img->width * img->height;
     for (JO_ZERO(i); i < size; ++i)
     {
-        img->data[i] = jo_swap_endian_ushort(*(stream + i));
+        img->data[i] = jo_swap_endian_ushort(*(data + i));
         if (transparent_color != JO_COLOR_Transparent && img->data[i] == transparent_color)
             img->data[i] = JO_COLOR_Transparent;
     }
@@ -194,6 +197,8 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
         if (JO_MOD_POW2(tileset[i].width, 8) != 0)
         {
             jo_core_error("%s: Image width must be a multiple of 8", filename);
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
             jo_free(stream_begin);
             return (-1);
         }
@@ -206,6 +211,9 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
 #ifdef JO_DEBUG
             jo_core_error("%s: Out of memory", filename);
 #endif
+            // Remove the tiles already added
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
             jo_free(stream_begin);
             return (-1);
         }
@@ -252,6 +260,26 @@ int						jo_sprite_add_bin(const char * const sub_dir, const char * const filena
     }
 #endif
     id = jo_sprite_add(&img);
+    jo_free_img(&img);
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
+    if (id >= 0)
+        __jo_hash_table[id] = jo_4_char_hash(filename);
+#endif
+    return (id);
+}
+
+int						jo_sprite_add_bin_4bits_lut(const char * const sub_dir, const char * const filename, const jo_color transparent_color)
+{
+    jo_img				img;
+    int					id;
+
+    img.data = JO_NULL;
+    if (!jo_bin_loader(&img, sub_dir, filename, transparent_color))
+        return (-1);
+    // (more than 15 colors: RGB)
+    id = jo_sprite_add_image_4bits_lut(&img);
+    if (id < 0)
+        id = jo_sprite_add(&img);
     jo_free_img(&img);
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
     if (id >= 0)

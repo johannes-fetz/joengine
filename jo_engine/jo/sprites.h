@@ -1,6 +1,6 @@
 /*
 ** Jo Sega Saturn Engine
-** Copyright (c) 2012-2024, Johannes Fetz (johannesfetz@gmail.com)
+** Copyright (c) 2012-2026, Johannes Fetz (johannesfetz@gmail.com)
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -57,6 +57,8 @@ extern jo_texture_definition        __jo_sprite_def[JO_MAX_SPRITE];
  *  @warning MC Hammer: don't touch this
  */
 extern jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
+/** @brief (internal engine usage) Color lookup table of a 16 colors texture (VRAM address / 8), 0: none */
+extern unsigned short           __jo_sprite_lut[JO_MAX_SPRITE];
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
@@ -101,12 +103,61 @@ int		jo_sprite_add(const jo_img * const img);
  */
 int     jo_sprite_add_8bits_image(const jo_img_8bits * const img);
 
+/** @brief Add a 16 colors texture with its color lookup table: 4 bits per pixel (4 times less VRAM than an RGB texture),
+ *  drawn like an RGB texture (the colors of the table are RGB: gouraud shading, half transparency, lights)
+ *  @param pixels 2 pixels per byte (the left pixel in the high bits), the color 0 is transparent
+ *  @param width Width (multiple of 8)
+ *  @param height Height
+ *  @param lut The 16 colors (RGB 555 of the Saturn, the color 0 is not used: transparent)
+ *  @return Sprite Id or -1 if failed
+ *  @remarks The table is kept in the VRAM just before the pixels, in the place of the texture (no sprite of its own)
+ */
+int     jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsigned short width, const unsigned short height,
+                                const jo_color * const lut);
+
+/** @brief Add an RGB image of 14 colors at most (the index 15 is the end code of the VDP1) as a 16 colors texture with its color lookup table (see
+ *  jo_sprite_add_4bits_lut()): the same pixels for 4 times less VRAM (a grey detail texture tinted by the gouraud shading
+ *  has a few levels of grey)
+ *  @param img Image (RGB, the width a multiple of 8, JO_COLOR_Transparent: transparent)
+ *  @return Sprite Id, -1 if the image has more than 14 colors (add it with jo_sprite_add()) or if failed
+ */
+int     jo_sprite_add_image_4bits_lut(const jo_img * const img);
+
+/** @brief Add a 16 colors texture that uses the color lookup table of another one (internal engine usage: smaller copies,
+ *  tiles, see 3d.c)
+ *  @param pixels 2 pixels per byte
+ *  @param width Width (multiple of 8)
+ *  @param height Height
+ *  @param lut Table (VRAM address / 8, see __jo_sprite_lut)
+ *  @return Sprite Id or -1 if failed
+ */
+int     __jo_sprite_add_4bits(const void * const pixels, const unsigned short width, const unsigned short height, const unsigned short lut);
+
 /** @brief Replace a sprite
  *  @param img Pointer to a image struct
  *  @param sprite_id Sprite ID to replace
  *  @return sprite_id
  */
 int     jo_sprite_replace(const jo_img * const img, const int sprite_id);
+
+/** @brief Replace a sprite (internal usage)
+ *  @param img Pointer to a image struct
+ *  @param sprite_id Sprite ID to replace
+ *  @param async true: the copy is done by the DMA controller in the background (see jo_dma_wait())
+ *  @return sprite_id
+ */
+int     __jo_sprite_replace(const jo_img * const img, const int sprite_id, const bool async);
+
+/** @brief Write the VDP1 end codes after the last visible pixel of each line of a sprite (RGB sprites)
+ *  @param sprite_id Sprite Id
+ *  @return false if the sprite is not a RGB sprite
+ *  @remarks The VDP1 stops drawing a line of a sprite after 2 end codes: the transparent pixels at the right of
+ *  the lines (and the transparent lines) are not drawn, the sprite is drawn faster. Useful for the sprites with many
+ *  transparent pixels (plants, clouds, smoke). The VDP1 draws all the pixels of a sprite flipped horizontally
+ *  (it reads the lines from their end). Call it before jo_3d_set_texture_mipmaps()
+ *  @warning The end code of the RGB sprites is the color 0x7FFF (white without the MSB): not used by the images
+ */
+bool    jo_sprite_add_end_codes(const int sprite_id);
 
 /** @brief Free all sprites from the given sprite_id
  *  @param sprite_id Sprite ID to replace
@@ -254,6 +305,15 @@ static  __jo_force_inline void	jo_sprite_disable_gouraud_shading(void)
     JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x4);
 }
 
+/** @brief Gouraud table of the sprites displayed after this call with jo_sprite_enable_gouraud_shading() (instead of the last
+ *  table of jo_set_gouraud_shading_colors(): the tables given by jo_3d_add_gouraud_tables() are kept from a frame to the next)
+ *  @param table Address / 8 of the table (see jo_3d_add_gouraud_tables()), 0: the last table of jo_set_gouraud_shading_colors()
+ */
+static  __jo_force_inline void	jo_sprite_set_gouraud_table(const unsigned short table)
+{
+    __jo_sprite_attributes.gouraud_shading_index = table;
+}
+
 /** @brief Default brightness for jo_set_gouraud_shading_brightness() */
 # define JO_DEFAULT_BRIGHTNESS      (16)
 
@@ -310,8 +370,10 @@ static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
 ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
 */
 
-/** @brief Value used to keep the original scale */
-# define JO_NO_ZOOM             (65535)
+/** @brief Value used to keep the original scale (1.0 in jo_fixed)
+ *  @remarks Sprites without scale and rotation are drawn pixel perfect with the VDP1 normal sprite command
+ */
+# define JO_NO_ZOOM             (65536)
 
 /** @brief Change scale for every sprite displayed after this call
  *  @param scale Sprite scale
@@ -365,6 +427,16 @@ static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
 static  __jo_force_inline void	jo_sprite_set_palette(int palette_id)
 {
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id);
+}
+
+/** @brief Change palette for every 8 bits sprite displayed after this call: their light is added to the image under them
+ *  (see jo_enable_additive_sprites())
+ *  @param palette_id Palette id from jo_create_palette()
+ */
+static  __jo_force_inline void	jo_sprite_set_additive_palette(int palette_id)
+{
+    // (bits 14 and 13: the priority register 3 of the sprites, see JO_VDP2_ADDITIVE_SPRITE_BANK in jo/vdp2.h)
+    __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id) | 0x6000;
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -423,6 +495,18 @@ static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int 
 
 void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates);
 
+/** @brief Display a sprite turned on the screen (any angle: the 4 corners are computed, the sprite is distorted by the VDP1)
+ *  @param sprite_id Sprite Id returned by jo_sprite_add(), jo_sprite_add_tga() or jo_sprite_add_image_pack()
+ *  @param x Horizontal position of the center (pixels from the center of the screen, Q16.16)
+ *  @param y Vertical position of the center (pixels from the center of the screen, Q16.16)
+ *  @param z Z index (depth, Q16.16)
+ *  @param half_width Half of the width on the screen (pixels, Q16.16)
+ *  @param half_height Half of the height on the screen (pixels, Q16.16)
+ *  @param angle Angle in degree (clockwise on the screen)
+ */
+void        jo_sprite_draw_rotated_fixed(const int sprite_id, const jo_fixed x, const jo_fixed y, const jo_fixed z,
+                                         const jo_fixed half_width, const jo_fixed half_height, const int angle);
+
 /*
  ██████╗██╗     ██╗██████╗ ██████╗ ██╗███╗   ██╗ ██████╗
 ██╔════╝██║     ██║██╔══██╗██╔══██╗██║████╗  ██║██╔════╝
@@ -437,14 +521,14 @@ void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * 
  */
 static  __jo_force_inline void	jo_sprite_enable_clipping(bool outside)
 {
-    __jo_sprite_attributes.clipping = outside ? Window_Out : Window_In;
+    __jo_sprite_attributes.clipping = outside ? JO_VDP1_WINDOW_OUT : JO_VDP1_WINDOW_IN;
 }
 
 /** @brief Disable sprite clipping for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_clipping(void)
 {
-    __jo_sprite_attributes.clipping = No_Window;
+    __jo_sprite_attributes.clipping = JO_VDP1_NO_WINDOW;
 }
 
 
@@ -456,6 +540,13 @@ static  __jo_force_inline void	jo_sprite_disable_clipping(void)
  * @param depth Specifies depth up to which sprites get clipped
  */
 void jo_sprite_set_clipping_area(const unsigned int x, const unsigned int y, const unsigned int width, const unsigned int height, const int depth);
+
+/** @brief Set the VDP1 drawing area (system clipping)
+ *  @param width Width of the drawing area (JO_TV_WIDTH by default)
+ *  @param height Height of the drawing area (JO_TV_HEIGHT by default)
+ *  @remarks Useful to draw outside of the visible area of the frame buffer (512 pixels width)
+ */
+void jo_sprite_set_system_clipping_area(const unsigned int width, const unsigned int height);
 
 /*
  ██████╗ ███████╗████████╗    ███████╗██████╗ ██████╗ ██╗████████╗███████╗    ██╗███╗   ██╗███████╗ ██████╗
@@ -552,6 +643,11 @@ static  __jo_force_inline int         jo_sprite_count(void)
  *  @remarks jo_printf(0, 0, "Sprite memory usage: %d%%  ", jo_sprite_usage_percent());
  */
 int                                   jo_sprite_usage_percent(void);
+
+/** @brief Get the free sprite memory (VDP1 VRAM)
+ *  @return Free bytes for the next sprites
+ */
+unsigned int                          jo_sprite_free_memory(void);
 
 #endif /* !__JO_SPRITES_H__ */
 
