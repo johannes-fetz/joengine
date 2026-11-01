@@ -719,6 +719,8 @@ static __jo_force_inline jo_fixed       jo_fixed_floor(const jo_fixed x)
 */
 
 /** @brief Get or set current random seed
+ *  @remarks Set by jo_core_init() from the date. 0 and 2147483647 (2^31 - 1) are replaced by 1 at the next jo_random()
+ *  (they would give the same number forever)
  */
 extern int                      jo_random_seed;
 

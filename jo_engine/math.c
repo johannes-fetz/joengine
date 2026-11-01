@@ -421,9 +421,16 @@ int                             jo_random(int max)
     // so the high part (bits 31 and up) is added to the low part (bits 0 to 30). Same sequence as Schrage's method
     // (2 divisions and 2 modulos by libgcc)
     seed = (unsigned int)jo_random_seed;
-    if (seed == 0 || seed >= JO_RANDOM_M)
+    if (seed == 0 || seed == JO_RANDOM_M)
     {
-        // Seed out of 1 to 2^31 - 2 (0, negative, 2^31 - 1, set by the program): Schrage's method as before
+        // 0 and 2^31 - 1 (0 modulo 2^31 - 1) give 2^31 - 1 forever: jo_random(6) always returned 2 (a seed of 0: the
+        // date of jo_core_init() all at zero, on an emulator). Another seed
+        seed = 1;
+        jo_random_seed = 1;
+    }
+    if (seed >= JO_RANDOM_M)
+    {
+        // Seed out of 1 to 2^31 - 2 (negative, set by the program): Schrage's method as before
         jo_random_seed = JO_RANDOM_A * (jo_random_seed % JO_RANDOM_Q) - JO_RANDOM_R * (jo_random_seed / JO_RANDOM_Q);
         if (jo_random_seed <= 0)
             jo_random_seed += JO_RANDOM_M;
