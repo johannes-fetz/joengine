@@ -1,4 +1,4 @@
-# Jo Engine level file (JOL)
+# Jo Engine level file (JOL) {#level_format}
 
 *This file is made by `Compiler/COMMON/jo_level/gen.py` from `Compiler/COMMON/jo_level/schema.py`: change the schema, not this file.*
 

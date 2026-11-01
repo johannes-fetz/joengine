@@ -1,4 +1,4 @@
-# Jo Engine 3D model file (JOM)
+# Jo Engine 3D model file (JOM) {#model_format}
 
 A model (`.JOM`) holds a mesh made with a 3D software: points, polygons, materials, textures, vertex colors, groups, and optionally a rigid skeleton with its animations. The engine loads it with `jo_3d_load_model()` (`JO_COMPILE_WITH_3D_SUPPORT`, see `jo_engine/jo/model.h`); the converter `Compiler/COMMON/jo_model.py` writes it from a Wavefront OBJ file (and its MTL materials). `jo_model.py --info FILE.JOM` prints the content of a file.
 

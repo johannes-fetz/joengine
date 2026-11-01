@@ -28,7 +28,7 @@ def _table(fields):
 
 
 def make_doc():
-    out = ['# Jo Engine level file (JOL)', '',
+    out = ['# Jo Engine level file (JOL) {#level_format}', '',
            '*This file is made by `Compiler/COMMON/jo_level/gen.py` from `Compiler/COMMON/jo_level/schema.py`: change the '
            'schema, not this file.*', '',
            'A level (`.JOL`) holds the data of a level of a game: terrain, models and their collisions, plants, decals... '

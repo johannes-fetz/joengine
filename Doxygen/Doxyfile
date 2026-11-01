@@ -1099,7 +1099,9 @@ WARN_LOGFILE           =
 # Note : Si cette balise est vide, le répertoire courant est recherche.
 
 INPUT                  = mainpage.md \
-                         ../jo_engine/jo
+                         ../jo_engine/jo \
+                         ../Documentation/level_format.md \
+                         ../Documentation/model_format.md
 
 # Cette balise peut être utilisée pour spécifier l'encodage de caractères des
 # fichiers sources que Doxygen analyse. Interne Doxygen utilise l'encodage
