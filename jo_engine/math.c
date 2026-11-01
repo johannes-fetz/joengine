@@ -301,6 +301,52 @@ int                             jo_atan2_degrees(const jo_fixed y, const jo_fixe
     return (a > 180 ? a - 360 : a);
 }
 
+/** @brief Angle (jo_angle, 0 to 8192: 0 to 45 degrees) of a slope (0 to 1): polynomial approximation of atan(t)
+ *  @param t Slope (Q16.16)
+ *  @return Angle (jo_angle, 65536 per turn)
+ *  @remarks atan(t) ~ t (c1 + t^2 (c3 + t^2 (c5 + t^2 (c7 + t^2 (c9 + t^2 c11))))), the error under 1e-5 radian: under
+ *           one unit of jo_angle (a camera aimed with it does not shake)
+ */
+static jo_angle                 jo_atan_angle_0_45(const jo_fixed t)
+{
+    jo_fixed                    t2;
+    jo_fixed                    p;
+
+    t2 = jo_fixed_mult(t, t);
+    // (the coefficients in radians x 65536: 0.99997726, -0.33262347, 0.19354346, -0.11643287, 0.05265332, -0.01172120)
+    p = -768;
+    p = 3451 + jo_fixed_mult(t2, p);
+    p = -7631 + jo_fixed_mult(t2, p);
+    p = 12684 + jo_fixed_mult(t2, p);
+    p = -21799 + jo_fixed_mult(t2, p);
+    p = 65535 + jo_fixed_mult(t2, p);
+    // (radians to jo_angle: x 32768 / pi = x 10430.378 / 65536 in Q16: the product read in Q16 x 10430.378)
+    return ((jo_angle)((jo_fixed_mult(t, p) * 10430 + jo_fixed_mult(jo_fixed_mult(t, p), 24772)) >> 16));
+}
+
+jo_angle                        jo_atan2_fixed(const jo_fixed y, const jo_fixed x)
+{
+    jo_fixed                    ax;
+    jo_fixed                    ay;
+    int                         a;
+
+    ax = JO_ABS(x);
+    ay = JO_ABS(y);
+    if (ax == 0 && ay == 0)
+        return (0);
+    // First octant: the slope is 0 to 1 (a division of the hardware unit)
+    if (ax >= ay)
+        a = jo_atan_angle_0_45(jo_fixed_div(ay, ax));
+    else
+        a = 16384 - jo_atan_angle_0_45(jo_fixed_div(ax, ay));
+    // Quadrant: -32768 to 32767, the direction of (x, y) like jo_atan2_angle()
+    if (x < 0)
+        a = y < 0 ? a - 32768 : 32768 - a;
+    else if (y < 0)
+        a = -a;
+    return ((jo_angle)a);
+}
+
 float       jo_atan2f_rad(const float y, const float x)
 {
     float   atan;

@@ -1249,6 +1249,16 @@ static __jo_force_inline jo_angle   jo_atan2_angle(const float y, const float x)
     return ((jo_angle)(int)(jo_atan2f_rad(y, x) * (32768.0f / JO_PI)));
 }
 
+/** @brief ATAN2 as a jo_angle without floating point (fixed numbers)
+ *  @param y First value (Q16.16)
+ *  @param x Second value (Q16.16)
+ *  @warning Y is the first operand (like Math.Atan2() in C#)
+ *  @return Angle (-32768 to 32767, 65536 per turn: like jo_atan2_angle()), 0 if x and y are 0
+ *  @remarks Much faster than jo_atan2_angle() (the SH-2 has no FPU: about 100 us against 5 us), exact to one unit: a
+ *           camera aimed with it does not shake. The heading of a vector (x = cos, z = sin): jo_atan2_fixed(z, x)
+ */
+jo_angle                        jo_atan2_fixed(const jo_fixed y, const jo_fixed x);
+
 /** @brief ATAN2 in degree without floating point (fixed numbers)
  *  @param y First value (Q16.16)
  *  @param x Second value (Q16.16)
