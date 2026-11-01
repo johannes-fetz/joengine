@@ -259,12 +259,15 @@ typedef struct
 
 /* (read by the assembly polygon loop: kept with their names by the link time optimization) */
 jo_3d_texture_tiles                         __jo_3d_tiles[JO_MAX_SPRITE] __attribute__((used, externally_visible));
+
 // (the assembly polygon loop reads levels at sprite x 12)
 _Static_assert(sizeof(jo_3d_texture_tiles) == 12, "__jo_3d_polygon_loop: size of jo_3d_texture_tiles");
 // (the assembly polygon loop uses these values, see its label 50)
 _Static_assert(JO_3D_SUBDIVISION_ERROR == 8 && JO_3D_TILES_NEAR_ONLY == 128 && (JO_3D_CODE_SCREEN | JO_3D_CODE_VIEW) == 79 &&
                JO_3D_CODE_MASK == 127, "__jo_3d_polygon_loop: constants");
 _Static_assert(__builtin_offsetof(jo_3d_texture_tiles, depth) == 8, "__jo_3d_polygon_loop: offset of depth");
+_Static_assert(__builtin_offsetof(jo_3d_polygon_attribute, draw_mode) == 4 && JO_VDP1_COLOR_CALC_HALF_TRANSPARENT == 3,
+               "__jo_3d_polygon_loop: the draw mode of the attribute (half transparent)");
 _Static_assert(__builtin_offsetof(jo_3d_texture_tiles, error) == 1, "jo_3d_texture_tiles: the error in the padding after levels");
 
 /** @brief The rectangle of the screen where the objects can be seen (see jo_3d_set_view_rect()): the slopes of its 4 planes
@@ -1127,7 +1130,7 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
  *  @return Cosine between the view space normal and the light direction (Q16.16)
  *  @remarks Not inlined: the fast path of jo_3d_apply_light() needs no stack
  *  @remarks Uniform scale: (n . l) / (scale |n|), a square root and a division (the normals of the models exported by Jo
- *           Map Editor are not unit vectors: 117 of the 192 normals of the rock of the demo "advanced 3D"). The same result as
+ *           Map Editor are not unit vectors: 117 of the 192 normals of a rock model). The same result as
  *           the normal transformed and normalized within 0.0006 (0.0025 for the normal transformed), measured on PC. The very
  *           short or very long normals are transformed and normalized
  */
@@ -4050,6 +4053,7 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
             JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) < w->top || JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom);
 }
 
+
 /** @brief Draw one polygon: the general case (see __jo_3d_polygon_loop())
  *  @param k Parameters of the loop
  *  @param p Polygon
@@ -4673,13 +4677,14 @@ __asm__(
 "    mov.l 20f, r1\n"
 "    add r0, r1\n"                      /* r1: the tiles of the texture (jo_3d_texture_tiles) */
      /* (the polygons farther than the depth of the tiles are not drawn in parts, see jo_3d_set_texture_subdivision_depth():
-      * fast path. 0: all the polygons) */
+      * fast path (the label 2: the sort key). 0: all the polygons. They went to the slow path (the label 8) before:
+      * about 260 polygons per frame of a big scene emitted by the C code, about 3 ms on each CPU) */
 "    mov.l @(8, r1), r0\n"
 "    tst r0, r0\n"
 "    bt 1f\n"
 "    mov.l @r15, r1\n"                  /* minimum depth */
 "    cmp/gt r0, r1\n"
-"    bt 8b\n"
+"    bt 2f\n"
      /* (maximum depth (r1), only when it is needed: here and for JO_3D_SORT_MAX) */
 "1:  mov.l @(4, r4), r1\n"
 "    mov.l @(4, r5), r0\n"
@@ -5013,7 +5018,15 @@ __asm__(
 "    mov.l @(4, r7), r1\n"
 "    or r1, r0\n"
 "    tst #79, r0\n"
-"    bt 57f\n"                         /* the same */
+"    bt 57f\n"
+     /* (a vertex out of the screen (in the guard band: projected): the slow path only for a half transparent polygon or
+      * the tiles of a model cut when it was made (drawn in parts when mostly out of the screen, see
+      * jo_3d_subdivision_level_unbudgeted()); the others are tested here like the ones on the screen (they all went to
+      * the slow path, the C code found most of them drawn as one polygon) */
+"    mov.w @(4, r9), r0\n"               /* draw mode: JO_VDP1_COLOR_CALC_HALF_TRANSPARENT (3) */
+"    and #3, r0\n"
+"    cmp/eq #3, r0\n"
+"    bf 57f\n"
 "    bra 54f\n"
 "    nop\n"
 "57:\n"
@@ -5028,7 +5041,20 @@ __asm__(
 "    add r0, r1\n"
 "    mov.b @r1, r0\n"
 "    tst #128, r0\n"
-"    bf 55f\n"
+"    bt 58f\n"
+     /* (tiles of a model cut when it was made: never drawn in parts on the screen, in parts when mostly out of it) */
+"    mov.l @(4, r4), r0\n"
+"    mov.l @(4, r5), r2\n"
+"    or r2, r0\n"
+"    mov.l @(4, r6), r2\n"
+"    or r2, r0\n"
+"    mov.l @(4, r7), r2\n"
+"    or r2, r0\n"
+"    tst #79, r0\n"
+"    bt 55f\n"
+"    bra 54f\n"
+"    nop\n"
+"58:\n"
 "    mov.b @(1, r1), r0\n"               /* the distortion allowed (0: JO_3D_SUBDIVISION_ERROR) */
 "    extu.b r0, r0\n"
 "    tst r0, r0\n"

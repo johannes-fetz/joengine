@@ -1492,8 +1492,8 @@ jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned in
 bool                                jo_3d_set_texture_subdivision(const int sprite_id);
 
 /** @brief Like jo_3d_set_texture_subdivision(), but only the polygons that cross the near plane (or go very far outside of
- *  the screen) are drawn in parts: a model already cut in small quads when it was made (the walls of a level, their quads
- *  share their edges) keeps its quads as they are, the parts of a quad next to a whole quad overlapped it
+ *  the screen) are drawn in parts: a model already cut in small quads when it was made keeps its quads as they are,
+ *  the parts of a quad next to a whole quad overlapped it
  *  @param sprite_id Texture (see jo_3d_set_texture_subdivision())
  *  @return true if the tiles were created
  */
