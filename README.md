@@ -9,6 +9,8 @@ Development on Windows, Linux and macOS (for macOS, see [Compiler/MACOS/README.t
 
 Website: https://jo-engine.org/
 
+Documentation: https://www.jo-engine.org/doxygen/
+
 Main forum: https://segaxtreme.net/forums/saturn-dev.34/
 
 X (aka Twitter): https://twitter.com/johannes_fetz
