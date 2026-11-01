@@ -4053,6 +4053,14 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
             JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) < w->top || JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom);
 }
 
+#ifdef JO_TEST_PATH_COUNTS
+/** @brief Test (JO_TEST_PATH_COUNTS, read by the game and printed with the profile): the polygons through the general path,
+ *  by CPU (0: master, 4: slave) and reason (0: none, drawn as one polygon by the C code, 1: drawn in parts, 2: clipped,
+ *  3: the commands of the parts); [1][0] and [5][0]: the polygons of the C loop (a mirror, a tint, an environment map...).
+ *  All the textured polygons with tiles beyond their subdivision depth were in [.][0] (the assembly loop sent them to the
+ *  slow path by mistake): 260 per frame, about 3 ms on each CPU */
+volatile unsigned int                       __jo_3d_path_counts[8][4];
+#endif
 
 /** @brief Draw one polygon: the general case (see __jo_3d_polygon_loop())
  *  @param k Parameters of the loop
@@ -4099,11 +4107,20 @@ static bool                                 jo_3d_draw_polygon_general(const jo_
         return (true);
     // Near the camera: drawn in parts (see jo_3d_set_texture_subdivision())
     level = jo_3d_subdivision_level(v, any, a);
+#ifdef JO_TEST_PATH_COUNTS
+    ++__jo_3d_path_counts[ctx->slave ? 4 : 0][level > 0 ? 1 : ((any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) ? 2 : 0)];
+#endif
     if (level > 0)
     {
         jo_profile_begin(JO_PROFILE_3D_CLIP);
+#ifdef JO_TEST_PATH_COUNTS
+        __jo_3d_path_counts[ctx->slave ? 4 : 0][3] -= *k->used;
+#endif
         result = jo_3d_emit_subdivided_polygon(ctx, v, level, s->near_z, s->w, s->right, s->bottom, p, a, k->commands, k->keys, k->reserved,
                                                k->used, s->light, s->clip);
+#ifdef JO_TEST_PATH_COUNTS
+        __jo_3d_path_counts[ctx->slave ? 4 : 0][3] += *k->used;
+#endif
         jo_profile_end(JO_PROFILE_3D_CLIP);
         return (result);
     }
@@ -5316,6 +5333,10 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
             }
             continue;
         }
+#ifdef JO_TEST_PATH_COUNTS
+        // (the C loop: the polygons of the range)
+        __jo_3d_path_counts[ctx->slave ? 5 : 1][0] += range->count;
+#endif
         for (; p < loop.end; ++p, ++a)
             if (!__jo_3d_draw_polygon_slow(&loop, p, a))
             {
