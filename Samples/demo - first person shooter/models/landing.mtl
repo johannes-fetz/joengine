@@ -1,0 +1,28 @@
+# Materials of landing
+
+newmtl m0
+Kd 1 1 1
+map_Kd floor.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 1
+jo_subdivision_error 4
+jo_mipmaps 0
+jo_sort max
+
+newmtl m1
+Kd 1 1 1
+map_Kd ceiling.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 1
+jo_mipmaps 0
+
+newmtl m2
+Kd 1 1 1
+map_Kd stone.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 1
+jo_mipmaps 0
+

@@ -1,0 +1,245 @@
+# Materials of the guard: a texture per part, the light: the gouraud shading (the vertex colors)
+
+newmtl guard_beltf
+Kd 1 1 1
+map_Kd gbeltf.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_belt
+Kd 1 1 1
+map_Kd gbelt.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j00
+Kd 1 1 1
+map_Kd gj00.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j01
+Kd 1 1 1
+map_Kd gj01.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_shirt
+Kd 1 1 1
+map_Kd gshirt.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_jacketb
+Kd 1 1 1
+map_Kd gjacketb.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j01_flip
+Kd 1 1 1
+map_Kd gj01.png
+jo_gouraud 1
+jo_lut 1
+jo_flip h
+
+newmtl guard_j10
+Kd 1 1 1
+map_Kd gj10.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j11
+Kd 1 1 1
+map_Kd gj11.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j11_flip
+Kd 1 1 1
+map_Kd gj11.png
+jo_gouraud 1
+jo_lut 1
+jo_flip h
+
+newmtl guard_j20
+Kd 1 1 1
+map_Kd gj20.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j21
+Kd 1 1 1
+map_Kd gj21.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_j21_flip
+Kd 1 1 1
+map_Kd gj21.png
+jo_gouraud 1
+jo_lut 1
+jo_flip h
+
+newmtl guard_epaul
+Kd 1 1 1
+map_Kd gepaul.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_neck
+Kd 1 1 1
+map_Kd gneck.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_h00
+Kd 1 1 1
+map_Kd gh00.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h01
+Kd 1 1 1
+map_Kd gh01.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h02
+Kd 1 1 1
+map_Kd gh02.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_hnape
+Kd 1 1 1
+map_Kd ghnape.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h02_flip
+Kd 1 1 1
+map_Kd gh02.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_h01_flip
+Kd 1 1 1
+map_Kd gh01.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_h10
+Kd 1 1 1
+map_Kd gh10.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h11
+Kd 1 1 1
+map_Kd gh11.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h12
+Kd 1 1 1
+map_Kd gh12.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_hhairb
+Kd 1 1 1
+map_Kd ghhairb.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h12_flip
+Kd 1 1 1
+map_Kd gh12.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_h11_flip
+Kd 1 1 1
+map_Kd gh11.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_h20
+Kd 1 1 1
+map_Kd gh20.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h21
+Kd 1 1 1
+map_Kd gh21.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h22
+Kd 1 1 1
+map_Kd gh22.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_h22_flip
+Kd 1 1 1
+map_Kd gh22.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_h21_flip
+Kd 1 1 1
+map_Kd gh21.png
+jo_gouraud 1
+jo_lut 0
+jo_flip h
+
+newmtl guard_hhairt
+Kd 1 1 1
+map_Kd ghhairt.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_skin
+Kd 1 1 1
+map_Kd gskin.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_pants
+Kd 1 1 1
+map_Kd gpants.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_boots
+Kd 1 1 1
+map_Kd gboots.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_boott
+Kd 1 1 1
+map_Kd gboott.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_capf
+Kd 1 1 1
+map_Kd gcapf.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_cap
+Kd 1 1 1
+map_Kd gcap.png
+jo_gouraud 1
+jo_lut 1
+
