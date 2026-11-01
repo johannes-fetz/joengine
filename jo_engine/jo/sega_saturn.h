@@ -561,6 +561,8 @@ extern unsigned int                             _jo_work_start;
 # define JO_SH2_FRT_FTCSR_ICF       (1 << 7)
 /** @brief FTCSR: output compare flag A */
 # define JO_SH2_FRT_FTCSR_OCFA      (1 << 3)
+/** @brief TIER: input capture interrupt enabled */
+# define JO_SH2_FRT_TIER_ICIE       (1 << 7)
 /** @brief TIER: output compare interrupt A enabled */
 # define JO_SH2_FRT_TIER_OCIAE      (1 << 3)
 /** @brief Free running timer: output compare register A (high byte, see JO_SH2_FRT_TOCR)  */
