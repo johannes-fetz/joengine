@@ -643,6 +643,18 @@ void			        jo_core_run(void)
     jo_profile_begin(JO_PROFILE_FRAME);
     for (;;)
     {
+#ifdef JO_TEST_PCPROF_FRAME
+        {
+            static int pcprof_frame;
+            if (++pcprof_frame == JO_TEST_PCPROF_FRAME)
+                jo_profile_sampling_start((unsigned int *)0x002E0000,
+# ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+                                          (unsigned int *)0x002F0000);
+# else
+                                          JO_NULL);
+# endif
+        }
+#endif
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
         __jo_3d_reset_matrix();
