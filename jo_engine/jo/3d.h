@@ -1687,6 +1687,12 @@ void                                jo_3d_slave_set_kept_commands(const int coun
  */
 unsigned short                      jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count);
 
+/** @brief Sprites freed from a sprite (see jo_sprite_free_from()): the shared sprite of the gouraud tables is dropped
+ *  if it is among them
+ *  @param sprite_id First sprite freed
+ */
+void                                __jo_3d_gouraud_pool_freed(const int sprite_id);
+
 /** @brief Tint the next meshes drawn by the master CPU: added to the colors of their gouraud tables (the light of a lamp on
  *  a character, see jo_3d_point_lights_sample()), jo_3d_set_tint(0, 0, 0) to stop
  *  @param r Red added (gouraud units, -31 to 31, steps of 2)

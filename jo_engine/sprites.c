@@ -429,6 +429,7 @@ void                        jo_sprite_free_from(const int sprite_id)
     if (sprite_id > __jo_sprite_id)
         return ;
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
+    __jo_3d_gouraud_pool_freed(sprite_id);
     // The last sprite is included
     for (i = sprite_id; i <= __jo_sprite_id; ++i)
     {

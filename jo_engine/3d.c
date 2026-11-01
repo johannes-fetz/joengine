@@ -7116,13 +7116,43 @@ jo_3d_mesh                                  *jo_3d_create_indexed_mesh(const uns
     return (mesh);
 }
 
+/** @brief The pool of the small sets of gouraud tables: one sprite of JO_3D_GOURAUD_POOL_LINES lines shared by the
+ *  models (a sprite per model used up the sprites: 1000 small models, 1600 sprites) */
+#define JO_3D_GOURAUD_POOL_LINES                (256)
+static int                                  __jo_3d_gouraud_pool_sprite = -1;
+static unsigned int                         __jo_3d_gouraud_pool_used = 0;
+
+void                                        __jo_3d_gouraud_pool_freed(const int sprite_id)
+{
+    if (sprite_id <= __jo_3d_gouraud_pool_sprite)
+        __jo_3d_gouraud_pool_sprite = -1;
+}
+
 unsigned short                              jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count)
 {
     jo_img                                  img;
     jo_color                                *zero;
     int                                     id;
+    unsigned int                            lines;
+    unsigned short                          adr;
 
     // A sprite of 8 pixels per line holds 2 tables per line
+    lines = (count + 1) / 2;
+    if (tables != JO_NULL && lines <= JO_3D_GOURAUD_POOL_LINES / 4)
+    {
+        // A small set: in the shared sprite (a new one when it is full)
+        if (__jo_3d_gouraud_pool_sprite < 0 || __jo_3d_gouraud_pool_used + lines > JO_3D_GOURAUD_POOL_LINES)
+        {
+            if (jo_3d_add_gouraud_tables(JO_NULL, JO_3D_GOURAUD_POOL_LINES * 2) == 0)
+                return (0);
+            __jo_3d_gouraud_pool_sprite = jo_get_last_sprite_id();
+            __jo_3d_gouraud_pool_used = 0;
+        }
+        adr = (unsigned short)(__jo_sprite_def[__jo_3d_gouraud_pool_sprite].adr + __jo_3d_gouraud_pool_used * 2);
+        jo_memcpy((void *)(JO_VDP1_VRAM + JO_MULT_BY_8(adr)), tables, count * 4 * sizeof(jo_color));
+        __jo_3d_gouraud_pool_used += lines;
+        return (adr);
+    }
     zero = JO_NULL;
     if (tables == JO_NULL)
     {
@@ -7132,7 +7162,7 @@ unsigned short                              jo_3d_add_gouraud_tables(const jo_co
         jo_memset(zero, 0, ((count + 1) / 2) * 8 * sizeof(jo_color));
     }
     img.width = 8;
-    img.height = (count + 1) / 2;
+    img.height = lines;
     img.data = tables != JO_NULL ? (jo_color *)tables : zero;
     id = jo_sprite_add(&img);
     if (zero != JO_NULL)
