@@ -1,0 +1,58 @@
+# Materials of barrel
+
+newmtl m0
+Kd 1 1 1
+map_Kd barrels_t.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m1
+Kd 1 1 1
+map_Kd barrels_b.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m2
+Kd 1 1 1
+map_Kd barrel_t.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m3
+Kd 1 1 1
+map_Kd barrel_b.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m4
+Kd 1 1 1
+map_Kd barrelh_t.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m5
+Kd 1 1 1
+map_Kd barrelh_b.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m6
+Kd 1 1 1
+map_Kd barrelt.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+

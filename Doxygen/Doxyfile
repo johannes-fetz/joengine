@@ -50,7 +50,7 @@ PROJECT_NAME           = "Jo Engine"
 # de révision. Cela peut être utile pour archiver la documentation générée ou si
 # un système de contrôle de version est utilisé.
 
-PROJECT_NUMBER         = 2026.10.31
+PROJECT_NUMBER         = 2026.11.1
 
 # En utilisant la balise PROJECT_BRIEF, on peut fournir une description
 # optionnelle d'une ligne pour un projet qui apparaît en haut de chaque page et
@@ -1099,7 +1099,9 @@ WARN_LOGFILE           =
 # Note : Si cette balise est vide, le répertoire courant est recherche.
 
 INPUT                  = mainpage.md \
-                         ../jo_engine/jo
+                         ../jo_engine/jo \
+                         ../Documentation/level_format.md \
+                         ../Documentation/model_format.md
 
 # Cette balise peut être utilisée pour spécifier l'encodage de caractères des
 # fichiers sources que Doxygen analyse. Interne Doxygen utilise l'encodage

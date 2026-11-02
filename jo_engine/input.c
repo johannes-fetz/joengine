@@ -140,6 +140,17 @@ int                             jo_get_input_count(void)
     return (count);
 }
 
+int                             jo_get_player_input_port(const int player)
+{
+    register int                i;
+    int                         n;
+
+    for (JO_ZERO(i), JO_ZERO(n); i < JO_INPUT_MAX_DEVICE; ++i)
+        if (jo_inputs[i].id != JO_PERIPHERAL_ID_NOT_CONNECTED && n++ == player)
+            return (i);
+    return (-1);
+}
+
 unsigned char                   jo_get_input_axis(const int port, const jo_input_axis axis)
 {
     // TODO: Implement other analog devices

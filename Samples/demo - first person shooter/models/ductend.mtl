@@ -1,0 +1,18 @@
+# Materials of ductend
+
+newmtl m0
+Kd 1 1 1
+map_Kd ductfl.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 1
+jo_mipmaps 0
+
+newmtl m1
+Kd 1 1 1
+map_Kd duct.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 1
+jo_mipmaps 0
+

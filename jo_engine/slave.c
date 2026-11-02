@@ -110,6 +110,74 @@ static volatile unsigned int        __jo_slave_user_added;
  *  @remarks idle: JO_SLAVE_IDLE_TICKS at the last jo_core_wait_for_slave(), waited: ticks the master CPU waited */
 static unsigned int                 __jo_slave_last_idle_ticks;
 static int                          __jo_slave_idle_time;
+/** @brief Microseconds the master CPU waited in the last jo_core_wait_for_slave() (see jo_core_master_wait_time()) */
+static int                          __jo_slave_master_wait_time;
+
+#ifndef JO_SLAVE_BUSY_WAIT
+/*
+** THE SLAVE CPU SLEEPS WHILE IT WAITS
+**
+** The slave CPU waits for its jobs in SLEEP (the CPU stops until an interrupt), not in a loop on the flag of its free
+** running timer: an emulator (Mednafen) does not run the instructions of a sleeping CPU (a game ran 7 % faster with
+** the master CPU sleeping in its wait of the VBLANK, see __jo_core_synch(); the slave CPU idle 9 to 17 ms per frame).
+** The master CPU wakes up the slave CPU by a write to its FRT input capture: the input capture interrupt (vector
+** JO_SLAVE_WAKE_UP_VECTOR, priority 15, the slave CPU runs at the level 14 like the sampling of the profiler) sets
+** __jo_slave_woken and clears the flag. A wake-up between the test of the flag and the SLEEP is lost until the next
+** write: the master CPU writes again while it waits for the slave CPU (jo_core_wait_for_slave()).
+** The vectors of the slave CPU: its own table (the table of the Boot ROM stands under its stack: an interrupt during
+** the loading of a level, the stack deep, jumped into the stack).
+*/
+/** @brief Vector of the input capture interrupt of the free running timer (user vectors: 64 to 127; 0x66: the sampling
+ *  of the profiler) */
+# define JO_SLAVE_WAKE_UP_VECTOR            (0x64)
+/** @brief Set by the input capture interrupt of the slave CPU (its own CPU: no cache-through needed) */
+volatile unsigned int               __jo_slave_woken __attribute__((used, externally_visible));
+/** @brief The vectors of the slave CPU (a copy of the table of the Boot ROM, the wake-up handler added) */
+static unsigned int                 __jo_slave_vectors[256] __attribute__((aligned(4)));
+
+/** @brief Input capture interrupt handler of the slave CPU: the flag cleared, __jo_slave_woken set */
+__asm__(
+"    .align 2\n"
+"    .global ___jo_slave_wake_up_handler\n"
+"___jo_slave_wake_up_handler:\n"
+"    mov.l r0, @-r15\n"
+"    mov.l r1, @-r15\n"
+"    mov.l 1f, r1\n"                    /* FTCSR: clear ICF */
+"    mov.b @r1, r0\n"
+"    and #0x7F, r0\n"
+"    mov.b r0, @r1\n"
+"    mov.l 2f, r1\n"
+"    mov #1, r0\n"
+"    mov.l r0, @r1\n"
+"    mov.l @r15+, r1\n"
+"    mov.l @r15+, r0\n"
+"    rte\n"
+"    nop\n"
+"    .align 2\n"
+"1:  .long 0xFFFFFE11\n"
+"2:  .long ___jo_slave_woken\n"
+);
+extern void                         __jo_slave_wake_up_handler(void);
+
+/** @brief Slave CPU: its vectors, the wake-up interrupt (called once by jo_slave_main()) */
+static void                         jo_slave_sleep_init(void)
+{
+    const unsigned int              *bios;
+    unsigned int                    k;
+
+    __asm__ volatile ("stc vbr, %0" : "=r" (bios));
+    for (JO_ZERO(k); k < 256; ++k)
+        __jo_slave_vectors[k] = bios[k];
+    __jo_slave_vectors[JO_SLAVE_WAKE_UP_VECTOR] = (unsigned int)__jo_slave_wake_up_handler;
+    __asm__ volatile ("ldc %0, vbr" : : "r" (__jo_slave_vectors));
+    // (the input capture vector: the high byte of VCRC; the low byte: the output compare, the sampling of the profiler)
+    JO_SH2_VCRC = (unsigned short)((JO_SH2_VCRC & 0x00FF) | (JO_SLAVE_WAKE_UP_VECTOR << 8));
+    // (the free running timer at the priority 15: the slave CPU runs at the level 14)
+    JO_SH2_IPRB = (unsigned short)((JO_SH2_IPRB & 0xF0FF) | 0x0F00);
+    JO_ZERO(__jo_slave_woken);
+    __jo_core_set_sr(0xE0);
+}
+#endif
 
 inline int			jo_core_add_slave_callback(const jo_event_callback callback)
 {
@@ -174,6 +242,9 @@ static void                         jo_slave_main(void)
     // Purge and enable the cache
     JO_SH2_CCR = JO_SH2_CCR_CACHE_PURGE;
     JO_SH2_CCR = JO_SH2_CCR_CACHE_ENABLE;
+#ifndef JO_SLAVE_BUSY_WAIT
+    jo_slave_sleep_init();
+#endif
     JO_SLAVE_RUNNING = 1;
     for (;;)
     {
@@ -186,9 +257,20 @@ static void                         jo_slave_main(void)
             counting = JO_SLAVE_USER_DONE == JO_SLAVE_USER_ADDED && !JO_SLAVE_MASTER_WAITING;
             while (JO_SLAVE_QUEUE_HEAD == tail)
             {
+#ifdef JO_SLAVE_BUSY_WAIT
                 while (!(JO_SH2_FRT_FTCSR & JO_SH2_FRT_FTCSR_ICF))
                     ;
                 JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_ICF;
+#else
+                // (the interrupt enabled again each time: the sampling of the profiler writes TIER, see jo_profile_sampling_install())
+                JO_SH2_FRT_TIER = JO_SH2_FRT_TIER | JO_SH2_FRT_TIER_ICIE;
+                JO_ZERO(__jo_slave_woken);
+                // (a job added before the flag was cleared: not waited for)
+                if (JO_SLAVE_QUEUE_HEAD != tail)
+                    break;
+                while (!__jo_slave_woken)
+                    __asm__ volatile ("sleep");
+#endif
                 if (counting && JO_SLAVE_MASTER_WAITING)
                 {
                     JO_SLAVE_IDLE_TICKS = JO_SLAVE_IDLE_TICKS + ((jo_time_get_frc() - start) & 0xFFFF);
@@ -281,14 +363,17 @@ inline void                        jo_core_wait_for_slave(void)
     start = jo_time_get_frc();
     JO_SLAVE_MASTER_WAITING = 1;
     JO_SLAVE_WAKE_UP = JO_SLAVE_WAKE_UP_VALUE;
-    while (JO_SLAVE_USER_DONE != JO_SLAVE_USER_ADDED)
-        ;
+    // (written again now and then: a wake-up lost by the slave CPU between its test and its SLEEP, see jo_slave_main())
+    for (JO_ZERO(waited); JO_SLAVE_USER_DONE != JO_SLAVE_USER_ADDED; ++waited)
+        if ((waited & 63) == 63)
+            JO_SLAVE_WAKE_UP = JO_SLAVE_WAKE_UP_VALUE;
     waited = (jo_time_get_frc() - start) & 0xFFFF;
     // The data written by the slave CPU
     jo_slave_cache_purge();
     // The balance of the frame: the slave CPU waited for its jobs (it can do more), or the master CPU waited for it
     idle = JO_SLAVE_IDLE_TICKS;
-    __jo_slave_idle_time = JO_SLAVE_TICK_MICROSECONDS((int)(idle - __jo_slave_last_idle_ticks)) - JO_SLAVE_TICK_MICROSECONDS((int)waited);
+    __jo_slave_master_wait_time = JO_SLAVE_TICK_MICROSECONDS((int)waited);
+    __jo_slave_idle_time = JO_SLAVE_TICK_MICROSECONDS((int)(idle - __jo_slave_last_idle_ticks)) - __jo_slave_master_wait_time;
     __jo_slave_last_idle_ticks = idle;
     jo_profile_end(JO_PROFILE_WAIT_SLAVE);
 }
@@ -296,6 +381,11 @@ inline void                        jo_core_wait_for_slave(void)
 inline int                         jo_core_slave_idle_time(void)
 {
     return (__jo_slave_idle_time);
+}
+
+inline int                         jo_core_master_wait_time(void)
+{
+    return (__jo_slave_master_wait_time);
 }
 
 inline void                        jo_core_exec_on_slave(jo_slave_callback callback)

@@ -58,10 +58,9 @@ typedef struct
 // CRAM
 # define CRAM_PALETTE_SIZE      (256)
 int                             __jo_current_palette_id = 0;
-// The first palette is reserved. A palette starts at the first color of its block of 256 (the index 0 of an image is
-// its color 0): one color later before, the colors of the 8 bits images (jo_img_8bits, the TGA files) were shifted by one
-// index, a logo with an unordered palette had speckles
-static jo_color                 *__jo_cram = ((jo_color *)JO_VDP2_CRAM) + CRAM_PALETTE_SIZE;
+// The first palette is reserved. The data of a palette starts at the second color of its block of 256: the index 0 of a
+// pixel is transparent, the pixel k shows the color data[k - 1] (the TGA files: their index + 1, see jo_tga_get_pixel())
+static jo_color                 *__jo_cram = ((jo_color *)JO_VDP2_CRAM) + CRAM_PALETTE_SIZE + 1;
 // A0
 # define A0_SEGMENT_COUNT       (6)
 static unsigned char            *__jo_a0 = (unsigned char *)JO_VDP2_VRAM_A0;

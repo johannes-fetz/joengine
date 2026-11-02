@@ -107,7 +107,7 @@ Modules
 | \ref map.h | Tile maps |
 | \ref mode7.h | Mode 7 floor |
 | \ref 3d.h | 3D meshes, camera, matrices, texture subdivision, slave CPU rendering |
-| \ref model.h | 3D models (.JOM files made by `Compiler/COMMON/jo_model.py`), skeletons and poses |
+| \ref model.h | 3D models (.JOM files, see \ref model_format) made by `Compiler/COMMON/jo_model.py`, skeletons and poses |
 | \ref light.h | Point lights baked in the gouraud tables of the meshes |
 | \ref glow.h | Glows: the halo of light around a lamp (VDP2 layers) |
 | \ref software_renderer.h | Triangle based software renderer |
@@ -132,7 +132,7 @@ Modules
 ### Levels (JO_COMPILE_WITH_LEVEL_MODULE)
 | Header | Content |
 |--------|---------|
-| \ref level.h | Levels (.JOL files, see `Documentation/level_format.md`), written by `Compiler/COMMON/jo_level` |
+| \ref level.h | Levels (.JOL files, see \ref level_format), written by `Compiler/COMMON/jo_level` |
 | \ref level_format.h | The sections of a level file |
 | \ref cell.h | Cells and portals: the rooms of an inside level, the visibility |
 | \ref entity.h | Entities: doors, explosives, triggers, actors (animated models), enemies |
@@ -147,6 +147,17 @@ Modules
 | \ref physics.h | Basic physics |
 | \ref profile.h | Profiler: the time of the CPUs and of the VDP1 in each frame |
 
+File formats
+------------
+
+| Page | Content |
+|------|---------|
+| \ref model_format | 3D models (.JOM): points, polygons, materials, textures, vertex colors, groups, skeletons and animations |
+| \ref level_format | Levels (.JOL): the sections of a level file (terrain, cells and portals, entities, weapons, vehicles, etc) |
+
+The sources of these pages are in the `Documentation` folder (`level_format.md` is generated from the schema of
+`Compiler/COMMON/jo_level`).
+
 Samples
 -------
 
@@ -159,7 +170,7 @@ Tools
 
 The Python scripts of `Compiler/COMMON` prepare the assets of a game:
 
-- `jo_model.py`: converts a Wavefront OBJ model (and its textures) into a .JOM file (\ref model.h)
-- `jo_level`: writes, reads and checks .JOL level files (\ref level.h)
+- `jo_model.py`: converts a Wavefront OBJ model (and its textures) into a .JOM file (\ref model_format)
+- `jo_level`: writes, reads and checks .JOL level files (\ref level_format)
 - `jo_lz.py`: compresses a file for jo_lz_decompress() (\ref tools.h)
 - `scudsp_asm.py` and `scsp_dsp_asm.py`: assemblers of the SCU DSP and of the SCSP DSP

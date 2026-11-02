@@ -1183,12 +1183,17 @@ static  __jo_force_inline bool      jo_3d_window(const int left, const int top, 
 }
 
 /** @brief The 3D polygons drawn in the current window are clipped by the VDP1 to its rectangle (user clipping: a mirror,
- *  a rear-view mirror), or not (default: the whole screen)
+ *  a rear-view mirror, a view of a split screen), or not (default: the whole screen)
  *  @param clip true: clipped to the rectangle of jo_3d_window()
+ *  @remarks With windows apart (jo_3d_set_windows_apart(), set before), a clipped window is a screen of its own: the
+ *  polygons are culled, cut and drawn in parts against its rectangle, not against the whole screen (its commands are
+ *  relative to its top left corner: the local coordinates of the VDP1, written at the end of the frame: the window must
+ *  not change during the frame). Else the polygons are only clipped by the VDP1 to the rectangle of the window at the end
+ *  of the frame (a mirror)
  */
 static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
 {
-    __jo_vdp1_windows[__jo_vdp1_current_window].clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
+    __jo_vdp1_set_window_clip(clip);
 }
 
 /** @brief Near window (default) for jo_3d_select_window() */
@@ -1206,6 +1211,18 @@ static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
 static  __jo_force_inline void      jo_3d_select_window(const int window)
 {
     __jo_vdp1_select_window(window);
+}
+
+/** @brief The windows do not overlap (a split screen: a view per player in its window): the commands of each window are
+ *  drawn together, window after window (window 0 first), sorted by depth in their window; else (default) the commands of
+ *  all the windows are sorted together by depth (a mirror in the view: its window over the other one)
+ *  @param apart true: the windows drawn one after the other
+ *  @remarks From the next frame (applied when the commands of a frame are sorted). Mixed by depth, the commands of 2 windows
+ *  side by side change the window hundreds of times per frame: each change costs a header of 3 commands in the VRAM
+ */
+static  __jo_force_inline void      jo_3d_set_windows_apart(const bool apart)
+{
+    __jo_vdp1_windows_apart = apart;
 }
 
 /** @brief Set the perspective angle
@@ -1492,8 +1509,8 @@ jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned in
 bool                                jo_3d_set_texture_subdivision(const int sprite_id);
 
 /** @brief Like jo_3d_set_texture_subdivision(), but only the polygons that cross the near plane (or go very far outside of
- *  the screen) are drawn in parts: a model already cut in small quads when it was made (the walls of a level, their quads
- *  share their edges) keeps its quads as they are, the parts of a quad next to a whole quad overlapped it
+ *  the screen) are drawn in parts: a model already cut in small quads when it was made keeps its quads as they are,
+ *  the parts of a quad next to a whole quad overlapped it
  *  @param sprite_id Texture (see jo_3d_set_texture_subdivision())
  *  @return true if the tiles were created
  */
@@ -1522,6 +1539,9 @@ void                                jo_3d_set_texture_subdivision_error(const in
  *  its texture. The smallest copy that has at least as many texels as pixels on the screen is used: the polygons and the
  *  standing sprites (jo_3d_draw_standing_sprite()) far away cost less VDP1 time, and their texture flickers less
  *  @remarks The copies are new sprites (a third of the VRAM of the texture). Call it once, after the texture was added
+ *  @remarks A polygon with the texture seen as a thin line of the screen (the ground at a grazing angle, 64 pixels long at
+ *  least and 4 pixels wide at most) is drawn as a polygon of the mean color of the texture, as thin as it: the VDP1 drew
+ *  its lines along the whole polygon (about the square of its length in pixels, 10 to 20 % of a frame on a hilly ground)
  */
 bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
 
@@ -1686,6 +1706,12 @@ void                                jo_3d_slave_set_kept_commands(const int coun
  *  A color of a table is added to the color of the polygon: 16 for each component (JO_COLOR_SATURN_RGB(16, 16, 16)) doesn't change it
  */
 unsigned short                      jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count);
+
+/** @brief Sprites freed from a sprite (see jo_sprite_free_from()): the shared sprite of the gouraud tables is dropped
+ *  if it is among them
+ *  @param sprite_id First sprite freed
+ */
+void                                __jo_3d_gouraud_pool_freed(const int sprite_id);
 
 /** @brief Tint the next meshes drawn by the master CPU: added to the colors of their gouraud tables (the light of a lamp on
  *  a character, see jo_3d_point_lights_sample()), jo_3d_set_tint(0, 0, 0) to stop

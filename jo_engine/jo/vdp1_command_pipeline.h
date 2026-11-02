@@ -264,6 +264,9 @@ typedef struct
     short                   center_y;
     jo_fixed                   zlimit;
     unsigned short          clip_mode;      // Draw mode bits of the 3D polygons: JO_VDP1_WINDOW_IN (clipped to the window), 0
+    short                   origin_x;       // The local coordinates of the window (its commands are relative to them): its top
+    short                   origin_y;       // left corner when it is a screen of its own (see screen), else 0
+    bool                    screen;         // Its rectangle is its screen (clipped, windows apart: see jo_3d_window_clip())
 }                           jo_vdp1_window;
 
 /** @brief 3D windows (internal usage) */
@@ -377,6 +380,8 @@ extern jo_fixed             __jo_vdp1_near_z;
 
 /** @brief Wireframe mode (internal usage, see jo_3d_set_wireframe()) */
 extern bool                 __jo_vdp1_wireframe;
+/** @brief The windows drawn one after the other (internal usage, see jo_3d_set_windows_apart()) */
+extern bool                 __jo_vdp1_windows_apart;
 
 /** @brief Compute the near clipping distance (internal usage)
  *  @remarks Must be called when __jo_vdp1_projection_distance or __jo_vdp1_display_level change
@@ -461,6 +466,9 @@ bool                        __jo_vdp1_draw_sprite_3d(const jo_vdp1_sprite_positi
  */
 void                        __jo_vdp1_set_window(const short left, const short top, const short right, const short bottom,
                                                  const short zlimit, const short center_x, const short center_y);
+
+/** @brief The 3D polygons of the current window clipped to its rectangle (internal usage, see jo_3d_window_clip()) */
+void                        __jo_vdp1_set_window_clip(const bool clip);
 
 /** @brief Select the 3D window used by the next commands (internal usage)
  *  @param window 0 (near window), 1 (far window) or 2 (second far window)

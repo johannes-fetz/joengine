@@ -643,6 +643,24 @@ void			        jo_core_run(void)
     jo_profile_begin(JO_PROFILE_FRAME);
     for (;;)
     {
+#ifdef JO_TEST_PCPROF_FRAME
+        {
+            static int pcprof_frame;
+# ifndef JO_TEST_PCPROF_MASTER
+#  define JO_TEST_PCPROF_MASTER 0x002E0000
+# endif
+# ifndef JO_TEST_PCPROF_SLAVE
+#  define JO_TEST_PCPROF_SLAVE  0x002F0000
+# endif
+            if (++pcprof_frame == JO_TEST_PCPROF_FRAME)
+                jo_profile_sampling_start((unsigned int *)JO_TEST_PCPROF_MASTER,
+# ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+                                          (unsigned int *)JO_TEST_PCPROF_SLAVE);
+# else
+                                          JO_NULL);
+# endif
+        }
+#endif
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
         __jo_3d_reset_matrix();

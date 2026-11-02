@@ -1,0 +1,83 @@
+# Materials of stalld
+
+newmtl m0
+Kd 1 1 1
+map_Kd stalld_panelp4.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m1
+Kd 1 1 1
+map_Kd stalld_panelp0.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m2
+Kd 1 1 1
+map_Kd stalld_panelp5.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m3
+Kd 1 1 1
+map_Kd stalld_panelp1.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m4
+Kd 1 1 1
+map_Kd stalld_panelp6.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m5
+Kd 1 1 1
+map_Kd stalld_panelp2.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m6
+Kd 1 1 1
+map_Kd stalld_panelp7.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m7
+Kd 1 1 1
+map_Kd stalld_panelp3.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m8
+Kd 1 1 1
+map_Kd frame.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+jo_sort max
+
+newmtl m9
+Kd 1 1 1
+map_Kd frame.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+

@@ -1,0 +1,168 @@
+newmtl face0
+Kd 1 1 1
+map_Kd v1h00.png
+
+newmtl face1
+Kd 1 1 1
+map_Kd v1h01.png
+
+newmtl face2
+Kd 1 1 1
+map_Kd v1h02.png
+
+newmtl face3
+Kd 1 1 1
+map_Kd v1h10.png
+
+newmtl face4
+Kd 1 1 1
+map_Kd v1h11.png
+
+newmtl face5
+Kd 1 1 1
+map_Kd v1h12.png
+
+newmtl face6
+Kd 1 1 1
+map_Kd v1h20.png
+
+newmtl face7
+Kd 1 1 1
+map_Kd v1h21.png
+
+newmtl face8
+Kd 1 1 1
+map_Kd v1h22.png
+
+newmtl face9
+Kd 1 1 1
+map_Kd v1hnape.png
+
+newmtl face10
+Kd 1 1 1
+map_Kd v1hhairb.png
+
+newmtl face11
+Kd 1 1 1
+map_Kd v1hhairt.png
+
+newmtl face12
+Kd 1 1 1
+map_Kd v1ffar.png
+
+newmtl face13
+Kd 1 1 1
+map_Kd v1fside.png
+
+newmtl face14
+Kd 1 1 1
+map_Kd v2h00.png
+
+newmtl face15
+Kd 1 1 1
+map_Kd v2h01.png
+
+newmtl face16
+Kd 1 1 1
+map_Kd v2h02.png
+
+newmtl face17
+Kd 1 1 1
+map_Kd v2h10.png
+
+newmtl face18
+Kd 1 1 1
+map_Kd v2h11.png
+
+newmtl face19
+Kd 1 1 1
+map_Kd v2h12.png
+
+newmtl face20
+Kd 1 1 1
+map_Kd v2h20.png
+
+newmtl face21
+Kd 1 1 1
+map_Kd v2h21.png
+
+newmtl face22
+Kd 1 1 1
+map_Kd v2h22.png
+
+newmtl face23
+Kd 1 1 1
+map_Kd v2hnape.png
+
+newmtl face24
+Kd 1 1 1
+map_Kd v2hhairb.png
+
+newmtl face25
+Kd 1 1 1
+map_Kd v2hhairt.png
+
+newmtl face26
+Kd 1 1 1
+map_Kd v2ffar.png
+
+newmtl face27
+Kd 1 1 1
+map_Kd v2fside.png
+
+newmtl face28
+Kd 1 1 1
+map_Kd v3h00.png
+
+newmtl face29
+Kd 1 1 1
+map_Kd v3h01.png
+
+newmtl face30
+Kd 1 1 1
+map_Kd v3h02.png
+
+newmtl face31
+Kd 1 1 1
+map_Kd v3h10.png
+
+newmtl face32
+Kd 1 1 1
+map_Kd v3h11.png
+
+newmtl face33
+Kd 1 1 1
+map_Kd v3h12.png
+
+newmtl face34
+Kd 1 1 1
+map_Kd v3h20.png
+
+newmtl face35
+Kd 1 1 1
+map_Kd v3h21.png
+
+newmtl face36
+Kd 1 1 1
+map_Kd v3h22.png
+
+newmtl face37
+Kd 1 1 1
+map_Kd v3hnape.png
+
+newmtl face38
+Kd 1 1 1
+map_Kd v3hhairb.png
+
+newmtl face39
+Kd 1 1 1
+map_Kd v3hhairt.png
+
+newmtl face40
+Kd 1 1 1
+map_Kd v3ffar.png
+
+newmtl face41
+Kd 1 1 1
+map_Kd v3fside.png
+
