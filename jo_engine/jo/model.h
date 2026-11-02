@@ -261,6 +261,15 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
  */
 jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename);
 
+/** @brief The next models created or loaded get a gouraud table per polygon, in the order of the polygons (default: the
+ *  polygons with the same 4 colors share a table): for a model whose tables the game writes again polygon by polygon (the
+ *  light on a car)
+ *  @param unique true: a table per polygon
+ *  @remarks Shared, the tables of a model are fewer than its polygons: a game that wrote a table per polygon from the
+ *  first one wrote over the tables (and the color lookup tables of the textures) that follow them in the VRAM
+ */
+void                                        jo_3d_set_unique_gouraud_tables(const bool unique);
+
 /** @brief Get the sprite id of a texture of the models (loaded the first time: a texture shared by several models,
  *         or by the program, is loaded once)
  *  @param filename File name on the CD (.BIN: jo_sprite_add_bin(), .TGA: jo_sprite_add_tga())

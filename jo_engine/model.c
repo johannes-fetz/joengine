@@ -512,6 +512,11 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     }
 }
 
+void                                        jo_3d_set_unique_gouraud_tables(const bool unique)
+{
+    __jo_3d_model_unique_gouraud_tables = unique;
+}
+
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename)
