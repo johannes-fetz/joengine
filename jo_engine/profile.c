@@ -131,6 +131,10 @@ void                                        __jo_profile_init(void)
 
 /** @brief Ticks of the free running timer (clock / 32) between 2 samples: about 1 500 CPU cycles */
 # define JO_PROFILE_SAMPLING_INTERVAL       "48"
+/** @brief The last counter of a histogram (JO_PROFILE_SAMPLING_BINS - 1, for the assembly) */
+# define JO_PROFILE_STR_(x)                 #x
+# define JO_PROFILE_STR(x)                  JO_PROFILE_STR_(x)
+# define JO_PROFILE_SAMPLING_LAST_BIN       JO_PROFILE_STR(JO_PROFILE_SAMPLING_BINS - 1)
 /** @brief Vector of the output compare interrupt of the free running timer (user vectors: 64 to 127) */
 # define JO_PROFILE_SAMPLING_VECTOR         (0x66)
 
@@ -191,7 +195,7 @@ __asm__( \
 "    nop\n" \
 "    .align 2\n" \
 "1:  .long 0x06004000\n" \
-"2:  .long 16383\n" \
+"2:  .long " JO_PROFILE_SAMPLING_LAST_BIN "\n" \
 "3:  .long ___jo_profile_sampling_histogram + " #INDEX " * 4\n" \
 "4:  .long 0xFFFFFE10\n" \
 );
@@ -281,6 +285,24 @@ void                                        jo_profile_sampling_start(unsigned i
     jo_memset(slave_histogram, 0, JO_PROFILE_SAMPLING_BINS * sizeof(*slave_histogram));
     __jo_profile_sampling_histogram[1] = slave_histogram;
     jo_core_exec_on_slave(jo_profile_sampling_slave_start);
+}
+
+/** @brief Slave CPU: stop its sampling (jo_core_exec_on_slave() callback) */
+static void                                 jo_profile_sampling_slave_stop(void)
+{
+    JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
+}
+
+void                                        jo_profile_sampling_stop(void)
+{
+#ifdef JO_PROFILE_CALLS
+    ((unsigned int * volatile *)JO_CACHE_THROUGH(__jo_profile_calls))[0] = JO_NULL;
+    ((unsigned int * volatile *)JO_CACHE_THROUGH(__jo_profile_calls))[1] = JO_NULL;
+    return;
+#endif
+    JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
+    if (__jo_profile_sampling_histogram[1] != JO_NULL)
+        jo_core_exec_on_slave(jo_profile_sampling_slave_stop);
 }
 
 void                                        __jo_profile_end_frame(void)

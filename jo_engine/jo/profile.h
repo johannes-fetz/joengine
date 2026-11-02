@@ -223,8 +223,15 @@ void                                jo_profile_print(const int x, const int y);
 # define JO_PROFILE_SAMPLING_CODE_START     (0x06004000)
 /** @brief Program counter sampling: bytes of code per counter */
 # define JO_PROFILE_SAMPLING_BIN_SIZE       (16)
-/** @brief Program counter sampling: counters per histogram (the last one counts the addresses beyond the code) */
-# define JO_PROFILE_SAMPLING_BINS           (16384)
+/** @brief Program counter sampling: counters per histogram (the last one counts the addresses beyond the code; fewer for
+ *  a program with less code and little memory left for the histograms) */
+# ifndef JO_PROFILE_SAMPLING_BINS
+#  define JO_PROFILE_SAMPLING_BINS          (16384)
+# endif
+
+/** @brief Stop the sampling of the program counter of the 2 CPUs (the histograms stay as they are: a measure over a
+ *  known part of the program, the same from one run to the next) */
+void                                        jo_profile_sampling_stop(void);
 
 /** @brief Start sampling the program counter of the 2 CPUs: every JO_PROFILE_SAMPLING_INTERVAL ticks of its free running timer
  *  (about 17 000 times per second), each CPU adds 1 to the counter of the code address it executes
