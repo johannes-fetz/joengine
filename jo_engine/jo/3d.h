@@ -1183,12 +1183,17 @@ static  __jo_force_inline bool      jo_3d_window(const int left, const int top, 
 }
 
 /** @brief The 3D polygons drawn in the current window are clipped by the VDP1 to its rectangle (user clipping: a mirror,
- *  a rear-view mirror), or not (default: the whole screen)
+ *  a rear-view mirror, a view of a split screen), or not (default: the whole screen)
  *  @param clip true: clipped to the rectangle of jo_3d_window()
+ *  @remarks With windows apart (jo_3d_set_windows_apart(), set before), a clipped window is a screen of its own: the
+ *  polygons are culled, cut and drawn in parts against its rectangle, not against the whole screen (its commands are
+ *  relative to its top left corner: the local coordinates of the VDP1, written at the end of the frame: the window must
+ *  not change during the frame). Else the polygons are only clipped by the VDP1 to the rectangle of the window at the end
+ *  of the frame (a mirror)
  */
 static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
 {
-    __jo_vdp1_windows[__jo_vdp1_current_window].clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
+    __jo_vdp1_set_window_clip(clip);
 }
 
 /** @brief Near window (default) for jo_3d_select_window() */
@@ -1206,6 +1211,18 @@ static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
 static  __jo_force_inline void      jo_3d_select_window(const int window)
 {
     __jo_vdp1_select_window(window);
+}
+
+/** @brief The windows do not overlap (a split screen: a view per player in its window): the commands of each window are
+ *  drawn together, window after window (window 0 first), sorted by depth in their window; else (default) the commands of
+ *  all the windows are sorted together by depth (a mirror in the view: its window over the other one)
+ *  @param apart true: the windows drawn one after the other
+ *  @remarks From the next frame (applied when the commands of a frame are sorted). Mixed by depth, the commands of 2 windows
+ *  side by side change the window hundreds of times per frame: each change costs a header of 3 commands in the VRAM
+ */
+static  __jo_force_inline void      jo_3d_set_windows_apart(const bool apart)
+{
+    __jo_vdp1_windows_apart = apart;
 }
 
 /** @brief Set the perspective angle

@@ -154,7 +154,11 @@ typedef struct
     short                               system_clip_bottom;
     unsigned int                        tag;                    // Number of the frame (see __jo_vdp1_frame_tag())
     bool                                wireframe;              // The polygons drawn as their outline (see jo_3d_set_wireframe())
+    bool                                windows_apart;          // The windows drawn one after the other (see jo_3d_set_windows_apart())
 }                                       jo_vdp1_frame;
+
+/** @brief The windows do not overlap: the commands of each window are drawn together (see jo_3d_set_windows_apart()) */
+bool                                    __jo_vdp1_windows_apart = false;
 
 /** @brief The polygons and the distorted sprites of the next frames drawn as their outline (see jo_3d_set_wireframe()) */
 bool                                    __jo_vdp1_wireframe = false;
@@ -299,6 +303,9 @@ void                                    __jo_vdp1_init(void)
         __jo_vdp1_windows[i].center_y = JO_TV_HEIGHT_2;
         __jo_vdp1_windows[i].zlimit = JO_VDP1_NO_Z_LIMIT;
         __jo_vdp1_windows[i].clip_mode = 0;
+        __jo_vdp1_windows[i].origin_x = 0;
+        __jo_vdp1_windows[i].origin_y = 0;
+        __jo_vdp1_windows[i].screen = false;
     }
     __jo_vdp1_current_window = 0;
     // 16 bits frame buffer (8 bits in hi-res), 1 cycle mode
@@ -417,6 +424,9 @@ static void                             jo_vdp1_make_header(jo_vdp1_command * co
     c[1].xc = w->right;
     c[1].yc = w->bottom;
     c[2].ctrl = JO_VDP1_CMD_LOCAL_COORD;
+    // (a clipped window: its commands are relative to its top left corner; the clipping stays in screen coordinates)
+    c[2].xa = w->origin_x;
+    c[2].ya = w->origin_y;
 }
 
 /** @brief Prepare a polygon of the transparent color on the whole frame buffer (manual change mode)
@@ -604,6 +614,37 @@ static unsigned short                   *jo_vdp1_radix_sort(const jo_vdp1_frame 
     __jo_vdp1_radix_scatter_high(keys, __jo_vdp1_sort_a, __jo_vdp1_sort_a + n, high, __jo_vdp1_sort_b);
 #endif
     return (__jo_vdp1_sort_b);
+}
+
+/** @brief The sorted commands grouped by window (window 0 first), in the order of the sort in each window: a header per
+ *  window (the windows of a split screen do not overlap: mixed by depth, a header was inserted at each change of window,
+ *  hundreds per frame)
+ *  @param frame Frame
+ *  @param order The sorted commands (see jo_vdp1_radix_sort())
+ *  @return The grouped commands (__jo_vdp1_sort_a: the sort does not use it any more)
+ */
+static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_frame * const frame, const unsigned short * const order)
+{
+    unsigned int                        first[JO_VDP1_WINDOW_COUNT];
+    unsigned int                        sum;
+    register unsigned int               i;
+    unsigned int                        n;
+
+    n = frame->count;
+    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+        JO_ZERO(first[i]);
+    for (JO_ZERO(i); i < n; ++i)
+        ++first[frame->window[i]];
+    for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_WINDOW_COUNT; ++i)
+    {
+        n = first[i];
+        first[i] = sum;
+        sum += n;
+    }
+    n = frame->count;
+    for (JO_ZERO(i); i < n; ++i)
+        __jo_vdp1_sort_a[first[frame->window[order[i]]]++] = order[i];
+    return (__jo_vdp1_sort_a);
 }
 
 /** @brief Add a transfer to the indirect table of the SCU DMA (the transfers of consecutive sources are merged)
@@ -817,6 +858,8 @@ static void                             jo_vdp1_send_frame(void *argument)
     jo_profile_begin(JO_PROFILE_VDP1_SORT);
     n = frame->count;
     order = jo_vdp1_radix_sort(frame);
+    if (frame->windows_apart)
+        order = jo_vdp1_group_windows(frame, order);
     jo_profile_end(JO_PROFILE_VDP1_SORT);
     jo_profile_count(JO_PROFILE_VDP1_COMMANDS, n);
     jo_profile_begin(JO_PROFILE_VDP1_WAIT);
@@ -972,6 +1015,7 @@ void                                    __jo_vdp1_end_frame(void)
     frame->system_clip_right = __jo_vdp1_system_clip_right;
     frame->system_clip_bottom = __jo_vdp1_system_clip_bottom;
     frame->wireframe = __jo_vdp1_wireframe;
+    frame->windows_apart = __jo_vdp1_windows_apart;
     __jo_vdp1_last_count = frame->count;
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_core_is_slave_running())
@@ -1139,7 +1183,7 @@ static  __jo_force_inline bool          jo_vdp1_is_sprite_visible(const jo_fixed
  */
 static  __jo_force_inline jo_fixed      jo_vdp1_window_center_x(void)
 {
-    return (JO_MULT_BY_65536(__jo_vdp1_windows[__jo_vdp1_current_window].center_x));
+    return (JO_MULT_BY_65536(__jo_vdp1_windows[__jo_vdp1_current_window].center_x - __jo_vdp1_windows[__jo_vdp1_current_window].origin_x));
 }
 
 /** @brief Vertical center of the current window
@@ -1147,7 +1191,7 @@ static  __jo_force_inline jo_fixed      jo_vdp1_window_center_x(void)
  */
 static  __jo_force_inline jo_fixed      jo_vdp1_window_center_y(void)
 {
-    return (JO_MULT_BY_65536(__jo_vdp1_windows[__jo_vdp1_current_window].center_y));
+    return (JO_MULT_BY_65536(__jo_vdp1_windows[__jo_vdp1_current_window].center_y - __jo_vdp1_windows[__jo_vdp1_current_window].origin_y));
 }
 
 /** @brief Perspective scale at a depth
@@ -1325,8 +1369,8 @@ bool                                    __jo_vdp1_write_sprite_4p(jo_vdp1_comman
     cmd->grda = 0;
     if (__jo_vdp1_set_attribute(cmd, attr))
         cmd->ctrl |= JO_VDP1_CMD_DISTORTED_SPRITE;
-    cx = JO_MULT_BY_65536(w->center_x);
-    cy = JO_MULT_BY_65536(w->center_y);
+    cx = JO_MULT_BY_65536(w->center_x - w->origin_x);
+    cy = JO_MULT_BY_65536(w->center_y - w->origin_y);
     cmd->xa = JO_FIXED_TO_INT(cx + points[0].x);
     cmd->ya = JO_FIXED_TO_INT(cy + points[0].y);
     cmd->xb = JO_FIXED_TO_INT(cx + points[1].x);
@@ -1389,6 +1433,21 @@ void                                    __jo_vdp1_set_window(const short left, c
     w->zlimit = JO_INT_TO_FIXED((jo_fixed)zlimit);
     w->center_x = center_x;
     w->center_y = center_y;
+    // (a clipped window of windows apart: its own screen, see jo_3d_window_clip())
+    w->screen = w->clip_mode != 0 && __jo_vdp1_windows_apart;
+    w->origin_x = w->screen ? left : 0;
+    w->origin_y = w->screen ? top : 0;
+}
+
+void                                    __jo_vdp1_set_window_clip(const bool clip)
+{
+    jo_vdp1_window                      *w;
+
+    w = &__jo_vdp1_windows[__jo_vdp1_current_window];
+    w->clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
+    w->screen = clip && __jo_vdp1_windows_apart;
+    w->origin_x = w->screen ? w->left : 0;
+    w->origin_y = w->screen ? w->top : 0;
 }
 
 /*

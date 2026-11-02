@@ -100,6 +100,9 @@ jo_3d_quad                          *__jo_sprite_quad[JO_MAX_SPRITE];
 # define JO_3D_CLIP_GOURAUD_TABLES          (JO_VDP1_CLIP_GOURAUD_TABLE_COUNT / JO_3D_CLIP_GOURAUD_SETS)
 /** @brief All the commands available in the frame */
 # define JO_3D_RESERVE_ALL_COMMANDS         (0xFFFF)
+/** @brief The center of the projection of a window in its local coordinates (see jo_3d_window_clip()) */
+# define JO_3D_WINDOW_CX(W)                 ((W)->center_x - (W)->origin_x)
+# define JO_3D_WINDOW_CY(W)                 ((W)->center_y - (W)->origin_y)
 /** @brief Outcode of a vertex: left of the screen */
 # define JO_3D_CODE_LEFT                    (1 << 0)
 /** @brief Outcode of a vertex: right of the screen */
@@ -610,6 +613,9 @@ unsigned short                              __jo_3d_displayed_polygon_count = 0;
 /* Gouraud tables of the clipped polygons used in the frame by the master CPU and by the slave CPU: they share the set of the
 ** frame (see jo_3d_clip_table()), read through the cache by the other CPU */
 static volatile unsigned int                __jo_3d_clip_tables_used[2] = {0, 0};
+/** @brief The gouraud tables of the slave CPU taken for this frame (by its first job: a frame can have several jobs of
+ *  the slave CPU, the views of a split screen, whose tables are all drawn with the frame) */
+static bool                                 __jo_3d_slave_tables_taken = false;
 
 /* State of the master CPU */
 static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, JO_3D_MAX_VERTICES, __jo_3d_view, JO_NULL, 0, -1, &__jo_vdp1_depth_bias, 0, 0,
@@ -629,6 +635,8 @@ void                                        __jo_3d_end_frame(void)
     if (__jo_3d_clip_table_base >= JO_3D_CLIP_GOURAUD_TABLES * JO_3D_CLIP_GOURAUD_SETS)
         JO_ZERO(__jo_3d_clip_table_base);
     __jo_3d_master.clip_table_first = __jo_3d_clip_table_base;
+    // (the tables of the slave CPU: taken again by the first jo_3d_slave_begin() of the next frame)
+    __jo_3d_slave_tables_taken = false;
 }
 
 /** @brief Squared length of a vector
@@ -2019,10 +2027,10 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
     {
         context->ready = true;
         context->inverse_pd = jo_fixed_div(JO_FIXED_1, pd);
-        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(w->center_x + JO_3D_CLIP_MARGIN), pd);
-        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - w->center_x), pd);
-        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(w->center_y + JO_3D_CLIP_MARGIN), pd);
-        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - w->center_y), pd);
+        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CX(w) + JO_3D_CLIP_MARGIN), pd);
+        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CX(w)), pd);
+        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CY(w) + JO_3D_CLIP_MARGIN), pd);
+        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CY(w)), pd);
     }
     // View space positions: (screen - center) * z / projection distance for the projected vertices.
     // A triangle (the last 2 vertices are the same) has 3 vertices
@@ -2050,8 +2058,8 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
         else
         {
             out[i].z = JO_3D_VERTEX_Z(in[i]);
-            out[i].x = jo_3d_unproject(JO_3D_VERTEX_X(in[i]) - w->center_x, out[i].z, context->inverse_pd);
-            out[i].y = jo_3d_unproject(JO_3D_VERTEX_Y(in[i]) - w->center_y, out[i].z, context->inverse_pd);
+            out[i].x = jo_3d_unproject(JO_3D_VERTEX_X(in[i]) - JO_3D_WINDOW_CX(w), out[i].z, context->inverse_pd);
+            out[i].y = jo_3d_unproject(JO_3D_VERTEX_Y(in[i]) - JO_3D_WINDOW_CY(w), out[i].z, context->inverse_pd);
         }
         out[i].u = u[i];
         out[i].v = v[i];
@@ -2086,8 +2094,8 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
         k = jo_fixed_div_result();
         if (i + 1 < n)
             jo_fixed_div_start(pd, out[i + 1].z);
-        out[i].x = w->center_x + jo_fixed_mult_to_int(out[i].x, k);
-        out[i].y = w->center_y + jo_fixed_mult_to_int(out[i].y, k);
+        out[i].x = JO_3D_WINDOW_CX(w) + jo_fixed_mult_to_int(out[i].x, k);
+        out[i].y = JO_3D_WINDOW_CY(w) + jo_fixed_mult_to_int(out[i].y, k);
     }
     return (n);
 }
@@ -2696,7 +2704,7 @@ static bool                                 jo_3d_emit_clipped_polygon(jo_3d_cpu
 static unsigned int                         jo_3d_view_side_code(const jo_fixed x, const jo_fixed y, const jo_fixed z,
                                                                  const jo_vdp1_window * const w, const int right, const int bottom)
 {
-    return (jo_3d_side_code(x, y, z, w->center_x, w->center_y, right, bottom, __jo_vdp1_projection_distance));
+    return (jo_3d_side_code(x, y, z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom, __jo_vdp1_projection_distance));
 }
 
 /** @brief Project points of the view space (see jo_3d_transform_vertices()): the division of the next point is done in the
@@ -2738,8 +2746,8 @@ static void                                 jo_3d_project_points(jo_3d_vertex * 
                 break;
         if (next < count)
             jo_fixed_div_start(__jo_vdp1_projection_distance, points[next][2]);
-        sx = w->center_x + jo_fixed_mult_to_int(points[i][0], k);
-        sy = w->center_y + jo_fixed_mult_to_int(points[i][1], k);
+        sx = JO_3D_WINDOW_CX(w) + jo_fixed_mult_to_int(points[i][0], k);
+        sy = JO_3D_WINDOW_CY(w) + jo_fixed_mult_to_int(points[i][1], k);
         jo_3d_set_vertex(&v[i], sx, sy, points[i][2], jo_3d_screen_code(sx, sy, right, bottom, guard));
     }
 }
@@ -3083,7 +3091,7 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
     {
         if (JO_ABS(sx[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT || JO_ABS(sy[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
             return (false);
-        jo_3d_set_vertex(&screen[i], s->w->center_x + sx[i], s->w->center_y + sy[i], JO_MAX(in[i].z, s->near_z), 0);
+        jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + sx[i], JO_3D_WINDOW_CY(s->w) + sy[i], JO_MAX(in[i].z, s->near_z), 0);
     }
     return (true);
 }
@@ -3217,7 +3225,7 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
                 needed_z = JO_MAX(needed_z, jo_fixed_mult(JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)), __jo_vdp1_projection_distance) /
                                             JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
             }
-            jo_3d_set_vertex(&screen[i], s->w->center_x + x, s->w->center_y + y, out[i].z, 0);
+            jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + x, JO_3D_WINDOW_CY(s->w) + y, out[i].z, 0);
         }
         if (needed_z == 0)
             break;
@@ -3649,10 +3657,10 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     {
         context->ready = true;
         context->inverse_pd = jo_fixed_div(JO_FIXED_1, __jo_vdp1_projection_distance);
-        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(w->center_x + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
-        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - w->center_x), __jo_vdp1_projection_distance);
-        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(w->center_y + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
-        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - w->center_y), __jo_vdp1_projection_distance);
+        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CX(w) + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
+        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CX(w)), __jo_vdp1_projection_distance);
+        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CY(w) + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
+        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CY(w)), __jo_vdp1_projection_distance);
     }
     for (JO_ZERO(k); k < 4; ++k)
     {
@@ -3665,8 +3673,8 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
         }
         else
         {
-            view[k][0] = jo_3d_unproject(JO_3D_VERTEX_X(v[k]) - w->center_x, view[k][2], context->inverse_pd);
-            view[k][1] = jo_3d_unproject(JO_3D_VERTEX_Y(v[k]) - w->center_y, view[k][2], context->inverse_pd);
+            view[k][0] = jo_3d_unproject(JO_3D_VERTEX_X(v[k]) - JO_3D_WINDOW_CX(w), view[k][2], context->inverse_pd);
+            view[k][1] = jo_3d_unproject(JO_3D_VERTEX_Y(v[k]) - JO_3D_WINDOW_CY(w), view[k][2], context->inverse_pd);
         }
     }
     // Outside of the view: the 4 vertices beyond the same side of the pyramid of the view (behind the camera too: the
@@ -4049,8 +4057,11 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
         x[i] = JO_3D_VERTEX_X(v[i]);
         y[i] = JO_3D_VERTEX_Y(v[i]);
     }
-    return (JO_MAX(JO_MAX(x[0], x[1]), JO_MAX(x[2], x[3])) < w->left || JO_MIN(JO_MIN(x[0], x[1]), JO_MIN(x[2], x[3])) > w->right ||
-            JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) < w->top || JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom);
+    // (the vertices are relative to the local coordinates of the window)
+    return (JO_MAX(JO_MAX(x[0], x[1]), JO_MAX(x[2], x[3])) < w->left - w->origin_x ||
+            JO_MIN(JO_MIN(x[0], x[1]), JO_MIN(x[2], x[3])) > w->right - w->origin_x ||
+            JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) < w->top - w->origin_y ||
+            JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom - w->origin_y);
 }
 
 #ifdef JO_TEST_PATH_COUNTS
@@ -5196,8 +5207,9 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     ctx->clip_mode = w->clip_mode;
     near_z = __jo_vdp1_near_clip();
     zlimit = w->zlimit;
-    right = __jo_vdp1_system_clip_right;
-    bottom = __jo_vdp1_system_clip_bottom;
+    // (a clipped window of windows apart is a screen of its own: its rectangle, see jo_3d_window_clip())
+    right = w->screen ? w->right - w->left : __jo_vdp1_system_clip_right;
+    bottom = w->screen ? w->bottom - w->top : __jo_vdp1_system_clip_bottom;
     if (ranges == JO_NULL)
     {
         all_polygons.first = 0;
@@ -5268,18 +5280,18 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
             view = ctx->view;
             ctx->vertices = base + lo;
             ctx->view = view + lo;
-            jo_3d_transform_vertices(ctx, pdata->points + lo, hi - lo + 1, near_z, w->center_x, w->center_y, right, bottom);
+            jo_3d_transform_vertices(ctx, pdata->points + lo, hi - lo + 1, near_z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom);
             ctx->vertices = base;
             ctx->view = view;
         }
     }
     else if (ctx->parts == JO_NULL)
-        jo_3d_transform_vertices(ctx, pdata->points, count, near_z, w->center_x, w->center_y, right, bottom);
+        jo_3d_transform_vertices(ctx, pdata->points, count, near_z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom);
     else
         // Each part with its matrix (the bones of a skeleton): its vertices at their place in the buffer, their view space
         // positions too (the parallel array: moved with the vertices, the positions of the vertices of a part behind the
         // near plane or far outside of the screen went at the start of the array, read at their index by the clipping)
-        jo_3d_transform_parts(ctx, pdata->points, count, near_z, w->center_x, w->center_y, right, bottom);
+        jo_3d_transform_parts(ctx, pdata->points, count, near_z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom);
     jo_profile_end(JO_PROFILE_3D_VERTICES);
     jo_profile_count(JO_PROFILE_3D_VERTEX_COUNT, count);
     jo_profile_count(JO_PROFILE_3D_POLYGON_COUNT, polygon_count);
@@ -5751,10 +5763,14 @@ void                                        jo_3d_slave_begin(void)
     __jo_3d_slave_sprite_attributes = __jo_sprite_attributes;
     __jo_3d_slave.previous_polygon_z = 0;
     __jo_3d_slave.forced_key = -1;
-    // The last gouraud tables of the set of this frame
-    __jo_3d_slave.clip_table_first = __jo_3d_clip_table_base + JO_3D_CLIP_GOURAUD_TABLES - 1;
-    __jo_3d_slave.clip_table_count = 0;
-    *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[1]) = 0;
+    // The last gouraud tables of the set of this frame (the first job of the frame; the next ones take the tables after)
+    if (!__jo_3d_slave_tables_taken)
+    {
+        __jo_3d_slave_tables_taken = true;
+        __jo_3d_slave.clip_table_first = __jo_3d_clip_table_base + JO_3D_CLIP_GOURAUD_TABLES - 1;
+        __jo_3d_slave.clip_table_count = 0;
+        *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[1]) = 0;
+    }
     JO_ZERO(__jo_3d_slave_command_count);
     JO_ZERO(__jo_3d_slave_polygon_count);
     JO_ZERO(__jo_3d_slave_vertice_count);
