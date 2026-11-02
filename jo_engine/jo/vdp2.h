@@ -494,6 +494,20 @@ int                                 *jo_vdp2_enable_nbg1_line_scroll(void);
  */
 void                                jo_vdp2_disable_nbg1_line_scroll(void);
 
+/** @brief Lines of the table of jo_vdp2_enable_nbg1_line_scroll_xy() */
+# define JO_NBG1_SCROLL_XY_TABLE_LINES   (256)
+
+/** @brief Enable the NBG1 horizontal and vertical line scroll: each line of the screen shows its own part of the image
+ *  (a split screen: each view its own sky)
+ *  @return A table of JO_NBG1_SCROLL_XY_TABLE_LINES x 2 entries in VRAM (16.16, the fraction on 8 bits): for each line of the
+ *  screen from the top, the horizontal scroll, then the vertical one: the line of the image shown on this line of the screen
+ *  (not an offset: 0 on every line shows the first line of the image everywhere; measured in Mednafen); JO_NULL when there
+ *  is no memory
+ *  @remarks Replaces the table of jo_vdp2_enable_nbg1_line_scroll(); jo_vdp2_disable_nbg1_line_scroll() stops it. Not with
+ *  the vertical cell scroll of NBG1
+ */
+int                                 *jo_vdp2_enable_nbg1_line_scroll_xy(void);
+
 /** @brief Compute NBG1 horizontal line scroll effect using specific offset
  *  @param offset Offset in scroll table returned by jo_vdp2_enable_nbg1_line_scroll()
  */

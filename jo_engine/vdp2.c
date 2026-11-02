@@ -379,6 +379,8 @@ static void                         jo_vdp2_flush_now(void)
 
 /* Line scroll mode (SCRCTL): horizontal line scroll, 1 line */
 # define JO_VDP2_LINE_SCROLL_HORIZONTAL (0x02)
+/** @brief SCRCTL: NBG0 vertical line scroll bit (shifted by JO_VDP2_SCRCTL_NBG1_SHIFT for NBG1) */
+# define JO_VDP2_LINE_SCROLL_VERTICAL   (0x04)
 
 typedef struct
 {
@@ -2320,6 +2322,21 @@ void                            jo_vdp2_compute_nbg1_line_scroll(unsigned short 
         return ;
     }
     jo_vdp2_set_line_scroll_table(JO_VDP2_SCREEN_NBG1, nbg1_scroll_table + offset);
+}
+
+int                             *jo_vdp2_enable_nbg1_line_scroll_xy(void)
+{
+    if (nbg1_scroll_table != JO_NULL)
+        jo_vdp2_disable_nbg1_line_scroll();
+    nbg1_scroll_table = jo_vdp2_malloc(JO_VDP2_RAM_LINE_SCROLL, JO_NBG1_SCROLL_XY_TABLE_LINES * 2 * sizeof(int));
+    if (nbg1_scroll_table == JO_NULL)
+        return (JO_NULL);
+    jo_memset(nbg1_scroll_table, 0, JO_NBG1_SCROLL_XY_TABLE_LINES * 2 * sizeof(int));
+    JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK << JO_VDP2_SCRCTL_NBG1_SHIFT,
+                     (JO_VDP2_LINE_SCROLL_HORIZONTAL | JO_VDP2_LINE_SCROLL_VERTICAL) << JO_VDP2_SCRCTL_NBG1_SHIFT);
+    jo_vdp2_set_line_scroll_table(JO_VDP2_SCREEN_NBG1, nbg1_scroll_table);
+    jo_vdp2_update_cycle_patterns();
+    return (nbg1_scroll_table);
 }
 
 int                             *jo_vdp2_enable_nbg1_line_scroll(void)
