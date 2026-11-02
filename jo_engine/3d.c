@@ -289,7 +289,7 @@ jo_3d_texture_tiles                         __jo_3d_tiles[JO_MAX_SPRITE] __attri
 _Static_assert(sizeof(jo_3d_texture_tiles) == 12, "__jo_3d_polygon_loop: size of jo_3d_texture_tiles");
 // (the assembly polygon loop uses these values, see its label 50)
 _Static_assert(JO_3D_SUBDIVISION_ERROR == 8 && JO_3D_TILES_NEAR_ONLY == 128 && (JO_3D_CODE_SCREEN | JO_3D_CODE_VIEW) == 79 &&
-               JO_3D_CODE_MASK == 127, "__jo_3d_polygon_loop: constants");
+               JO_3D_CODE_MASK == 127 && JO_3D_SLIVER_EXTENT == 64 && JO_3D_SLIVER_WIDTH == 4, "__jo_3d_polygon_loop: constants");
 _Static_assert(__builtin_offsetof(jo_3d_texture_tiles, depth) == 8, "__jo_3d_polygon_loop: offset of depth");
 _Static_assert(__builtin_offsetof(jo_3d_polygon_attribute, draw_mode) == 4 && JO_VDP1_COLOR_CALC_HALF_TRANSPARENT == 3,
                "__jo_3d_polygon_loop: the draw mode of the attribute (half transparent)");
@@ -5001,6 +5001,9 @@ __asm__(
 "    mov.l @(0, r14), r10\n"
 "    bra 11f\n"
 "    nop\n"
+     /* (the slow path from the checks of the indexes: beyond the reach of a conditional branch, 256 bytes) */
+"54: bra 8f\n"
+"    nop\n"
      /* --- a polygon: r8 polygon, r9 attribute. The 4 vertices (r4 to r7): indexes checked, 8 bytes each. The indexes are
         read 2 by 2 (offset 12 of a polygon: aligned on 4 bytes, the first index in the high half) */
 "5:  mov.l @(12, r8), r4\n"
@@ -5011,13 +5014,13 @@ __asm__(
 "    extu.w r6, r7\n"
 "    shlr16 r6\n"
 "    cmp/hs r0, r4\n"
-"    bt 8f\n"
+"    bt 54b\n"
 "    cmp/hs r0, r5\n"
-"    bt 8f\n"
+"    bt 54b\n"
 "    cmp/hs r0, r6\n"
-"    bt 8f\n"
+"    bt 54b\n"
 "    cmp/hs r0, r7\n"
-"    bt 8f\n"
+"    bt 54b\n"
 "    shll2 r4\n"
 "    add r4, r4\n"
 "    add r10, r4\n"
@@ -5085,8 +5088,68 @@ __asm__(
 "    sts macl, r11\n"
 "    sub r11, r0\n"
 "    cmp/pz r0\n"
+"    bf 13f\n"
+     /* --- front face (r0: the area x 2). A polygon seen as a thin line (see jo_3d_emit_sliver(), the test of
+        jo_3d_is_sliver(): the extent is the longest diagonal, in chebyshev length): slow path. Most polygons leave at the
+        first tests (10 cycles): the first diagonal less than JO_3D_SLIVER_EXTENT wide (both diagonals of a thin line are
+        about as long as it; a thin line up and down the screen is not found: rare), then the area over
+        2 x JO_3D_SLIVER_WIDTH x 512 (an extent of 512 at most inside the guard band) */
+"    swap.w r3, r12\n"
+"    swap.w r1, r11\n"
+"    sub r11, r12\n"                    /* x2 - x0 */
+"    exts.w r12, r12\n"
+"    add #64, r12\n"
+"    mov #64, r11\n"
+"    add r11, r11\n"
+"    cmp/hi r11, r12\n"                 /* |x2 - x0| > 64 */
+"    bf 3f\n"
+"    mov #16, r11\n"
+"    shll8 r11\n"                       /* 4096 */
+"    cmp/ge r11, r0\n"
 "    bt 3f\n"
-"    mov r0, r12\n"                     /* (the cross product of the diagonals: the area of the quad x 2) */
+"    mov r3, r11\n"
+"    sub r1, r11\n"                     /* y2 - y0 */
+"    muls.w r11, r11\n"
+"    swap.w r3, r12\n"
+"    swap.w r1, r11\n"
+"    sub r11, r12\n"                    /* x2 - x0 */
+"    sts macl, r11\n"
+"    muls.w r12, r12\n"
+"    sts macl, r12\n"
+"    cmp/gt r11, r12\n"
+"    bf 1f\n"
+"    mov r12, r11\n"
+"1:  mov #16, r12\n"
+"    shll8 r12\n"                       /* 4096: JO_3D_SLIVER_EXTENT squared */
+"    cmp/ge r12, r11\n"
+"    bf 3f\n"
+"    mov r13, r12\n"
+"    sub r2, r12\n"                     /* y3 - y1 */
+"    muls.w r12, r12\n"
+"    sts macl, r12\n"
+"    cmp/gt r11, r12\n"
+"    bf 1f\n"
+"    mov r12, r11\n"
+"1:  swap.w r13, r12\n"
+"    swap.w r2, r3\n"
+"    sub r3, r12\n"                     /* x3 - x1 */
+"    muls.w r12, r12\n"
+"    sts macl, r12\n"
+"    cmp/gt r11, r12\n"
+"    bf 1f\n"
+"    mov r12, r11\n"
+     /* r11: the extent squared. A thin line: (area x 2)² < (2 x JO_3D_SLIVER_WIDTH)² x extent² = 64 x extent² */
+"1:  muls.w r0, r0\n"
+"    mov r11, r12\n"
+"    shll2 r12\n"
+"    shll2 r12\n"
+"    shll2 r12\n"
+"    sts macl, r0\n"
+"    cmp/gt r0, r12\n"
+"    bt 8f\n"
+"    bra 3f\n"
+"    nop\n"
+"13: mov r0, r12\n"                     /* (the cross product of the diagonals: the area of the quad x 2) */
 "    mov.b @r9, r0\n"                   /* back face: a single plane polygon is skipped, a dual plane one is mirrored */
 "    tst r0, r0\n"
 "    bf 12f\n"
@@ -5116,9 +5179,11 @@ __asm__(
 "    add #12, r9\n"
 "11: mov.l @(44, r14), r0\n"
 "    cmp/hs r0, r8\n"
-"    bf 5b\n"
-"    bra 10f\n"
+     /* (the next polygon: the start of the loop is beyond the reach of a conditional branch; r0 is read again there) */
+"    bt/s 10f\n"
 "    mov #1, r0\n"
+"    bra 5b\n"
+"    nop\n"
      /* --- back face of a dual plane polygon: drawn mirrored, the vertices 0 and 1, 2 and 3 swapped (as jo_3d_emit_polygon()
         does: the same command). Half transparent: slow path (a big one mostly out of the screen is drawn in parts, see
         jo_3d_subdivision_level()). The dual plane back faces were the first cause of the slow path */
