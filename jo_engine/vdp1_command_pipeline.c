@@ -983,7 +983,9 @@ static void                             jo_vdp1_send_frame(void *argument)
     }
     jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND], offset, sizeof(jo_vdp1_command));
     dma[(entries - 1) * 3 + 2] |= JO_SCU_DMA_INDIRECT_END;
-    // The SCU DMA reads the work RAM (the cache of the CPU writes through: the memory is up to date)
+    // The SCU DMA reads the work RAM (the cache of the CPU writes through: the memory is up to date; the commands of
+    // the slave CPU copied by the DMA controller of this CPU during the sort, see jo_3d_slave_copy_job(): finished)
+    jo_dma_wait();
     JO_SCU_DMA_ENABLE(JO_VDP1_SCU_DMA_LEVEL) = 0;
     JO_SCU_DMA_WRITE(JO_VDP1_SCU_DMA_LEVEL) = (unsigned int)dma;
     JO_SCU_DMA_ADD(JO_VDP1_SCU_DMA_LEVEL) = JO_SCU_DMA_ADD_READ4_WRITE2;

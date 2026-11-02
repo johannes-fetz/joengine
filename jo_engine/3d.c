@@ -616,6 +616,8 @@ static volatile unsigned int                __jo_3d_clip_tables_used[2] = {0, 0}
 /** @brief The gouraud tables of the slave CPU taken for this frame (by its first job: a frame can have several jobs of
  *  the slave CPU, the views of a split screen, whose tables are all drawn with the frame) */
 static bool                                 __jo_3d_slave_tables_taken = false;
+/** @brief A copy of the commands of the slave CPU was started this frame (by its DMA controller, see jo_3d_slave_end()) */
+static bool                                 __jo_3d_slave_copy_started = false;
 
 /* State of the master CPU */
 static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, JO_3D_MAX_VERTICES, __jo_3d_view, JO_NULL, 0, -1, &__jo_vdp1_depth_bias, 0, 0,
@@ -637,6 +639,7 @@ void                                        __jo_3d_end_frame(void)
     __jo_3d_master.clip_table_first = __jo_3d_clip_table_base;
     // (the tables of the slave CPU: taken again by the first jo_3d_slave_begin() of the next frame)
     __jo_3d_slave_tables_taken = false;
+    __jo_3d_slave_copy_started = false;
 }
 
 /** @brief Squared length of a vector
@@ -5749,8 +5752,20 @@ static jo_3d_cpu_context                    __jo_3d_slave = {__jo_3d_slave_verti
                                                              &__jo_3d_slave_displayed_polygon_count, true, false, 0, JO_NULL, 0, -1,
                                                              &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1};
 
+/** @brief A job of the slave CPU: the end of the copy of its commands by its DMA controller (the next job draws in the
+ *  same table) */
+static void                                 jo_3d_slave_wait_copy_job(void *argument)
+{
+    (void)argument;
+    jo_dma_wait();
+}
+
 void                                        jo_3d_slave_begin(void)
 {
+    // (a second job of the slave CPU in the frame (a split screen): its commands of the first job are still copied by its
+    // DMA controller; its next drawings overwrite them: it waits for the end of the copy first)
+    if (__jo_3d_slave_copy_started)
+        __jo_core_add_slave_job(jo_3d_slave_wait_copy_job, JO_NULL);
     jo_memcpy(__jo_3d_slave_matrix[0], JO_3D_CURRENT_MATRIX, sizeof(jo_3d_matrix));
     __jo_3d_slave_matrix_level = 0;
     __jo_3d_slave.matrix = __jo_3d_slave_matrix[0];
@@ -5911,7 +5926,11 @@ static void                                 jo_3d_slave_copy_job(void *argument)
     register unsigned int                   i;
 
     c = (const jo_3d_slave_copy *)argument;
-    jo_memcpy(c->commands, __jo_3d_slave_commands, c->count * sizeof(jo_vdp1_command));
+    // The commands are copied by the DMA controller of the slave CPU while the slave CPU sorts the frame (its next
+    // job, which needs the keys only): jo_memcpy() took 1 ms of the slave CPU for 400 commands. jo_vdp1_send_frame()
+    // waits for the end of the copy before the SCU DMA reads the commands. The slave CPU draws again in its table
+    // only after the frame is sent: the source is not changed before the end of the copy.
+    jo_dma_copy_async(__jo_3d_slave_commands, c->commands, c->count * sizeof(jo_vdp1_command));
     jo_memcpy(c->keys, __jo_3d_slave_keys, c->count * sizeof(unsigned short));
     for (JO_ZERO(i); i < c->count; ++i)
         c->windows[i] = c->window;
@@ -5947,7 +5966,10 @@ void                                        jo_3d_slave_end(void)
     c->window = (unsigned short)__jo_3d_slave_window;
     c->windows = __jo_vdp1_commit_commands_without_window(reserved);
     if (reserved > 0)
+    {
         __jo_core_add_slave_job(jo_3d_slave_copy_job, c);
+        __jo_3d_slave_copy_started = true;
+    }
     __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
     __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
     __jo_3d_displayed_polygon_count += __jo_3d_slave_displayed_polygon_count;
