@@ -63,6 +63,9 @@ jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
 bool                    __jo_sprite_end_codes[JO_MAX_SPRITE] __attribute__((used, externally_visible));
 /* Color lookup table of a 16 colors texture (VRAM address / 8, see jo_sprite_add_4bits_lut()), 0: none */
 unsigned short          __jo_sprite_lut[JO_MAX_SPRITE];
+/* Mean color of the pixels of a texture with smaller copies (set by jo_3d_set_texture_mipmaps() in 3d.c), 0: unknown. A
+   polygon with the texture seen as a thin line is drawn with it (see jo_3d_emit_sliver()) */
+unsigned short          __jo_sprite_mean_color[JO_MAX_SPRITE];
 int                     __jo_gouraud_shading_runtime_index = -1;
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 int				        __jo_hash_table[JO_MAX_SPRITE];
@@ -193,6 +196,7 @@ int				            __jo_sprite_replace(const jo_img * const img, const int sprit
                     (unsigned int)((JO_MULT_BY_4(texture->width * texture->height)) >> (picture->color_mode)));
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
     __jo_sprite_end_codes[sprite_id] = false;
+    __jo_sprite_mean_color[sprite_id] = 0;
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     if (__jo_sprite_quad[sprite_id] != JO_NULL)
         jo_3d_free_sprite_quad(sprite_id);
@@ -256,6 +260,7 @@ static int                  __internal_jo_sprite_add_prefix(void * const data, c
     picture->index = __jo_sprite_id;
     __jo_sprite_end_codes[__jo_sprite_id] = false;
     __jo_sprite_lut[__jo_sprite_id] = 0;
+    __jo_sprite_mean_color[__jo_sprite_id] = 0;
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
 
     if (data != JO_NULL)

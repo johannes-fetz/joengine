@@ -1539,6 +1539,9 @@ void                                jo_3d_set_texture_subdivision_error(const in
  *  its texture. The smallest copy that has at least as many texels as pixels on the screen is used: the polygons and the
  *  standing sprites (jo_3d_draw_standing_sprite()) far away cost less VDP1 time, and their texture flickers less
  *  @remarks The copies are new sprites (a third of the VRAM of the texture). Call it once, after the texture was added
+ *  @remarks A polygon with the texture seen as a thin line of the screen (the ground at a grazing angle, 64 pixels long at
+ *  least and 4 pixels wide at most) is drawn as a polygon of the mean color of the texture, as thin as it: the VDP1 drew
+ *  its lines along the whole polygon (about the square of its length in pixels, 10 to 20 % of a frame on a hilly ground)
  */
 bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
 

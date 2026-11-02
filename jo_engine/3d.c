@@ -53,6 +53,7 @@
 extern jo_picture_definition        __jo_sprite_pic[JO_MAX_SPRITE];
 extern jo_texture_definition        __jo_sprite_def[];
 extern bool                         __jo_sprite_end_codes[];
+extern unsigned short               __jo_sprite_mean_color[];
 extern jo_sprite_attributes         __jo_sprite_attributes;
 jo_3d_quad                          *__jo_sprite_quad[JO_MAX_SPRITE];
 
@@ -89,6 +90,17 @@ jo_3d_quad                          *__jo_sprite_quad[JO_MAX_SPRITE];
  *  (4 x 4 parts above 4 times more) */
 # define JO_3D_SUBDIVISION_ERROR            (8)
 # define JO_3D_CLIP_MAX_VERTICES            (12)
+/** @brief A textured polygon seen as a thin line (the ground at a grazing angle: its 4 corners nearly on a line of the screen)
+ *  is drawn as a polygon of the mean color of its texture (known for the textures with smaller copies, see
+ *  jo_3d_set_texture_mipmaps()), as thin as it (see jo_3d_emit_sliver()). The VDP1 drew its lines from the edge A-D to the
+ *  edge B-C: for such a polygon both edges lie along the line, each of the lines went along the whole line (about its
+ *  length squared pixels: 22 000 pixels for 400 seen on a hilly ground, 10 to 20 % of the pixels of the frame; measured
+ *  in Mednafen: 0.4 ms of VDP1 time per frame, 0.8 ms at the 95th percentile, for 0.5 ms of each CPU, the test of
+ *  the assembly loop). The extent of the polygon on the screen (pixels, along the diagonals) and the width under which it
+ *  is a line (pixels: twice its area / the extent, the mean width of the strip; wider, flat bands were seen on the hills).
+ *  Test: JO_TEST_NO_SLIVER draws them as they are (the test of the assembly loop stays) */
+# define JO_3D_SLIVER_EXTENT                (64)
+# define JO_3D_SLIVER_WIDTH                 (4)
 /** @brief A part of a subdivided polygon partly out of the screen that is at least this big on the screen (pixels) is cut
  *  along the lines of its tile where it leaves the screen (see jo_3d_crop_part()): the VDP1 spends its time on the pixels
  *  out of the screen too (the parts of a road under the bottom of the screen were a fourth of the pixels of a frame;
@@ -241,6 +253,7 @@ typedef struct
     unsigned int                            pixels;             // Pixels drawn by the VDP1 for the object (see JO_PROFILE_3D_PIXELS)
     unsigned short                          gouraud_offset;     // Added to the gouraud tables of the object: its tinted copy (see jo_3d_set_tint())
     int                                     environment;        // The environment map of the object (see jo_3d_set_mesh_environment()), -1: none
+    unsigned short                          sliver_color;       // The polygon is drawn as a polygon of this color (see jo_3d_emit_sliver()), 0: none
 }                                           jo_3d_cpu_context;
 
 /** @brief Levels of tiles of a texture (2 x 2, 4 x 4) */
@@ -632,7 +645,7 @@ static bool                                 __jo_3d_slave_copy_started = false;
 static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, JO_3D_MAX_VERTICES, __jo_3d_view, JO_NULL, 0, -1, &__jo_vdp1_depth_bias, 0, 0,
                                                               JO_3D_CLIP_GOURAUD_TABLES,
                                                               &__jo_3d_polygon_count, &__jo_3d_vertice_count, &__jo_3d_displayed_polygon_count, false,
-                                                              false, 0, JO_NULL, 0, -1, &__jo_3d_guard_band, &__jo_3d_light_direction, 0, 0, 0, -1};
+                                                              false, 0, JO_NULL, 0, -1, &__jo_3d_guard_band, &__jo_3d_light_direction, 0, 0, 0, -1, 0};
 
 /** @brief Reset the statistics of the frame (Internal usage) */
 void                                        __jo_3d_end_frame(void)
@@ -2295,6 +2308,7 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     unsigned int                            pmod;
     unsigned int                            grda;
     unsigned int                            texture_words;
+    unsigned int                            color;
     int                                     x0;
     int                                     y0;
     int                                     x1;
@@ -2427,7 +2441,16 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     else if (pmod & JO_VDP1_COLOR_CALC_GOURAUD)
         JO_ZERO(rotation);
     JO_ZERO(texture_words);
-    if ((a->sort & JO_3D_USE_TEXTURE) && ctx->texture_words != 0)
+    color = a->color;
+    if (ctx->sliver_color != 0)
+    {
+        // A textured polygon seen as a thin line: a polygon of the mean color of its texture (see jo_3d_emit_sliver(); the
+        // color mode of its texture replaced: a polygon with the mode of a 16 colors texture was drawn with a wrong color)
+        ctrl = JO_VDP1_CMD_POLYGON;
+        color = ctx->sliver_color;
+        pmod = (pmod & ~JO_VDP1_COLOR_MODE_MASK) | JO_VDP1_COLOR_MODE_RGB | JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE;
+    }
+    else if ((a->sort & JO_3D_USE_TEXTURE) && ctx->texture_words != 0)
     {
         // A tile of the texture (a part of a subdivided polygon, see jo_3d_emit_tile())
         ctrl = JO_VDP1_CMD_DISTORTED_SPRITE | (a->direction & JO_VDP1_DIRECTION_FLIP_MASK);
@@ -2457,7 +2480,7 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     // 8 stores of 32 bits instead of 16 stores of 16 bits (the cache writes through: each store is a bus access)
     words = (jo_3d_command_word *)cmd;
     words[0] = (unsigned int)ctrl << 16;
-    words[1] = ((unsigned int)pmod << 16) | a->color;
+    words[1] = ((unsigned int)pmod << 16) | color;
     words[2] = texture_words;
     if (rotation)
     {
@@ -4404,6 +4427,107 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
 volatile unsigned int                       __jo_3d_path_counts[8][4];
 #endif
 
+#ifndef JO_TEST_NO_SLIVER
+/** @brief Check if a textured polygon is seen as a thin line (see jo_3d_emit_sliver())
+ *  @param v The 4 vertices (projected, inside of the guard band)
+ *  @param cross Cross product of the diagonals of its screen positions (the area x 2, front face: positive)
+ *  @return true if its extent is at least JO_3D_SLIVER_EXTENT and its mean width under JO_3D_SLIVER_WIDTH
+ *  @remarks The assembly loop sends such polygons to jo_3d_draw_polygon_general() (see __jo_3d_polygon_loop(), the label
+ *  13; it leaves out the thin lines up and down the screen): the extent is the longest diagonal (the chebyshev length)
+ */
+static  __jo_force_inline bool              jo_3d_is_sliver(jo_3d_vertex * const v[4], const int cross)
+{
+    int                                     extent;
+
+    extent = JO_MAX(JO_MAX(JO_ABS(JO_3D_VERTEX_X(v[2]) - JO_3D_VERTEX_X(v[0])), JO_ABS(JO_3D_VERTEX_Y(v[2]) - JO_3D_VERTEX_Y(v[0]))),
+                    JO_MAX(JO_ABS(JO_3D_VERTEX_X(v[3]) - JO_3D_VERTEX_X(v[1])), JO_ABS(JO_3D_VERTEX_Y(v[3]) - JO_3D_VERTEX_Y(v[1]))));
+    return (extent >= JO_3D_SLIVER_EXTENT && cross < JO_MULT_BY_2(JO_3D_SLIVER_WIDTH) * extent);
+}
+
+/** @brief Draw a textured polygon seen as a thin line (see JO_3D_SLIVER_EXTENT) as a polygon of the mean color of its
+ *  texture: the strip along the line that holds its 4 corners, the VDP1 draws it in a few lines as long as the strip
+ *  (the textured polygon cost about the square of its length)
+ *  @param k Parameters of the loop
+ *  @param v The 4 vertices (projected, inside of the guard band)
+ *  @param p Polygon
+ *  @param a Its attribute (its gouraud table is kept: the light)
+ *  @return false if the command table is full
+ */
+static bool                                 jo_3d_emit_sliver(const jo_3d_polygon_loop * const k, jo_3d_vertex * const v[4],
+                                                              const jo_3d_polygon * const p, const jo_3d_polygon_attribute * const a)
+{
+    jo_3d_draw_state                        *s;
+    jo_3d_vertex                            strip[4];
+    int                                     along[4];
+    int                                     across[4];
+    int                                     first;
+    int                                     last;
+    int                                     offset;
+    int                                     low;
+    int                                     high;
+    int                                     i;
+    bool                                    vertical;
+    bool                                    result;
+
+    s = k->state;
+    // The line: along the X axis of the screen, or the Y axis when the polygon is taller than wide
+    vertical = JO_MAX(JO_ABS(JO_3D_VERTEX_Y(v[2]) - JO_3D_VERTEX_Y(v[0])), JO_ABS(JO_3D_VERTEX_Y(v[3]) - JO_3D_VERTEX_Y(v[1]))) >
+               JO_MAX(JO_ABS(JO_3D_VERTEX_X(v[2]) - JO_3D_VERTEX_X(v[0])), JO_ABS(JO_3D_VERTEX_X(v[3]) - JO_3D_VERTEX_X(v[1])));
+    for (JO_ZERO(i); i < 4; ++i)
+    {
+        along[i] = vertical ? JO_3D_VERTEX_Y(v[i]) : JO_3D_VERTEX_X(v[i]);
+        across[i] = vertical ? JO_3D_VERTEX_X(v[i]) : JO_3D_VERTEX_Y(v[i]);
+    }
+    // Its ends: the first and the last corners along the axis
+    JO_ZERO(first);
+    JO_ZERO(last);
+    for (i = 1; i < 4; ++i)
+    {
+        if (along[i] < along[first])
+            first = i;
+        if (along[i] > along[last])
+            last = i;
+    }
+    // The 2 other corners: their distances across the line from one end to the other, the strip holds them (the Q16
+    // ratio: the corners are at most 2 x the guard band apart, the division is exact enough)
+    JO_ZERO(low);
+    JO_ZERO(high);
+    for (JO_ZERO(i); i < 4; ++i)
+    {
+        if (i == first || i == last)
+            continue;
+        offset = across[i] - across[first] -
+                 jo_fixed2int(jo_fixed_mult(jo_int2fixed(across[last] - across[first]),
+                                            jo_fixed_div(jo_int2fixed(along[i] - along[first]), jo_int2fixed(along[last] - along[first]))));
+        low = JO_MIN(low, offset);
+        high = JO_MAX(high, offset);
+    }
+    // The strip, clockwise on the screen (a front face): from A-D (its start) to B-C (its end), the VDP1 draws it in
+    // high - low + 1 lines
+    if (vertical)
+    {
+        jo_3d_set_vertex(&strip[0], across[first] + high, along[first], v[first]->zc, 0);
+        jo_3d_set_vertex(&strip[1], across[last] + high, along[last], v[last]->zc, 0);
+        jo_3d_set_vertex(&strip[2], across[last] + low, along[last], v[last]->zc, 0);
+        jo_3d_set_vertex(&strip[3], across[first] + low, along[first], v[first]->zc, 0);
+    }
+    else
+    {
+        jo_3d_set_vertex(&strip[0], along[first], across[first] + low, v[first]->zc, 0);
+        jo_3d_set_vertex(&strip[1], along[last], across[last] + low, v[last]->zc, 0);
+        jo_3d_set_vertex(&strip[2], along[last], across[last] + high, v[last]->zc, 0);
+        jo_3d_set_vertex(&strip[3], along[first], across[first] + high, v[first]->zc, 0);
+    }
+    // (the sort key of the polygon itself: its 4 depths, see jo_3d_emit_polygon(); the strip has the depths of its ends
+    // twice)
+    s->ctx->sliver_color = __jo_sprite_mean_color[a->texture_id];
+    result = jo_3d_emit_polygon_call(s->ctx, &strip[0], &strip[1], &strip[2], &strip[3], JO_NULL, p, a, k->commands, k->keys,
+                                     k->reserved, k->used, s->light);
+    s->ctx->sliver_color = 0;
+    return (result);
+}
+#endif
+
 /** @brief Draw one polygon: the general case (see __jo_3d_polygon_loop())
  *  @param k Parameters of the loop
  *  @param p Polygon
@@ -4467,7 +4591,22 @@ static bool                                 jo_3d_draw_polygon_general(const jo_
         return (result);
     }
     if (!(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)))
-        return (jo_3d_emit_polygon(ctx, v[0], v[1], v[2], v[3], JO_NULL, p, a, k->commands, k->keys, k->reserved, k->used, s->light));
+    {
+        // Seen as a thin line: a polygon of the mean color of its texture (see jo_3d_emit_sliver())
+        // (JO_TEST_NO_SLIVER: drawn as they are, to compare on the console; JO_3D_CROP_EXTENT=9999: no cut of the parts)
+#ifndef JO_TEST_NO_SLIVER
+        if ((a->sort & JO_3D_USE_TEXTURE) && __jo_sprite_mean_color[a->texture_id] != 0 && !ctx->mirror && a->plane == JO_3D_SINGLE_PLANE)
+        {
+            int                             cross;
+
+            cross = (JO_3D_VERTEX_X(v[2]) - JO_3D_VERTEX_X(v[0])) * (JO_3D_VERTEX_Y(v[3]) - JO_3D_VERTEX_Y(v[1])) -
+                    (JO_3D_VERTEX_X(v[3]) - JO_3D_VERTEX_X(v[1])) * (JO_3D_VERTEX_Y(v[2]) - JO_3D_VERTEX_Y(v[0]));
+            if (cross >= 0 && jo_3d_is_sliver(v, cross))
+                return (jo_3d_emit_sliver(k, v, p, a));
+        }
+#endif
+        return (jo_3d_emit_polygon_call(ctx, v[0], v[1], v[2], v[3], JO_NULL, p, a, k->commands, k->keys, k->reserved, k->used, s->light));
+    }
     // Crossing the near plane or far outside of the screen: clipped
     jo_profile_begin(JO_PROFILE_3D_CLIP);
     result = jo_3d_emit_clipped_polygon(ctx, v, JO_NULL, any, s->near_z, s->w, s->right, s->bottom, p, a, JO_NULL, k->commands, k->keys,
@@ -5761,6 +5900,38 @@ static int                                  jo_3d_nearest_lut_color(const jo_col
 /** @brief The nearest colors of the table already found (see jo_3d_set_texture_mipmaps_4bits()): a power of 2 */
 # define JO_3D_LUT_MEMO                     (64)
 
+/** @brief Mean color of the pixels of a texture that are not transparent (see __jo_sprite_mean_color, jo_3d_emit_sliver())
+ *  @param pixels RGB pixels
+ *  @param count Pixel count
+ *  @return The color (its high bit set), 0: all transparent
+ */
+static unsigned short                       jo_3d_mean_color(const jo_color * const pixels, const int count)
+{
+    unsigned int                            sum[3];
+    unsigned int                            n;
+    unsigned int                            color;
+    int                                     i;
+
+    JO_ZERO(sum[0]);
+    JO_ZERO(sum[1]);
+    JO_ZERO(sum[2]);
+    JO_ZERO(n);
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        color = (unsigned int)pixels[i];
+        // (the transparent color and the end code of the VDP1)
+        if (color == JO_COLOR_Transparent || color == JO_VDP1_RGB_END_CODE)
+            continue;
+        sum[0] += color & 0x1F;
+        sum[1] += (color >> 5) & 0x1F;
+        sum[2] += (color >> 10) & 0x1F;
+        ++n;
+    }
+    if (n == 0)
+        return (0);
+    return ((unsigned short)(0x8000 | ((sum[2] / n) << 10) | ((sum[1] / n) << 5) | (sum[0] / n)));
+}
+
 /** @brief The smaller copies of a 16 colors texture (see jo_3d_set_texture_mipmaps()): the average of 2 x 2 pixels (their
  *  colors in the table), the nearest color of the table */
 static bool                                 jo_3d_set_texture_mipmaps_4bits(const int sprite_id, jo_3d_texture_mipmaps * const mip,
@@ -5801,6 +5972,7 @@ static bool                                 jo_3d_set_texture_mipmaps_4bits(cons
             index = (source[(y * w + x) >> 1] >> ((x & 1) ? 0 : 4)) & 0xf;
             levels[0][y * w + x] = index == 0 ? JO_COLOR_Transparent : lut[index];
         }
+    __jo_sprite_mean_color[sprite_id] = jo_3d_mean_color(levels[0], w * h);
     for (level = 1; level <= 2; ++level)
     {
         if (JO_MOD_POW2(w / 2, 8) != 0 || h < 2)
@@ -5888,6 +6060,7 @@ static bool                                 jo_3d_make_texture_mipmaps(const int
     levels[2] = JO_NULL;
     w = texture->width;
     h = texture->height;
+    __jo_sprite_mean_color[sprite_id] = jo_3d_mean_color(source, w * h);
     for (level = 1; level <= 2; ++level)
     {
         // The width of a texture is a multiple of 8 pixels
@@ -6078,7 +6251,7 @@ static jo_3d_cpu_context                    __jo_3d_slave = {__jo_3d_slave_verti
                                                              &__jo_3d_slave_depth_bias, 0, 0, JO_3D_CLIP_GOURAUD_TABLES,
                                                              &__jo_3d_slave_polygon_count, &__jo_3d_slave_vertice_count,
                                                              &__jo_3d_slave_displayed_polygon_count, true, false, 0, JO_NULL, 0, -1,
-                                                             &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1};
+                                                             &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1, 0};
 
 /** @brief A job of the slave CPU: the end of the copy of its commands by its DMA controller (the next job draws in the
  *  same table) */
