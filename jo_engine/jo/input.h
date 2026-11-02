@@ -136,6 +136,13 @@ static  __jo_force_inline bool	jo_is_input_available(const int port)
  */
 int                             jo_get_input_count(void);
 
+/** @brief The port (the index of jo_inputs) of the gamepad of a player: the devices of the port 1 are 0 to 5 (a multitap),
+ *  those of the port 2 are 6 to 11; 2 gamepads without multitap: 0 and 6
+ *  @param player 0: the first connected device, 1: the second one...
+ *  @return The port, -1 if there are not so many devices
+ */
+int                             jo_get_player_input_port(const int player);
+
 /** @brief Get analog axis value
  *  @param port Gamepad port
  *  @param axis Analog axis
@@ -234,12 +241,12 @@ static  __jo_force_inline bool	jo_is_pad1_available(void)
     return jo_is_input_available(JO_INPUT_PORT1_FIRST_DEVICE);
 }
 
-/** @brief Check if the second gamepad is plugged
+/** @brief Check if the second gamepad is plugged (the second device: on the port 2, or on a multitap of the port 1)
  *  @return true if the second gamepad is plugged otherwise false
  */
 static  __jo_force_inline bool	jo_is_pad2_available(void)
 {
-    return jo_is_input_available(JO_INPUT_PORT2_FIRST_DEVICE);
+    return (jo_get_player_input_port(1) >= 0);
 }
 
 /** @brief Check if the key is pressed on the first gamepad
@@ -266,7 +273,10 @@ static  __jo_force_inline bool	jo_is_pad1_key_down(jo_gamepad_keys key)
  */
 static  __jo_force_inline bool	jo_is_pad2_key_pressed(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_pressed(JO_INPUT_PORT2_FIRST_DEVICE, key));
+    int                         port;
+
+    port = jo_get_player_input_port(1);
+    return (port >= 0 && jo_is_input_key_pressed(port, key));
 }
 
 /** @brief Check if the key is down on the second gamepad
@@ -275,7 +285,10 @@ static  __jo_force_inline bool	jo_is_pad2_key_pressed(jo_gamepad_keys key)
  */
 static  __jo_force_inline bool	jo_is_pad2_key_down(jo_gamepad_keys key)
 {
-    return (jo_is_input_key_down(JO_INPUT_PORT2_FIRST_DEVICE, key));
+    int                         port;
+
+    port = jo_get_player_input_port(1);
+    return (port >= 0 && jo_is_input_key_down(port, key));
 }
 
 #endif /* !__JO_INPUT_H__ */
