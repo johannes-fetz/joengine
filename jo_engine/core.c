@@ -332,7 +332,7 @@ void                                        __jo_core_synch(void)
     target = __jo_core_last_synch_vblank + (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE);
     while ((int)(__jo_core_vblank_count - target) < 0 || __jo_core_vblank_count == __jo_core_last_synch_vblank)
     {
-#ifndef JO_CORE_SYNCH_BUSY_WAIT
+#ifdef JO_CORE_SYNCH_SLEEP
         // The CPU sleeps until the next interrupt (the VBLANK, the SMPC just after it): the same wait, without the loop
         // (an emulator does not run the instructions of the loop: Mednafen emulates the game faster)
         __asm__ volatile ("sleep");

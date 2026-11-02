@@ -113,7 +113,7 @@ static int                          __jo_slave_idle_time;
 /** @brief Microseconds the master CPU waited in the last jo_core_wait_for_slave() (see jo_core_master_wait_time()) */
 static int                          __jo_slave_master_wait_time;
 
-#ifndef JO_SLAVE_BUSY_WAIT
+#ifdef JO_SLAVE_SLEEP
 /*
 ** THE SLAVE CPU SLEEPS WHILE IT WAITS
 **
@@ -242,7 +242,7 @@ static void                         jo_slave_main(void)
     // Purge and enable the cache
     JO_SH2_CCR = JO_SH2_CCR_CACHE_PURGE;
     JO_SH2_CCR = JO_SH2_CCR_CACHE_ENABLE;
-#ifndef JO_SLAVE_BUSY_WAIT
+#ifdef JO_SLAVE_SLEEP
     jo_slave_sleep_init();
 #endif
     JO_SLAVE_RUNNING = 1;
@@ -257,7 +257,7 @@ static void                         jo_slave_main(void)
             counting = JO_SLAVE_USER_DONE == JO_SLAVE_USER_ADDED && !JO_SLAVE_MASTER_WAITING;
             while (JO_SLAVE_QUEUE_HEAD == tail)
             {
-#ifdef JO_SLAVE_BUSY_WAIT
+#ifndef JO_SLAVE_SLEEP
                 while (!(JO_SH2_FRT_FTCSR & JO_SH2_FRT_FTCSR_ICF))
                     ;
                 JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_ICF;
