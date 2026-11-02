@@ -46,7 +46,8 @@
 # define JO_PALETTE_MAX                     (8)
 
 /** @brief Create a new palette with 255 entries maximum
- *  @param output The new palette
+ *  @param output The new palette: output->data[k] is the color of the pixels of index k + 1 (the index 0 is transparent;
+ *  the TGA files: their index + 1)
  *  @details See also jo_sprite_set_palette_id()
  */
 void                jo_create_palette(jo_palette * const output);
