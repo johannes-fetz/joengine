@@ -110,6 +110,8 @@ static volatile unsigned int        __jo_slave_user_added;
  *  @remarks idle: JO_SLAVE_IDLE_TICKS at the last jo_core_wait_for_slave(), waited: ticks the master CPU waited */
 static unsigned int                 __jo_slave_last_idle_ticks;
 static int                          __jo_slave_idle_time;
+/** @brief Microseconds the master CPU waited in the last jo_core_wait_for_slave() (see jo_core_master_wait_time()) */
+static int                          __jo_slave_master_wait_time;
 
 #ifndef JO_SLAVE_BUSY_WAIT
 /*
@@ -370,7 +372,8 @@ inline void                        jo_core_wait_for_slave(void)
     jo_slave_cache_purge();
     // The balance of the frame: the slave CPU waited for its jobs (it can do more), or the master CPU waited for it
     idle = JO_SLAVE_IDLE_TICKS;
-    __jo_slave_idle_time = JO_SLAVE_TICK_MICROSECONDS((int)(idle - __jo_slave_last_idle_ticks)) - JO_SLAVE_TICK_MICROSECONDS((int)waited);
+    __jo_slave_master_wait_time = JO_SLAVE_TICK_MICROSECONDS((int)waited);
+    __jo_slave_idle_time = JO_SLAVE_TICK_MICROSECONDS((int)(idle - __jo_slave_last_idle_ticks)) - __jo_slave_master_wait_time;
     __jo_slave_last_idle_ticks = idle;
     jo_profile_end(JO_PROFILE_WAIT_SLAVE);
 }
@@ -378,6 +381,11 @@ inline void                        jo_core_wait_for_slave(void)
 inline int                         jo_core_slave_idle_time(void)
 {
     return (__jo_slave_idle_time);
+}
+
+inline int                         jo_core_master_wait_time(void)
+{
+    return (__jo_slave_master_wait_time);
 }
 
 inline void                        jo_core_exec_on_slave(jo_slave_callback callback)

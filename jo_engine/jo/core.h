@@ -150,6 +150,13 @@ void    jo_core_wait_for_slave(void);
  */
 int     jo_core_slave_idle_time(void);
 
+/** @brief The time the master CPU waited for the slave CPU in the last jo_core_wait_for_slave()
+ *  @return Microseconds (0: the slave CPU was done first)
+ *  @remarks With several jobs of the slave CPU per frame (a split screen: a view after the other), the balance of each
+ *  one: jo_core_slave_idle_time() also counts the time the slave CPU waited before the job (the master CPU prepared it)
+ */
+int     jo_core_master_wait_time(void);
+
 /** @brief Function of a job of the slave CPU (Internal usage) */
 typedef void	(*jo_slave_job_function)(void *argument);
 
