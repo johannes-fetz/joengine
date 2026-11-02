@@ -305,11 +305,18 @@ void		        jo_audio_set_cd_volume(const unsigned char level)
     jo_audio_slot_write(JO_SCSP_CDDA_RIGHT_SLOT, JO_SCSP_SLOT_MIXER, effect_level | JO_SCSP_EFFECT_PAN(JO_SCSP_PAN_RIGHT));
 }
 
+/** @brief The register 0x400 of the SCSP: the sound RAM of 4 Mbits and the master volume
+ *  @param volume Master volume (0 to 15)
+ */
+static void                         jo_audio_set_memory_and_volume(const unsigned int volume)
+{
+    *(volatile unsigned char *)&JO_SCSP_COMMON(JO_SCSP_COMMON_MASTER_VOLUME) = (unsigned char)(JO_SCSP_MEMORY_4MBITS >> 8);
+    *((volatile unsigned char *)&JO_SCSP_COMMON(JO_SCSP_COMMON_MASTER_VOLUME) + 1) = (unsigned char)(volume & JO_SCSP_MASTER_VOLUME_MASK);
+}
+
 void		        jo_audio_set_volume(const unsigned char vol)
 {
-    // 0-127 volume to 0-15 master volume
-    JO_SCSP_COMMON(JO_SCSP_COMMON_MASTER_VOLUME) = (JO_SCSP_COMMON(JO_SCSP_COMMON_MASTER_VOLUME) & ~JO_SCSP_MASTER_VOLUME_MASK) |
-                                                   ((vol >> 3) & JO_SCSP_MASTER_VOLUME_MASK);
+    jo_audio_set_memory_and_volume(vol >> 3);
 }
 
 #ifdef JO_COMPILE_WITH_AUDIO_DSP_SUPPORT
@@ -365,7 +372,7 @@ void		                    jo_audio_init(void)
     __jo_audio_driver_running = false;
 #endif
     // 4 Mbits sound RAM, 16 bits DAC, master volume max
-    JO_SCSP_COMMON(JO_SCSP_COMMON_MASTER_VOLUME) = JO_SCSP_MASTER_VOLUME_MAX;
+    jo_audio_set_memory_and_volume(JO_SCSP_MASTER_VOLUME_MAX);
     // The DSP of the SCSP stopped: the BIOS leaves the program of the echo of its startup sound running, its ring buffer
     // (16 to 128 KB of the sound RAM) written all the time: it wrote over the sounds there (noise, glitches). Its program
     // cleared (no step writes the ring buffer), its coefficients and addresses cleared, the ring buffer at 0, 16 KB
