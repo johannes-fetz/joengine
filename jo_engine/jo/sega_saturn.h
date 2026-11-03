@@ -805,7 +805,9 @@ static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
  *  @param ADDR Address in the sound RAM (8 KB aligned)
  */
 # define JO_SCSP_RING_BUFFER(WORDS, ADDR)   ((((WORDS) >= 65536 ? 3 : (WORDS) >= 32768 ? 2 : (WORDS) >= 16384 ? 1 : 0) << 7) | (((ADDR) >> 13) & 0x7F))
-/** @brief Register 0x400: the sound RAM of 4 Mbits (512 KB). Without it the SCSP addresses 2 Mbits (256 KB) */
+/** @brief Register 0x400: the sound RAM of 4 Mbits (512 KB). Without it the SCSP addresses 2 Mbits (256 KB): the slots and
+ *  the DSP read and write the upper half in the lower half (Yabause, Kronos: the sounds placed above 256 KB (the resident
+ *  ones), and the samples under the ring buffer of the DSP, were silent) */
 # define JO_SCSP_MEMORY_4MBITS              (0x0200)
 /** @brief Master volume bits */
 # define JO_SCSP_MASTER_VOLUME_MASK         (0x000F)

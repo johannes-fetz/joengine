@@ -307,6 +307,8 @@ void		        jo_audio_set_cd_volume(const unsigned char level)
 
 /** @brief The register 0x400 of the SCSP: the sound RAM of 4 Mbits and the master volume
  *  @param volume Master volume (0 to 15)
+ *  @remarks Written by bytes: Yabause 0.9.15 takes the memory size of a write of the high byte only (with a write of the
+ *  whole register, the sounds above 256 KB stayed silent); not read back (it reads 0 there)
  */
 static void                         jo_audio_set_memory_and_volume(const unsigned int volume)
 {
@@ -316,6 +318,7 @@ static void                         jo_audio_set_memory_and_volume(const unsigne
 
 void		        jo_audio_set_volume(const unsigned char vol)
 {
+    // 0-127 volume to 0-15 master volume
     jo_audio_set_memory_and_volume(vol >> 3);
 }
 
@@ -371,7 +374,8 @@ void		                    jo_audio_init(void)
     // (the driver is loaded at the end: the SH-2 programs the SCSP alone until then)
     __jo_audio_driver_running = false;
 #endif
-    // 4 Mbits sound RAM, 16 bits DAC, master volume max
+    // 4 Mbits sound RAM (the bit was missing: the SCSP of Yabause and Kronos addressed 256 KB, the sounds above were
+    // silent), 16 bits DAC, master volume max
     jo_audio_set_memory_and_volume(JO_SCSP_MASTER_VOLUME_MAX);
     // The DSP of the SCSP stopped: the BIOS leaves the program of the echo of its startup sound running, its ring buffer
     // (16 to 128 KB of the sound RAM) written all the time: it wrote over the sounds there (noise, glitches). Its program
