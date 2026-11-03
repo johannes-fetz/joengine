@@ -1025,6 +1025,19 @@ void                                    __jo_vdp1_end_frame(void)
         // The slave CPU sorts and copies the commands while the master CPU computes the next frame in the other buffer
         ++__jo_vdp1_frames_sent;
         __jo_core_add_slave_job(jo_vdp1_send_frame, frame);
+        // Manual change: the CPUs one frame ahead of the VDP1 at most. When the previous frame still waits for the VDP1
+        // (it draws the one before), the slave CPU waits for it in jo_vdp1_send_frame() before it copies this frame, and
+        // the jobs of the next frame (the 3D of the slave CPU) wait behind: the slave CPU lost 8 to 13 ms per frame, the
+        // master CPU drew alone meanwhile, and the CPUs stayed 2 frames ahead of the VDP1 (a split screen, the VDP1 at
+        // 27 to 30 ms per frame: the master CPU busy 33 ms in every frame). The master CPU waits here
+        // instead, until the VDP1 takes that frame: the next frame starts with the change of the frame buffers
+        if (JO_VDP1_MANUAL_CHANGE)
+        {
+            const unsigned int          tag = frame->tag;
+
+            while (JO_VDP1_SHARED(__jo_vdp1_pending_table) && JO_VDP1_SHARED(__jo_vdp1_pending_tag) != tag)
+                ;
+        }
         frame = (frame == &__jo_vdp1_frames[0]) ? &__jo_vdp1_frames[1] : &__jo_vdp1_frames[0];
         // The previous frame of this buffer must be in the VRAM (the slave CPU is usually done since a long time)
         while (__jo_vdp1_frames_sent - JO_VDP1_SHARED(__jo_vdp1_frames_done) > 1)
