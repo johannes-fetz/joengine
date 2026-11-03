@@ -61,6 +61,23 @@ typedef void	(*jo_event_callback)(void);
 /** @brief Function prototype for interrupt handlers (Internal usage) */
 typedef void	(*jo_interrupt_handler)(void);
 
+/** @brief A pause in a busy wait loop (Internal usage): a division of the CPU (39 cycles), waited for
+ *  @remarks Used where a CPU has nothing to do (the slave CPU waiting for a job, the master CPU for the VBLANK): an
+ *           emulator runs 3 instructions for the 39 cycles instead of about 15 of a loop on the flag (Mednafen emulates
+ *           the wait of the division unit: a game emulated 186 -> 193 % of the real time), and no bus access.
+ *           Not in the waits of the master CPU for the VDP1 (__jo_vdp1_end_frame()): a view of a level went from 30 to
+ *           25 frames per second (measured, not explained)
+ *  @warning The division unit is changed: never between the start of a division and the read of its quotient (the
+ *           interrupts save and restore it)
+ */
+static  __jo_force_inline void      __jo_core_pause(void)
+{
+    JO_SH2_DVSR = 1;
+    // (writing the dividend starts the division, reading the quotient waits for its end)
+    JO_SH2_DVDNT = 0;
+    (void)JO_SH2_DVDNT;
+}
+
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /** @brief Function prototype for jo_core_exec_on_slave() */

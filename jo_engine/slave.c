@@ -115,7 +115,7 @@ static int                          __jo_slave_master_wait_time;
 
 #ifdef JO_SLAVE_SLEEP
 /*
-** THE SLAVE CPU SLEEPS WHILE IT WAITS
+** THE SLAVE CPU SLEEPS WHILE IT WAITS (JO_SLAVE_SLEEP, not by default)
 **
 ** The slave CPU waits for its jobs in SLEEP (the CPU stops until an interrupt), not in a loop on the flag of its free
 ** running timer: an emulator (Mednafen) does not run the instructions of a sleeping CPU (a game ran 7 % faster with
@@ -126,6 +126,9 @@ static int                          __jo_slave_master_wait_time;
 ** write: the master CPU writes again while it waits for the slave CPU (jo_core_wait_for_slave()).
 ** The vectors of the slave CPU: its own table (the table of the Boot ROM stands under its stack: an interrupt during
 ** the loading of a level, the stack deep, jumped into the stack).
+** Not by default: SLEEP is rarely used by the games, the emulators get it wrong. Yabause (and its forks) saves the
+** address of the SLEEP itself at an interrupt (the CPU sleeps again after the RTE, before testing its flag: the slave
+** CPU never ran its jobs, the game froze); with it the demos crashed in SSF too. Mednafen: a game emulated 4 % faster.
 */
 /** @brief Vector of the input capture interrupt of the free running timer (user vectors: 64 to 127; 0x66: the sampling
  *  of the profiler) */
@@ -259,7 +262,7 @@ static void                         jo_slave_main(void)
             {
 #ifndef JO_SLAVE_SLEEP
                 while (!(JO_SH2_FRT_FTCSR & JO_SH2_FRT_FTCSR_ICF))
-                    ;
+                    __jo_core_pause();
                 JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_ICF;
 #else
                 // (the interrupt enabled again each time: the sampling of the profiler writes TIER, see jo_profile_sampling_install())
