@@ -272,7 +272,8 @@ bool                                guards_auto_aim(const jo_pos3D_fixed * const
 void                                camera_view_to_world(const jo_fixed vx, const jo_fixed vy, const jo_fixed vz, jo_pos3D_fixed * const w);
 /** @brief The agent fires: the guards near him hear it, the guards near the bullet too (from eye along dir, it stopped at
  *  length) */
-void                                guards_hear_shot(const jo_pos3D_fixed * const eye, const jo_pos3D_fixed * const dir, const jo_fixed length);
+void                                guards_hear_shot(const jo_pos3D_fixed * const eye, const jo_pos3D_fixed * const dir, const jo_fixed length,
+                                                     const bool loud);
 /** @brief The drops of blood: their flight (each frame), their sprites (in the world) */
 void                                guards_update_blood(const int elapsed);
 void                                guards_draw_blood(void);

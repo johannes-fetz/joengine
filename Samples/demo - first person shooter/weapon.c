@@ -594,8 +594,8 @@ static void                     fire(void)
         guards_auto_aim(&eye, &dir);
     shoot_ray(&eye, &dir, def != JO_NULL ? def->damage : 25, JO_NULL);
     play_shot();
-    // (the guards near the agent hear the shot, the guards near the bullet too)
-    guards_hear_shot(&eye, &dir, last_ray_distance);
+    // (the guards near the agent hear the shot, the guards near the bullet too; a rifle without a silencer: the whole wing)
+    guards_hear_shot(&eye, &dir, last_ray_distance, def != JO_NULL && def->automatic);
     // Some shots: the flame at the muzzle and the bullet seen flying to what it hit
     // (an automatic rifle without a silencer: the flame at each shot)
     if (def != JO_NULL && (def->automatic || jo_random(FLASH_CHANCE) == 1))
