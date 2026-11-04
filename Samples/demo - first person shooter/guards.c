@@ -108,6 +108,8 @@
 #define SCIENTIST_FEAR_TIME         (9000)
 #define SCIENTIST_PAUSE_TIME        (1800)
 #define SCIENTIST_FLEE_RADIUS       (1000)
+/** @brief The first units of the way to a place must be free (the bench next to him) */
+#define SCIENTIST_FLEE_FIRST        (240)
 #define SCIENTIST_CHOICE_TIME       (400)
 /** @brief A scientist running away, in a room the agent doesn't see for this long (milliseconds) and farther than
  *  SCIENTIST_GONE_DISTANCE: he is gone (out of the level; he doesn't come back) */
@@ -141,6 +143,8 @@
 #define GUARD_CAP_CENTER            (GUARD_SIZE(95))
 #define GUARD_CAP_TOP               (GUARD_SIZE(98))
 #define CAP_MAX                     (4)
+/** @brief A cap on the floor goes after this long (milliseconds), like the bodies */
+#define CAP_FLOOR_TIME              (6000)
 typedef struct
 {
     jo_pos3D_fixed                  position;
@@ -151,6 +155,7 @@ typedef struct
     jo_fixed                        floor;
     const jo_3d_model               *model;
     const jo_entity                 *owner;         // The guard it fell from (it goes with him when he dies)
+    int                             on_floor;       // Milliseconds on the floor (it goes after CAP_FLOOR_TIME)
     bool                            used;
 }                                   falling_cap;
 static falling_cap                  caps[CAP_MAX];
@@ -249,6 +254,11 @@ typedef struct
     bool                            run;            // He runs to the agent (from another room, from far)
     int                             door_wait;      // Milliseconds blocked by a door (open: he goes around its panel)
     int                             detour_time;    // Milliseconds left walking around a piece of furniture
+    const jo_entity                 *near[12];      // The solid entities near him (see near_gather()): what can block him
+    int                             near_count;
+    jo_fixed                        near_x;         // Where he was when they were gathered (gathered again farther)
+    jo_fixed                        near_z;
+    int                             near_age;       // Milliseconds since (gathered again after NEAR_GATHER_TIME)
     int                             detour_yaw;     // The direction of that walk around
     int                             way_timer;      // Milliseconds until his way is computed again (see way_to())
     jo_fixed                        way_x;          // The next point of his way (the point itself, or a side of a doorway)
@@ -367,7 +377,10 @@ static bool                         is_clear(const jo_pos3D_fixed * const a, con
  *  breaks the pane, see shoot_agent()) */
 static bool                         is_line_clear(const jo_pos3D_fixed * const a, const jo_pos3D_fixed * const b)
 {
-    return (is_clear(a, b, true, false));
+    bool                            clear;
+
+    clear = is_clear(a, b, true, false);
+    return (clear);
 }
 
 /** @brief He sees the agent: near, in front of him, nothing between his eyes and the eyes of the agent */
@@ -392,6 +405,9 @@ static bool                         sees_agent_within(const jo_entity * const e,
         if (dot < GUARD_SIGHT_COS)
             return (false);
     }
+    // (in a room the agent doesn't see (no way through the doorways between them): no ray, it costs 0.7 ms)
+    if (jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0)
+        return (false);
     eyes.x = e->position.x;
     eyes.y = e->position.y - jo_int2fixed(GUARD_EYE_HEIGHT);
     eyes.z = e->position.z;
@@ -404,6 +420,87 @@ static bool                         sees_agent(const jo_entity * const e)
     return (sees_agent_within(e, 60));
 }
 
+/** @brief The solid entities near a person (the benches, the crates, the people): what can block his steps. The test of
+ *  the engine looks at the 80 solid entities of the level (260 microseconds each time, several times per frame per
+ *  moving person: the detours); this list of at most NEAR_MAX, gathered within NEAR_RADIUS, is used instead, gathered
+ *  again when he moved NEAR_AGAIN from where it was gathered, or after NEAR_GATHER_TIME (the others move too) */
+#define NEAR_MAX                    (12)
+#define NEAR_RADIUS                 (400)
+#define NEAR_AGAIN                  (150)
+#define NEAR_GATHER_TIME            (500)
+
+static void                         near_gather(const jo_entity * const e, guard * const g)
+{
+    int                             k;
+    const jo_entity                 *o;
+    int                             reach;
+
+    g->near_count = 0;
+    g->near_x = e->position.x;
+    g->near_z = e->position.z;
+    g->near_age = 0;
+    for (k = 0; (o = jo_entity_get(k)) != JO_NULL && g->near_count < NEAR_MAX; ++k)
+    {
+        if (o == e || !(o->flags & JO_ENTITY_FLAG_SOLID) || (o->flags & JO_ENTITY_FLAG_DISABLED))
+            continue;
+        // (a box: its half sizes added, a turned box is within their sum)
+        reach = NEAR_RADIUS + (o->box_z > 0 ? o->box_x + o->box_z : o->radius);
+        if (JO_ABS(jo_fixed2int(o->position.x - e->position.x)) > reach || JO_ABS(jo_fixed2int(o->position.z - e->position.z)) > reach)
+            continue;
+        // (the vertical overlap: his body from his feet up to 90)
+        if (o->position.y <= e->position.y - jo_int2fixed(90) || o->position.y - jo_int2fixed(o->height) >= e->position.y)
+            continue;
+        g->near[g->near_count++] = o;
+    }
+}
+
+/** @brief The list gathered again when it is old or he went far from where it was gathered (see near_gather()); called
+ *  only when the list is about to be used (a step, a choice of a way out): the people standing still never gather (19
+ *  lists gathered in the same frame took 6 ms every half second) */
+static void                         near_update(const jo_entity * const e, guard * const g)
+{
+    if (g->near_age >= NEAR_GATHER_TIME || JO_ABS(jo_fixed2int(e->position.x - g->near_x)) > NEAR_AGAIN ||
+        JO_ABS(jo_fixed2int(e->position.z - g->near_z)) > NEAR_AGAIN)
+        near_gather(e, g);
+}
+
+/** @brief One of the entities gathered blocks a point (the test of the engine: a cylinder, or a box turned with the entity;
+ *  a disabled one (a scientist gone) no longer) */
+static bool                         near_blocks(const guard * const g, const jo_fixed x, const jo_fixed z)
+{
+    int                             k;
+    const jo_entity                 *o;
+    int                             dx;
+    int                             dz;
+    int                             lx;
+    int                             lz;
+    int                             r;
+
+    for (k = 0; k < g->near_count; ++k)
+    {
+        o = g->near[k];
+        if (o->flags & JO_ENTITY_FLAG_DISABLED)
+            continue;
+        dx = jo_fixed2int(o->position.x - x);
+        dz = jo_fixed2int(o->position.z - z);
+        if (o->box_z > 0)
+        {
+            r = o->box_x + o->box_z + GUARD_RADIUS * 2 + 2;
+            if (JO_ABS(dx) >= r || JO_ABS(dz) >= r)
+                continue;
+            lx = jo_fixed2int(dx * jo_cos(o->yaw) - dz * jo_sin(o->yaw));
+            lz = jo_fixed2int(dx * jo_sin(o->yaw) + dz * jo_cos(o->yaw));
+            if (JO_ABS(lx) < o->box_x + GUARD_RADIUS && JO_ABS(lz) < o->box_z + GUARD_RADIUS)
+                return (true);
+            continue;
+        }
+        r = o->radius + GUARD_RADIUS;
+        if (JO_ABS(dx) < r && JO_ABS(dz) < r && dx * dx + dz * dz < r * r)
+            return (true);
+    }
+    return (false);
+}
+
 /** @brief The furniture (the solid entities: the partitions of the stalls, the toilets, the crates...), the other guards
  *  and the agent stop him (the closed doors: see doors_block())
  */
@@ -411,13 +508,15 @@ static bool                         is_blocked(const jo_entity * const e, const 
 {
     int                             dx;
     int                             dz;
+    bool                            blocked;
 
     dx = jo_fixed2int(x - player_x);
     dz = jo_fixed2int(z - player_z);
     if (dx * dx + dz * dz < (GUARD_RADIUS + PLAYER_RADIUS) * (GUARD_RADIUS + PLAYER_RADIUS))
         return (true);
-    // (not himself: his cylinder is solid)
-    return (jo_entities_is_blocked_at(x, e->position.y, z, GUARD_RADIUS, 90, e));
+    // (not himself: his cylinder is solid; the entities near him, see near_gather())
+    blocked = near_blocks((const guard *)e->data, x, z);
+    return (blocked);
 }
 
 /** @brief Walk or run in a direction (degrees, like the yaw), stopped by the walls
@@ -447,7 +546,10 @@ static bool                         move_toward(jo_entity * const e, const int d
         return (false);
     }
     if (!jo_cells_is_walkable(nx, e->position.y, nz, GUARD_RADIUS, GUARD_MAX_STEP) ||
-        !jo_cells_floor(nx, e->position.y, nz, GUARD_MAX_STEP, &floor) || is_blocked(e, nx, nz))
+        !jo_cells_floor(nx, e->position.y, nz, GUARD_MAX_STEP, &floor))
+        return (false);
+    near_update(e, (guard *)e->data);
+    if (is_blocked(e, nx, nz))
         return (false);
     e->position.x = nx;
     e->position.z = nz;
@@ -635,7 +737,7 @@ static void                         way_seen(const jo_pos3D_fixed * const p, int
  *  through one doorway (way_to_near(): the stalls). Computed again every GUARD_WAY_PERIOD or when the point moved (the
  *  rays of the way at each frame for each guard who hunted the agent slowed the game down)
  */
-static void                         way_to(jo_entity * const e, const jo_fixed x, const jo_fixed z, jo_fixed * const wx,
+static void                         way_to_inner(jo_entity * const e, const jo_fixed x, const jo_fixed z, jo_fixed * const wx,
                                            jo_fixed * const wz, const int elapsed)
 {
     guard                           *g;
@@ -768,6 +870,12 @@ static void                         way_to(jo_entity * const e, const jo_fixed x
     g->way_valid = true;
 }
 
+static void                         way_to(jo_entity * const e, const jo_fixed x, const jo_fixed z, jo_fixed * const wx,
+                                           jo_fixed * const wz, const int elapsed)
+{
+    way_to_inner(e, x, z, wx, wz, elapsed);
+}
+
 static bool                         go_to_way(jo_entity * const e, const jo_fixed tx, const jo_fixed tz, const bool run, const int elapsed)
 {
     int                             left;
@@ -880,7 +988,14 @@ static void                         muzzle_position(const jo_entity * const e, j
 }
 
 /** @brief A shot at the agent: the sound, the agent is hit or the bullet hits a wall next to him */
+static void                         shoot_agent_inner(jo_entity * const e, const guard * const g);
+
 static void                         shoot_agent(jo_entity * const e, const guard * const g)
+{
+    shoot_agent_inner(e, g);
+}
+
+static void                         shoot_agent_inner(jo_entity * const e, const guard * const g)
 {
     jo_pos3D_fixed                  muzzle;
     jo_pos3D_fixed                  target;
@@ -940,7 +1055,10 @@ static void                         shoot_agent(jo_entity * const e, const guard
         hurt_player(GUARD_DAMAGE + (jo_random(4) - 1));
         return;
     }
-    // Missed: the bullet goes next to the agent (a mark on the wall behind him)
+    // Missed: the bullet goes next to the agent (a mark on the wall behind him; a ray through the cells, 1.5 ms: not for a
+    // guard in a room the agent doesn't see)
+    if (jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0)
+        return;
     player_eye(&target);
     target.x += jo_int2fixed(jo_random(2) == 2 ? 16 + (jo_random(30) - 1) : -16 - (jo_random(30) - 1));
     target.y += jo_int2fixed((jo_random(60) - 1) - 20);
@@ -1072,6 +1190,8 @@ static void                         person_spawn(jo_entity * const e, const bool
     g->hatless = scientist;
     g->fear = 0;
     g->stuck = 0;
+    g->near_count = 0;
+    g->near_age = NEAR_GATHER_TIME + jo_random(NEAR_GATHER_TIME);
     g->met = false;
     g->hidden_time = 0;
     g->detour_time = 0;
@@ -1124,9 +1244,18 @@ static void                         guard_cry(const jo_entity * const e, jo_soun
  *  sinks, or he turns on himself and goes down (see tools/make_guard.py) */
 static const char                   *death_animation(const bool head)
 {
+    // (shot in the head: he goes down on his back; elsewhere: on his belly, or turned around by the shot)
     if (head)
-        return ("death_slip");
-    return (jo_random(2) == 2 ? "death_spread" : "death_spin");
+        return ("death_back");
+    switch (jo_random(3))
+    {
+        case 1:
+            return ("death_front");
+        case 2:
+            return ("death_twist");
+        default:
+            return ("death_back");
+    }
 }
 
 /** @brief He sees or hears the agent: surprised first, then his rifle up */
@@ -1163,7 +1292,8 @@ static void                         scare(jo_entity * const e, guard * const g, 
     }
 }
 
-/** @brief The agent aims at him: his weapon toward him (12 degrees), or he is near (250 units) and the agent faces him (30 degrees) */
+/** @brief The agent aims at him, even roughly: his weapon toward him (25 degrees), or he is near (300 units) and the agent faces
+ *  him (45 degrees) */
 static bool                         agent_aims_at(const jo_entity * const e)
 {
     jo_pos3D_fixed                  dir;
@@ -1180,12 +1310,12 @@ static bool                         agent_aims_at(const jo_entity * const e)
     player_aim_direction(&dir);
     // (the cosine of the angle between the aim and the direction to him, in the horizontal plane)
     dot = (dir.x * dx + dir.z * dz) / distance;
-    return (dot > (distance < 250 ? JO_FIXED_1 * 7 / 8 : JO_FIXED_1 * 125 / 128));
+    // (roughly at him is enough: 45 degrees near, 25 farther)
+    return (dot > (distance < 300 ? JO_FIXED_1 * 45 / 64 : JO_FIXED_1 * 29 / 32));
 }
 
-/** @brief Nothing of the furniture on the straight line from him to a point (the first units of it, every 30: a bench is 60
- *  deep, sampled every 60 it was skipped): the benches of a laboratory are long, a scientist running straight at one stayed
- *  stuck against it */
+/** @brief The straight line from him to a point can be walked (the first units of it, every 30: a bench is 60 deep, sampled
+ *  every 60 it was skipped): the floor (the cells) and the furniture near him (near_gather() first) */
 static bool                         furniture_clear(const jo_entity * const e, const jo_fixed x, const jo_fixed z, const int first)
 {
     int                             dx;
@@ -1193,15 +1323,20 @@ static bool                         furniture_clear(const jo_entity * const e, c
     int                             length;
     int                             k;
     int                             n;
+    jo_fixed                        px;
+    jo_fixed                        pz;
 
     dx = jo_fixed2int(x - e->position.x);
     dz = jo_fixed2int(z - e->position.z);
     length = (int)jo_sqrt((unsigned int)(dx * dx + dz * dz));
-    n = JO_MIN(first / 30, length / 30);
-    for (k = 1; k <= n; ++k)
-        if (jo_entities_is_blocked_at(e->position.x + jo_int2fixed(dx * k * 30 / length), e->position.y,
-                                      e->position.z + jo_int2fixed(dz * k * 30 / length), GUARD_RADIUS, 90, e))
+    n = JO_MIN(first, length);
+    for (k = 30; k <= n; k += 30)
+    {
+        px = e->position.x + jo_int2fixed(dx * k / length);
+        pz = e->position.z + jo_int2fixed(dz * k / length);
+        if (!jo_cells_is_walkable(px, e->position.y, pz, GUARD_RADIUS, GUARD_MAX_STEP) || near_blocks((const guard *)e->data, px, pz))
             return (false);
+    }
     return (true);
 }
 
@@ -1211,62 +1346,85 @@ static bool                         furniture_clear(const jo_entity * const e, c
 static bool                         flee_point(const jo_entity * const e, guard * const g)
 {
     jo_pos3D_fixed                  points[GUARD_WAY_NODES + 8];
+    int                             scores[GUARD_WAY_NODES + 8];
     int                             count;
     int                             k;
     int                             best;
     int                             score;
-    int                             best_score;
     int                             dx;
     int                             dz;
     int                             from_agent;
     int                             from_him;
+    int                             tried;
 
     if (way_node_count < 0)
         way_build();
     for (k = 0; k < way_node_count; ++k)
         points[k] = way_nodes[k];
     count = way_node_count + doors_doorways(&points[way_node_count], 8, true);
-    best = -1;
-    best_score = 0;
+    near_update(e, g);
+    // The score of each place (cheap): far from the agent, not too far from him (the nearest of the far places), a
+    // little at random (blocked by the furniture on his way to one, he tries another). Then the way to the best ones is
+    // tested, in their order, the first one free wins: testing the way to every place made the frame lag (33 tests of the
+    // furniture per place, 20 places)
     for (k = 0; k < count; ++k)
     {
+        scores[k] = -1;
         dx = jo_fixed2int(points[k].x - e->position.x);
         dz = jo_fixed2int(points[k].z - e->position.z);
         from_him = JO_MAX(JO_ABS(dx), JO_ABS(dz)) + JO_MIN(JO_ABS(dx), JO_ABS(dz)) / 2;
-        if (from_him < 80 || from_him > SCIENTIST_FLEE_RADIUS || !furniture_clear(e, points[k].x, points[k].z, SCIENTIST_FLEE_RADIUS))
+        if (from_him < 80 || from_him > SCIENTIST_FLEE_RADIUS)
             continue;
         dx = jo_fixed2int(points[k].x - player_x);
         dz = jo_fixed2int(points[k].z - player_z);
         from_agent = JO_MAX(JO_ABS(dx), JO_ABS(dz)) + JO_MIN(JO_ABS(dx), JO_ABS(dz)) / 2;
-        // (far from the agent, not too far from him: the nearest of the far places; a little at random: blocked by the
-        // furniture on his way to one, he tries another)
-        score = from_agent * 2 - from_him + jo_random(240);
-        if (from_agent > distance_to_agent(e) + 60 && (best < 0 || score > best_score))
+        // (not right at the agent; a place nearer to him than the scientist is stays possible: cornered at the end of a
+        // laboratory, the door being on the agent's side, he runs past him rather than staying in his corner)
+        if (from_agent < 200)
+            continue;
+        scores[k] = JO_MAX(1, from_agent * 2 - from_him + jo_random(240) + 1000);
+    }
+    for (tried = 0; tried < 4; ++tried)
+    {
+        best = -1;
+        score = 0;
+        for (k = 0; k < count; ++k)
+            if (scores[k] > score)
+            {
+                best = k;
+                score = scores[k];
+            }
+        if (best < 0)
+            break;
+        scores[best] = -1;
+        // (the first steps free: the way after goes through the doorways (way_to()), around the furniture (go_to_way()))
+        if (furniture_clear(e, points[best].x, points[best].z, SCIENTIST_FLEE_FIRST))
         {
-            best = k;
-            best_score = score;
+            g->flee_x = points[best].x;
+            g->flee_z = points[best].z;
+            return (true);
         }
     }
-    if (best >= 0)
-    {
-        g->flee_x = points[best].x;
-        g->flee_z = points[best].z;
-        return (true);
-    }
-    // (no place: away from the agent, or the nearest direction around that is free of furniture (45 degrees by 45))
+    // (no place: a few steps away from the agent, the nearest direction around that is free of furniture (45 degrees by 45))
     {
         int                         away;
         int                         turn;
 
-        // (the yaw of a direction: x = sin, z = cos)
+        // (the yaw of a direction: x = sin, z = cos; already running away: he keeps his direction first (between 2 benches
+        // he ran back and forth, from the direction away from the agent to its neighbours and back))
         away = jo_atan2_degrees(e->position.x - player_x, e->position.z - player_z);
-        for (k = 0; k < 6; ++k)
+        if (JO_ABS(((e->yaw - away + 540) % 360) - 180) < 100)
+            away = e->yaw;
+        // (the 7th direction, straight at the agent, is the last resort: cornered between the benches, the only way out
+        // is past him)
+        static const int            turns[8] = {0, 45, -45, 90, -90, 135, -135, 180};
+
+        for (k = 0; k < 8; ++k)
         {
-            // (at most 135 degrees from straight away: never toward the agent)
-            turn = ((k + 1) / 2) * 45 * ((k & 1) ? -1 : 1);
-            g->flee_x = e->position.x + jo_sin((away + turn + 720) % 360) * 150;
-            g->flee_z = e->position.z + jo_cos((away + turn + 720) % 360) * 150;
-            if (furniture_clear(e, g->flee_x, g->flee_z, 150))
+            turn = turns[k];
+            g->flee_x = e->position.x + jo_sin((away + turn + 720) % 360) * 200;
+            g->flee_z = e->position.z + jo_cos((away + turn + 720) % 360) * 200;
+            if (furniture_clear(e, g->flee_x, g->flee_z, 200))
                 return (true);
         }
     }
@@ -1559,11 +1717,20 @@ static void                         next_search_point(const jo_entity * const e,
     g->seen_z = points[k].z;
 }
 
+static void                         guard_update_inner(jo_entity * const e, const int elapsed);
+
 static void                         guard_update(jo_entity * const e, const int elapsed)
+{
+    guard_update_inner(e, elapsed);
+}
+
+static void                         guard_update_inner(jo_entity * const e, const int elapsed)
 {
     guard                           *g;
 
     g = (guard *)e->data;
+    if (g != JO_NULL)
+        g->near_age += elapsed;
     if (g == JO_NULL)
     {
         jo_actor_update(e, elapsed);
@@ -1611,7 +1778,7 @@ static void                         guard_update(jo_entity * const e, const int 
     {
         g->sight_timer = g->state == GUARD_IDLE ? GUARD_IDLE_SIGHT_PERIOD : GUARD_SIGHT_PERIOD;
         // (a scientist notices the agent near him whatever his facing: he hears him, he turns around)
-        g->sees = g->scientist ? sees_agent_within(e, SCIENTIST_THREAT_DISTANCE / 2) : sees_agent(e);
+        g->sees = g->scientist ? sees_agent_within(e, SCIENTIST_THREAT_DISTANCE * 2 / 3) : sees_agent(e);
     }
     if (g->sees)
     {
@@ -2332,7 +2499,9 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
     guard                           *g;
     int                             k;
 
-    // The shots of the agent: the guards near him hear them (surprised, they turn to him), the guards near the bullet too
+    // The shots of the agent: the guards near him hear them (surprised, they turn to him), the guards near the bullet too.
+    // The silenced pistol (not loud) makes no noise: only the guards that can see him from there (around them, through
+    // the doorways) notice it, or those the bullet passes near
     for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
     {
         if (!is_person(e) || e->data == JO_NULL || (e->flags & JO_ENTITY_FLAG_DISABLED))
@@ -2341,14 +2510,17 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
         if (g->scientist)
         {
             // (a scientist: scared by a shot near him, by the loud rifle farther)
-            if (g->state != GUARD_DEAD && (distance_to_agent(e) <= (loud ? SCIENTIST_HEAR_DISTANCE : GUARD_HEARING_DISTANCE + 200) ||
+            if (g->state != GUARD_DEAD && ((loud ? distance_to_agent(e) <= SCIENTIST_HEAR_DISTANCE :
+                                                   distance_to_agent(e) <= GUARD_HEARING_DISTANCE + 200 && sees_agent_within(e, GUARD_HEARING_DISTANCE + 200)) ||
                                            bullet_passes_near(e, eye, dir, length)))
                 scare(e, g, false);
             continue;
         }
         if (g->state != GUARD_IDLE && g->state != GUARD_SEARCH)
             continue;
-        if (distance_to_agent(e) > GUARD_HEARING_DISTANCE && !bullet_passes_near(e, eye, dir, length))
+        if (!(loud ? distance_to_agent(e) <= GUARD_HEARING_DISTANCE :
+                     distance_to_agent(e) <= GUARD_HEARING_DISTANCE && sees_agent_within(e, GUARD_HEARING_DISTANCE)) &&
+            !bullet_passes_near(e, eye, dir, length))
             continue;
         alert(e, g);
     }
@@ -2381,8 +2553,16 @@ void                                guards_update_blood(const int elapsed)
         falling_cap                 *c;
 
         c = &caps[k];
-        if (!c->used || c->spin_speed == 0)
+        if (!c->used)
             continue;
+        if (c->spin_speed == 0)
+        {
+            // (on the floor: it goes after a while, like the bodies)
+            c->on_floor += elapsed;
+            if (c->on_floor >= CAP_FLOOR_TIME)
+                c->used = false;
+            continue;
+        }
         c->position.x += c->speed.x / 1000 * elapsed;
         c->position.y += c->speed.y / 1000 * elapsed;
         c->position.z += c->speed.z / 1000 * elapsed;
@@ -2394,6 +2574,7 @@ void                                guards_update_blood(const int elapsed)
             c->position.y = c->floor - jo_int2fixed(3);
             c->spin = 90;
             c->spin_speed = 0;
+            c->on_floor = 0;
         }
     }
     // The agent walks over a dropped rifle: he takes it
