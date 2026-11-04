@@ -248,7 +248,14 @@ def guard_textures(prefix='G', style='guard'):
     save_rgb(np.clip(a, 0, 255), prefix + 'WOOD.BIN')
 
 
-def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True):
+# The arms of a man without a rifle: his hands hang by his hips (the elbows a little bent, the pivots of the forearms
+# moved), see guard_model(hanging)
+HANGING_HANDS = {'forearm_r': (-11.8, 57.0, 0.5), 'forearm_l': (11.8, 57.0, 0.5)}
+HANGING_LEFT = np.array((-12.5, 44.5, 2.0))
+HANGING_GRIP = np.array((12.5, 44.5, 2.0))
+
+
+def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True, hanging=False):
     """A guard holding a rifle (about 1.75 m: 87 design units, times scale), 12 parts moved by the bones.
     The body is made of rings (8 sides for the head, the torso, the belt; 6 for the limbs): its shape is round, the
     proportions are the ones of a man (the head 1/7.5 of his height, the legs half of it, the shoulders 3 heads wide),
@@ -259,6 +266,8 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
     light = np.array((0.25, 1.0, -0.35))
     light /= np.linalg.norm(light)
     fns = STYLES[style]
+    bones = [(b, p, HANGING_HANDS.get(b, v) if hanging else v) for b, p, v in GUARD_BONES]
+    pivots = {b: v for b, p, v in bones}
     groups = {b[0]: [] for b in GUARD_BONES}     # (4 points, material, flat)
     textures = {}                                 # material -> (texture name, flipped)
 
@@ -522,7 +531,11 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                     save_rgb(a, ('G' + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
                 BAKED.add('G' + t)
         textures['hhairb'] = ('GHHAIRB.BIN', False)
-        frustum('cap' if helmet else 'head', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
+        if helmet:
+            frustum('cap', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
+        else:
+            # (no cap: the top of the head, his hair)
+            frustum('head', 85.6, 6.8, 8.2, 88.6, 3.4, 4.6, {'z': 'hhairb', 'X': 'hhairb', 'Z': 'hhairb', 'x': 'hhairb', 'Y': 'hhairb', 'y': 'hhairb'})
     else:
         def head(i, k, pts, outward):
             if k < 0:
@@ -554,9 +567,11 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
         b = np.array(b, dtype=float)
         return tuple(a + (a - b) / np.linalg.norm(a - b) * d)
     grip, left = rifle_point(0) - RIFLE_HAND_DROP, rifle_point(RIFLE_LEFT_HAND) - RIFLE_HAND_DROP
+    if hanging:
+        grip, left = HANGING_GRIP, HANGING_LEFT
     for sx, arm, fore, hand in ((-1, 'arm_r', 'forearm_r', left), (1, 'arm_l', 'forearm_l', grip)):
         shoulder = (sx * 10.5, 70.5, 0)
-        elbow = np.array(BONE_PIVOTS[fore], dtype=float)
+        elbow = np.array(pivots[fore], dtype=float)
         along = (hand - elbow) / np.linalg.norm(hand - elbow)
         wrist = hand - along * 2.2
         if far:
@@ -589,7 +604,7 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
     body = []
     shades = {}
     count = 0
-    for bone, parent, pivot in GUARD_BONES:
+    for bone, parent, pivot in bones:
         if not groups[bone]:
             continue
         body.append('g ' + bone)
@@ -652,21 +667,22 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                (['jo_flip h'] if flip else []) + ['']
     with open(os.path.join(MODELS, name + '.mtl'), 'w') as f:
         f.write('\n'.join(mtl) + '\n')
-    anims = guard_animations()
+    anims = guard_animations(armed=not hanging)
     # (the root moves scaled in copies of the keys: a pose is shared by several keys and animations (crouch_aim in kneel,
     # crouch_fire...), scaled in place it was scaled once per use: the guard on one knee went up and down between 2 shots)
     for a in anims:
         a['keys'] = [dict(key, root=[v * scale for v in key['root']]) if 'root' in key else dict(key) for key in a['keys']]
     rig = {'bones': [dict({'name': b, 'parent': p, 'pivot': [c * scale for c in v]}, **({} if groups[b] else {'group': None}))
-                     for b, p, v in GUARD_BONES],
+                     for b, p, v in bones],
            'animations': anims}
     with open(os.path.join(MODELS, name + '.json'), 'w') as f:
         json.dump(rig, f, indent=1)
 
 
 
-def guard_animations():
-    """The animations of the guard (degrees: + around X moves a leg or an arm forward, the torso backward)"""
+def guard_animations(armed=True):
+    """The animations of the guard (degrees: + around X moves a leg or an arm forward, the torso backward); armed=False:
+    the arms hang and swing with the steps (the scientists)"""
     anims = []
     # Idle: he breathes (4 s), his weight goes from a leg to the other, he looks around slowly (16 keys, smooth)
     keys = []
@@ -707,9 +723,17 @@ def guard_animations():
             pose['head'] = [-lean * 0.8 + 1.5 * c2, turn * 0.3 * math.cos(2 * math.pi * t), 0]
             # (the rifle in both hands rides with the steps: the arms pump a little with the shoulders, the barrel dips
             # at each landing, the elbows go out a little when he runs)
-            pose['arm_r'] = [arms * c2, 0, arms * 0.5 * s1]
-            pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, -arms * 0.4 * s1]
-            pose['rifle'] = [-arms * 0.8 * c2, arms * 0.6 * s1, 0]
+            if armed:
+                pose['arm_r'] = [arms * c2, 0, arms * 0.5 * s1]
+                pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, -arms * 0.4 * s1]
+                pose['rifle'] = [-arms * 0.8 * c2, arms * 0.6 * s1, 0]
+            else:
+                # (the arms swing against the legs, the elbows bent when he runs)
+                c1 = math.cos(2 * math.pi * t)
+                pose['arm_r'] = [-hip * 0.7 * c1, 0, 4]
+                pose['arm_l'] = [hip * 0.7 * c1, 0, -4]
+                pose['forearm_r'] = [-(8 + arms * 8), 0, 0]
+                pose['forearm_l'] = [-(8 + arms * 8), 0, 0]
             pose['root'] = [0.7 * s1, -bob * (1 + c2) / 2, 0]
             keys.append(pose)
         anims.append({'name': name, 'key_time': period / 16, 'loop': True, 'keys': keys})
@@ -897,15 +921,16 @@ def guard_animations():
             a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'])
     # Hands up (the scientists threatened: the arms raised over the head, the elbows a little out, the head down), held
     # after (a loop: the arms shake a little, he looks at the agent)
-    hands = {'arm_r': [-186, 0, 26], 'arm_l': [-186, 0, -26], 'forearm_r': [-6, 0, 0], 'forearm_l': [-6, 0, 0],
+    # (the arm turned 180 around X: its Z now opens it outward; the forearms bent in, the hands over the head)
+    hands = {'arm_r': [-178, 0, 0], 'arm_l': [-178, 0, 0], 'forearm_r': [-22, 0, 16], 'forearm_l': [-22, 0, -16],
              'head': [6, 0, 0], 'torso': [-4, 0, 0], 'hips': [2, 0, 0], 'root': [0, 0.6, 0]}
-    anims.append(timed_keys('hands_up', [(0, {}), (0.25, dict(hands, arm_r=[-120, 0, 20], arm_l=[-120, 0, -20], head=[-4, 0, 0])),
+    anims.append(timed_keys('hands_up', [(0, {}), (0.25, dict(hands, arm_r=[-110, 0, 4], arm_l=[-110, 0, -4], forearm_r=[-40, 0, 0], forearm_l=[-40, 0, 0], head=[-4, 0, 0])),
                                          (0.5, hands)]))
     keys = []
     for k in range(10):
         t = k / 10
         sn = math.sin(2 * math.pi * t)
-        keys.append(dict(hands, arm_r=[-186 + 3 * sn, 0, 26 + 2 * sn], arm_l=[-186 - 3 * sn, 0, -26 - 2 * sn],
+        keys.append(dict(hands, arm_r=[-178 + 3 * sn, 0, 2 * sn], arm_l=[-178 - 3 * sn, 0, -2 * sn],
                          head=[6 + 2 * sn, 4 * math.sin(2 * math.pi * t * 0.5), 0], torso=[-4, 2 * sn, 0]))
     anims.append({'name': 'hands_hold', 'key_time': 0.15, 'loop': True, 'keys': keys})
     return anims
@@ -1039,8 +1064,8 @@ def build_guards():
     # The scientists: a white coat, no cap, no rifle (the same skeleton and animations: they walk, raise their hands, run,
     # fall like the guards; their faces: the same textures, swapped by guards.c like the guards')
     guard_textures('S', 'scientist')
-    guard_model('scient', style='scientist', prefix='S', helmet=False, rifle=False)
-    guard_model('scientf', style='scientist', prefix='S', far=True, helmet=False, rifle=False)
+    guard_model('scient', style='scientist', prefix='S', helmet=False, rifle=False, hanging=True)
+    guard_model('scientf', style='scientist', prefix='S', far=True, helmet=False, rifle=False, hanging=True)
     # (the converter of the engine: the skeleton and the animations, the textures embedded)
     import sys
     sys.path.insert(0, os.path.join(DEMO, '..', '..', 'Compiler', 'COMMON'))

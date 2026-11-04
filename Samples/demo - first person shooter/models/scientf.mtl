@@ -48,18 +48,6 @@ map_Kd ghhairb.png
 jo_gouraud 1
 jo_lut 0
 
-newmtl guard_capf
-Kd 1 1 1
-map_Kd scapf.png
-jo_gouraud 1
-jo_lut 1
-
-newmtl guard_cap
-Kd 1 1 1
-map_Kd scap.png
-jo_gouraud 1
-jo_lut 1
-
 newmtl guard_pants
 Kd 1 1 1
 map_Kd spants.png

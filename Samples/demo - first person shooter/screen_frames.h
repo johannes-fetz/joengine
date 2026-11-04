@@ -11,7 +11,7 @@
 /** @brief The names of the embedded textures of the frames */
 static const char * const screen_frame_textures[SCREEN_FRAME_COUNT] =
 {
-    "SCRE_3106F2.BIN", "SCRE_82074C.BIN", "SCRE_5FDC1D.BIN"
+    "SCRE_4C9983.BIN", "SCRE_D31D43.BIN", "SCRE_F322D1.BIN"
 };
 
 #endif /* !__SCREEN_FRAMES_H__ */

@@ -2160,8 +2160,9 @@ def build_monitor_models():
         m = Mesh()
         o = dict(subdivision=0)
         m.box(-18, -40, -15, 18, -8, 15, 'casing', faces='xXZy', split=False, **o)
-        # (the screen: its texture swapped by the game for the animation (16 colors: a texture carries its own table))
-        face(m, [(-18, -40, -15), (18, -40, -15), (18, -8, -15), (-18, -8, -15)], (0, 0, -1), screen, **o)
+        # (the screen in RGB: its texture is swapped by the game for the animation; the table of a 16 colors texture
+        # belongs to the polygon, the other frames showed grey)
+        face(m, [(-18, -40, -15), (18, -40, -15), (18, -8, -15), (-18, -8, -15)], (0, 0, -1), screen, lut=False, **o)
         m.box(-6, -8, -5, 6, 0, 5, 'frame', faces='xXzZ', split=False, **o)
         for q in m.quads:
             n = quad_normal(q[0])
@@ -2179,10 +2180,10 @@ def build_screen_frames():
     the polygon of the screen, see build_monitor_models())"""
     import jo_model
     frames = ['screen0', 'screen1', 'screen2']
-    names = [jo_model.embedded_texture_name(os.path.join(MODELS, f + '.png'), True, []) for f in frames]
+    names = [jo_model.embedded_texture_name(os.path.join(MODELS, f + '.png'), False, []) for f in frames]
     m = Mesh()
     for k, f in enumerate(frames[1:]):
-        m.quad([(k * 10, -10, 0), (k * 10 + 8, -10, 0), (k * 10 + 8, 0, 0), (k * 10, 0, 0)], f, subdivision=0)
+        m.quad([(k * 10, -10, 0), (k * 10 + 8, -10, 0), (k * 10 + 8, 0, 0), (k * 10, 0, 0)], f, subdivision=0, lut=False)
     for q in m.quads:
         q[3] = [(0.5, 0.5, 0.5)] * 4
     write_model(m, 'scrfrm', 'The frames of the screens of the computers (their textures only)')

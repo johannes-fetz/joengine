@@ -3,7 +3,7 @@
 newmtl m0
 Kd 1 1 1
 map_Kd screen1.png
-jo_lut 1
+jo_lut 0
 jo_gouraud 1
 jo_subdivision 2
 jo_mipmaps 0
@@ -11,7 +11,7 @@ jo_mipmaps 0
 newmtl m1
 Kd 1 1 1
 map_Kd screen2.png
-jo_lut 1
+jo_lut 0
 jo_gouraud 1
 jo_subdivision 2
 jo_mipmaps 0
