@@ -2154,9 +2154,10 @@ def build_barrel_models():
 
 def build_monitor_models():
     """The monitor of a computer: a box of beige plastic, the screen on its front (toward -Z: the model turned by the yaw
-    of the entity), its stand; the origin on the desk under the stand. The monitor broken: the screen dark and cracked"""
+    of the entity), its stand; the origin on the desk under the stand. The monitor exploded (like the barrels): the stand
+    and the torn bottom of the casing, burnt (a jagged ring, its floor)"""
     models = []
-    for screen in ('screen0', 'screenx'):
+    for screen in ('screen0',):
         m = Mesh()
         o = dict(subdivision=0)
         m.box(-18, -40, -15, 18, -8, 15, 'casing', faces='xXZy', split=False, **o)
@@ -2168,9 +2169,20 @@ def build_monitor_models():
             n = quad_normal(q[0])
             q[3] = [(0.50, 0.50, 0.50) if n[1] < -0.5 else (0.56, 0.56, 0.56) if q[1].startswith('screen') else
                     (0.46, 0.46, 0.46)] * 4
-            if screen == 'screenx' and q[1] == screen:
-                q[3] = [(0.40, 0.40, 0.40)] * 4
         models.append(m)
+    rng = np.random.default_rng(31)
+    d = Mesh()
+    o = dict(subdivision=0)
+    d.box(-6, -8, -5, 6, 0, 5, 'burnt', faces='xXzZ', split=False, **o)
+    corners = [(-18, -15), (18, -15), (18, 15), (-18, 15)]
+    tops = [-(11 + 7 * rng.random()) for k in range(4)]
+    for k in range(4):
+        (ax, az), (bx, bz) = corners[k], corners[(k + 1) % 4]
+        quad_out(d, [(ax, -8, az), (bx, -8, bz), (bx, tops[(k + 1) % 4], bz), (ax, tops[k], az)], (0, -10, 0), 'burnt', dual=True, **o)
+    face(d, [(-18, -8.5, -15), (18, -8.5, -15), (18, -8.5, 15), (-18, -8.5, 15)], (0, -1, 0), 'burnt', **o)
+    for q in d.quads:
+        q[3] = [(0.40, 0.40, 0.40)] * 4
+    models.append(d)
     return models
 
 
@@ -3342,7 +3354,11 @@ def build_level():
     for k, (mx, my, mz, yaw) in enumerate(MONITORS):
         entities.append(dict(name='monitor%d' % (k + 1), cls='breakable', model='MONITOR.JOM', x=int(mx), y=int(my), z=int(mz), yaw=yaw,
                              health=1, flags=['SOLID'], radius=18, height=40,
-                             props=dict(dead_model='MONITORD.JOM', frames=3, shards=10, draw_distance=1400)))
+                             props=dict(dead_model='MONITORD.JOM', frames=3, shards=10, draw_distance=1400, blast='monitor%d_blast' % (k + 1))))
+        # (its explosion: an explosive of the engine without a model at the same place, set off by the monitor (blast):
+        # the fire, the smoke, the flash, the sound and the damage around, like the barrels but smaller)
+        entities.append(dict(name='monitor%d_blast' % (k + 1), cls='explosive', x=int(mx), y=int(my), z=int(mz), health=1, flags=['HIDDEN'],
+                             radius=18, height=36, props=dict(damage=35, radius=55, delay=120, size=70, flash=90, shake=4, sound='EXPLODE.PCM')))
     for k, (model, gx, gy, gz, yaw) in enumerate(GLASSWARE):
         entities.append(dict(name='%s%d' % (model, k + 1), cls='breakable', model=model.upper() + '.JOM', x=int(gx), y=int(gy), z=int(gz),
                              yaw=yaw, health=1, flags=['SOLID'], radius=14 if model == 'tubes' else 7, height=17 if model == 'tubes' else 25,
@@ -3665,7 +3681,7 @@ if __name__ == '__main__':
     write_model(shard, 'shard', 'A piece of broken glass')
     monitor, monitord = build_monitor_models()
     write_model(monitor, 'monitor', 'The monitor of a computer')
-    write_model(monitord, 'monitord', 'The monitor of a computer, its screen broken')
+    write_model(monitord, 'monitord', 'The monitor of a computer, exploded: its stand and the burnt bottom of its casing')
     build_screen_frames()
     for name, mesh in build_glassware_models().items():
         write_model(mesh, name, {'tubes': 'A rack of test tubes', 'tubesd': 'A rack of test tubes, broken', 'flask': 'A flask',

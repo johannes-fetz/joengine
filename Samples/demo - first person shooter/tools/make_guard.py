@@ -274,6 +274,37 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
     def face(group, pts, mat, flat=False):
         groups[group].append(([tuple(float(x) for x in v) for v in pts], mat, flat))
 
+    # The skin of the joints: a face of a part may use points of the part before it (an elbow: the ring at the end of the
+    # upper arm and the ring at the start of the forearm, each point moving with its bone, the quads between them
+    # stretch when the joint bends: no gap, no ball inside). The points of a part lent to the next one are registered
+    # here (their coordinates -> the part); the OBJ writer reuses the vertex of that part (jo_model.py: a point belongs
+    # to the group it is declared in)
+    owners = {}
+    extra_points = {b[0]: [] for b in GUARD_BONES}      # (points of a part used only by the faces of the next part)
+
+    def pkey(v):
+        return tuple(round(float(x), 3) for x in v)
+
+    def lend(group, pts, declared=False):
+        for v in pts:
+            owners[pkey(v)] = group
+            if declared:
+                extra_points[group].append(tuple(float(x) for x in v))
+
+    def bridge(group, ring_a, ring_b, mat):
+        """The quads of the skin between the ring of the part before (its points lent, see lend()) and the ring of this
+        part (the rings in the same direction; the start of ring_b turned to the nearest point of ring_a)"""
+        a = [np.array(v, dtype=float) for v in ring_a]
+        b = [np.array(v, dtype=float) for v in ring_b]
+        n = len(a)
+        assert len(b) == n
+        best = min(range(n), key=lambda o: sum(np.linalg.norm(a[k] - b[(k + o) % n]) for k in range(n)))
+        b = [b[(k + best) % n] for k in range(n)]
+        center = (sum(a) + sum(b)) / (2 * n)
+        for k in range(n):
+            pts = [a[k], a[(k + 1) % n], b[(k + 1) % n], b[k]]
+            add_face(group, pts, mat, np.mean(pts, axis=0) - center)
+
     def orient(pts, outward):
         p = [np.array(v, dtype=float) for v in pts]
         n = np.cross(p[1] - p[0], p[3] - p[0])
@@ -419,6 +450,7 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                     add_face(group, pts, mat, out, True)
         if ball_b is not None:
             dome(group, r1, ball_b[0], axis, ball_b[1])
+        return r0, r1
 
     def prism(group, bottom, top, mats, flat=False):
         bottom = [np.array(v, dtype=float) for v in bottom]
@@ -457,13 +489,16 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
             frustum('shin_' + side, 0, 5.6, 6.0, 25, 6.4, 6.6, {'z': 'boots', 'X': 'boots', 'Z': 'boots', 'x': 'boots', 'Y': 'boots'}, x, 0)
             box('shin_' + side, x - 2.8, 0, -9.0, x + 2.8, 5, -2.8, 'boott', faces='Yyzx X'.replace(' ', ''))
             continue
-        knee = ring(24.0, 3.0, 3.2, 6, x, 0.1)
+        # (the knee: the skin between the end of the thigh and the top of the boot, see bridge())
+        knee = ring(25.6, 3.0, 3.2, 6, x, 0.1)
         hip_top = ring(48.5, 4.0, 4.1, 6, x, 0)
         loft('thigh_' + side, [knee, hip_top], 'pants')
         fan('thigh_' + side, hip_top, 'belt', np.array((0, 1.0, 0)))
-        dome('thigh_' + side, knee, (x, 24.0, 0.1), (0, -1.0, 0), 'boots')
+        lend('thigh_' + side, knee)
         # (the boot: its shaft from the ankle to the knee, its top edge a little wider)
-        loft('shin_' + side, [ring(6.0, 2.6, 2.9, 6, x, 0.0), ring(24.0, 3.2, 3.4, 6, x, 0)], 'boots')
+        boot_top = ring(22.6, 3.2, 3.4, 6, x, 0)
+        loft('shin_' + side, [ring(6.0, 2.6, 2.9, 6, x, 0.0), boot_top], 'boots')
+        bridge('shin_' + side, knee, boot_top, 'boots')
         frustum('shin_' + side, 0, 5.6, 12.6, 6.5, 5.6, 6.6, {'z': 'boott', 'X': 'boott', 'Z': 'boots', 'x': 'boott', 'Y': 'boott', 'y': 'boots'},
                 x, -3.0, x, -0.1)
     # --- The hips (the breeches), the belt with its buckle
@@ -574,15 +609,26 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
         elbow = np.array(pivots[fore], dtype=float)
         along = (hand - elbow) / np.linalg.norm(hand - elbow)
         wrist = hand - along * 2.2
+        down = (elbow - np.array(shoulder, dtype=float))
+        down /= np.linalg.norm(down)
         if far:
-            tube(arm, back(shoulder, elbow, 1.5), elbow, 3.0, 2.4, 4, 'shirt', cap_a=True, cap_b=True)
-            tube(fore, elbow, wrist, 2.4, 2.0, 4, 'shirt', cap_a=True)
+            _, arm_end = tube(arm, back(shoulder, elbow, 1.5), elbow - down * 1.2, 3.0, 2.4, 4, 'shirt', cap_a=True)
+            lend(arm, arm_end)
+            fore_start, _ = tube(fore, elbow + along * 1.2, wrist, 2.4, 2.0, 4, 'shirt')
+            bridge(fore, arm_end, fore_start, 'shirt')
+            # (the hand: seen from afar too, raised over the head)
+            tube(fore, wrist, hand + along * 1.8, 2.0, 1.8, 4, 'skin', cap_b=True)
             continue
-        # (the shoulder closed by a flat end inside the torso; the elbow: the ball at the end of the arm, the forearm
-        # starts at the joint with a ring a little wider than the ball)
-        tube(arm, back(shoulder, elbow, 0.5), elbow, (2.9, 3.1), (2.25, 2.4), 6, 'shirt', up=(0, 0, -1), cap_a=True,
-             ball_b=(elbow, 'shirt'))
-        tube(fore, elbow, wrist, 2.45, 2.0, 4, 'shirt', up=(0, 1, 0))
+        # The shoulder: a ring of the torso inside it around the joint (points of the torso without faces), the skin
+        # from it to the start of the sleeve; the elbow: the skin between the end of the upper arm and the start of the
+        # forearm (see bridge())
+        arm_start, arm_end = tube(arm, back(shoulder, elbow, 0.5), elbow - down * 1.4, (2.9, 3.1), (2.25, 2.4), 6, 'shirt', up=(0, 0, -1))
+        socket = [np.array(v, dtype=float) - down * 2.3 for v in arm_start]
+        lend('torso', socket, declared=True)
+        bridge(arm, socket, arm_start, 'shirt')
+        lend(arm, arm_end)
+        fore_start, _ = tube(fore, elbow + along * 1.4, wrist, 2.45, 2.0, 6, 'shirt', up=(0, 1, 0))
+        bridge(fore, arm_end, fore_start, 'shirt')
         tube(fore, wrist - along * 0.6, hand + along * 1.8, (1.9, 2.3), (1.7, 2.1), 4, 'skin', up=(0, 1, 0), cap_b=True)
     if far and rifle:
         tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_MUZZLE), (1.2, 2.2), (1.2, 2.2), 4, 'gun', up=(0, 1, 0))
@@ -604,10 +650,12 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
     body = []
     shades = {}
     count = 0
+    lent = {}           # (part, coordinates) -> vertex of the OBJ (the first one written for these coordinates)
     for bone, parent, pivot in bones:
         if not groups[bone]:
             continue
         body.append('g ' + bone)
+        out.append('g ' + bone)
         # The normals of the faces, the normals of the points (the mean of the faces around the point, the flat faces
         # keep their own normal)
         face_normals = []
@@ -640,6 +688,11 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
             ids = []
             slots = corner_slots(p, n)
             for v, q, sl in zip(pts, p, slots):
+                owner = owners.get(pkey(v))
+                if owner is not None and owner != bone:
+                    # (a point lent by the part before: its vertex)
+                    ids.append('%d/%d' % (lent[(owner, pkey(v))], sl + 1))
+                    continue
                 vn = n if flat else sum(around[v])
                 vn = vn / max(np.linalg.norm(vn), 1e-9)
                 g = grey(vn)
@@ -648,12 +701,19 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                     count += 1
                     index[key] = count
                     out.append('v %.2f %.2f %.2f %.3f %.3f %.3f' % key)
+                    lent.setdefault((bone, pkey(v)), count)
                 uv = sl + 1
                 ids.append('%d/%d' % (index[key], uv))
             if shade != current:
                 body.append('usemtl ' + shade)
                 current = shade
             body.append('f %s %s %s %s' % tuple(ids))
+        # (the points of this part lent to the next one, without faces of their own: declared here, they move with it)
+        for v in extra_points[bone]:
+            if (bone, pkey(v)) not in lent:
+                count += 1
+                lent[(bone, pkey(v))] = count
+                out.append('v %.2f %.2f %.2f 0.500 0.500 0.500' % tuple(round(float(x) * scale, 2) for x in v))
     with open(os.path.join(MODELS, name + '.obj'), 'w') as f:
         f.write('\n'.join(out + body) + '\n')
     # (no subdivision: the agent never comes 5 units near a guard, his radius and the one of the guard; the tiles of the
@@ -728,12 +788,12 @@ def guard_animations(armed=True):
                 pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, -arms * 0.4 * s1]
                 pose['rifle'] = [-arms * 0.8 * c2, arms * 0.6 * s1, 0]
             else:
-                # (the arms swing against the legs, the elbows bent when he runs)
+                # (the arms swing against the legs; the elbows bent forward (+X), a jogger's arms when he runs)
                 c1 = math.cos(2 * math.pi * t)
-                pose['arm_r'] = [-hip * 0.7 * c1, 0, 4]
-                pose['arm_l'] = [hip * 0.7 * c1, 0, -4]
-                pose['forearm_r'] = [-(8 + arms * 8), 0, 0]
-                pose['forearm_l'] = [-(8 + arms * 8), 0, 0]
+                pose['arm_r'] = [-hip * 0.6 * c1 + arms * 2, 0, 4]
+                pose['arm_l'] = [hip * 0.6 * c1 + arms * 2, 0, -4]
+                pose['forearm_r'] = [10 + arms * 13 - 6 * c1, 0, 0]
+                pose['forearm_l'] = [10 + arms * 13 + 6 * c1, 0, 0]
             pose['root'] = [0.7 * s1, -bob * (1 + c2) / 2, 0]
             keys.append(pose)
         anims.append({'name': name, 'key_time': period / 16, 'loop': True, 'keys': keys})

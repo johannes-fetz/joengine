@@ -2,7 +2,7 @@
 
 newmtl m0
 Kd 1 1 1
-map_Kd casing.png
+map_Kd burnt.png
 jo_lut 1
 jo_gouraud 1
 jo_subdivision 2
@@ -10,17 +10,10 @@ jo_mipmaps 0
 
 newmtl m1
 Kd 1 1 1
-map_Kd screenx.png
-jo_lut 0
-jo_gouraud 1
-jo_subdivision 2
-jo_mipmaps 0
-
-newmtl m2
-Kd 1 1 1
-map_Kd frame.png
+map_Kd burnt.png
 jo_lut 1
 jo_gouraud 1
 jo_subdivision 2
 jo_mipmaps 0
+jo_dual 1
 
