@@ -32,19 +32,19 @@ jo_lut 1
 
 newmtl guard_ffar
 Kd 1 1 1
-map_Kd sffar.png
+map_Kd gffar.png
 jo_gouraud 1
 jo_lut 0
 
 newmtl guard_fside
 Kd 1 1 1
-map_Kd sfside.png
+map_Kd gfside.png
 jo_gouraud 1
 jo_lut 0
 
 newmtl guard_hhairb
 Kd 1 1 1
-map_Kd shhairb.png
+map_Kd ghhairb.png
 jo_gouraud 1
 jo_lut 0
 

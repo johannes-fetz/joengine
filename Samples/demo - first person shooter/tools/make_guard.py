@@ -192,13 +192,23 @@ STYLES = {
 }
 
 
+# The textures of the body itself (the faces, the hands, the neck): the same for all the styles (the prefix G), the
+# other styles bake only their clothes (the sprites of the console are counted: 340 at most)
+BODY_TEXTURES = ('skin', 'neck', 'ffar', 'fside', 'hhairb', 'hhairt', 'hnape') + tuple('h%d%d' % (i, k) for i in range(3) for k in range(3))
+
+
+def texture_prefix(prefix, mat):
+    return 'G' if mat in BODY_TEXTURES else prefix
+
+
 def guard_textures(prefix='G', style='guard'):
     """The textures shared by the guards (the uniform, the boots, the cap, the rifle): baked on patches of the body
     (style: the clothes, see STYLES; prefix: the names of the textures of the models of this style)"""
     face = skin.FACES[0]
     fns = STYLES[style]
     def bake(name, corners, fn, w, h):
-        save_rgb(skin.bake_tile(corners, fn, w, h), prefix + name.upper() + '.BIN')
+        if texture_prefix(prefix, name) == prefix:
+            save_rgb(skin.bake_tile(corners, fn, w, h), prefix + name.upper() + '.BIN')
     bake('shirt', flat_corners((9.6, 64, 0), 6, 6, 'x'), fns['jacket'], 16, 16)
     bake('jacketb', flat_corners((0, 60, 5.6), 9, 12, 'back'), fns['jacket'], 16, 16)
     bake('pants', flat_corners((4.5, 36, -3.6), 7, 12), fns['pants'], 16, 16)
@@ -282,19 +292,20 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
         variants: the face textures of the guards (fn(points, face))"""
         p, n = orient(pts, outward)
         key = mat + ('_flip' if flip else '')
-        textures[key] = (prefix + mat.upper() + '.BIN', flip)
-        if not flip and prefix + mat not in BAKED:
+        tp = texture_prefix(prefix, mat)
+        textures[key] = (tp + mat.upper() + '.BIN', flip)
+        if not flip and tp + mat not in BAKED:
             c = tile_corners(p, n)
             if variants is not None:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: fn(q, f), size[0], size[1])
                     if v == 0:
-                        save_rgb(a, prefix + mat.upper() + '.BIN')
-                    elif prefix == 'G':
+                        save_rgb(a, tp + mat.upper() + '.BIN')
+                    else:
                         save_rgb(a, 'V%d%s.BIN' % (v, mat.upper()))
             else:
-                save_rgb(skin.bake_tile(c, fn, size[0], size[1]), prefix + mat.upper() + '.BIN')
-            BAKED.add(prefix + mat)
+                save_rgb(skin.bake_tile(c, fn, size[0], size[1]), tp + mat.upper() + '.BIN')
+            BAKED.add(tp + mat)
         face(group, p, key, flat)
 
     def ring(y, rx, rz, n, cx=0.0, cz=0.0):
@@ -493,10 +504,10 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                 add_face('torso', pts, 'collar', outward)
         # The neck
         tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck', cap_a=True)
-        if prefix + 'neck' not in BAKED:
+        if 'Gneck' not in BAKED:
             save_rgb(skin.bake_tile(flat_corners((0, 74, -2.3), 3, 5), lambda q: skin.skin_color(q, skin.FACES[0]) * 0.92, 8, 8),
-                     prefix + 'NECK.BIN')
-            BAKED.add(prefix + 'neck')
+                     'GNECK.BIN')
+            BAKED.add('Gneck')
     # --- The head: the chin, the cheeks, the brow, the top (a dome): 8 sides, a texture per polygon in front
     head_rings = [ring(75.4, 2.9, 3.6, 8, 0, -0.35), ring(78.5, 3.55, 4.35, 8, 0, -0.15), ring(82.0, 3.75, 4.55, 8),
                   ring(85.6, 3.6, 4.4, 8, 0, 0.1)]
@@ -504,14 +515,13 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
         frustum('head', 75.4, 6.4, 7.6, 86.0, 7.2, 8.8, {'z': 'ffar', 'X': 'fside', 'Z': 'hhairb', 'x': 'fside'}, 0, -0.1, 0, 0.1)
         for t, c, sz, axis in (('ffar', flat_corners((0, 80.7, -4.4), 6.8, 10.6), (16, 16), 'z'),
                                ('fside', flat_corners((3.6, 80.7, 0), 8.2, 10.6, 'x'), (8, 16), 'x')):
-            textures[t] = (prefix + t.upper() + '.BIN', False)
-            if prefix + t not in BAKED:
+            textures[t] = ('G' + t.upper() + '.BIN', False)
+            if 'G' + t not in BAKED:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: skin.head_color(q, f), sz[0], sz[1])
-                    if v == 0 or prefix == 'G':
-                        save_rgb(a, (prefix + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
-                BAKED.add(prefix + t)
-        textures['hhairb'] = (prefix + 'HHAIRB.BIN', False)
+                    save_rgb(a, ('G' + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
+                BAKED.add('G' + t)
+        textures['hhairb'] = ('GHHAIRB.BIN', False)
         frustum('cap' if helmet else 'head', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
     else:
         def head(i, k, pts, outward):
@@ -524,7 +534,7 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
             else:
                 # (the back of the head: the same texture on the 3 sides)
                 mat = 'hnape' if i == 0 else 'hhairb'
-                if prefix + mat in BAKED or k == 4:
+                if 'G' + mat in BAKED or k == 4:
                     baked_face('head', pts, outward, mat, skin.head_color, face_size(mat), variants=True)
                 else:
                     later.append((i, k, pts, outward))
@@ -604,7 +614,7 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
         current = None
         for (pts, mat, flat), n in zip(groups[bone], face_normals):
             shade = 'guard_%s' % mat
-            shades[shade] = textures.get(mat, (prefix + mat.upper() + '.BIN', False))
+            shades[shade] = textures.get(mat, (texture_prefix(prefix, mat) + mat.upper() + '.BIN', False))
             # The texture corners: "up" along Y (the front for a horizontal face), "right" for someone in front
             up = np.array((0.0, 1.0, 0.0)) if abs(n[1]) < 0.9 else np.array((0.0, 0.0, -1.0))
             up = up - n * np.dot(up, n)
@@ -772,18 +782,6 @@ def guard_animations():
                     thigh_l=[8, 0, 0], shin_l=[-22, 0, 0], arm_l=[8, 0, -4], root=[0, -4, 8])),
         (0.80, pose(root=[0, 0, 8])),
     ]))
-    # Hit in the head: the head whips back and aside, his hand flies to his face, he staggers back a step, dazed (a
-    # shake of the head), then he comes round (0.9 s)
-    anims.append(timed_keys('hit_head', [
-        (0.00, pose()),
-        (0.07, pose(head=[-38, 16, 8], torso=[-12, 6, 0], arm_r=[-10, 0, 14], root=[0, 0, 2])),
-        (0.24, pose(hand_face, head=[-16, 22, 6], torso=[-18, 10, -3], hips=[-4, 0, 0], thigh_r=[-20, 0, 0], shin_r=[-20, 0, 0],
-                    thigh_l=[14, 0, 0], shin_l=[-36, 0, 0], arm_l=[6, 0, -6], root=[0, -6, 7])),
-        (0.42, pose(clutch(10, 12, 18, 105), head=[6, -14, -4], torso=[-8, 4, -2], hips=[-2, 0, 0], thigh_r=[-10, 0, 0], shin_r=[-16, 0, 0],
-                    thigh_l=[8, 0, 0], shin_l=[-26, 0, 0], root=[0, -4, 9])),
-        (0.60, pose(clutch(0, 6, 8, 70), head=[2, 10, 2], torso=[-4, 0, 0], shin_r=[-10, 0, 0], shin_l=[-14, 0, 0], root=[0, -2, 9])),
-        (0.90, pose(root=[0, 0, 9])),
-    ]))
     # Hit in a leg: the leg gives way under him, he drops on it, his arms out for his balance, his hand to the thigh, then
     # he pushes up on the other leg and limps straight (1.0 s)
     anims.append(timed_keys('hit_leg', [
@@ -813,62 +811,86 @@ def guard_animations():
                         shin_r=[-10, 0, 0], shin_l=[-10, 0, 0], root=[sg * 5, -2, 3])),
             (0.80, pose(root=[sg * 5, 0, 3])),
         ]))
-    anims.append(timed_keys('hit_side', [
+    # --- The deaths (the first 3 of a reference tape of the guards of the N64 game): slip, spread, spin
+    # Shot in the head: the head whips back, a leg kicks up in front of him as he slips backward, the body flies
+    # horizontal, he lands on his back with a bounce and slides, the legs drop flat (1.5 s)
+    anims.append(timed_keys('death_slip', [
         (0.00, pose()),
-        (0.08, pose(torso=[4, 24, 10], head=[6, -12, 0], arm_l=[-12, 0, -22], arm_r=[-10, 0, 18], hips=[0, 8, 0], root=[1, 0, 1])),
-        (0.26, pose(clutch(-30, -25, -45, 83), torso=[-12, 30, 14], head=[-4, -20, 4], hips=[-4, 12, -4], thigh_r=[-10, 0, -6], thigh_l=[8, 0, -6],
-                    shin_r=[-24, 0, 0], shin_l=[-24, 0, 0], arm_l=[6, 0, -10], root=[4, -5, 4])),
-        (0.48, pose(clutch(-20, -16, -30, 55), torso=[-6, 14, 6], head=[-2, -8, 2], hips=[0, 4, 0], shin_r=[-10, 0, 0], shin_l=[-10, 0, 0],
-                    root=[4, -2, 4])),
-        (0.80, pose(root=[4, 0, 4])),
-    ]))
-    # Surprised: he flinches (the shoulders up, a step back), looks at the player, then he comes down to his stance (0.5 s, GUARD_REACTION_TIME of guards.c)
-    anims.append(timed_keys('surprise', [
+        (0.10, pose(head=[-34, 8, 4], torso=[-12, 0, 0], arm_l=[-16, 0, -16], arm_r=[-18, 0, 18], root=[0, 0, 1])),
+        (0.30, pose(head=[-24, 10, 6], torso=[-22, 0, 2], hips=[-12, 0, 0], thigh_r=[62, 0, 6], shin_r=[-12, 0, 0], thigh_l=[-14, 0, -4], shin_l=[-10, 0, 0],
+                    arm_l=[-44, 0, -52], forearm_l=[-20, 0, 0], arm_r=[-46, 0, 54], forearm_r=[-20, 0, 0], rifle=[-30, 0, 20], root=[0, -4, 6])),
+        (0.55, pose(head=[-16, 12, 8], torso=[8, 0, 2], hips=[68, 0, 0], thigh_r=[44, 0, 8], shin_r=[-20, 0, 0], thigh_l=[22, 0, -8], shin_l=[-24, 0, 0],
+                    arm_l=[-84, 0, -60], forearm_l=[-26, 0, 0], arm_r=[-88, 0, 62], forearm_r=[-26, 0, 0], rifle=[-30, 0, 20], root=[0, -26, 16])),
+        (0.75, pose(head=[-10, 16, 8], torso=[2, 0, 2], hips=[92, 0, 0], thigh_r=[30, 0, 8], shin_r=[-44, 0, 0], thigh_l=[12, 0, -8], shin_l=[-26, 0, 0],
+                    arm_l=[-126, 0, -64], forearm_l=[-30, 0, 0], arm_r=[-130, 0, 66], forearm_r=[-30, 0, 0], rifle=[-30, 0, 20], root=[0, -41, 24])),
+        (0.95, pose(head=[-4, 30, 8], torso=[-2, 0, 2], hips=[90, 0, 0], thigh_r=[8, 0, 8], shin_r=[-16, 0, 0], thigh_l=[4, 0, -8], shin_l=[-12, 0, 0],
+                    arm_l=[-156, 0, -66], forearm_l=[-24, 0, 0], arm_r=[-160, 0, 68], forearm_r=[-24, 0, 0], rifle=[-30, 0, 20], root=[0, -42.5, 30])),
+        (1.20, pose(head=[-2, 38, 8], torso=[-3, 0, 2], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-8, 0, 0], thigh_l=[2, 0, -8], shin_l=[-6, 0, 0],
+                    arm_l=[-164, 0, -68], forearm_l=[-20, 0, 0], arm_r=[-168, 0, 70], forearm_r=[-20, 0, 0], rifle=[-30, 0, 20], root=[0, -42, 34])),
+        (1.50, pose(head=[-2, 40, 8], torso=[-3, 0, 2], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-6, 0, 0], thigh_l=[2, 0, -8], shin_l=[-4, 0, 0],
+                    arm_l=[-166, 0, -68], forearm_l=[-18, 0, 0], arm_r=[-170, 0, 70], forearm_r=[-18, 0, 0], rifle=[-30, 0, 20], root=[0, -42, 35])),
+    ], fall=(0.30, 0.75)))
+    # Shot in the chest: his arms open wide, palms out, his head rolls; he stands swaying on his feet for a second, then
+    # his knees fold under him, he sits and tips over on his back, the arms over his head (2.4 s)
+    wide_l = [-6, 0, -92]
+    wide_r = [-6, 0, 92]
+    anims.append(timed_keys('death_spread', [
         (0.00, pose()),
-        (0.10, pose(torso=[-10, 0, 0], head=[-14, 0, 0], arm_l=[18, 0, -12], arm_r=[14, 0, 12], shin_r=[-14, 0, 0], shin_l=[-14, 0, 0],
-                    root=[0, -3, 1])),
-        (0.26, pose(torso=[-4, 0, 0], head=[-6, 8, 0], arm_l=[10, 0, -6], arm_r=[8, 0, 6], thigh_r=[-8, 0, 0], shin_r=[-16, 0, 0], root=[0, -2, 3])),
-        (0.50, pose(root=[0, 0, 3])),
-    ]))
-    # Death, shot in the chest: the shot throws his shoulders back and his head back, he staggers backward on his
-    # heels, his arms thrown up and back, his knees give way; he falls flat on his back, his arms over his head on the
-    # floor (-200 degrees: the way back, over the head), his head rolls to a side (1.5 s; the fall itself from 0.6 s
-    # accelerates like a weight, see timed_keys(fall))
-    anims.append(timed_keys('death', [
+        (0.12, pose(torso=[-8, 0, 0], head=[-18, 0, 0], arm_l=[-30, 0, -44], arm_r=[-30, 0, 44], forearm_l=[-10, 0, 0], forearm_r=[-10, 0, 0],
+                    rifle=[-30, 0, 20], root=[0, 0, 1])),
+        (0.40, pose(torso=[-10, 0, 0], head=[-24, 10, 0], arm_l=wide_l, arm_r=wide_r, shin_r=[-8, 0, 0], shin_l=[-8, 0, 0], rifle=[-30, 0, 20],
+                    root=[0, -1, 2])),
+        (0.90, pose(torso=[-4, 8, 6], head=[-12, -14, 4], arm_l=[-12, 0, -96], arm_r=[-8, 0, 90], thigh_r=[4, 0, 0], thigh_l=[6, 0, 0],
+                    shin_r=[-14, 0, 0], shin_l=[-16, 0, 0], hips=[2, 4, 0], rifle=[-30, 0, 20], root=[0, -3, 2])),
+        (1.40, pose(torso=[-8, -8, -6], head=[-26, 12, -4], arm_l=[-4, 0, -88], arm_r=[-6, 0, 94], thigh_r=[8, 0, 0], thigh_l=[10, 0, 0],
+                    shin_r=[-24, 0, 0], shin_l=[-22, 0, 0], hips=[4, -4, 0], rifle=[-30, 0, 20], root=[0, -6, 2])),
+        (1.75, pose(torso=[2, 0, 0], head=[-14, 6, 0], arm_l=[-30, 0, -72], arm_r=[-32, 0, 74], thigh_r=[34, 0, 4], thigh_l=[30, 0, -4],
+                    shin_r=[-74, 0, 0], shin_l=[-70, 0, 0], hips=[12, 0, 0], rifle=[-30, 0, 20], root=[0, -24, 2])),
+        (2.00, pose(torso=[6, 0, 0], head=[-10, 10, 0], arm_l=[-112, 0, -60], arm_r=[-116, 0, 62], forearm_l=[-20, 0, 0], forearm_r=[-20, 0, 0],
+                    thigh_r=[36, 0, 6], thigh_l=[30, 0, -6], shin_r=[-62, 0, 0], shin_l=[-58, 0, 0], hips=[62, 0, 0], rifle=[-30, 0, 20], root=[0, -35, 10])),
+        (2.15, pose(torso=[-2, 0, 0], head=[-4, 22, 2], arm_l=[-192, 0, -50], arm_r=[-196, 0, 54], forearm_l=[-26, 0, 0], forearm_r=[-26, 0, 0],
+                    thigh_r=[10, 0, 8], thigh_l=[8, 0, -8], shin_r=[-20, 0, 0], shin_l=[-18, 0, 0], hips=[92, 0, 0], rifle=[-30, 0, 20], root=[0, -42.5, 15])),
+        (2.40, pose(torso=[-3, 0, 0], head=[-2, 30, 4], arm_l=[-202, 0, -54], arm_r=[-206, 0, 58], forearm_l=[-20, 0, 0], forearm_r=[-20, 0, 0],
+                    thigh_r=[4, 0, 8], thigh_l=[2, 0, -8], shin_r=[-8, 0, 0], shin_l=[-6, 0, 0], hips=[90, 0, 0], rifle=[-30, 0, 20], root=[0, -42, 16])),
+    ], fall=(1.75, 2.15)))
+    # Shot in the chest, the other way: he folds on the wound, then his rifle arm flies up high and he turns on himself
+    # (a pirouette, a leg kicking out), and he goes down sideways on his back, the arms spread on the floor (1.8 s)
+    anims.append(timed_keys('death_spin', [
         (0.00, pose()),
-        (0.10, pose(torso=[16, -4, 0], head=[22, 6, 0], arm_l=[-14, 0, -16], arm_r=[-16, 0, 18], root=[0, 0, 2])),
-        (0.34, pose(torso=[28, -6, 2], head=[12, 10, 4], hips=[6, 0, 0], thigh_r=[-30, 0, 4], shin_r=[-24, 0, 0], thigh_l=[10, 0, -4], shin_l=[-40, 0, 0],
-                    arm_l=[-34, 0, -40], forearm_l=[-20, 0, 0], arm_r=[-40, 0, 44], forearm_r=[-16, 0, 0], rifle=[-30, 0, 20], root=[0, -5, 8])),
-        (0.60, pose(torso=[34, -2, 4], head=[-6, 16, 6], hips=[22, 0, 0], thigh_r=[-6, 0, 6], shin_r=[-54, 0, 0], thigh_l=[-24, 0, -6], shin_l=[-36, 0, 0],
-                    arm_l=[-110, 0, -56], forearm_l=[-30, 0, 0], arm_r=[-120, 0, 60], forearm_r=[-24, 0, 0], rifle=[-40, 0, 30], root=[0, -14, 16])),
-        (0.88, pose(torso=[18, 0, 4], head=[-14, 20, 6], hips=[64, 0, 0], thigh_r=[12, 0, 6], shin_r=[-42, 0, 0], thigh_l=[-6, 0, -6], shin_l=[-30, 0, 0],
-                    arm_l=[-160, 0, -58], forearm_l=[-40, 0, 0], arm_r=[-166, 0, 62], forearm_r=[-30, 0, 0], rifle=[-40, 0, 30], root=[0, -31, 22])),
-        (1.06, pose(torso=[-4, 0, 2], head=[-6, 26, 4], hips=[92, 0, 0], thigh_r=[6, 0, 8], shin_r=[-18, 0, 0], thigh_l=[-8, 0, -8], shin_l=[-14, 0, 0],
-                    arm_l=[-200, 0, -50], forearm_l=[-30, 0, 0], arm_r=[-204, 0, 56], forearm_r=[-26, 0, 0], rifle=[-40, 0, 30], root=[0, -42.5, 26])),
-        (1.22, pose(torso=[-3, 0, 2], head=[-4, 34, 6], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-12, 0, 0], thigh_l=[-6, 0, -8], shin_l=[-10, 0, 0],
-                    arm_l=[-204, 0, -52], forearm_l=[-24, 0, 0], arm_r=[-208, 0, 60], forearm_r=[-22, 0, 0], rifle=[-40, 0, 30], root=[0, -41.5, 26])),
-        (1.50, pose(torso=[-3, 0, 2], head=[-2, 40, 8], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-10, 0, 0], thigh_l=[-6, 0, -8], shin_l=[-8, 0, 0],
-                    arm_l=[-205, 0, -54], forearm_l=[-20, 0, 0], arm_r=[-209, 0, 62], forearm_r=[-18, 0, 0], rifle=[-40, 0, 30], root=[0, -42, 26])),
-    ], fall=(0.60, 1.06)))
-    # Death, shot in the head or in the back: the head whips, the body arches, then his knees buckle and he drops on
-    # them, folded over, his arms hanging; he topples forward onto his face, his arms before him, his head turned aside
-    # (1.6 s)
-    anims.append(timed_keys('death_front', [
-        (0.00, pose()),
-        (0.10, pose(head=[-30, 10, 4], torso=[-8, 6, 0], arm_l=[-12, 0, -14], arm_r=[-14, 0, 14], root=[0, 0, 1])),
-        (0.36, pose(head=[-10, 4, 2], torso=[-18, 2, 0], hips=[-4, 0, 0], thigh_r=[34, 0, 0], shin_r=[-70, 0, 0], thigh_l=[30, 0, 0], shin_l=[-66, 0, 0],
-                    arm_l=[8, 0, -10], arm_r=[12, 0, 12], rifle=[-20, 0, 10], root=[0, -13, -1])),
-        (0.62, pose(head=[16, -6, 0], torso=[-36, 0, 0], hips=[-6, 0, 0], thigh_r=[6, 0, 0], shin_r=[-96, 0, 0], thigh_l=[2, 0, 0], shin_l=[-92, 0, 0],
-                    arm_l=[22, 0, -8], forearm_l=[10, 0, 0], arm_r=[26, 0, 10], forearm_r=[8, 0, 0], rifle=[-30, 0, 16], root=[0, -24.5, 0])),
-        (0.80, pose(head=[12, -10, 0], torso=[-30, 0, 0], hips=[-30, 0, 0], thigh_r=[30, 0, 0], shin_r=[-80, 0, 0], thigh_l=[26, 0, 0], shin_l=[-76, 0, 0],
-                    arm_l=[70, 0, -16], forearm_l=[16, 0, 0], arm_r=[76, 0, 18], forearm_r=[12, 0, 0], rifle=[-30, 0, 16], root=[0, -26, -5])),
-        (1.00, pose(head=[-18, -24, 0], torso=[-6, 0, 0], hips=[-88, 0, 0], thigh_r=[8, 0, 4], shin_r=[-14, 0, 0], thigh_l=[4, 0, -4], shin_l=[-10, 0, 0],
-                    arm_l=[150, 0, -40], forearm_l=[30, 0, 0], arm_r=[156, 0, 44], forearm_r=[36, 0, 0], rifle=[-30, 0, 16], root=[0, -42.5, -12])),
-        (1.16, pose(head=[-22, -32, 0], torso=[-4, 0, 0], hips=[-90, 0, 0], thigh_r=[4, 0, 4], shin_r=[-8, 0, 0], thigh_l=[2, 0, -4], shin_l=[-6, 0, 0],
-                    arm_l=[166, 0, -44], forearm_l=[26, 0, 0], arm_r=[170, 0, 50], forearm_r=[30, 0, 0], rifle=[-30, 0, 16], root=[0, -41.5, -12])),
-        (1.60, pose(head=[-24, -36, 0], torso=[-4, 0, 0], hips=[-90, 0, 0], thigh_r=[3, 0, 4], shin_r=[-6, 0, 0], thigh_l=[2, 0, -4], shin_l=[-4, 0, 0],
-                    arm_l=[170, 0, -46], forearm_l=[24, 0, 0], arm_r=[172, 0, 54], forearm_r=[28, 0, 0], rifle=[-30, 0, 16], root=[0, -42, -12])),
-    ], fall=(0.80, 1.00)))
+        (0.10, pose(torso=[12, 0, 0], head=[10, 0, 0], arm_l=[-60, 0, -24], forearm_l=[-20, 0, 0], arm_r=[-10, 0, 20], rifle=[-30, 0, 20], root=[0, -1, 2])),
+        (0.30, pose(torso=[-10, 30, 4], head=[-12, 30, 0], hips=[0, 40, 0], arm_l=[-172, 0, -12], forearm_l=[-12, 0, 0], arm_r=[-24, 0, 44],
+                    thigh_l=[22, 0, 0], shin_l=[-32, 0, 0], thigh_r=[-10, 0, 0], shin_r=[-10, 0, 0], rifle=[-30, 0, 20], root=[2, -2, 1])),
+        (0.55, pose(torso=[-16, 22, 6], head=[-22, 10, 0], hips=[-4, 120, 0], arm_l=[-172, 0, -22], forearm_l=[-12, 0, 0], arm_r=[-34, 0, 62],
+                    thigh_l=[44, 0, 10], shin_l=[-52, 0, 0], thigh_r=[-22, 0, -4], shin_r=[-12, 0, 0], rifle=[-30, 0, 20], root=[6, -6, -3])),
+        (0.80, pose(torso=[10, 10, 4], head=[10, -10, 0], hips=[6, 200, 0], arm_l=[-142, 0, -32], forearm_l=[-16, 0, 0], arm_r=[-62, 0, 72],
+                    thigh_l=[30, 0, 10], shin_l=[-40, 0, 0], thigh_r=[12, 0, -6], shin_r=[-26, 0, 0], rifle=[-30, 0, 20], root=[8, -14, -8])),
+        (1.05, pose(torso=[8, 0, 2], head=[4, -16, 0], hips=[70, 230, 0], arm_l=[-124, 0, -62], forearm_l=[-24, 0, 0], arm_r=[-112, 0, 70],
+                    forearm_r=[-20, 0, 0], thigh_l=[22, 0, 8], shin_l=[-42, 0, 0], thigh_r=[18, 0, -6], shin_r=[-36, 0, 0], rifle=[-30, 0, 20],
+                    root=[10, -31, -12])),
+        (1.25, pose(torso=[-2, 0, 2], head=[-2, -20, 2], hips=[92, 250, 0], arm_l=[-150, 0, -70], forearm_l=[-20, 0, 0], arm_r=[-152, 0, 72],
+                    forearm_r=[-18, 0, 0], thigh_l=[8, 0, 8], shin_l=[-16, 0, 0], thigh_r=[6, 0, -6], shin_r=[-14, 0, 0], rifle=[-30, 0, 20],
+                    root=[12, -42.5, -14])),
+        (1.50, pose(torso=[-3, 0, 2], head=[-2, -26, 2], hips=[90, 252, 0], arm_l=[-160, 0, -72], forearm_l=[-16, 0, 0], arm_r=[-162, 0, 74],
+                    forearm_r=[-14, 0, 0], thigh_l=[4, 0, 8], shin_l=[-8, 0, 0], thigh_r=[2, 0, -6], shin_r=[-6, 0, 0], rifle=[-30, 0, 20],
+                    root=[12, -42, -15])),
+        (1.80, pose(torso=[-3, 0, 2], head=[-2, -28, 2], hips=[90, 252, 0], arm_l=[-162, 0, -72], forearm_l=[-14, 0, 0], arm_r=[-164, 0, 74],
+                    forearm_r=[-12, 0, 0], thigh_l=[3, 0, 8], shin_l=[-6, 0, 0], thigh_r=[2, 0, -6], shin_r=[-4, 0, 0], rifle=[-30, 0, 20],
+                    root=[12, -42, -15])),
+    ], fall=(0.80, 1.25)))
+    # A step aside with the rifle up (he dodges between 2 bursts, see guards.c): the leading leg goes out, the weight on
+    # it, the other leg follows (0.5 s); step_l toward +X (his right as seen in the game: the model is mirrored), step_r
+    # toward -X. The move of the body: guards.c (the feet with it)
+    for name, sg in (('step_l', 1), ('step_r', -1)):
+        lead, trail = ('thigh_l', 'thigh_r') if sg > 0 else ('thigh_r', 'thigh_l')
+        lead_s, trail_s = ('shin_l', 'shin_r') if sg > 0 else ('shin_r', 'shin_l')
+        anims.append(timed_keys(name, [
+            (0.00, pose(aim)),
+            (0.15, pose(aim, **{lead: [4, 0, sg * -26], lead_s: [-14, 0, 0], trail: [0, 0, sg * 6]}, hips=[2, 0, sg * -4], torso=[-2, 0, sg * 4],
+                        root=[0, -1.5, 0])),
+            (0.32, pose(aim, **{lead: [2, 0, sg * -10], lead_s: [-24, 0, 0], trail: [6, 0, sg * 24], trail_s: [-30, 0, 0]}, hips=[2, 0, sg * -2],
+                        torso=[-2, 0, sg * 2], root=[0, -3, 0])),
+            (0.50, pose(aim)),
+        ]))
     # (the moves from a pose to another one (aim, crouch, stand, hit_kneel): their keys made smooth too)
     for a in anims:
         if a['name'] in ('aim', 'crouch', 'stand', 'hit_kneel'):
