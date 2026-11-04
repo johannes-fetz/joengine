@@ -92,6 +92,12 @@
 #define GUARD_MAX_STEP              (20)
 /** @brief A hit in the head kills him (the damage times this) */
 #define GUARD_HEAD_MULTIPLIER       (10)
+/** @brief The time he does nothing else after a hit (milliseconds): most of the reaction (0.8 s: the hit, a side, an
+ *  arm; 0.9 s: the head; 1 s: a leg; 0.3 s on one knee), see tools/make_guard.py */
+#define GUARD_HIT_TIME              (650)
+#define GUARD_HIT_HEAD_TIME         (750)
+#define GUARD_HIT_LEG_TIME          (850)
+#define GUARD_HIT_KNEEL_TIME        (320)
 /** @brief Red for this time after a hit (milliseconds), its color added to the gouraud tables */
 #define GUARD_HURT_TIME             (180)
 #define GUARD_HURT_RED              (36)
@@ -1189,7 +1195,7 @@ static void                         guard_update(jo_entity * const e, const int 
     if (g->state != GUARD_DEAD && e->health < g->last_health && g->hurt <= 0)
     {
         g->hurt = GUARD_HURT_TIME;
-        g->hit = 320;
+        g->hit = g->crouched ? GUARD_HIT_KNEEL_TIME : GUARD_HIT_TIME;
         alert(e, g);
         jo_actor_restart(e, g->crouched ? "hit_kneel" : "hit_side", 40);
     }
@@ -1625,17 +1631,25 @@ bool                                guards_shot(jo_entity * const e, const jo_po
     }
     // (where: the head, a leg, an arm (a side of the body: the hit across his facing), the chest)
     lateral = jo_fixed2int(jo_fixed_mult(hit->x - e->position.x, jo_cos(e->yaw)) - jo_fixed_mult(hit->z - e->position.z, jo_sin(e->yaw)));
-    g->hit = 320;
+    // (he does nothing else for most of the reaction (GUARD_HIT_TIME: he staggers, his hand on the wound), then he
+    // fights back while he straightens up)
+    g->hit = GUARD_HIT_TIME;
     // (on one knee: he stays on it, his body jerks; standing up for the reaction was a jump between 2 poses)
     if (g->crouched)
+    {
         reaction = "hit_kneel";
+        g->hit = GUARD_HIT_KNEEL_TIME;
+    }
     else if (head)
+    {
         reaction = "hit_head";
+        g->hit = GUARD_HIT_HEAD_TIME;
+    }
     else if (height < GUARD_SIZE(46) - (g->crouched ? GUARD_SIZE(20) : 0))
     {
-        // (a leg: he limps a moment)
+        // (a leg: it gives way under him, he limps a moment)
         reaction = "hit_leg";
-        g->hit = 420;
+        g->hit = GUARD_HIT_LEG_TIME;
     }
     else if (lateral > 7)
         reaction = "hit_arm_l";
