@@ -34,7 +34,9 @@
 **
 ** Properties (the level): dead_model (JOM file: the thing broken; none: hidden), shards (pieces of glass, 0: none),
 ** frames (frames of the animation of the screen, 0 or 1: none; the frames after the first one: the textures of
-** cd/SCRFRM.JOM, see screen_frames.h), draw_distance. The model looks toward -Z, turned by the yaw of the entity.
+** cd/SCRFRM.JOM, see screen_frames.h), draw_distance, blast (the name of an entity of the class explosive of the engine
+** at the same place, set off when it breaks: the fire, the smoke, the flash, the sound, the damage around; none: it
+** just breaks). The model looks toward -Z, turned by the yaw of the entity.
 */
 
 #include "demo.h"
@@ -53,6 +55,7 @@ typedef struct
     short                           frame;          // The frame shown
     short                           timer;          // Milliseconds left for this frame
     bool                            broken;
+    jo_entity                       *blast;         // The explosive set off when it breaks (JO_NULL: none)
 }                                   breakable_data;
 
 /** @brief The sprites of the frames of the screens (-1: not loaded), the polygon of the screen in the model of the
@@ -90,6 +93,8 @@ static void                         breakable_spawn(jo_entity * const entity)
     b->timer = (short)(((int)(entity->position.x >> 16) * 7 + (int)(entity->position.z >> 16) * 3) % SCREEN_FRAME_TIME);
     dead = jo_entity_get_string(entity, "dead_model", "");
     b->dead = dead[0] != '\0' ? jo_entity_load_model(dead) : JO_NULL;
+    dead = jo_entity_get_string(entity, "blast", "");
+    b->blast = dead[0] != '\0' ? jo_entity_find(dead) : JO_NULL;
     if (b->frames > 1)
         load_frames();
 }
@@ -112,7 +117,8 @@ static void                         breakable_update(jo_entity * const entity, c
     }
 }
 
-/** @brief It breaks: the pieces of glass fly away from the agent (the shot came from him), the model after */
+/** @brief It breaks: the pieces of glass fly away from the agent (the shot came from him), the model after; its
+ *  explosive (blast) set off: the fire and the damage around (the monitors explode like the barrels) */
 static void                         breakable_death(jo_entity * const entity, jo_entity * const source)
 {
     breakable_data                  *b;
@@ -139,6 +145,8 @@ static void                         breakable_death(jo_entity * const entity, jo
         entity->mesh = b->dead;
     else
         entity->flags |= JO_ENTITY_FLAG_HIDDEN;
+    if (b->blast != JO_NULL)
+        jo_entity_damage(b->blast, 1000, entity);
 }
 
 /** @brief The polygon of the screen in the model of the monitors (the texture of the first frame), once */

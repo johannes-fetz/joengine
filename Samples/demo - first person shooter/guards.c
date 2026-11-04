@@ -109,6 +109,10 @@
 #define SCIENTIST_PAUSE_TIME        (1800)
 #define SCIENTIST_FLEE_RADIUS       (1000)
 #define SCIENTIST_CHOICE_TIME       (400)
+/** @brief A scientist running away, in a room the agent doesn't see for this long (milliseconds) and farther than
+ *  SCIENTIST_GONE_DISTANCE: he is gone (out of the level; he doesn't come back) */
+#define SCIENTIST_GONE_TIME         (700)
+#define SCIENTIST_GONE_DISTANCE     (300)
 /** @brief The agent dead: the guards come and look at him from this far (units) */
 #define GUARD_BODY_DISTANCE         (190)
 /** @brief Blocked by a door longer than this (milliseconds): he goes around it */
@@ -235,6 +239,7 @@ typedef struct
     bool                            scientist;      // A scientist (the class scientist), not a guard
     int                             fear;           // A scientist: milliseconds left of his run away, of his pause
     int                             stuck;          // A scientist: milliseconds without a move on his run away
+    int                             hidden_time;    // A scientist running away: milliseconds in a room the agent doesn't see
     jo_fixed                        flee_x;         // A scientist: where he runs to
     jo_fixed                        flee_z;
     int                             last_health;    // His health at the last update (hurt by an explosion: not by a shot)
@@ -1066,6 +1071,7 @@ static void                         person_spawn(jo_entity * const e, const bool
     g->hatless = scientist;
     g->fear = 0;
     g->stuck = 0;
+    g->hidden_time = 0;
     g->detour_time = 0;
     g->closing = 0;
     g->winded = 0;
@@ -1249,8 +1255,9 @@ static bool                         flee_point(const jo_entity * const e, guard 
 
         // (the yaw of a direction: x = sin, z = cos)
         away = jo_atan2_degrees(e->position.x - player_x, e->position.z - player_z);
-        for (k = 0; k < 8; ++k)
+        for (k = 0; k < 6; ++k)
         {
+            // (at most 135 degrees from straight away: never toward the agent)
             turn = ((k + 1) / 2) * 45 * ((k & 1) ? -1 : 1);
             g->flee_x = e->position.x + jo_sin((away + turn + 720) % 360) * 150;
             g->flee_z = e->position.z + jo_cos((away + turn + 720) % 360) * 150;
@@ -1334,6 +1341,22 @@ static void                         scientist_think(jo_entity * const e, guard *
                 g->fear = SCIENTIST_PAUSE_TIME;
                 break;
             }
+            // (out of sight in another room: he is gone)
+            if (jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0 &&
+                distance_to_agent(e) > SCIENTIST_GONE_DISTANCE)
+            {
+                g->hidden_time += elapsed;
+                if (g->hidden_time >= SCIENTIST_GONE_TIME)
+                {
+                    e->flags |= JO_ENTITY_FLAG_DISABLED | JO_ENTITY_FLAG_HIDDEN;
+                    e->flags &= ~JO_ENTITY_FLAG_SOLID;
+                    g->state = SCIENTIST_WALK;
+                    g->gait_speed = 0;
+                    break;
+                }
+            }
+            else
+                g->hidden_time = 0;
             // (at the place (or blocked): the next one farther from the agent; stuck on the furniture: another one)
             {
                 bool            there;
