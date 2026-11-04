@@ -680,16 +680,20 @@ def guard_animations():
                 pose['thigh_' + side] = [h, 0, 0]
                 pose['shin_' + side] = [-kn, 0, 0]
             c2 = math.cos(4 * math.pi * t)
-            pose['hips'] = [lean, turn * math.cos(2 * math.pi * t), 3 * math.sin(2 * math.pi * t)]
-            pose['torso'] = [lean * 0.4, -turn * 1.2 * math.cos(2 * math.pi * t), -1.5 * math.sin(2 * math.pi * t)]
+            s1 = math.sin(2 * math.pi * t)
+            pose['hips'] = [lean, turn * math.cos(2 * math.pi * t), 3 * s1]
+            pose['torso'] = [lean * 0.4, -turn * 1.2 * math.cos(2 * math.pi * t), -1.5 * s1]
             pose['head'] = [-lean * 0.8 + 1.5 * c2, turn * 0.3 * math.cos(2 * math.pi * t), 0]
-            pose['arm_r'] = [arms * c2, 0, 0]
-            pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, 0]
-            pose['root'] = [0.7 * math.sin(2 * math.pi * t), -bob * (1 + c2) / 2, 0]
+            # (the rifle in both hands rides with the steps: the arms pump a little with the shoulders, the barrel dips
+            # at each landing, the elbows go out a little when he runs)
+            pose['arm_r'] = [arms * c2, 0, arms * 0.5 * s1]
+            pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, -arms * 0.4 * s1]
+            pose['rifle'] = [-arms * 0.8 * c2, arms * 0.6 * s1, 0]
+            pose['root'] = [0.7 * s1, -bob * (1 + c2) / 2, 0]
             keys.append(pose)
         anims.append({'name': name, 'key_time': period / 16, 'loop': True, 'keys': keys})
-    gait('walk', 1.05, 22, 14, 58, 1.4, -3, 5, 2)
-    gait('run', 0.66, 36, 22, 95, 3.0, -12, 8, 4)
+    gait('walk', 1.05, 22, 14, 58, 1.4, -3, 5, 3)
+    gait('run', 0.66, 36, 22, 95, 3.0, -12, 8, 6)
     # Aim: the rifle up to the shoulder (the arms up, the head down a little), then the shots (recoil). The rifle turns at
     # the wrist (its bone) from across the body to straight forward: the stock on the right shoulder, the cheek on it, the
     # barrel level, the left hand under the handguard (the angles found by a solver from RIFLE_*: the distance of the
@@ -701,37 +705,6 @@ def guard_animations():
     recoil = dict(aim, torso=[-6, 0, 0], arm_r=[aim['arm_r'][0] + 4] + aim['arm_r'][1:], arm_l=[aim['arm_l'][0] + 4] + aim['arm_l'][1:],
                   head=[5, 0, 6])
     anims.append({'name': 'fire', 'key_time': 0.05, 'loop': False, 'keys': [aim, recoil, aim]})
-    # Hit: he bends forward
-    anims.append({'name': 'hit', 'key_time': 0.1, 'loop': False, 'keys': [
-        {}, {'torso': [14, 0, 0], 'head': [10, 0, 0], 'hips': [-4, 0, 0], 'root': [0, -1, 0]}, {}]})
-    # Death: the knees bend, he falls on his back (the hips turn of 90 degrees: the body lies on the ground)
-    anims.append({'name': 'death', 'key_time': 0.18, 'loop': False, 'keys': [
-        {},
-        {'torso': [18, 0, 0], 'head': [12, 0, 0], 'thigh_r': [30, 0, 0], 'shin_r': [-55, 0, 0], 'thigh_l': [24, 0, 0],
-         'shin_l': [-48, 0, 0], 'arm_r': [-10, 0, 0], 'arm_l': [-20, 0, -12], 'root': [0, -10, 0]},
-        {'hips': [40, 0, 0], 'torso': [6, 0, 0], 'thigh_r': [36, 0, 0], 'shin_r': [-60, 0, 0], 'thigh_l': [20, 0, 0],
-         'shin_l': [-40, 0, 0], 'arm_r': [-40, 0, 20], 'arm_l': [-50, 0, -30], 'head': [-10, 0, 0], 'root': [0, -24, 4]},
-        {'hips': [88, 0, 0], 'torso': [-4, 0, 0], 'thigh_r': [8, 0, 0], 'shin_r': [-14, 0, 0], 'thigh_l': [-4, 0, 0],
-         'shin_l': [-8, 0, 0], 'arm_r': [-80, 0, 40], 'arm_l': [-90, 0, -40], 'forearm_l': [-30, 0, 0],
-         'head': [-14, 20, 0], 'root': [0, -41, 10]},
-        {'hips': [92, 0, 0], 'torso': [-4, 0, 0], 'thigh_r': [6, 0, 0], 'shin_r': [-10, 0, 0], 'thigh_l': [-4, 0, 0],
-         'shin_l': [-6, 0, 0], 'arm_r': [-84, 0, 44], 'arm_l': [-92, 0, -44], 'forearm_l': [-30, 0, 0],
-         'head': [-14, 24, 0], 'root': [0, -42, 10]}]})
-    # Hit in the head: it snaps back, he staggers
-    anims.append({'name': 'hit_head', 'key_time': 0.08, 'loop': False, 'keys': [
-        {}, {'head': [-30, 10, 0], 'torso': [-10, 6, 0], 'arm_l': [10, 0, -10], 'root': [0, 0, 2]},
-        {'head': [-12, 4, 0], 'torso': [-4, 0, 0]}, {}]})
-    # Hit on a side (the shoulder): he turns with the impact
-    anims.append({'name': 'hit_side', 'key_time': 0.09, 'loop': False, 'keys': [
-        {}, {'torso': [6, 24, 8], 'head': [6, -10, 0], 'arm_l': [-10, 0, -20], 'hips': [0, 6, 0]}, {}]})
-    # Hit in a leg: the knee gives way, he limps a moment; in an arm: the arm thrown back, the shoulder turns
-    anims.append({'name': 'hit_leg', 'key_time': 0.1, 'loop': False, 'keys': [
-        {}, {'thigh_r': [-10, 0, 0], 'shin_r': [-45, 0, 0], 'hips': [6, 0, -8], 'torso': [16, 0, 6], 'head': [8, 0, 0], 'root': [0, -8, 0]},
-        {'thigh_r': [10, 0, 0], 'shin_r': [-30, 0, 0], 'hips': [4, 0, -5], 'torso': [10, 0, 4], 'root': [0, -5, 0]}, {}]})
-    for name, sign, arm in (('hit_arm_r', -1, 'arm_r'), ('hit_arm_l', 1, 'arm_l')):
-        anims.append({'name': name, 'key_time': 0.09, 'loop': False, 'keys': [
-            {}, {arm: [-25, 0, sign * 25], 'torso': [-4, sign * 28, 0], 'head': [4, sign * -12, 0], 'hips': [0, sign * 6, 0]},
-            {arm: [-8, 0, sign * 8], 'torso': [0, sign * 10, 0]}, {}]})
     # Crouched: on one knee, the rifle up (he fights crouched behind the furniture), and its shots
     crouch = {'hips': [0, 0, 0], 'root': [0, -20, 0], 'thigh_r': [80, 0, 0], 'shin_r': [-80, 0, 0], 'thigh_l': [10, 0, 0],
               'shin_l': [-100, 0, 0], 'torso': [6, 0, 0]}
@@ -756,30 +729,139 @@ def guard_animations():
     anims.append({'name': 'kneel', 'key_time': 0.25, 'loop': True, 'keys': [crouch_aim, crouch_aim]})
     anims.append({'name': 'crouch_fire', 'key_time': 0.05, 'loop': False, 'keys': [
         crouch_aim, dict(crouch_aim, torso=[-3, 0, 0], arm_r=recoil['arm_r'], arm_l=recoil['arm_l']), crouch_aim]})
-    # Surprised: he jumps a little, looks at the player (before he raises his rifle)
-    anims.append({'name': 'surprise', 'key_time': 0.12, 'loop': False, 'keys': [
-        {}, {'torso': [-8, 0, 0], 'head': [-10, 0, 0], 'arm_l': [20, 0, -10], 'root': [0, 2, 0]}, {'torso': [-2, 0, 0]}]})
-    # Death, falling forward: the head thrown back by the shot, the knees give way, he falls on his face (the hips turn
-    # of -90 degrees: the body lies face down), the arms in front of him
-    anims.append({'name': 'death_front', 'key_time': 0.16, 'loop': False, 'keys': [
-        {},
-        {'head': [-28, 6, 0], 'torso': [-10, 4, 0], 'arm_r': [-12, 0, 10], 'arm_l': [-16, 0, -12], 'root': [0, 0, 2]},
-        {'torso': [16, 0, 0], 'head': [6, 0, 0], 'thigh_r': [30, 0, 0], 'shin_r': [-60, 0, 0], 'thigh_l': [26, 0, 0],
-         'shin_l': [-55, 0, 0], 'arm_r': [10, 0, 14], 'arm_l': [6, 0, -14], 'root': [0, -12, -2]},
-        {'hips': [-40, 0, 0], 'torso': [10, 0, 0], 'thigh_r': [34, 0, 0], 'shin_r': [-50, 0, 0], 'thigh_l': [26, 0, 0],
-         'shin_l': [-40, 0, 0], 'arm_r': [40, 0, 20], 'arm_l': [36, 0, -24], 'head': [10, 0, 0], 'root': [0, -26, -6]},
-        {'hips': [-86, 0, 0], 'torso': [2, 0, 0], 'thigh_r': [4, 0, 0], 'shin_r': [-12, 0, 0], 'thigh_l': [-2, 0, 0],
-         'shin_l': [-8, 0, 0], 'arm_r': [80, 0, 40], 'arm_l': [76, 0, -44], 'forearm_l': [-20, 0, 0], 'head': [-20, 28, 0],
-         'root': [0, -41, -10]},
-        {'hips': [-90, 0, 0], 'torso': [2, 0, 0], 'thigh_r': [2, 0, 0], 'shin_r': [-8, 0, 0], 'thigh_l': [-2, 0, 0],
-         'shin_l': [-6, 0, 0], 'arm_r': [84, 0, 44], 'arm_l': [80, 0, -46], 'forearm_l': [-20, 0, 0], 'head': [-22, 32, 0],
-         'root': [0, -42, -10]}]})
-    # The falls (deaths), the hits: their keys made smooth (Catmull-Rom between the poses, eased: they accelerate when
-    # they fall, they settle with a small bounce on the floor) at 30 keys per second
+    # --- The reactions and the falls: a few poses each with their times (seconds), the keys between them at 30 per
+    # second by a smooth curve (see timed_keys()): the body takes the shot, loses its balance, catches it or falls,
+    # with the secondary moves (the head, the free hand, the knees, the hips) of a motion capture. The free hand is the
+    # left one (arm_r, forearm_r: -X, see RIFLE_HAND), the rifle stays in the right hand
+    def clutch(ax, ay, az, fx):
+        """The free hand on the body: the arm (degrees) and the forearm bent"""
+        return {'arm_r': [ax, ay, az], 'forearm_r': [fx, 0, 0]}
+
+    def pose(*parts, **channels):
+        out = {}
+        for p in parts:
+            out.update(p)
+        out.update({k: list(v) for k, v in channels.items()})
+        return out
+
+    # (the angles found by a solver: the hand on the belly, the chest, the face, the thigh, the right shoulder)
+    hand_belly = clutch(-30, -30, -45, 64)
+    hand_chest = clutch(-30, -5, -45, 98)
+    hand_face = clutch(13, 16, 22, 113)
+    hand_thigh = clutch(-30, -28, -25, 0)
+    hand_shoulder = clutch(-27, -36, 4, 85)
+    # Hit in the chest or the belly: the shot pushes him back (0.1 s), he doubles over on the wound, his free hand on
+    # it, a step back to catch his balance, the knees bent; he straightens up (0.8 s in all)
+    anims.append(timed_keys('hit', [
+        (0.00, pose()),
+        (0.08, pose(torso=[14, -6, 0], head=[16, 0, 0], arm_l=[-10, 0, -6], arm_r=[-14, 0, 12], root=[0, -0.5, 1.5])),
+        (0.26, pose(hand_belly, torso=[-24, 8, 4], head=[-6, -10, 0], hips=[-6, 0, 0], thigh_r=[-18, 0, 0], shin_r=[-26, 0, 0],
+                    thigh_l=[12, 0, 0], shin_l=[-32, 0, 0], arm_l=[14, 0, -8], root=[0, -7, 7])),
+        (0.46, pose(clutch(-24, -24, -36, 50), torso=[-16, 6, 2], head=[-2, -6, 0], hips=[-4, 0, 0], thigh_r=[-8, 0, 0], shin_r=[-18, 0, 0],
+                    thigh_l=[8, 0, 0], shin_l=[-22, 0, 0], arm_l=[8, 0, -4], root=[0, -4, 8])),
+        (0.80, pose(root=[0, 0, 8])),
+    ]))
+    # Hit in the head: the head whips back and aside, his hand flies to his face, he staggers back a step, dazed (a
+    # shake of the head), then he comes round (0.9 s)
+    anims.append(timed_keys('hit_head', [
+        (0.00, pose()),
+        (0.07, pose(head=[-38, 16, 8], torso=[-12, 6, 0], arm_r=[-10, 0, 14], root=[0, 0, 2])),
+        (0.24, pose(hand_face, head=[-16, 22, 6], torso=[-18, 10, -3], hips=[-4, 0, 0], thigh_r=[-20, 0, 0], shin_r=[-20, 0, 0],
+                    thigh_l=[14, 0, 0], shin_l=[-36, 0, 0], arm_l=[6, 0, -6], root=[0, -6, 7])),
+        (0.42, pose(clutch(10, 12, 18, 105), head=[6, -14, -4], torso=[-8, 4, -2], hips=[-2, 0, 0], thigh_r=[-10, 0, 0], shin_r=[-16, 0, 0],
+                    thigh_l=[8, 0, 0], shin_l=[-26, 0, 0], root=[0, -4, 9])),
+        (0.60, pose(clutch(0, 6, 8, 70), head=[2, 10, 2], torso=[-4, 0, 0], shin_r=[-10, 0, 0], shin_l=[-14, 0, 0], root=[0, -2, 9])),
+        (0.90, pose(root=[0, 0, 9])),
+    ]))
+    # Hit in a leg: the leg gives way under him, he drops on it, his arms out for his balance, his hand to the thigh, then
+    # he pushes up on the other leg and limps straight (1.0 s)
+    anims.append(timed_keys('hit_leg', [
+        (0.00, pose()),
+        (0.08, pose(thigh_r=[-6, 0, 0], shin_r=[-30, 0, 0], hips=[0, 0, -4], torso=[6, 0, 5], head=[4, 0, 0], root=[0, -2, 0])),
+        (0.28, pose(thigh_r=[32, 0, 0], shin_r=[-96, 0, 0], thigh_l=[20, 0, 0], shin_l=[-52, 0, 0], hips=[-8, 0, -12], torso=[-22, 6, 10],
+                    head=[-4, -8, -4], arm_r=[-30, 0, 46], forearm_r=[20, 0, 0], arm_l=[-8, 0, -30], root=[0, -16, 2])),
+        (0.50, pose(hand_thigh, thigh_r=[26, 0, 0], shin_r=[-80, 0, 0], thigh_l=[22, 0, 0], shin_l=[-48, 0, 0], hips=[-10, 0, -8],
+                    torso=[-26, 4, 6], head=[0, -6, -2], arm_l=[-6, 0, -18], root=[0, -14, 2])),
+        (0.74, pose(clutch(-16, -14, -12, 0), thigh_r=[12, 0, 0], shin_r=[-48, 0, 0], thigh_l=[10, 0, 0], shin_l=[-22, 0, 0], hips=[-4, 0, -4],
+                    torso=[-12, 2, 3], head=[2, 0, 0], arm_l=[-2, 0, -8], root=[0, -7, 2])),
+        (1.00, pose(root=[0, 0, 2])),
+    ]))
+    # Hit in an arm or on a side: the impact spins him, the hit arm thrown out and back, his other hand to the shoulder,
+    # a step aside to catch his balance; he turns back (0.8 s). hit_arm_l: the right arm as seen (+X, the rifle hand),
+    # hit_arm_r: the left one; hit_side: the body turned, the free hand to the ribs
+    for name, sg in (('hit_arm_l', 1), ('hit_arm_r', -1)):
+        arm = 'arm_l' if sg > 0 else 'arm_r'
+        other = hand_shoulder if sg > 0 else {'arm_l': [36, 0, 26], 'forearm_l': [70, 0, 0]}
+        anims.append(timed_keys(name, [
+            (0.00, pose()),
+            (0.08, pose(**{arm: [-34, 0, sg * 44]}, torso=[-2, sg * 26, sg * -6], head=[2, sg * -14, 0], hips=[0, sg * 8, 0], root=[sg * 1.5, 0, 1])),
+            (0.26, pose(other, **{arm: [-16, 0, sg * 28]}, torso=[-10, sg * 36, sg * -10], head=[-4, sg * -26, sg * 4], hips=[-2, sg * 14, sg * -4],
+                        thigh_r=[-8 if sg > 0 else 10, 0, sg * -6], thigh_l=[10 if sg > 0 else -8, 0, sg * -6], shin_r=[-20, 0, 0], shin_l=[-20, 0, 0],
+                        root=[sg * 5, -4, 3])),
+            (0.48, pose(other, **{arm: [-6, 0, sg * 12]}, torso=[-6, sg * 18, sg * -4], head=[-2, sg * -10, 0], hips=[0, sg * 6, 0],
+                        shin_r=[-10, 0, 0], shin_l=[-10, 0, 0], root=[sg * 5, -2, 3])),
+            (0.80, pose(root=[sg * 5, 0, 3])),
+        ]))
+    anims.append(timed_keys('hit_side', [
+        (0.00, pose()),
+        (0.08, pose(torso=[4, 24, 10], head=[6, -12, 0], arm_l=[-12, 0, -22], arm_r=[-10, 0, 18], hips=[0, 8, 0], root=[1, 0, 1])),
+        (0.26, pose(clutch(-30, -25, -45, 83), torso=[-12, 30, 14], head=[-4, -20, 4], hips=[-4, 12, -4], thigh_r=[-10, 0, -6], thigh_l=[8, 0, -6],
+                    shin_r=[-24, 0, 0], shin_l=[-24, 0, 0], arm_l=[6, 0, -10], root=[4, -5, 4])),
+        (0.48, pose(clutch(-20, -16, -30, 55), torso=[-6, 14, 6], head=[-2, -8, 2], hips=[0, 4, 0], shin_r=[-10, 0, 0], shin_l=[-10, 0, 0],
+                    root=[4, -2, 4])),
+        (0.80, pose(root=[4, 0, 4])),
+    ]))
+    # Surprised: he flinches (the shoulders up, a step back), looks at the player, then he comes down to his stance (0.5 s, GUARD_REACTION_TIME of guards.c)
+    anims.append(timed_keys('surprise', [
+        (0.00, pose()),
+        (0.10, pose(torso=[-10, 0, 0], head=[-14, 0, 0], arm_l=[18, 0, -12], arm_r=[14, 0, 12], shin_r=[-14, 0, 0], shin_l=[-14, 0, 0],
+                    root=[0, -3, 1])),
+        (0.26, pose(torso=[-4, 0, 0], head=[-6, 8, 0], arm_l=[10, 0, -6], arm_r=[8, 0, 6], thigh_r=[-8, 0, 0], shin_r=[-16, 0, 0], root=[0, -2, 3])),
+        (0.50, pose(root=[0, 0, 3])),
+    ]))
+    # Death, shot in the chest: the shot throws his shoulders back and his head back, he staggers backward on his
+    # heels, his arms thrown up and back, his knees give way; he falls flat on his back, his arms over his head on the
+    # floor (-200 degrees: the way back, over the head), his head rolls to a side (1.5 s; the fall itself from 0.6 s
+    # accelerates like a weight, see timed_keys(fall))
+    anims.append(timed_keys('death', [
+        (0.00, pose()),
+        (0.10, pose(torso=[16, -4, 0], head=[22, 6, 0], arm_l=[-14, 0, -16], arm_r=[-16, 0, 18], root=[0, 0, 2])),
+        (0.34, pose(torso=[28, -6, 2], head=[12, 10, 4], hips=[6, 0, 0], thigh_r=[-30, 0, 4], shin_r=[-24, 0, 0], thigh_l=[10, 0, -4], shin_l=[-40, 0, 0],
+                    arm_l=[-34, 0, -40], forearm_l=[-20, 0, 0], arm_r=[-40, 0, 44], forearm_r=[-16, 0, 0], rifle=[-30, 0, 20], root=[0, -5, 8])),
+        (0.60, pose(torso=[34, -2, 4], head=[-6, 16, 6], hips=[22, 0, 0], thigh_r=[-6, 0, 6], shin_r=[-54, 0, 0], thigh_l=[-24, 0, -6], shin_l=[-36, 0, 0],
+                    arm_l=[-110, 0, -56], forearm_l=[-30, 0, 0], arm_r=[-120, 0, 60], forearm_r=[-24, 0, 0], rifle=[-40, 0, 30], root=[0, -14, 16])),
+        (0.88, pose(torso=[18, 0, 4], head=[-14, 20, 6], hips=[64, 0, 0], thigh_r=[12, 0, 6], shin_r=[-42, 0, 0], thigh_l=[-6, 0, -6], shin_l=[-30, 0, 0],
+                    arm_l=[-160, 0, -58], forearm_l=[-40, 0, 0], arm_r=[-166, 0, 62], forearm_r=[-30, 0, 0], rifle=[-40, 0, 30], root=[0, -31, 22])),
+        (1.06, pose(torso=[-4, 0, 2], head=[-6, 26, 4], hips=[92, 0, 0], thigh_r=[6, 0, 8], shin_r=[-18, 0, 0], thigh_l=[-8, 0, -8], shin_l=[-14, 0, 0],
+                    arm_l=[-200, 0, -50], forearm_l=[-30, 0, 0], arm_r=[-204, 0, 56], forearm_r=[-26, 0, 0], rifle=[-40, 0, 30], root=[0, -42.5, 26])),
+        (1.22, pose(torso=[-3, 0, 2], head=[-4, 34, 6], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-12, 0, 0], thigh_l=[-6, 0, -8], shin_l=[-10, 0, 0],
+                    arm_l=[-204, 0, -52], forearm_l=[-24, 0, 0], arm_r=[-208, 0, 60], forearm_r=[-22, 0, 0], rifle=[-40, 0, 30], root=[0, -41.5, 26])),
+        (1.50, pose(torso=[-3, 0, 2], head=[-2, 40, 8], hips=[90, 0, 0], thigh_r=[4, 0, 8], shin_r=[-10, 0, 0], thigh_l=[-6, 0, -8], shin_l=[-8, 0, 0],
+                    arm_l=[-205, 0, -54], forearm_l=[-20, 0, 0], arm_r=[-209, 0, 62], forearm_r=[-18, 0, 0], rifle=[-40, 0, 30], root=[0, -42, 26])),
+    ], fall=(0.60, 1.06)))
+    # Death, shot in the head or in the back: the head whips, the body arches, then his knees buckle and he drops on
+    # them, folded over, his arms hanging; he topples forward onto his face, his arms before him, his head turned aside
+    # (1.6 s)
+    anims.append(timed_keys('death_front', [
+        (0.00, pose()),
+        (0.10, pose(head=[-30, 10, 4], torso=[-8, 6, 0], arm_l=[-12, 0, -14], arm_r=[-14, 0, 14], root=[0, 0, 1])),
+        (0.36, pose(head=[-10, 4, 2], torso=[-18, 2, 0], hips=[-4, 0, 0], thigh_r=[34, 0, 0], shin_r=[-70, 0, 0], thigh_l=[30, 0, 0], shin_l=[-66, 0, 0],
+                    arm_l=[8, 0, -10], arm_r=[12, 0, 12], rifle=[-20, 0, 10], root=[0, -13, -1])),
+        (0.62, pose(head=[16, -6, 0], torso=[-36, 0, 0], hips=[-6, 0, 0], thigh_r=[6, 0, 0], shin_r=[-96, 0, 0], thigh_l=[2, 0, 0], shin_l=[-92, 0, 0],
+                    arm_l=[22, 0, -8], forearm_l=[10, 0, 0], arm_r=[26, 0, 10], forearm_r=[8, 0, 0], rifle=[-30, 0, 16], root=[0, -24.5, 0])),
+        (0.80, pose(head=[12, -10, 0], torso=[-30, 0, 0], hips=[-30, 0, 0], thigh_r=[30, 0, 0], shin_r=[-80, 0, 0], thigh_l=[26, 0, 0], shin_l=[-76, 0, 0],
+                    arm_l=[70, 0, -16], forearm_l=[16, 0, 0], arm_r=[76, 0, 18], forearm_r=[12, 0, 0], rifle=[-30, 0, 16], root=[0, -26, -5])),
+        (1.00, pose(head=[-18, -24, 0], torso=[-6, 0, 0], hips=[-88, 0, 0], thigh_r=[8, 0, 4], shin_r=[-14, 0, 0], thigh_l=[4, 0, -4], shin_l=[-10, 0, 0],
+                    arm_l=[150, 0, -40], forearm_l=[30, 0, 0], arm_r=[156, 0, 44], forearm_r=[36, 0, 0], rifle=[-30, 0, 16], root=[0, -42.5, -12])),
+        (1.16, pose(head=[-22, -32, 0], torso=[-4, 0, 0], hips=[-90, 0, 0], thigh_r=[4, 0, 4], shin_r=[-8, 0, 0], thigh_l=[2, 0, -4], shin_l=[-6, 0, 0],
+                    arm_l=[166, 0, -44], forearm_l=[26, 0, 0], arm_r=[170, 0, 50], forearm_r=[30, 0, 0], rifle=[-30, 0, 16], root=[0, -41.5, -12])),
+        (1.60, pose(head=[-24, -36, 0], torso=[-4, 0, 0], hips=[-90, 0, 0], thigh_r=[3, 0, 4], shin_r=[-6, 0, 0], thigh_l=[2, 0, -4], shin_l=[-4, 0, 0],
+                    arm_l=[170, 0, -46], forearm_l=[24, 0, 0], arm_r=[172, 0, 54], forearm_r=[28, 0, 0], rifle=[-30, 0, 16], root=[0, -42, -12])),
+    ], fall=(0.80, 1.00)))
+    # (the moves from a pose to another one (aim, crouch, stand, hit_kneel): their keys made smooth too)
     for a in anims:
-        if a['name'] in ('death', 'death_front', 'hit', 'hit_side', 'hit_head', 'hit_leg', 'hit_arm_r', 'hit_arm_l', 'surprise', 'aim',
-                         'crouch', 'stand', 'hit_kneel'):
-            a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'], fall=a['name'].startswith('death'))
+        if a['name'] in ('aim', 'crouch', 'stand', 'hit_kneel'):
+            a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'])
     return anims
 
 
@@ -815,6 +897,47 @@ def smooth_keys(keys, key_time, fall=False, rate=30):
     return out, 1.0 / rate
 
 
+
+
+def timed_keys(name, frames, fall=None, rate=20, loop=False):
+    """An animation from poses at times (seconds): the keys between them at rate per second (20: 3 ticks of the engine, a
+    whole number) on a smooth curve (a cubic
+    Hermite spline through the poses, its slopes from the neighbours: no jolt at a pose). fall: (start, end) seconds of
+    a fall: the time runs like a weight that drops (slow at first, fast at the end), then a small bounce on the floor
+    at the next pose. A channel left out of a pose is 0 (the rest pose) there"""
+    times = [t for t, p in frames]
+    poses = [p for t, p in frames]
+    channels = sorted({c for p in poses for c in p})
+    n = len(frames)
+    def value(k, c):
+        return np.array(poses[k].get(c, [0, 0, 0]), dtype=float)
+    def slope(k, c):
+        if k == 0 or k == n - 1:
+            return np.zeros(3)
+        return (value(k + 1, c) - value(k - 1, c)) / (times[k + 1] - times[k - 1])
+    total = times[-1]
+    steps = int(round(total * rate))
+    out = []
+    for i in range(steps + 1):
+        t = i / rate
+        if fall is not None and fall[0] < t < fall[1]:
+            u = (t - fall[0]) / (fall[1] - fall[0])
+            t = fall[0] + (fall[1] - fall[0]) * u ** 1.7
+        k = 0
+        while k < n - 2 and t >= times[k + 1]:
+            k += 1
+        d = times[k + 1] - times[k]
+        f = min(1.0, max(0.0, (t - times[k]) / d))
+        h00 = 2 * f ** 3 - 3 * f ** 2 + 1
+        h10 = f ** 3 - 2 * f ** 2 + f
+        h01 = -2 * f ** 3 + 3 * f ** 2
+        h11 = f ** 3 - f ** 2
+        key = {}
+        for c in channels:
+            v = h00 * value(k, c) + h10 * d * slope(k, c) + h01 * value(k + 1, c) + h11 * d * slope(k + 1, c)
+            key[c] = [round(float(e), 2) for e in v]
+        out.append(key)
+    return {'name': name, 'key_time': 1.0 / rate, 'loop': loop, 'keys': out}
 
 
 def guard_faces(jo_model):
