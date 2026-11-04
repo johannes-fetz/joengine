@@ -55,8 +55,8 @@
 # define JO_ENTITY_MAX_CLASSES              (24)
 /** @brief Actions waiting for their delay at most */
 # define JO_ENTITY_MAX_PENDING              (32)
-/** @brief Different models of the entities at most */
-# define JO_ENTITY_MAX_MODELS               (16)
+/** @brief Different models of the entities at most (the models of the classes too: the things broken, the pieces) */
+# define JO_ENTITY_MAX_MODELS               (32)
 /** @brief The entities farther from the player are not updated (world units), unless they wait for something (timer) */
 # define JO_ENTITY_WAKE_DISTANCE            (3000)
 /** @brief The models of the entities farther are not drawn (world units), see the property draw_distance */
