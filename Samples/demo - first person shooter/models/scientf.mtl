@@ -1,0 +1,80 @@
+# Materials of the guard: a texture per part, the light: the gouraud shading (the vertex colors)
+
+newmtl guard_beltf
+Kd 1 1 1
+map_Kd sbeltf.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_belt
+Kd 1 1 1
+map_Kd sbelt.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_jfar
+Kd 1 1 1
+map_Kd sjfar.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_shirt
+Kd 1 1 1
+map_Kd sshirt.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_jacketb
+Kd 1 1 1
+map_Kd sjacketb.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_ffar
+Kd 1 1 1
+map_Kd sffar.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_fside
+Kd 1 1 1
+map_Kd sfside.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_hhairb
+Kd 1 1 1
+map_Kd shhairb.png
+jo_gouraud 1
+jo_lut 0
+
+newmtl guard_capf
+Kd 1 1 1
+map_Kd scapf.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_cap
+Kd 1 1 1
+map_Kd scap.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_pants
+Kd 1 1 1
+map_Kd spants.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_boots
+Kd 1 1 1
+map_Kd sboots.png
+jo_gouraud 1
+jo_lut 1
+
+newmtl guard_boott
+Kd 1 1 1
+map_Kd sboott.png
+jo_gouraud 1
+jo_lut 1
+

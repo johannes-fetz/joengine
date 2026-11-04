@@ -93,24 +93,6 @@ jo_mipmaps 0
 
 newmtl m11
 Kd 1 1 1
-map_Kd casing.png
-jo_lut 1
-jo_gouraud 1
-jo_subdivision 2
-jo_mipmaps 0
-jo_sort min
-
-newmtl m12
-Kd 1 1 1
-map_Kd screen.png
-jo_lut 1
-jo_gouraud 1
-jo_subdivision 2
-jo_mipmaps 0
-jo_sort min
-
-newmtl m13
-Kd 1 1 1
 map_Kd locker.png
 jo_lut 1
 jo_gouraud 1
@@ -118,14 +100,14 @@ jo_subdivision 2
 jo_mipmaps 0
 jo_sort min
 
-newmtl m14
+newmtl m12
 Kd 0.431 0.529 0.670
 jo_gouraud 1
 jo_subdivision 2
 jo_mipmaps 0
 jo_sort min
 
-newmtl m15
+newmtl m13
 Kd 1 1 1
 map_Kd lockerside.png
 jo_lut 1
@@ -134,7 +116,7 @@ jo_subdivision 2
 jo_mipmaps 0
 jo_sort min
 
-newmtl m16
+newmtl m14
 Kd 1 1 1
 map_Kd crate.png
 jo_lut 1

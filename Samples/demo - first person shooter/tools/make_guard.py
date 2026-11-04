@@ -185,19 +185,28 @@ def corner_slots(p, n):
     return best[1]
 
 
-def guard_textures(prefix='G', colors=None):
-    """The textures shared by the guards (the uniform, the boots, the cap, the rifle): baked on patches of the body"""
+# The clothes: the color functions of guard_skin.py for each style (the guards in uniform, the scientists in a lab coat)
+STYLES = {
+    'guard': dict(jacket=skin.jacket_color, pants=skin.pants_color, boots=skin.boots_color, belt=skin.belt_color),
+    'scientist': dict(jacket=skin.coat_color, pants=skin.trousers_color, boots=skin.shoes_color, belt=skin.coat_color),
+}
+
+
+def guard_textures(prefix='G', style='guard'):
+    """The textures shared by the guards (the uniform, the boots, the cap, the rifle): baked on patches of the body
+    (style: the clothes, see STYLES; prefix: the names of the textures of the models of this style)"""
     face = skin.FACES[0]
+    fns = STYLES[style]
     def bake(name, corners, fn, w, h):
         save_rgb(skin.bake_tile(corners, fn, w, h), prefix + name.upper() + '.BIN')
-    bake('shirt', flat_corners((9.6, 64, 0), 6, 6, 'x'), skin.jacket_color, 16, 16)
-    bake('jacketb', flat_corners((0, 60, 5.6), 9, 12, 'back'), skin.jacket_color, 16, 16)
-    bake('pants', flat_corners((4.5, 36, -3.6), 7, 12), skin.pants_color, 16, 16)
-    bake('boots', flat_corners((4.5, 14, -3.2), 6.4, 16), skin.boots_color, 16, 16)
-    bake('boott', flat_corners((4.5, 3, -6), 6, 6), skin.boots_color, 16, 8)
+    bake('shirt', flat_corners((9.6, 64, 0), 6, 6, 'x'), fns['jacket'], 16, 16)
+    bake('jacketb', flat_corners((0, 60, 5.6), 9, 12, 'back'), fns['jacket'], 16, 16)
+    bake('pants', flat_corners((4.5, 36, -3.6), 7, 12), fns['pants'], 16, 16)
+    bake('boots', flat_corners((4.5, 14, -3.2), 6.4, 16), fns['boots'], 16, 16)
+    bake('boott', flat_corners((4.5, 3, -6), 6, 6), fns['boots'], 16, 8)
     bake('skin', flat_corners((0, 60, -10), 3, 3), lambda p: skin.skin_color(p, face), 8, 8)
-    bake('belt', flat_corners((6, 48.75, -3), 6, 3.5), skin.belt_color, 16, 8)
-    bake('beltf', flat_corners((0, 48.75, -5.2), 3.4, 3.5), skin.belt_color, 16, 16)
+    bake('belt', flat_corners((6, 48.75, -3), 6, 3.5), fns['belt'], 16, 8)
+    bake('beltf', flat_corners((0, 48.75, -5.2), 3.4, 3.5), fns['belt'], 16, 16)
     bake('cap', flat_corners((4, 88.5, 0), 10, 7, 'x'), skin.cap_color, 16, 16)
     # The front of the cap: the red star
     a = skin.bake_tile(flat_corners((0, 88.5, -5.5), 8, 7), skin.cap_color, 16, 16).astype(float)
@@ -212,8 +221,8 @@ def guard_textures(prefix='G', colors=None):
     mask = np.asarray(im.resize((16, 16), Image.LANCZOS), float)[..., None] / 255
     a = a * (1 - mask) + np.array((200, 40, 32)) * mask
     save_rgb(np.clip(a, 0, 255), prefix + 'CAPF.BIN')
-    # The shoulder boards: red, a stripe
-    a = np.zeros((8, 16, 3)) + skin.RED_TABS
+    # The shoulder boards: red, a stripe (the scientists: the white of the coat, a seam)
+    a = np.zeros((8, 16, 3)) + (skin.RED_TABS if style == 'guard' else skin.COAT)
     a *= 0.9 + 0.2 * np.random.default_rng(5).random((8, 16, 1))
     a[:, 0] *= 0.7
     a[:, -1] *= 0.7
@@ -229,7 +238,7 @@ def guard_textures(prefix='G', colors=None):
     save_rgb(np.clip(a, 0, 255), prefix + 'WOOD.BIN')
 
 
-def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True):
+def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True):
     """A guard holding a rifle (about 1.75 m: 87 design units, times scale), 12 parts moved by the bones.
     The body is made of rings (8 sides for the head, the torso, the belt; 6 for the limbs): its shape is round, the
     proportions are the ones of a man (the head 1/7.5 of his height, the legs half of it, the shoulders 3 heads wide),
@@ -239,6 +248,7 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
     guards.c). models/NAME.obj, .mtl, .json (the skeleton and the animations, see Compiler/COMMON/jo_model.py --skeleton)"""
     light = np.array((0.25, 1.0, -0.35))
     light /= np.linalg.norm(light)
+    fns = STYLES[style]
     groups = {b[0]: [] for b in GUARD_BONES}     # (4 points, material, flat)
     textures = {}                                 # material -> (texture name, flipped)
 
@@ -273,18 +283,18 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         p, n = orient(pts, outward)
         key = mat + ('_flip' if flip else '')
         textures[key] = (prefix + mat.upper() + '.BIN', flip)
-        if not flip and mat not in BAKED:
+        if not flip and prefix + mat not in BAKED:
             c = tile_corners(p, n)
             if variants is not None:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: fn(q, f), size[0], size[1])
                     if v == 0:
                         save_rgb(a, prefix + mat.upper() + '.BIN')
-                    else:
+                    elif prefix == 'G':
                         save_rgb(a, 'V%d%s.BIN' % (v, mat.upper()))
             else:
                 save_rgb(skin.bake_tile(c, fn, size[0], size[1]), prefix + mat.upper() + '.BIN')
-            BAKED.add(mat)
+            BAKED.add(prefix + mat)
         face(group, p, key, flat)
 
     def ring(y, rx, rz, n, cx=0.0, cz=0.0):
@@ -442,7 +452,7 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
     else:
         def belt(i, k, pts, outward):
             if k == 0:
-                baked_face('hips', pts, outward, 'beltf', skin.belt_color, (16, 16))
+                baked_face('hips', pts, outward, 'beltf', fns['belt'], (16, 16))
             else:
                 add_face('hips', pts, 'belt', outward)
         belt_bottom = ring(46.8, 8.35, 5.25, 8)
@@ -454,15 +464,15 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
     torso_rings = [ring(48.0, 7.9, 4.9, 8), ring(62.0, 9.6, 5.9, 8), ring(SHOULDER_Y, SHOULDER_X, 5.3, 8), ring(72.8, 2.75, 2.6, 8, 0, 0.3)]
     if far:
         frustum('torso', 48, 15.8, 9.6, 71, 18.4, 10.4, {'z': 'jfar', 'X': 'shirt', 'Z': 'jacketb', 'x': 'shirt', 'Y': 'shirt'})
-        if 'jfar' not in BAKED:
-            save_rgb(skin.bake_tile(flat_corners((0, 59.5, -5.6), 16, 23), skin.jacket_color, 16, 24), prefix + 'JFAR.BIN')
-            BAKED.add('jfar')
+        if prefix + 'jfar' not in BAKED:
+            save_rgb(skin.bake_tile(flat_corners((0, 59.5, -5.6), 16, 23), fns['jacket'], 16, 24), prefix + 'JFAR.BIN')
+            BAKED.add(prefix + 'jfar')
         textures['jfar'] = (prefix + 'JFAR.BIN', False)
     else:
         def jacket(i, k, pts, outward):
             if k in (0, 1, 7):
                 mat = 'j%d%d' % (i, 0 if k == 0 else 1)
-                baked_face('torso', pts, outward, mat, skin.jacket_color, (24, 24) if k == 0 else (16, 24), flip=(k == 7))
+                baked_face('torso', pts, outward, mat, fns['jacket'], (24, 24) if k == 0 else (16, 24), flip=(k == 7))
             elif k in (2, 6):
                 add_face('torso', pts, 'shirt', outward)
             else:
@@ -478,15 +488,15 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                   {'z': 'epaul', 'Z': 'epaul', 'Y': 'epaul', ('X' if sx > 0 else 'x'): 'epaul'})
         def collar(i, k, pts, outward):
             if k in (0, 1, 7):
-                baked_face('torso', pts, outward, 'c%d' % (0 if k == 0 else 1), skin.jacket_color, (16, 8), flip=(k == 7))
+                baked_face('torso', pts, outward, 'c%d' % (0 if k == 0 else 1), fns['jacket'], (16, 8), flip=(k == 7))
             else:
                 add_face('torso', pts, 'collar', outward)
         # The neck
         tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck', cap_a=True)
-        if 'neck' not in BAKED:
+        if prefix + 'neck' not in BAKED:
             save_rgb(skin.bake_tile(flat_corners((0, 74, -2.3), 3, 5), lambda q: skin.skin_color(q, skin.FACES[0]) * 0.92, 8, 8),
                      prefix + 'NECK.BIN')
-            BAKED.add('neck')
+            BAKED.add(prefix + 'neck')
     # --- The head: the chin, the cheeks, the brow, the top (a dome): 8 sides, a texture per polygon in front
     head_rings = [ring(75.4, 2.9, 3.6, 8, 0, -0.35), ring(78.5, 3.55, 4.35, 8, 0, -0.15), ring(82.0, 3.75, 4.55, 8),
                   ring(85.6, 3.6, 4.4, 8, 0, 0.1)]
@@ -495,11 +505,12 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         for t, c, sz, axis in (('ffar', flat_corners((0, 80.7, -4.4), 6.8, 10.6), (16, 16), 'z'),
                                ('fside', flat_corners((3.6, 80.7, 0), 8.2, 10.6, 'x'), (8, 16), 'x')):
             textures[t] = (prefix + t.upper() + '.BIN', False)
-            if t not in BAKED:
+            if prefix + t not in BAKED:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: skin.head_color(q, f), sz[0], sz[1])
-                    save_rgb(a, (prefix + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
-                BAKED.add(t)
+                    if v == 0 or prefix == 'G':
+                        save_rgb(a, (prefix + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
+                BAKED.add(prefix + t)
         textures['hhairb'] = (prefix + 'HHAIRB.BIN', False)
         frustum('cap' if helmet else 'head', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
     else:
@@ -513,7 +524,7 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
             else:
                 # (the back of the head: the same texture on the 3 sides)
                 mat = 'hnape' if i == 0 else 'hhairb'
-                if mat in BAKED or k == 4:
+                if prefix + mat in BAKED or k == 4:
                     baked_face('head', pts, outward, mat, skin.head_color, face_size(mat), variants=True)
                 else:
                     later.append((i, k, pts, outward))
@@ -862,6 +873,19 @@ def guard_animations():
     for a in anims:
         if a['name'] in ('aim', 'crouch', 'stand', 'hit_kneel'):
             a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'])
+    # Hands up (the scientists threatened: the arms raised over the head, the elbows a little out, the head down), held
+    # after (a loop: the arms shake a little, he looks at the agent)
+    hands = {'arm_r': [-186, 0, 26], 'arm_l': [-186, 0, -26], 'forearm_r': [-6, 0, 0], 'forearm_l': [-6, 0, 0],
+             'head': [6, 0, 0], 'torso': [-4, 0, 0], 'hips': [2, 0, 0], 'root': [0, 0.6, 0]}
+    anims.append(timed_keys('hands_up', [(0, {}), (0.25, dict(hands, arm_r=[-120, 0, 20], arm_l=[-120, 0, -20], head=[-4, 0, 0])),
+                                         (0.5, hands)]))
+    keys = []
+    for k in range(10):
+        t = k / 10
+        sn = math.sin(2 * math.pi * t)
+        keys.append(dict(hands, arm_r=[-186 + 3 * sn, 0, 26 + 2 * sn], arm_l=[-186 - 3 * sn, 0, -26 - 2 * sn],
+                         head=[6 + 2 * sn, 4 * math.sin(2 * math.pi * t * 0.5), 0], torso=[-4, 2 * sn, 0]))
+    anims.append({'name': 'hands_hold', 'key_time': 0.15, 'loop': True, 'keys': keys})
     return anims
 
 
@@ -990,12 +1014,17 @@ def build_guards():
     # (far away: fewer polygons, the same skeleton and animations)
     guard_model('guardf', far=True)
     guard_model('guardnf', far=True, rifle=False)
+    # The scientists: a white coat, no cap, no rifle (the same skeleton and animations: they walk, raise their hands, run,
+    # fall like the guards; their faces: the same textures, swapped by guards.c like the guards')
+    guard_textures('S', 'scientist')
+    guard_model('scient', style='scientist', prefix='S', helmet=False, rifle=False)
+    guard_model('scientf', style='scientist', prefix='S', far=True, helmet=False, rifle=False)
     # (the converter of the engine: the skeleton and the animations, the textures embedded)
     import sys
     sys.path.insert(0, os.path.join(DEMO, '..', '..', 'Compiler', 'COMMON'))
     import jo_model
     guard_faces(jo_model)
-    for name in ('guard', 'guardn', 'guardf', 'guardnf'):
+    for name in ('guard', 'guardn', 'guardf', 'guardnf', 'scient', 'scientf'):
         stats = jo_model.convert(os.path.join(MODELS, name + '.obj'), os.path.join(CD, name.upper() + '.JOM'), keep_triangles=True,
                                  remove_unused=True, embed_textures=True, quiet=True, skeleton=os.path.join(MODELS, name + '.json'))
         for w in stats.get('warnings', []):
