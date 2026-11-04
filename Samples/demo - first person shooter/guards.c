@@ -237,6 +237,7 @@ typedef struct
     int                             step;           // Milliseconds left of his step aside, its side (step_side: 1, -1)
     int                             step_side;
     bool                            scientist;      // A scientist (the class scientist), not a guard
+    bool                            met;            // A scientist: the agent threatened him once (his hands went up)
     int                             fear;           // A scientist: milliseconds left of his run away, of his pause
     int                             stuck;          // A scientist: milliseconds without a move on his run away
     int                             hidden_time;    // A scientist running away: milliseconds in a room the agent doesn't see
@@ -1071,6 +1072,7 @@ static void                         person_spawn(jo_entity * const e, const bool
     g->hatless = scientist;
     g->fear = 0;
     g->stuck = 0;
+    g->met = false;
     g->hidden_time = 0;
     g->detour_time = 0;
     g->closing = 0;
@@ -1143,10 +1145,13 @@ static void                         alert(jo_entity * const e, guard * const g)
 }
 
 /** @brief A scientist is scared (a shot, a cry, hit): he runs away from the agent, see scientist_think() */
-static void                         scare(jo_entity * const e, guard * const g)
+static void                         scare(jo_entity * const e, guard * const g, const bool hurt)
 {
-    if (g->state == GUARD_DEAD)
+    // (never threatened by the agent (his hands never went up) and not hurt: the shots don't scare him, he stays at his
+    // work (scared by the shots heard through the walls, he was gone before the agent ever saw him))
+    if (g->state == GUARD_DEAD || (!g->met && !hurt))
         return;
+    g->met = true;
     g->fear = SCIENTIST_FEAR_TIME;
     if (g->state != SCIENTIST_FLEE)
     {
@@ -1282,6 +1287,8 @@ static void                         scientist_think(jo_entity * const e, guard *
         case SCIENTIST_WALK:
             if (threatened)
             {
+                // (threatened once: from then on the shots scare him, see scare())
+                g->met = true;
                 g->state = SCIENTIST_HANDS_UP;
                 g->timer = 0;
                 g->gait_speed = 0;
@@ -1580,7 +1587,7 @@ static void                         guard_update(jo_entity * const e, const int 
         g->hurt = GUARD_HURT_TIME;
         g->hit = g->crouched ? GUARD_HIT_KNEEL_TIME : GUARD_HIT_TIME;
         if (g->scientist)
-            scare(e, g);
+            scare(e, g, true);
         else
             alert(e, g);
         jo_actor_restart(e, g->crouched ? "hit_kneel" : "hit", 40);
@@ -2059,7 +2066,7 @@ bool                                guards_shot(jo_entity * const e, const jo_po
     if (damage <= 0)
         return (true);
     if (g->scientist)
-        scare(e, g);
+        scare(e, g, true);
     else
     {
         alert(e, g);
@@ -2314,7 +2321,7 @@ static void                         scare_scientists(const jo_entity * const exc
         dx = JO_ABS(jo_fixed2int(x - e->position.x));
         dz = JO_ABS(jo_fixed2int(z - e->position.z));
         if (JO_MAX(dx, dz) + (JO_MIN(dx, dz) * 3 >> 3) <= SCIENTIST_HEAR_DISTANCE)
-            scare(e, g);
+            scare(e, g, false);
     }
 }
 
@@ -2336,7 +2343,7 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
             // (a scientist: scared by a shot near him, by the loud rifle farther)
             if (g->state != GUARD_DEAD && (distance_to_agent(e) <= (loud ? SCIENTIST_HEAR_DISTANCE : GUARD_HEARING_DISTANCE + 200) ||
                                            bullet_passes_near(e, eye, dir, length)))
-                scare(e, g);
+                scare(e, g, false);
             continue;
         }
         if (g->state != GUARD_IDLE && g->state != GUARD_SEARCH)
