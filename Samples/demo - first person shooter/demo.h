@@ -144,6 +144,14 @@ void                                hurt_player(const int damage);
  *  @return false if it can't be loaded
  */
 bool                                load_sound(const char * const name, jo_sound * const sound);
+/** @brief Pieces of glass flying from a point (count of them, spread units around it), away from dir, the sound (doors.c) */
+void                                glass_burst(const jo_pos3D_fixed * const center, const jo_pos3D_fixed * const dir, const int count, const int spread,
+                                                const jo_entity * const owner);
+/** @brief The pieces of glass moved and drawn by the entity broken last (glass_burst(), a window) */
+void                                glass_shards_update(const jo_entity * const entity, const int elapsed);
+void                                glass_shards_draw(const jo_entity * const entity);
+/** @brief The classes of the breakable things (props.c): the monitors of the computers, the glassware */
+void                                props_register(void);
 /** @brief Play a sound on one of count channels from first, in turn (*next): the oldest one is stopped if it still
  *  plays (a burst, several guards: no shot is lost, the end of the echo of the oldest one is cut) */
 void                                play_sound(jo_sound * const sound, const int first, const int count, int * const next);

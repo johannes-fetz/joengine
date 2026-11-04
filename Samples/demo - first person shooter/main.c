@@ -453,6 +453,7 @@ void                            jo_main(void)
     }
     doors_register();
     guards_register();
+    props_register();
     level = jo_level_load("LEVEL.JOL");
     if (level != JO_NULL)
     {

@@ -809,8 +809,9 @@ static int                      next_shard = 0;
 static jo_3d_mesh               *shard_mesh = JO_NULL;
 static jo_sound                 glass_sound;
 static bool                     glass_sound_loaded = false;
-/** @brief The window that moves and draws the shards of all the windows */
-static jo_entity                *first_glass = JO_NULL;
+/** @brief The window that moves and draws the shards of all the windows (and of the glassware, see glass_burst()): the
+ *  one broken last (it is near the agent: awake, its cell seen) */
+static const jo_entity          *shard_owner = JO_NULL;
 
 static void                     glass_spawn(jo_entity * const entity)
 {
@@ -821,8 +822,6 @@ static void                     glass_spawn(jo_entity * const entity)
     g->broken = false;
     g->width = jo_entity_get_int(entity, "width", 200);
     g->height = jo_entity_get_int(entity, "height", 100);
-    if (first_glass == JO_NULL)
-        first_glass = entity;
     if (shard_mesh == JO_NULL)
     {
         shard_mesh = jo_entity_load_model("SHARD.JOM");
@@ -831,6 +830,51 @@ static void                     glass_spawn(jo_entity * const entity)
     }
     if (!glass_sound_loaded)
         glass_sound_loaded = load_sound("GLASS.WAV", &glass_sound);
+}
+
+/** @brief Pieces of glass flying from a point (something made of glass broken: a flask, a screen), spread around it (units),
+ *  away from the shot (dir, the horizontal direction), the sound (see glass_break() for the panes of the windows)
+ */
+void                            glass_burst(const jo_pos3D_fixed * const center, const jo_pos3D_fixed * const dir, const int count, const int spread,
+                                            const jo_entity * const owner)
+{
+    glass_shard                 *s;
+    int                         k;
+    int                         floor;
+
+    if (shard_mesh == JO_NULL)
+    {
+        shard_mesh = jo_entity_load_model("SHARD.JOM");
+        for (k = 0; k < GLASS_SHARDS; ++k)
+            shards[k].age = -1;
+    }
+    if (!glass_sound_loaded)
+        glass_sound_loaded = load_sound("GLASS.WAV", &glass_sound);
+    shard_owner = owner;
+    for (k = 0; k < count && k < GLASS_SHARDS; ++k)
+    {
+        s = &shards[next_shard];
+        next_shard = (next_shard + 1) % GLASS_SHARDS;
+        s->position.x = center->x + jo_int2fixed(jo_random(2 * spread + 1) - 1 - spread);
+        s->position.y = center->y - jo_int2fixed(jo_random(spread + 1) - 1);
+        s->position.z = center->z + jo_int2fixed(jo_random(2 * spread + 1) - 1 - spread);
+        // (with the shot, spread, up a little more than the panes: they jump off the table)
+        s->speed.x = jo_fixed_mult(dir->x, jo_int2fixed(GLASS_SHARD_SPEED / 2)) + jo_int2fixed(jo_random(80) - 40);
+        s->speed.y = -jo_int2fixed(40 + jo_random(60));
+        s->speed.z = jo_fixed_mult(dir->z, jo_int2fixed(GLASS_SHARD_SPEED / 2)) + jo_int2fixed(jo_random(80) - 40);
+        s->yaw = (short)jo_random(360);
+        s->pitch = (short)jo_random(360);
+        s->spin = (short)(jo_random(720) - 360);
+        s->floor = jo_cells_floor(s->position.x + s->speed.x / 4, s->position.y, s->position.z + s->speed.z / 4, 0x7fff, &floor) ?
+                   jo_int2fixed(floor) - JO_FIXED_1 : center->y + jo_int2fixed(100);
+        s->age = 0;
+    }
+    if (glass_sound_loaded)
+    {
+        sound_from(&glass_sound, center->x, center->z, GLASS_SOUND_VOLUME, GLASS_SOUND_RANGE);
+        jo_audio_stop_channel(CHANNEL_IMPACT_FIRST + 1);
+        jo_audio_play_sound_on_channel(&glass_sound, CHANNEL_IMPACT_FIRST + 1);
+    }
 }
 
 /** @brief The pane breaks: its pieces fly away from the shot (dir), the sound */
@@ -847,6 +891,7 @@ static void                     glass_break(jo_entity * const entity, const jo_p
 
     g = (glass_data *)entity->data;
     g->broken = true;
+    shard_owner = entity;
     ax = jo_cos(entity->yaw);
     az = -jo_sin(entity->yaw);
     for (k = 0; k < GLASS_SHARDS / 2; ++k)
@@ -878,13 +923,14 @@ static void                     glass_break(jo_entity * const entity, const jo_p
     }
 }
 
-static void                     glass_update(jo_entity * const entity, const int elapsed)
+/** @brief The pieces of glass of the windows and of the glassware: moved and drawn by the thing broken last (see
+ *  glass_update(), props.c) */
+void                            glass_shards_update(const jo_entity * const entity, const int elapsed)
 {
     glass_shard                 *s;
     int                         k;
 
-    // (the shards of all the windows: by the first window)
-    if (entity != first_glass)
+    if (entity != shard_owner)
         return;
     for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
     {
@@ -913,11 +959,14 @@ static void                     glass_update(jo_entity * const entity, const int
     }
 }
 
+static void                     glass_update(jo_entity * const entity, const int elapsed)
+{
+    glass_shards_update(entity, elapsed);
+}
+
 static void                     glass_draw(jo_entity * const entity)
 {
-    glass_shard                 *s;
     int                         bias;
-    int                         k;
     int                         side;
 
     if (!((glass_data *)entity->data)->broken && entity->mesh != JO_NULL && jo_entity_view_distance(entity) >= 0)
@@ -941,7 +990,26 @@ static void                     glass_draw(jo_entity * const entity)
             jo_3d_pop_matrix();
         }
     }
-    if (shard_mesh == JO_NULL || entity != first_glass)
+    glass_shards_draw(entity);
+}
+
+/** @brief Draw the pieces of glass (see glass_shards_update()) */
+void                            glass_shards_draw(const jo_entity * const entity)
+{
+    glass_shard                 *s;
+    int                         bias;
+    int                         k;
+
+#ifdef TEST_SHARDS
+    {
+        int n = 0, m = 0;
+        for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
+            if (s->age >= 0) { ++n; if (jo_cells_depth_bias_at(s->position.x, s->position.y - JO_FIXED_1, s->position.z) >= 0) ++m; }
+        jo_printf(0, 2, "shards %d drawn %d owner %d mesh %d y %d fl %d", n, m, entity == shard_owner, shard_mesh != JO_NULL,
+                  jo_fixed2int(shards[0].position.y), jo_fixed2int(shards[0].floor));
+    }
+#endif
+    if (shard_mesh == JO_NULL || entity != shard_owner)
         return;
     for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
     {
