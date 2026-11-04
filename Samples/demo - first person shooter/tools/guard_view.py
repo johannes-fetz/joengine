@@ -22,6 +22,7 @@ def load_obj(models, name):
     pts = []
     cols = []
     faces = []   # (group, material, [point indexes])
+    point_groups = []   # (the group each point is declared in, like jo_model.py: it moves with that bone)
     group = None
     mat = None
     with open(os.path.join(models, name + '.obj')) as f:
@@ -32,6 +33,7 @@ def load_obj(models, name):
             if w[0] == 'v':
                 pts.append([float(x) for x in w[1:4]])
                 cols.append([float(x) for x in w[4:7]] if len(w) >= 7 else [0.5, 0.5, 0.5])
+                point_groups.append(group)
             elif w[0] == 'g':
                 group = w[1]
             elif w[0] == 'usemtl':
@@ -59,6 +61,7 @@ def load_obj(models, name):
                 mats[cur] = tuple(float(x) for x in w[1:4])
     with open(os.path.join(models, name + '.json')) as f:
         rig = json.load(f)
+    rig['point_groups'] = point_groups
     return np.array(pts), np.array(cols), faces, mats, rig
 
 
@@ -142,9 +145,9 @@ def render(models, name, out, anim=None, time=0.0, yaw=30, pitch=10, size=400, z
     groups = {}
     for g, mt, idx in faces:
         for i in idx:
-            groups[i] = g
+            groups.setdefault(i, g)
     for i in range(len(pts)):
-        g = groups.get(i)
+        g = rig['point_groups'][i] or groups.get(i)
         if g in m:
             r, o = m[g]
             world[i] = r @ pts[i] + o
