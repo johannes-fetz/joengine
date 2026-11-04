@@ -53,16 +53,10 @@
 /** @brief He sees the agent nearer (world units), in front of him (cosine of half of his field of view: 120 degrees) */
 #define GUARD_SIGHT_DISTANCE        (1400)
 #define GUARD_SIGHT_COS             (JO_FIXED_1 / 2)
-/** @brief He hears the shots of the agent nearer (world units; a silenced pistol: not far; a rifle without a silencer: the
- *  guards of the wing come, see call_guards()) */
+/** @brief He hears the shots of the agent nearer (world units; a silenced pistol: not far; a rifle without a silencer:
+ *  farther) */
 #define GUARD_HEARING_DISTANCE      (500)
-/** @brief The shots of a rifle (a guard's, the agent's one without a silencer) and the cries of a guard call the guards at
- *  their place this far (units): they come running where the agent was seen, GUARD_CALL_MAX of them on their way at
- *  once (each one on his way tests the walls, the doors and the furniture: not all the level at the same time) */
-#define GUARD_CALL_DISTANCE         (1800)
-#define GUARD_CALL_MAX              (4)
-/** @brief Called, he runs this long at least (milliseconds) even without a sight of the agent (he comes from far) */
-#define GUARD_CALL_RUN_TIME         (9000)
+#define GUARD_LOUD_HEARING_DISTANCE (1100)
 /** @brief Time between 2 checks of his line of sight (milliseconds): a ray through the cells costs */
 #define GUARD_SIGHT_PERIOD          (200)
 #define GUARD_IDLE_SIGHT_PERIOD     (350)
@@ -96,6 +90,9 @@
  *  he closes in, he shoots from nearer (standing: a guard on one knee stays) */
 #define GUARD_CLOSE_DISTANCE        (520)
 #define GUARD_CLOSE_TIME            (1100)
+/** @brief Between 2 bursts, standing, he steps aside (milliseconds of the step, its speed: units per second) */
+#define GUARD_STEP_TIME             (500)
+#define GUARD_STEP_SPEED            (110)
 /** @brief After a run, he aims badly for this long (milliseconds): this much less chance to hit */
 #define GUARD_WINDED_TIME           (2500)
 #define GUARD_WINDED_PENALTY        (30)
@@ -121,10 +118,9 @@
 #define GUARD_MAX_STEP              (20)
 /** @brief A hit in the head kills him (the damage times this) */
 #define GUARD_HEAD_MULTIPLIER       (10)
-/** @brief The time he does nothing else after a hit (milliseconds): most of the reaction (0.8 s: the hit, a side, an
- *  arm; 0.9 s: the head; 1 s: a leg; 0.3 s on one knee), see tools/make_guard.py */
+/** @brief The time he does nothing else after a hit (milliseconds): most of the reaction (0.8 s: the hit (the chest, the
+ *  head), an arm; 1 s: a leg; 0.3 s on one knee), see tools/make_guard.py */
 #define GUARD_HIT_TIME              (650)
-#define GUARD_HIT_HEAD_TIME         (750)
 #define GUARD_HIT_LEG_TIME          (850)
 #define GUARD_HIT_KNEEL_TIME        (320)
 /** @brief Red for this time after a hit (milliseconds), its color added to the gouraud tables */
@@ -149,6 +145,7 @@ typedef struct
     int                             spin_speed;
     jo_fixed                        floor;
     const jo_3d_model               *model;
+    const jo_entity                 *owner;         // The guard it fell from (it goes with him when he dies)
     bool                            used;
 }                                   falling_cap;
 static falling_cap                  caps[CAP_MAX];
@@ -232,6 +229,8 @@ typedef struct
     int                             hurt;           // Milliseconds of red
     int                             closing;        // Milliseconds left of his run at the agent between 2 bursts
     int                             winded;         // Milliseconds left of his bad aim after a run
+    int                             step;           // Milliseconds left of his step aside, its side (step_side: 1, -1)
+    int                             step_side;
     bool                            scientist;      // A scientist (the class scientist), not a guard
     int                             fear;           // A scientist: milliseconds left of his run away, of his pause
     int                             stuck;          // A scientist: milliseconds without a move on his run away
@@ -269,8 +268,7 @@ typedef struct
     int                             cap_frame;      // The frame when it was drawn, -1: never
 }                                   guard;
 
-static void                         call_guards(const jo_entity * const except, const jo_fixed from_x, const jo_fixed from_z,
-                                                const jo_fixed x, const jo_fixed z);
+static void                         scare_scientists(const jo_entity * const except, const jo_fixed x, const jo_fixed z);
 
 typedef struct
 {
@@ -862,8 +860,8 @@ static void                         shoot_agent(jo_entity * const e, const guard
 
     distance = distance_to_agent(e);
     muzzle_position(e, &muzzle, g->crouched);
-    // (his shots: the guards around come)
-    call_guards(e, e->position.x, e->position.z, g->seen_x, g->seen_z);
+    // (his shots: the scientists around run away)
+    scare_scientists(e, e->position.x, e->position.z);
     // (the flash at the muzzle)
     flash_position[next_flash] = muzzle;
     flash_time[next_flash] = GUARD_FLASH_TIME;
@@ -1045,6 +1043,7 @@ static void                         person_spawn(jo_entity * const e, const bool
     g->stuck = 0;
     g->closing = 0;
     g->winded = 0;
+    g->step = 0;
     g->last_health = e->health;
     g->home_x = e->position.x;
     g->home_z = e->position.z;
@@ -1083,8 +1082,17 @@ static void                         guard_cry(const jo_entity * const e, jo_soun
     sound_from(&cry, e->position.x, e->position.z, GUARD_VOICE_VOLUME, GUARD_SOUND_RANGE);
     jo_audio_stop_channel(GUARD_VOICE_CHANNEL);
     jo_audio_play_sound_on_channel(&cry, GUARD_VOICE_CHANNEL);
-    // (his cry: the guards around come where he was shot from)
-    call_guards(e, e->position.x, e->position.z, player_x, player_z);
+    // (his cry: the scientists around run away)
+    scare_scientists(e, e->position.x, e->position.z);
+}
+
+/** @brief The fall of a dead guard: shot in the head he slips and falls on his back; in the body, his arms open wide and he
+ *  sinks, or he turns on himself and goes down (see tools/make_guard.py) */
+static const char                   *death_animation(const bool head)
+{
+    if (head)
+        return ("death_slip");
+    return (jo_random(2) == 2 ? "death_spread" : "death_spin");
 }
 
 /** @brief He sees or hears the agent: surprised first, then his rifle up */
@@ -1097,7 +1105,8 @@ static void                         alert(jo_entity * const e, guard * const g)
     {
         g->state = GUARD_SURPRISED;
         g->timer = GUARD_SURPRISE_TIME;
-        jo_actor_restart(e, "surprise", 80);
+        // (he flinches: the rifle comes up at once, the move of the aim)
+        jo_actor_restart(e, "aim", 80);
     }
 }
 
@@ -1385,8 +1394,16 @@ static void                         guard_death(jo_entity * const e, jo_entity *
     g = (guard *)e->data;
     g->state = GUARD_DEAD;
     g->dead = 0;
+    // (his cap shot off before: it goes with him)
+    {
+        int                         k;
+
+        for (k = 0; k < CAP_MAX; ++k)
+            if (caps[k].used && caps[k].owner == e)
+                caps[k].used = false;
+    }
     // (killed by an explosion: he falls; shot, guards_shot() chooses the fall after this)
-    jo_actor_restart(e, jo_random(2) == 2 ? "death_front" : "death", g->crouched ? GUARD_KNEEL_DEATH_BLEND : 60);
+    jo_actor_restart(e, death_animation(false), g->crouched ? GUARD_KNEEL_DEATH_BLEND : 60);
     if (sounds_loaded)
     {
         // (his last cry: one of the 2 longest cries of pain, lower)
@@ -1508,7 +1525,7 @@ static void                         guard_update(jo_entity * const e, const int 
             scare(e, g);
         else
             alert(e, g);
-        jo_actor_restart(e, g->crouched ? "hit_kneel" : "hit_side", 40);
+        jo_actor_restart(e, g->crouched ? "hit_kneel" : "hit", 40);
     }
     g->last_health = e->health;
     if (g->state == GUARD_DEAD)
@@ -1609,6 +1626,18 @@ static void                         guard_update(jo_entity * const e, const int 
                 break;
             }
             g->timer -= elapsed;
+            // (between 2 bursts: a step aside, the rifle up; blocked, the step ends there)
+            if (g->step > 0)
+            {
+                g->step -= elapsed;
+                if (!move_toward(e, (e->yaw + (g->step_side > 0 ? 90 : 270)) % 360, GUARD_STEP_SPEED, elapsed))
+                    g->step = 0;
+                if (g->step > 0)
+                {
+                    jo_entity_turn_to(e, g->seen_x, g->seen_z, GUARD_TURN_SPEED * elapsed / 1000);
+                    break;
+                }
+            }
             // (between 2 bursts, far from the agent: he runs at him, then his rifle up again)
             if (g->closing > 0)
             {
@@ -1643,6 +1672,14 @@ static void                         guard_update(jo_entity * const e, const int 
                 {
                     g->closing = GUARD_CLOSE_TIME;
                     g->timer = JO_MAX(g->timer, GUARD_CLOSE_TIME + GUARD_REACTION_TIME / 2);
+                }
+                // (standing, a step aside between 2 bursts: harder to hit)
+                else if (!g->crouched && jo_random(3) == 1)
+                {
+                    g->step = GUARD_STEP_TIME;
+                    g->step_side = jo_random(2) == 2 ? 1 : -1;
+                    jo_actor_restart(e, g->step_side > 0 ? "step_l" : "step_r", 60);
+                    g->timer = JO_MAX(g->timer, GUARD_STEP_TIME + 100);
                 }
                 // (he changes his stance between 2 bursts: he kneels or gets up, then shoots again)
                 else if (jo_random(4) == 1)
@@ -1706,8 +1743,7 @@ static void                         guard_update(jo_entity * const e, const int 
                     break;
                 }
                 // (searching the doorways and the stalls later: he walks)
-                g->run = (!same_room || distance > GUARD_RUN_DISTANCE) &&
-                         (g->unseen < 2 * GUARD_KEEP_TIME || g->search < GUARD_CALL_RUN_TIME);
+                g->run = (!same_room || distance > GUARD_RUN_DISTANCE) && g->unseen < 2 * GUARD_KEEP_TIME;
             }
             // (at the point: nobody, the next place near there. Blocked on his way (go_to() is true too: a guard in the doorway in
             // front of him), he goes on until the end of the search: he gave up in the doorway)
@@ -1876,6 +1912,7 @@ static void                         knock_cap(const jo_entity * const e, const j
     c->spin_speed = 500 + (jo_random(300) - 1);
     c->floor = jo_cells_floor(e->position.x, e->position.y, e->position.z, 8, &floor) ? jo_int2fixed(floor) : e->position.y;
     c->model = ((const jo_actor *)e->data)->model;
+    c->owner = e;
     c->used = true;
 }
 
@@ -1980,7 +2017,7 @@ bool                                guards_shot(jo_entity * const e, const jo_po
     {
         // (shot in the head or in the back: he falls forward; in the chest: backward. On one knee: the fall starts from
         // there, slower, he does not stand up first)
-        jo_actor_restart(e, head || jo_random(2) == 2 ? "death_front" : "death", g->crouched ? GUARD_KNEEL_DEATH_BLEND : 60);
+        jo_actor_restart(e, death_animation(head), g->crouched ? GUARD_KNEEL_DEATH_BLEND : 60);
         return (true);
     }
     // Hit: he cries, his body jerks (the head, a side or the chest)
@@ -1999,11 +2036,6 @@ bool                                guards_shot(jo_entity * const e, const jo_po
         reaction = "hit_kneel";
         g->hit = GUARD_HIT_KNEEL_TIME;
     }
-    else if (head)
-    {
-        reaction = "hit_head";
-        g->hit = GUARD_HIT_HEAD_TIME;
-    }
     else if (height < GUARD_SIZE(46) - (g->crouched ? GUARD_SIZE(20) : 0))
     {
         // (a leg: it gives way under him, he limps a moment)
@@ -2015,7 +2047,7 @@ bool                                guards_shot(jo_entity * const e, const jo_po
     else if (lateral < -7)
         reaction = "hit_arm_r";
     else
-        reaction = jo_random(2) == 2 ? "hit" : "hit_side";
+        reaction = "hit";
     jo_actor_restart(e, reaction, 40);
     return (true);
 }
@@ -2207,78 +2239,24 @@ static bool                         bullet_passes_near(const jo_entity * const e
     return (JO_ABS(across) <= GUARD_BULLET_NEAR);
 }
 
-/** @brief The guards near a sound at from_x from_z (the shots of a rifle, the cry of a guard hit) come: the nearest ones at
- *  their place (not except: the one that made it), up to GUARD_CALL_MAX of them on their way at once, run where the agent
- *  was (x, z) and look for him there; the ones already looking for him go there too. The ones that fight stay (they know
- *  where he is)
- */
-static void                         call_guards(const jo_entity * const except, const jo_fixed from_x, const jo_fixed from_z,
-                                                const jo_fixed x, const jo_fixed z)
+/** @brief The scientists near a sound at x z (the shots of a rifle, the cry of a guard hit): scared, they run away */
+static void                         scare_scientists(const jo_entity * const except, const jo_fixed x, const jo_fixed z)
 {
     jo_entity                       *e;
     guard                           *g;
     int                             k;
     int                             dx;
     int                             dz;
-    int                             distance;
-    int                             on_way;
-    int                             nearest;
-    jo_entity                       *called;
 
-    on_way = 0;
     for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
     {
-        if (!is_person(e) || e->data == JO_NULL || e == except)
+        if (e == except || e->cls != &scientist_class || e->data == JO_NULL)
             continue;
         g = (guard *)e->data;
-        if (g->scientist)
-        {
-            // (a scientist near the sound: scared, he runs away)
-            dx = JO_ABS(jo_fixed2int(from_x - e->position.x));
-            dz = JO_ABS(jo_fixed2int(from_z - e->position.z));
-            if (JO_MAX(dx, dz) + (JO_MIN(dx, dz) * 3 >> 3) <= SCIENTIST_HEAR_DISTANCE)
-                scare(e, g);
-            continue;
-        }
-        if (g->state == GUARD_SEARCH && g->run)
-            ++on_way;
-        if (g->state == GUARD_SEARCH)
-        {
-            g->seen_x = x;
-            g->seen_z = z;
-            g->unseen = 0;
-        }
-    }
-    // (the nearest ones first: one at a time, a few guards)
-    while (on_way < GUARD_CALL_MAX)
-    {
-        called = JO_NULL;
-        nearest = GUARD_CALL_DISTANCE;
-        for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
-        {
-            if (e == except || e->cls != &guard_class || e->data == JO_NULL || ((guard *)e->data)->state != GUARD_IDLE)
-                continue;
-            dx = JO_ABS(jo_fixed2int(from_x - e->position.x));
-            dz = JO_ABS(jo_fixed2int(from_z - e->position.z));
-            distance = JO_MAX(dx, dz) + (JO_MIN(dx, dz) * 3 >> 3);
-            if (distance <= nearest)
-            {
-                nearest = distance;
-                called = e;
-            }
-        }
-        if (called == JO_NULL)
-            break;
-        g = (guard *)called->data;
-        g->state = GUARD_SEARCH;
-        g->search = 0;
-        g->run = true;
-        g->seen_x = x;
-        g->seen_z = z;
-        g->unseen = 0;
-        if (g->crouched)
-            stand_up(called, g);
-        ++on_way;
+        dx = JO_ABS(jo_fixed2int(x - e->position.x));
+        dz = JO_ABS(jo_fixed2int(z - e->position.z));
+        if (JO_MAX(dx, dz) + (JO_MIN(dx, dz) * 3 >> 3) <= SCIENTIST_HEAR_DISTANCE)
+            scare(e, g);
     }
 }
 
@@ -2305,13 +2283,10 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
         }
         if (g->state != GUARD_IDLE && g->state != GUARD_SEARCH)
             continue;
-        if (distance_to_agent(e) > GUARD_HEARING_DISTANCE && !bullet_passes_near(e, eye, dir, length))
+        if (distance_to_agent(e) > (loud ? GUARD_LOUD_HEARING_DISTANCE : GUARD_HEARING_DISTANCE) && !bullet_passes_near(e, eye, dir, length))
             continue;
         alert(e, g);
     }
-    // (a rifle without a silencer: the guards of the wing come running where he is)
-    if (loud)
-        call_guards(JO_NULL, player_x, player_z, player_x, player_z);
 }
 
 void                                guards_update_blood(const int elapsed)
