@@ -1,1 +1,0 @@
-First person shooter sample: the guards no longer call the others (the scientists still run away from the shots), a step aside between 2 bursts, the cap of a dead guard goes with him; JO_MAX_SPRITE 400 (339 used: the textures loaded last were lost, the wood of the rifle white :)
