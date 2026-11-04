@@ -1,0 +1,1 @@
+First person shooter sample: fewer animations for the guards, 3 falls taken from the reference tape (a slip on the back, the arms spread then down, a spin) and a step aside; the scientists share the textures of the body with the guards (the sprites went over the limit)
