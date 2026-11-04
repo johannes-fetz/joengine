@@ -326,7 +326,38 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                 pts = [first[0], first[k], first[k + 1], first[(k + 2) % n]]
                 add_face(group, pts, bottom, np.array((0, -1.0, 0)), True)
 
-    def tube(group, a, b, ra, rb, n, mat, up=(0, 0, -1), cap_a=False, cap_b=False):
+    def fan(group, pts, mat, outward):
+        """A flat end on a ring of points: n / 2 - 1 quads (the texture flat)"""
+        n = len(pts)
+        for k in range(1, n - 1, 2):
+            add_face(group, [pts[0], pts[k], pts[k + 1], pts[(k + 2) % n]], mat, outward, True)
+
+    def dome(group, pts, center, axis, mat, r=None):
+        """The ball of a joint: a dome on a ring of points (the end of a limb) around center (the pivot of the joint of
+        the part next to it), out along axis (unit): a band to a ring at 0.55 r (radius 0.83 r: a sphere), then the
+        quads to its pole at r. With the part next to it starting at the pivot with a ring of the same radius, the ball
+        fills the gap when the joint bends (its material: the one of the part next to it, hidden inside it when the
+        joint is straight: a wrong order of the painter's sort shows the same color)"""
+        pts = [np.array(v, dtype=float) for v in pts]
+        center = np.array(center, dtype=float)
+        axis = np.array(axis, dtype=float)
+        n = len(pts)
+        if r is None:
+            r = float(np.mean([np.linalg.norm(q - center) for q in pts]))
+        mid = []
+        for q in pts:
+            d = q - center
+            d -= axis * np.dot(d, axis)
+            mid.append(center + axis * 0.55 * r + d * 0.83)
+        pole = center + axis * r
+        for k in range(n):
+            face_pts = [pts[k], pts[(k + 1) % n], mid[(k + 1) % n], mid[k]]
+            add_face(group, face_pts, mat, np.mean(face_pts, axis=0) - center)
+        for k in range(0, n, 2):
+            face_pts = [mid[k], mid[(k + 1) % n], mid[(k + 2) % n], pole]
+            add_face(group, face_pts, mat, np.mean(face_pts, axis=0) - center)
+
+    def tube(group, a, b, ra, rb, n, mat, up=(0, 0, -1), cap_a=False, cap_b=False, ball_b=None):
         """A tapered tube (n sides) from the point a (radius ra) to the point b"""
         a = np.array(a, dtype=float)
         b = np.array(b, dtype=float)
@@ -356,6 +387,8 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                 for k in range(1, n - 1, 2):
                     pts = [rr[0], rr[k], rr[k + 1], rr[(k + 2) % n]]
                     add_face(group, pts, mat, out, True)
+        if ball_b is not None:
+            dome(group, r1, ball_b[0], axis, ball_b[1])
 
     def prism(group, bottom, top, mats, flat=False):
         bottom = [np.array(v, dtype=float) for v in bottom]
@@ -385,16 +418,24 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
 
     # --- The legs: the breeches (fuller over the knee), tucked into the high boots (to the knee), the feet forward
     for side, x in (('r', -4.4), ('l', 4.4)):
+        # (the joints closed: the top of the thigh under the belt (a flat end, the color of the belt), the knee (the ball
+        # of the boot at the end of the thigh: the boot wraps the knee when it bends), the sole of the boot (he lies on the
+        # floor): a bent joint showed the inside of the parts, see dome())
         if far:
-            frustum('thigh_' + side, 23, 6.0, 6.4, 48.5, 7.8, 7.8, 'pants', x, 0.2, x, 0)
-            frustum('shin_' + side, 0, 5.6, 6.0, 25, 6.4, 6.6, 'boots', x, 0)
-            box('shin_' + side, x - 2.8, 0, -9.0, x + 2.8, 5, -2.8, 'boott', faces='Yzx X'.replace(' ', ''))
+            frustum('thigh_' + side, 23, 6.0, 6.4, 48.5, 7.8, 7.8, {'z': 'pants', 'X': 'pants', 'Z': 'pants', 'x': 'pants', 'Y': 'belt', 'y': 'boots'},
+                    x, 0.2, x, 0)
+            frustum('shin_' + side, 0, 5.6, 6.0, 25, 6.4, 6.6, {'z': 'boots', 'X': 'boots', 'Z': 'boots', 'x': 'boots', 'Y': 'boots'}, x, 0)
+            box('shin_' + side, x - 2.8, 0, -9.0, x + 2.8, 5, -2.8, 'boott', faces='Yyzx X'.replace(' ', ''))
             continue
-        loft('thigh_' + side, [ring(23.0, 3.0, 3.2, 6, x, 0.2), ring(48.5, 4.0, 4.1, 6, x, 0)], 'pants')
+        knee = ring(24.0, 3.0, 3.2, 6, x, 0.1)
+        hip_top = ring(48.5, 4.0, 4.1, 6, x, 0)
+        loft('thigh_' + side, [knee, hip_top], 'pants')
+        fan('thigh_' + side, hip_top, 'belt', np.array((0, 1.0, 0)))
+        dome('thigh_' + side, knee, (x, 24.0, 0.1), (0, -1.0, 0), 'boots')
         # (the boot: its shaft from the ankle to the knee, its top edge a little wider)
-        loft('shin_' + side, [ring(5.5, 2.6, 2.9, 6, x, 0.3), ring(24.0, 3.2, 3.4, 6, x, 0)], 'boots')
-        frustum('shin_' + side, 0, 5.6, 12.6, 6.5, 5.0, 6.4, {'z': 'boott', 'X': 'boott', 'Z': 'boots', 'x': 'boott', 'Y': 'boott'},
-                x, -3.0, x, -0.2)
+        loft('shin_' + side, [ring(6.0, 2.6, 2.9, 6, x, 0.0), ring(24.0, 3.2, 3.4, 6, x, 0)], 'boots')
+        frustum('shin_' + side, 0, 5.6, 12.6, 6.5, 5.6, 6.6, {'z': 'boott', 'X': 'boott', 'Z': 'boots', 'x': 'boott', 'Y': 'boott', 'y': 'boots'},
+                x, -3.0, x, -0.1)
     # --- The hips (the breeches), the belt with its buckle
     if far:
         frustum('hips', 42, 15.5, 9.0, 50.5, 16.0, 9.4, {'z': 'beltf', 'X': 'belt', 'Z': 'belt', 'x': 'belt'})
@@ -404,7 +445,9 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                 baked_face('hips', pts, outward, 'beltf', skin.belt_color, (16, 16))
             else:
                 add_face('hips', pts, 'belt', outward)
-        loft('hips', [ring(46.8, 8.35, 5.25, 8), ring(50.6, 8.35, 5.25, 8)], belt)
+        belt_bottom = ring(46.8, 8.35, 5.25, 8)
+        loft('hips', [belt_bottom, ring(50.6, 8.35, 5.25, 8)], belt)
+        fan('hips', belt_bottom, 'pants', np.array((0, -1.0, 0)))
     # --- The torso: the waist, the chest, the shoulders sloping to the neck; the collar standing with its red tabs
     # (the shoulders: the widest ring, then the slope to the neck, the shoulder boards lie on it)
     SHOULDER_Y, SHOULDER_X = 68.3, 11.0
@@ -432,14 +475,14 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
             lo, hi = sorted((sx * 6.0, sx * 9.4))
             prism('torso', [(lo, slope_y(lo) - 0.2, -1.6), (hi, slope_y(hi) - 0.2, -1.6), (hi, slope_y(hi) - 0.2, 1.6), (lo, slope_y(lo) - 0.2, 1.6)],
                   [(lo, slope_y(lo) + 0.5, -1.6), (hi, slope_y(hi) + 0.5, -1.6), (hi, slope_y(hi) + 0.5, 1.6), (lo, slope_y(lo) + 0.5, 1.6)],
-                  {'z': 'epaul', 'Z': 'epaul', 'Y': 'epaul'})
+                  {'z': 'epaul', 'Z': 'epaul', 'Y': 'epaul', ('X' if sx > 0 else 'x'): 'epaul'})
         def collar(i, k, pts, outward):
             if k in (0, 1, 7):
                 baked_face('torso', pts, outward, 'c%d' % (0 if k == 0 else 1), skin.jacket_color, (16, 8), flip=(k == 7))
             else:
                 add_face('torso', pts, 'collar', outward)
         # The neck
-        tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck')
+        tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck', cap_a=True)
         if 'neck' not in BAKED:
             save_rgb(skin.bake_tile(flat_corners((0, 74, -2.3), 3, 5), lambda q: skin.skin_color(q, skin.FACES[0]) * 0.92, 8, 8),
                      prefix + 'NECK.BIN')
@@ -496,11 +539,14 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         along = (hand - elbow) / np.linalg.norm(hand - elbow)
         wrist = hand - along * 2.2
         if far:
-            tube(arm, back(shoulder, elbow, 1.5), elbow, 3.0, 2.4, 4, 'shirt')
-            tube(fore, elbow, wrist, 2.4, 2.0, 4, 'shirt')
+            tube(arm, back(shoulder, elbow, 1.5), elbow, 3.0, 2.4, 4, 'shirt', cap_a=True, cap_b=True)
+            tube(fore, elbow, wrist, 2.4, 2.0, 4, 'shirt', cap_a=True)
             continue
-        tube(arm, back(shoulder, elbow, 0.5), elbow, (2.9, 3.1), (2.35, 2.5), 6, 'shirt', up=(0, 0, -1))
-        tube(fore, back(elbow, wrist, 2.5), wrist, 2.45, 2.0, 4, 'shirt', up=(0, 1, 0))
+        # (the shoulder closed by a flat end inside the torso; the elbow: the ball at the end of the arm, the forearm
+        # starts at the joint with a ring a little wider than the ball)
+        tube(arm, back(shoulder, elbow, 0.5), elbow, (2.9, 3.1), (2.25, 2.4), 6, 'shirt', up=(0, 0, -1), cap_a=True,
+             ball_b=(elbow, 'shirt'))
+        tube(fore, elbow, wrist, 2.45, 2.0, 4, 'shirt', up=(0, 1, 0))
         tube(fore, wrist - along * 0.6, hand + along * 1.8, (1.9, 2.3), (1.7, 2.1), 4, 'skin', up=(0, 1, 0), cap_b=True)
     if far and rifle:
         tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_MUZZLE), (1.2, 2.2), (1.2, 2.2), 4, 'gun', up=(0, 1, 0))
@@ -508,11 +554,11 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         # The rifle (its bone: it moves with the right hand): the stock and the receiver, the wooden
         # handguard, the barrel, the magazine under the receiver in front of the grip (rifle=False: the dead guard, his
         # rifle dropped on the floor)
-        tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_WOOD[0]), (1.3, 2.5), (1.3, 2.5), 4, 'gun', up=(0, 1, 0))
+        tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_WOOD[0]), (1.3, 2.5), (1.3, 2.5), 4, 'gun', up=(0, 1, 0), cap_a=True)
         tube('rifle', rifle_point(RIFLE_WOOD[0]), rifle_point(RIFLE_WOOD[1]), (1.4, 2.6), (1.4, 2.6), 4, 'wood', up=(0, 1, 0), cap_b=True)
-        tube('rifle', rifle_point(RIFLE_WOOD[1]), rifle_point(RIFLE_MUZZLE), 0.6, 0.6, 4, 'gun', up=(0, 1, 0))
+        tube('rifle', rifle_point(RIFLE_WOOD[1]), rifle_point(RIFLE_MUZZLE), 0.6, 0.6, 4, 'gun', up=(0, 1, 0), cap_b=True)
         mag = rifle_point(RIFLE_MAGAZINE)
-        tube('rifle', mag, mag + np.array((0, -5.5, 0)) + RIFLE_DIR * 2, (0.9, 1.5), (0.9, 1.5), 4, 'gun', up=tuple(RIFLE_DIR))
+        tube('rifle', mag, mag + np.array((0, -5.5, 0)) + RIFLE_DIR * 2, (0.9, 1.5), (0.9, 1.5), 4, 'gun', up=tuple(RIFLE_DIR), cap_b=True)
     # The OBJ: the groups in the order of the bones, their points together (shared by the faces of the group, never by 2
     # groups). The texture of each face is drawn upright as seen from outside (vt: the corner at the top left of the
     # texture is the corner up and left for someone in front of the face, "up" = the Y axis, or the front for a
