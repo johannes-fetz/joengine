@@ -255,7 +255,7 @@ HANGING_LEFT = np.array((-12.5, 44.5, 2.0))
 HANGING_GRIP = np.array((12.5, 44.5, 2.0))
 
 
-def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True, hanging=False):
+def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True, hanging=False, only=None):
     """A guard holding a rifle (about 1.75 m: 87 design units, times scale), 12 parts moved by the bones.
     The body is made of rings (8 sides for the head, the torso, the belt; 6 for the limbs): its shape is round, the
     proportions are the ones of a man (the head 1/7.5 of his height, the legs half of it, the shoulders 3 heads wide),
@@ -652,7 +652,10 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
     count = 0
     lent = {}           # (part, coordinates) -> vertex of the OBJ (the first one written for these coordinates)
     for bone, parent, pivot in bones:
-        if not groups[bone]:
+        # (only: one part alone, a rigid model in the same coordinates: the cap on the floor (cd/CAP.JOM): drawn from the
+        # model of the guard with all its bones but the cap hidden, it cost the whole model, 300 points and 212 polygons
+        # rejected, 3 ms per frame for 6 s)
+        if not groups[bone] or (only is not None and bone != only):
             continue
         body.append('g ' + bone)
         out.append('g ' + bone)
@@ -727,6 +730,8 @@ def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefi
                (['jo_flip h'] if flip else []) + ['']
     with open(os.path.join(MODELS, name + '.mtl'), 'w') as f:
         f.write('\n'.join(mtl) + '\n')
+    if only is not None:
+        return
     anims = guard_animations(armed=not hanging)
     # (the root moves scaled in copies of the keys: a pose is shared by several keys and animations (crouch_aim in kneel,
     # crouch_fire...), scaled in place it was scaled once per use: the guard on one knee went up and down between 2 shots)
@@ -1114,6 +1119,8 @@ def build_guards():
     # (far away: fewer polygons, the same skeleton and animations)
     guard_model('guardf', far=True)
     guard_model('guardnf', far=True, rifle=False)
+    # (the cap alone, rigid: the cap of a dead guard on the floor)
+    guard_model('cap', rifle=False, only='cap')
     # The scientists: a white coat, no cap, no rifle (the same skeleton and animations: they walk, raise their hands, run,
     # fall like the guards; their faces: the same textures, swapped by guards.c like the guards')
     guard_textures('S', 'scientist')
@@ -1130,3 +1137,6 @@ def build_guards():
         for w in stats.get('warnings', []):
             print('  %s: %s' % (name, w))
         print('  %s.JOM: %s polygons, %s bytes' % (name.upper(), stats.get('polygons'), stats.get('bytes')))
+    stats = jo_model.convert(os.path.join(MODELS, 'cap.obj'), os.path.join(CD, 'CAP.JOM'), keep_triangles=True, remove_unused=True,
+                             embed_textures=True, quiet=True)
+    print('  CAP.JOM: %s polygons, %s bytes' % (stats.get('polygons'), stats.get('bytes')))
