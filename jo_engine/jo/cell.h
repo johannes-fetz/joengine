@@ -163,7 +163,7 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
 
 /** @brief Draw the cells found by jo_cells_prepare()
  *  @param slave true: on the slave CPU (between jo_3d_slave_begin() and jo_3d_slave_end(), see jo_3d_slave_mesh_draw()),
- *  false: on the master CPU
+ *  false: on the master CPU (without JO_COMPILE_WITH_DUAL_CPU_MODULE: always on the master CPU)
  *  @remarks The depth bias of jo_cells_prepare() is used, plus 2048 for each portal between a cell and the cell of the
  *  camera (its walls hide the cells behind them)
  */

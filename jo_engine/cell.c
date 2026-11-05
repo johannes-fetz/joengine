@@ -1632,6 +1632,57 @@ void                                jo_cells_draw_prepared(const bool slave)
     jo_cells_draw_prepared_part(slave, -1, 0);
 }
 
+/** @brief Draw a mesh of the cells on a CPU, with its depth bias and its window (without the dual CPU module, the part of
+ *  the slave CPU is drawn by the master CPU, like a job of jo_core_exec_on_slave())
+ *  @param ranges Ranges of polygons (JO_NULL: all the polygons)
+ *  @param window Window (-1: unchanged)
+ */
+static void                         __jo_cell_draw_mesh(const bool slave, jo_3d_mesh * const mesh, const jo_3d_polygon_range * const ranges,
+                                                        const int range_count, const int bias, const int window)
+{
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    if (slave)
+    {
+        if (window >= 0)
+            jo_3d_slave_select_window(window);
+        jo_3d_slave_set_depth_bias(bias);
+        if (ranges == JO_NULL)
+            jo_3d_slave_mesh_draw(mesh);
+        else
+            jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, range_count);
+        return;
+    }
+#else
+    JO_UNUSED_ARG(slave);
+#endif
+    if (window >= 0)
+        jo_3d_select_window(window);
+    jo_3d_set_depth_bias(bias);
+    if (ranges == JO_NULL)
+        jo_3d_mesh_draw(mesh);
+    else
+        jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, range_count);
+}
+
+/** @brief The depth bias of jo_cells_prepare() and the near window again on a CPU (see __jo_cell_draw_mesh()) */
+static void                         __jo_cell_draw_end(const bool slave, const bool window)
+{
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    if (slave)
+    {
+        jo_3d_slave_set_depth_bias(__jo_cell_depth_bias);
+        if (window)
+            jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+        return;
+    }
+#else
+    JO_UNUSED_ARG(slave);
+#endif
+    jo_3d_set_depth_bias(__jo_cell_depth_bias);
+    if (window)
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
+}
+
 void                                jo_cells_draw_prepared_part(const bool slave, const int part, const int handicap)
 {
     int                             k;
@@ -1650,29 +1701,10 @@ void                                jo_cells_draw_prepared_part(const bool slave
         // The cells seen through more portals: behind (see JO_CELL_LEVEL_BIAS)
         if (__jo_cell_mesh_range_count[k] == 0)
             continue;
-        if (slave)
-        {
-            jo_3d_slave_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (__jo_cell_mesh_range_count[k] < 0)
-                jo_3d_slave_mesh_draw(__jo_cell_meshes[k]);
-            else
-                jo_3d_slave_mesh_draw_ranges(__jo_cell_meshes[k], __jo_cell_meshes[k]->data.point_count, __jo_cell_mesh_ranges[k],
-                                             __jo_cell_mesh_range_count[k]);
-        }
-        else
-        {
-            jo_3d_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (__jo_cell_mesh_range_count[k] < 0)
-                jo_3d_mesh_draw(__jo_cell_meshes[k]);
-            else
-                jo_3d_mesh_draw_ranges(__jo_cell_meshes[k], __jo_cell_meshes[k]->data.point_count, __jo_cell_mesh_ranges[k],
-                                       __jo_cell_mesh_range_count[k]);
-        }
+        __jo_cell_draw_mesh(slave, __jo_cell_meshes[k], __jo_cell_mesh_range_count[k] < 0 ? JO_NULL : __jo_cell_mesh_ranges[k],
+                            __jo_cell_mesh_range_count[k], __jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS, -1);
     }
-    if (slave)
-        jo_3d_slave_set_depth_bias(__jo_cell_depth_bias);
-    else
-        jo_3d_set_depth_bias(__jo_cell_depth_bias);
+    __jo_cell_draw_end(slave, false);
 }
 
 void                                jo_cells_draw_prepared_share(const bool slave, const int part, const int share)
@@ -1739,33 +1771,10 @@ void                                jo_cells_draw_prepared_share(const bool slav
         if (c == 0)
             continue;
         // (a cell seen through a portal: the far window, clipped to the portals)
-        if (slave)
-        {
-            jo_3d_slave_select_window(jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
-            jo_3d_slave_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n)
-                jo_3d_slave_mesh_draw(mesh);
-            else
-                jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, c);
-        }
-        else
-        {
-            jo_3d_select_window(jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
-            jo_3d_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n)
-                jo_3d_mesh_draw(mesh);
-            else
-                jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, c);
-        }
+        __jo_cell_draw_mesh(slave, mesh, c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n ? JO_NULL : ranges, c,
+                            __jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS, jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
     }
-    if (slave)
-        jo_3d_slave_set_depth_bias(__jo_cell_depth_bias);
-    else
-        jo_3d_set_depth_bias(__jo_cell_depth_bias);
-    if (slave)
-        jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
-    else
-        jo_3d_select_window(JO_3D_NEAR_WINDOW);
+    __jo_cell_draw_end(slave, true);
 }
 
 /** @brief Share of the polygons of the cells drawn by the master CPU (0 to 1024) in the frame, its limits (see
@@ -1773,7 +1782,9 @@ void                                jo_cells_draw_prepared_share(const bool slav
  *  jo_cells_draw_prepared_on_both_cpus()), balanced at each frame (the other work of the master CPU: the logic of the
  *  game, the weapon) */
 static int                          __jo_cell_share = JO_CELLS_DEFAULT_SHARE;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 static int                          __jo_cell_share_correction = JO_CELLS_DEFAULT_SHARE - 512;
+#endif
 static int                          __jo_cell_share_min = 0;
 static int                          __jo_cell_share_max = JO_CELLS_DEFAULT_MAX_SHARE;
 

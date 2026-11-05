@@ -814,8 +814,14 @@ void                                jo_entities_prepare_draw(const int slave_sha
         // the master CPU)
         mesh = distance >= 0 ? __jo_entity_mesh_at(e, distance) : JO_NULL;
         cost = mesh != JO_NULL ? (int)mesh->data.polygon_count + 8 : 8;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         slave = slave_share > 0 && (e->cls->draw == JO_NULL || e->cls->draw_slave != JO_NULL) &&
                 slave_cost * (1024 - slave_share) < master_cost * slave_share;
+#else
+        // (without the dual CPU module: all on the master CPU)
+        JO_UNUSED_ARG(slave_share);
+        slave = false;
+#endif
         if (slave && master < last)
         {
             slave_cost += cost;
@@ -944,6 +950,10 @@ int                                 jo_entities_draw(void)
 
 int                                 jo_entities_draw_slave(void)
 {
+#ifndef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    // (without the dual CPU module: the master CPU draws all the entities, see jo_entities_prepare_draw())
+    return (0);
+#else
     int                             k;
     int                             count;
     jo_entity                       *e;
@@ -977,6 +987,7 @@ int                                 jo_entities_draw_slave(void)
     jo_3d_slave_set_depth_bias(__jo_entity_draw_base_bias);
     jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
     return (count);
+#endif
 }
 
 /*
@@ -1799,6 +1810,7 @@ void                                jo_actor_draw_slave(jo_entity * const entity
         jo_3d_pose_blend(model, &previous, &pose, 256 - jo_int_div(a->blend << 8, a->blend_duration));
         pose = previous;
     }
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (!jo_3d_slave_push_matrix())
         return;
     jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
@@ -1806,6 +1818,17 @@ void                                jo_actor_draw_slave(jo_entity * const entity
         jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
     jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
     jo_3d_slave_pop_matrix();
+#else
+    // (without the dual CPU module: drawn by the master CPU)
+    jo_3d_push_matrix();
+    {
+        jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+        if (entity->yaw != 0)
+            jo_3d_rotate_matrix_y(entity->yaw);
+        jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
+    }
+    jo_3d_pop_matrix();
+#endif
 }
 
 static const jo_entity_class        __jo_entity_class_entity = {"entity", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};

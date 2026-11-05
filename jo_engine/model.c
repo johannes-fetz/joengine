@@ -833,17 +833,22 @@ static void                                 jo_3d_model_pose_bone(const jo_3d_mo
         jo_3d_model_pose_bone(model, child, pose, callback, param, m, (const jo_fixed (*)[3])matrix);
 }
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 /** @brief The matrices of the bones of the pose drawn by the slave CPU (not on its stack: it is small) */
 static jo_3d_model_pose_matrices            __jo_3d_slave_pose_matrices;
+#endif
 
 void                                        jo_3d_slave_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
                                                                         const jo_3d_bone_callback callback, void * const param,
                                                                         const unsigned int hidden_bones)
 {
+    unsigned int                            hidden;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     jo_3d_model_pose_matrices               *m;
     register unsigned int                   k;
-    unsigned int                            hidden;
+#endif
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     // (the bones hidden: the mask of the master CPU replaced while the bones are posed, see jo_3d_model_set_hidden_bones();
     // the slave CPU draws the characters while the master CPU draws no pose, see jo_entities_draw())
     hidden = __jo_3d_hidden_bones;
@@ -862,6 +867,13 @@ void                                        jo_3d_slave_model_draw_pose(const jo
     __jo_3d_hidden_bones = hidden;
     if (m->part_count > 0)
         __jo_3d_slave_draw_parts(&model->mesh->data, m->parts, m->part_count);
+#else
+    // (without the dual CPU module: drawn by the master CPU, like a job of jo_core_exec_on_slave())
+    hidden = __jo_3d_hidden_bones;
+    __jo_3d_hidden_bones = hidden_bones;
+    jo_3d_model_draw_pose(model, pose, callback, param);
+    __jo_3d_hidden_bones = hidden;
+#endif
 }
 
 void                                        jo_3d_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,

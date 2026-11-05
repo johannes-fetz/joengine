@@ -39,6 +39,8 @@
 #include "jo/malloc.h"
 #include "jo/image.h"
 #include "jo/math.h"
+#include "jo/colors.h"
+#include "jo/vdp2.h"
 #include "jo/mode7.h"
 
 #ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
