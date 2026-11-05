@@ -1524,6 +1524,57 @@ void                                jo_cells_draw_prepared_share(const bool slav
         jo_3d_set_depth_bias(__jo_cell_depth_bias);
 }
 
+/** @brief Share of the polygons of the cells drawn by the master CPU (0 to 1024), its limits (see jo_cells_balance_share()) */
+static int                          __jo_cell_share = JO_CELLS_DEFAULT_SHARE;
+static int                          __jo_cell_share_min = 0;
+static int                          __jo_cell_share_max = JO_CELLS_DEFAULT_MAX_SHARE;
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
+/** @brief The job of the slave CPU: its part of the cells */
+static void                         __jo_cells_slave_part(void)
+{
+    // (written by the master CPU before the job: read without the cache)
+    jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&__jo_cell_share));
+}
+
+#endif
+
+void                                jo_cells_draw_prepared_on_both_cpus(void)
+{
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    jo_core_exec_on_slave(__jo_cells_slave_part);
+    jo_cells_draw_prepared_share(false, 0, __jo_cell_share);
+#else
+    jo_cells_draw_prepared(false);
+#endif
+}
+
+void                                jo_cells_balance_share(void)
+{
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    int                             step;
+
+    // (1 / 1024 of the polygons per 100 microseconds the slave CPU waited, 40 / 1024 at most per frame)
+    step = JO_MAX(-40, JO_MIN(40, jo_core_slave_idle_time() / 100));
+    if (step > 0 && jo_3d_slave_get_command_count() > jo_3d_slave_get_max_commands() * 3 / 4)
+        step = -16;
+    __jo_cell_share = JO_MAX(__jo_cell_share_min, JO_MIN(__jo_cell_share_max, __jo_cell_share - step));
+#endif
+}
+
+void                                jo_cells_set_share_limits(const int min, const int max)
+{
+    __jo_cell_share_min = JO_MAX(0, JO_MIN(min, 1024));
+    __jo_cell_share_max = JO_MAX(__jo_cell_share_min, JO_MIN(max, 1024));
+    __jo_cell_share = JO_MAX(__jo_cell_share_min, JO_MIN(__jo_cell_share_max, __jo_cell_share));
+}
+
+int                                 jo_cells_get_share(void)
+{
+    return (__jo_cell_share);
+}
+
 int                                 jo_cells_draw(const jo_pos3D_fixed * const camera)
 {
     int                             count;

@@ -186,6 +186,37 @@ void                                jo_cells_draw_prepared_part(const bool slave
  */
 void                                jo_cells_draw_prepared_share(const bool slave, const int part, const int share);
 
+/** @brief Share of the polygons of the cells drawn by the master CPU at the start (0 to 1024, see jo_cells_draw_prepared_on_both_cpus()) */
+# define JO_CELLS_DEFAULT_SHARE              (400)
+/** @brief Highest share of the master CPU by default (the slave CPU keeps a part: it waits for nothing else) */
+# define JO_CELLS_DEFAULT_MAX_SHARE          (896)
+
+/** @brief Draw the cells found by jo_cells_prepare() on the 2 CPUs: the slave CPU draws its part (a job, see
+ *  jo_core_exec_on_slave()) while the master CPU draws the other part. The share of each CPU follows the load of the last
+ *  frames (see jo_cells_balance_share())
+ *  @remarks Call it between jo_3d_slave_begin() and jo_3d_slave_end(), then jo_cells_balance_share() after
+ *  jo_core_wait_for_slave(). The master CPU draws the first part: its commands come first in the table, 2 polygons at the same
+ *  depth are drawn in the same order as with one CPU
+ *  @remarks Without JO_COMPILE_WITH_DUAL_CPU_MODULE: the master CPU draws all the cells
+ */
+void                                jo_cells_draw_prepared_on_both_cpus(void);
+
+/** @brief Balance the share of the CPUs for the next frame (see jo_cells_draw_prepared_on_both_cpus()): more polygons
+ *  to the slave CPU when it waited in the last frame, fewer when the master CPU waited for it (or when its command table
+ *  is nearly full: its last polygons would be lost)
+ *  @remarks Call it after jo_core_wait_for_slave(), once per frame
+ */
+void                                jo_cells_balance_share(void);
+
+/** @brief Limits of the share of the master CPU (see jo_cells_draw_prepared_on_both_cpus())
+ *  @param min Lowest share of the master CPU (0 to 1024, 0: the slave CPU can draw all the cells)
+ *  @param max Highest share (0 to 1024, JO_CELLS_DEFAULT_MAX_SHARE by default)
+ */
+void                                jo_cells_set_share_limits(const int min, const int max);
+
+/** @brief Share of the polygons of the cells drawn by the master CPU in the next frame (0 to 1024) */
+int                                 jo_cells_get_share(void);
+
 /** @brief Draw the mirror seen by the camera (in the cell of the camera or in a cell seen through a door), when
  *  jo_cells_prepare() found one (a portal MIRROR): its cell is
  *  drawn again with the camera reflected by the plane of the mirror, in a far window (JO_3D_FAR_WINDOW, then

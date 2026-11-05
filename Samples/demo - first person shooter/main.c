@@ -289,35 +289,6 @@ static void                     set_camera(void)
     jo_3d_translate_matrix_fixed(-eye.x, -eye.y, -eye.z);
 }
 
-/** @brief The share of the polygons of the cells drawn by the master CPU (0 to 1024, see jo_cells_draw_prepared_share()),
- *  balanced at each frame (see balance_cells_share()): the slave CPU draws the other part. The master CPU draws the first
- *  part: its commands come first in the table, 2 polygons at the same depth are drawn in the same order as with a CPU.
- *  (Down to 0: all the guards on alert, the master CPU draws the entities and the slave CPU still waited with 64 / 1024) */
-#define CELLS_SHARE_MIN         (0)
-#define CELLS_SHARE_MAX         (896)
-static int                      cells_share = 400;
-
-/** @brief The job of the slave CPU: its part of the cells */
-static void                     slave_cells(void)
-{
-    // (written by the master CPU before the job: read without the cache)
-    jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&cells_share));
-}
-
-/** @brief More polygons of the cells to the slave CPU when it waited in the last frame, fewer when the master CPU waited for
- *  it (or when its command table was nearly full: its polygons would be lost) */
-static void                     balance_cells_share(void)
-{
-    int                         step;
-
-    // (1 / 1024 of the polygons per 100 microseconds, 40 / 1024 at most per frame)
-    step = JO_MAX(-40, JO_MIN(40, jo_core_slave_idle_time() / 100));
-    if (step > 0 && jo_3d_slave_get_command_count() > jo_3d_slave_get_max_commands() * 3 / 4)
-        step = -16;
-    cells_share = JO_MAX(CELLS_SHARE_MIN, JO_MIN(CELLS_SHARE_MAX, cells_share - step));
-}
-
-
 /** @brief The world: the cells seen from the camera (shared by the 2 CPUs), the entities, the impacts */
 static void                     draw_world(void)
 {
@@ -330,8 +301,8 @@ static void                     draw_world(void)
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
         jo_cells_prepare(&eye);
         jo_3d_slave_begin();
-        jo_core_exec_on_slave(slave_cells);
-        jo_cells_draw_prepared_share(false, 0, cells_share);
+        // (the cells shared by the 2 CPUs, their share balanced at each frame)
+        jo_cells_draw_prepared_on_both_cpus();
         jo_cells_draw_mirror(JO_NULL);
         // The glows of the lamps (VDP2 layers, placed with the camera: after the cells, their rectangles)
         jo_3d_glows_draw(&eye);
@@ -342,7 +313,7 @@ static void                     draw_world(void)
         impacts_draw();
         guards_draw_blood();
         jo_core_wait_for_slave();
-        balance_cells_share();
+        jo_cells_balance_share();
         jo_3d_slave_end();
     }
     jo_3d_pop_matrix();
