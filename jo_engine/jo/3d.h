@@ -310,6 +310,10 @@ typedef struct
 bool                                __jo_3d_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
                                                        const int part_count);
 
+/** @brief Draw the parts of a mesh on the slave CPU (see __jo_3d_draw_parts(), internal usage) */
+bool                                __jo_3d_slave_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
+                                                       const int part_count);
+
 /** @brief Draw polygons using the current matrix (Internal usage)
  *  @param pdata Polygon data (vertices, polygons and attributes)
  *  @param point_count Number of points transformed (the first ones of pdata)
@@ -1351,6 +1355,9 @@ void                                __jo_3d_bone_matrix(jo_fixed (* const out)[3
 /** @brief The current matrix (Internal usage): 4 rows of 3 */
 jo_fixed                            (*__jo_3d_current_matrix(void))[3];
 
+/** @brief The current matrix of the slave CPU (Internal usage): 4 rows of 3 */
+jo_fixed                            (*__jo_3d_slave_current_matrix(void))[3];
+
 /** @brief Copy the current matrix
  *  @param m Output: 12 values, 4 rows of 3 values. Rows 0 to 2: the rotation (m[2], m[5], m[8] is the direction of the
  *  view in the world when the matrix only has the rotations of the camera), row 3: the translation
@@ -1719,10 +1726,37 @@ void                                __jo_3d_gouraud_pool_freed(const int sprite_
  *  @param g Green added
  *  @param b Blue added
  *  @remarks Only the polygons with a gouraud table. Each mesh keeps a few tinted copies of its tables in the VDP1 VRAM
- *  (a copy is written when a new tint is needed: a tint that changes at each frame costs a copy at each frame). The
- *  polygons tinted are drawn by the C loop (not the assembly loop)
+ *  (a copy is written when a new tint is needed; a copy used in the frame is kept for it: the slave CPU draws with the
+ *  copies, see jo_3d_slave_set_tint(). All the copies used in the frame: the nearest one, within 3 units, else no tint)
  */
 void                                jo_3d_set_tint(const int r, const int g, const int b);
+
+/** @brief The tint of the master CPU, packed (see jo_3d_set_tint()): 5 bits per component (signed, steps of 2), 0: none
+ *  @remarks For jo_3d_set_packed_tint() and jo_3d_slave_set_tint(): the tint of an object sampled by the master CPU
+ *  (jo_3d_point_lights_sample()), drawn by the slave CPU
+ */
+unsigned short                      jo_3d_get_tint(void);
+
+/** @brief Tint the next meshes drawn by the master CPU (see jo_3d_set_tint())
+ *  @param tint Packed tint (see jo_3d_get_tint()), 0: none
+ */
+void                                jo_3d_set_packed_tint(const unsigned short tint);
+
+/** @brief Tint the next meshes drawn by the slave CPU (call it on the slave CPU)
+ *  @param tint Packed tint (see jo_3d_get_tint()), 0: none
+ *  @remarks The slave CPU writes no copy of the tables: it uses the nearest copy made by the master CPU (within 3 units),
+ *  else no tint. The master CPU makes the copy of a tint before the job of the slave CPU with jo_3d_prepare_tint()
+ */
+void                                jo_3d_slave_set_tint(const unsigned short tint);
+
+/** @brief Make the tinted copy of the gouraud tables of a mesh for the current tint of the master CPU (see
+ *  jo_3d_set_tint()), for the slave CPU to draw it with this tint (jo_3d_slave_set_tint())
+ *  @param mesh Mesh
+ */
+void                                jo_3d_prepare_tint(const jo_3d_mesh * const mesh);
+
+/** @brief Start the frame of the tints (internal usage, see jo_3d_set_tint()) */
+void                                __jo_3d_tint_new_frame(void);
 
 /** @brief Environment map of a mesh (a reflection, like the paint of a car): its polygons set by
  *  jo_3d_set_mesh_polygon_environment() show a tile of a picture of the surroundings, the tile of the direction of their

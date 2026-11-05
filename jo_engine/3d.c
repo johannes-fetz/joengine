@@ -423,13 +423,46 @@ typedef struct
 
 static jo_3d_tint_cache                     __jo_3d_tints[JO_3D_TINT_MESHES];
 static int                                  __jo_3d_tint = 0;
+static int                                  __jo_3d_slave_tint = 0;
 static unsigned int                         __jo_3d_tint_clock = 0;
+/** @brief The frame of the tints (see jo_3d_tint_offset()): a copy used in this frame is not written again in it (the
+ *  slave CPU draws with the copies the master CPU prepared, see jo_3d_slave_set_tint()) */
+static unsigned int                         __jo_3d_tint_frame_first_clock = 0;
+/** @brief Difference of tint (gouraud units, each component) under which a copy is used for another tint (the characters of
+ *  a room have nearly the same tint: fewer copies written) */
+# define JO_3D_TINT_NEAR                    (3)
+
+/** @brief A tint packed (see jo_3d_set_tint()) */
+static  __jo_force_inline int               jo_3d_pack_tint(const int r, const int g, const int b)
+{
+    // (steps of 2 gouraud units: fewer copies)
+    return (((JO_MIN(JO_MAX(r, -31), 31) >> 1) & 0x1f) | (((JO_MIN(JO_MAX(g, -31), 31) >> 1) & 0x1f) << 5) |
+            (((JO_MIN(JO_MAX(b, -31), 31) >> 1) & 0x1f) << 10));
+}
 
 void                                        jo_3d_set_tint(const int r, const int g, const int b)
 {
-    // (steps of 2 gouraud units: fewer copies)
-    __jo_3d_tint = ((JO_MIN(JO_MAX(r, -31), 31) >> 1) & 0x1f) | (((JO_MIN(JO_MAX(g, -31), 31) >> 1) & 0x1f) << 5) |
-                   (((JO_MIN(JO_MAX(b, -31), 31) >> 1) & 0x1f) << 10);
+    __jo_3d_tint = jo_3d_pack_tint(r, g, b);
+}
+
+unsigned short                              jo_3d_get_tint(void)
+{
+    return ((unsigned short)__jo_3d_tint);
+}
+
+void                                        jo_3d_set_packed_tint(const unsigned short tint)
+{
+    __jo_3d_tint = tint;
+}
+
+void                                        jo_3d_slave_set_tint(const unsigned short tint)
+{
+    __jo_3d_slave_tint = tint;
+}
+
+void                                        __jo_3d_tint_new_frame(void)
+{
+    __jo_3d_tint_frame_first_clock = __jo_3d_tint_clock + 1;
 }
 
 /** @brief A component of a packed tint (signed, gouraud units) */
@@ -483,7 +516,68 @@ static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_ca
     jo_free(colors);
 }
 
-/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the current tint (0: no tint, or no copy) */
+/** @brief Difference of 2 packed tints: the biggest of their components (gouraud units) */
+static  __jo_force_inline int               jo_3d_tint_distance(const int a, const int b)
+{
+    int                                     d;
+    int                                     e;
+
+    d = JO_ABS(jo_3d_tint_component(a, 0) - jo_3d_tint_component(b, 0));
+    e = JO_ABS(jo_3d_tint_component(a, 5) - jo_3d_tint_component(b, 5));
+    d = JO_MAX(d, e);
+    e = JO_ABS(jo_3d_tint_component(a, 10) - jo_3d_tint_component(b, 10));
+    return (JO_MAX(d, e));
+}
+
+/** @brief The copy of the tables of a mesh nearest to a tint (see jo_3d_tint_offset())
+ *  @return The copy, -1: none near enough (JO_3D_TINT_NEAR)
+ */
+static  __jo_force_inline int               jo_3d_tint_nearest(const jo_3d_tint_cache * const c, const int tint)
+{
+    int                                     v;
+    int                                     best;
+    int                                     distance;
+    int                                     d;
+
+    best = -1;
+    distance = JO_3D_TINT_NEAR + 1;
+    for (JO_ZERO(v); v < JO_3D_TINT_VARIANTS; ++v)
+    {
+        if (c->tint[v] < 0)
+            continue;
+        d = jo_3d_tint_distance(c->tint[v], tint);
+        if (d < distance)
+        {
+            distance = d;
+            best = v;
+        }
+    }
+    return (best);
+}
+
+/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the tint of the slave CPU (0: no tint, or no
+ *  copy): the copies prepared by the master CPU (see jo_3d_slave_set_tint()), read only, the nearest one */
+static unsigned short                       jo_3d_slave_tint_offset(const jo_3d_polygon_data * const pdata)
+{
+    const jo_3d_tint_cache                  *c;
+    int                                     k;
+    int                                     v;
+
+    if (__jo_3d_slave_tint == 0)
+        return (0);
+    for (k = 0, c = __jo_3d_tints; k < JO_3D_TINT_MESHES; ++k, ++c)
+        if (c->key == pdata)
+        {
+            v = jo_3d_tint_nearest(c, __jo_3d_slave_tint);
+            return (v < 0 ? 0 : (unsigned short)(c->table[v] - c->first));
+        }
+    return (0);
+}
+
+/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the current tint (0: no tint, or no copy)
+ *  @remarks A copy used in this frame (see __jo_3d_tint_new_frame()) is not written again: the slave CPU draws with it
+ *  (jo_3d_slave_tint_offset()). The copies written in this frame are all used: the nearest one (JO_3D_TINT_NEAR), or none
+ */
 static unsigned short                       jo_3d_tint_offset(const jo_3d_polygon_data * const pdata)
 {
     jo_3d_tint_cache                        *c;
@@ -556,7 +650,7 @@ static unsigned short                       jo_3d_tint_offset(const jo_3d_polygo
         c->key = pdata;
     }
     ++__jo_3d_tint_clock;
-    oldest = 0;
+    oldest = -1;
     for (JO_ZERO(v); v < JO_3D_TINT_VARIANTS; ++v)
     {
         if (c->tint[v] == __jo_3d_tint)
@@ -564,14 +658,32 @@ static unsigned short                       jo_3d_tint_offset(const jo_3d_polygo
             c->used[v] = __jo_3d_tint_clock;
             return ((unsigned short)(c->table[v] - c->first));
         }
-        if (c->used[v] < c->used[oldest])
+        // (a copy used in this frame is kept)
+        if (c->tint[v] >= 0 && c->used[v] >= __jo_3d_tint_frame_first_clock)
+            continue;
+        if (oldest < 0 || c->used[v] < c->used[oldest])
             oldest = v;
+    }
+    if (oldest < 0)
+    {
+        // (all the copies are used in this frame: the nearest one)
+        v = jo_3d_tint_nearest(c, __jo_3d_tint);
+        if (v < 0)
+            return (0);
+        c->used[v] = __jo_3d_tint_clock;
+        return ((unsigned short)(c->table[v] - c->first));
     }
     // A new tint: the copy used the longest time ago
     jo_3d_write_tint(c, oldest, __jo_3d_tint);
     c->tint[oldest] = __jo_3d_tint;
     c->used[oldest] = __jo_3d_tint_clock;
     return ((unsigned short)(c->table[oldest] - c->first));
+}
+
+void                                        jo_3d_prepare_tint(const jo_3d_mesh * const mesh)
+{
+    if (mesh != JO_NULL)
+        jo_3d_tint_offset(&mesh->data);
 }
 
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
@@ -650,6 +762,7 @@ static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, 
 /** @brief Reset the statistics of the frame (Internal usage) */
 void                                        __jo_3d_end_frame(void)
 {
+    __jo_3d_tint_new_frame();
     JO_ZERO(__jo_3d_polygon_count);
     JO_ZERO(__jo_3d_vertice_count);
     JO_ZERO(__jo_3d_displayed_polygon_count);
@@ -4393,7 +4506,9 @@ typedef struct
     jo_fixed                                *previous_z;    // 40: depth of the previous polygon of the CPU (JO_3D_SORT_PREVIOUS)
     const jo_3d_polygon                     *end;           // 44: end of the polygons of the range
     jo_3d_draw_state                        *state;         // 48: state of the slow path
+    unsigned int                            gouraud_offset; // 52: offset to the tinted copy of the gouraud tables (a tint, 0: none)
 }                                           jo_3d_polygon_loop;
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, gouraud_offset) == 52, "__jo_3d_polygon_loop: offset of gouraud_offset");
 
 /** @brief Check if a polygon (its 4 vertices projected) is outside of the rectangle of a window
  *  @param v The 4 vertices
@@ -5361,10 +5476,14 @@ __asm__(
 "    mov.l r0, @(20, r13)\n"
 "    mov.l @r7, r0\n"
 "    mov.l r0, @(24, r13)\n"
-"    mov.w @(4, r9), r0\n"              /* gouraud table with the gouraud shading */
+"    mov.w @(4, r9), r0\n"              /* gouraud table with the gouraud shading (a tint: the offset to the tinted copy) */
 "    tst #4, r0\n"
 "    bt 1f\n"
 "    mov.w @(8, r9), r0\n"
+"    tst r0, r0\n"
+"    bt 2f\n"
+"    mov.l @(52, r14), r1\n"
+"    add r1, r0\n"
 "    bra 2f\n"
 "    shll16 r0\n"
 "1:  mov #0, r0\n"
@@ -5703,6 +5822,7 @@ __asm__(
  *  @param used Number of commands used (updated)
  *  @return false if the command table is full
  */
+
 static bool                                 jo_3d_draw_polygons(jo_3d_cpu_context * const ctx, const jo_3d_polygon_data * const pdata,
                                                                 const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count,
@@ -5854,12 +5974,13 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     loop.displayed = ctx->displayed_polygon_count;
     loop.previous_z = &ctx->previous_polygon_z;
     loop.state = &state;
-    // (a tint: the tinted copy of the gouraud tables of the object, see jo_3d_set_tint(); the C loop adds the offset)
-    ctx->gouraud_offset = ctx->slave ? 0 : jo_3d_tint_offset(pdata);
+    // (a tint: the tinted copy of the gouraud tables of the object, see jo_3d_set_tint(); both loops add the offset. The
+    // tinted objects went through the C loop: the characters of a lit room, 19 microseconds per polygon instead of 5)
+    ctx->gouraud_offset = ctx->slave ? jo_3d_slave_tint_offset(pdata) : jo_3d_tint_offset(pdata);
+    loop.gouraud_offset = ctx->gouraud_offset;
     // (an environment map: the tile of each polygon is chosen by the C loop)
     ctx->environment = jo_3d_environment_of(pdata);
-    fast = !ctx->mirror && ctx->front_shift < 0 && ctx->forced_key < 0 && ctx->texture_words == 0 && ctx->gouraud_offset == 0 &&
-           ctx->environment < 0;
+    fast = !ctx->mirror && ctx->front_shift < 0 && ctx->forced_key < 0 && ctx->texture_words == 0 && ctx->environment < 0;
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
     if (__jo_profile_pixels)
         fast = false;
@@ -6192,6 +6313,7 @@ bool                                        __jo_3d_draw_parts(const jo_3d_polyg
     return (result);
 }
 
+
 bool                                        __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count)
 {
@@ -6344,6 +6466,7 @@ void                                        jo_3d_slave_begin(void)
     __jo_3d_slave_sprite_attributes = __jo_sprite_attributes;
     __jo_3d_slave.previous_polygon_z = 0;
     __jo_3d_slave.forced_key = -1;
+    __jo_3d_slave_tint = 0;
     // The last gouraud tables of the set of this frame (the first job of the frame; the next ones take the tables after)
     if (!__jo_3d_slave_tables_taken)
     {
@@ -6356,6 +6479,11 @@ void                                        jo_3d_slave_begin(void)
     JO_ZERO(__jo_3d_slave_polygon_count);
     JO_ZERO(__jo_3d_slave_vertice_count);
     JO_ZERO(__jo_3d_slave_displayed_polygon_count);
+}
+
+jo_fixed                                    (*__jo_3d_slave_current_matrix(void))[3]
+{
+    return (__jo_3d_slave.matrix);
 }
 
 void                                        jo_3d_slave_set_depth_bias(const int bias)
@@ -6460,6 +6588,23 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
     key = JO_FIXED_TO_INT(v.z) + __jo_3d_slave_depth_bias;
     __jo_3d_slave_keys[__jo_3d_slave_command_count++] = key < 0 ? 0 : (key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)key);
     return (true);
+}
+
+bool                                        __jo_3d_slave_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
+                                                                     const int part_count)
+{
+    unsigned int                            used;
+    bool                                    result;
+
+    __jo_3d_slave.parts = parts;
+    __jo_3d_slave.part_count = part_count;
+    used = __jo_3d_slave_command_count;
+    result = jo_3d_draw_polygons(&__jo_3d_slave, pdata, pdata->point_count, JO_NULL, 0, __jo_3d_slave_window,
+                                 __jo_3d_slave_commands, __jo_3d_slave_keys, JO_3D_SLAVE_MAX_COMMANDS, &used);
+    __jo_3d_slave_command_count = used;
+    __jo_3d_slave.parts = JO_NULL;
+    __jo_3d_slave.part_count = 0;
+    return (result);
 }
 
 int                                         jo_3d_slave_get_current_command_count(void)
