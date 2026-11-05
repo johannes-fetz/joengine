@@ -191,8 +191,8 @@ void                                jo_cells_draw_prepared_share(const bool slav
 /** @brief Highest share of the master CPU by default (all the cells: the slave CPU may draw the entities) */
 # define JO_CELLS_DEFAULT_MAX_SHARE          (1024)
 
-/** @brief Polygons of the cells found by jo_cells_prepare() (the meshes seen, all their polygons: the share of each CPU is
- *  cut in them, see jo_cells_draw_prepared_share())
+/** @brief Polygons of the cells found by jo_cells_prepare() (the polygons of the chunks seen of the meshes seen: the share
+ *  of each CPU is cut in them, see jo_cells_draw_prepared_share())
  *  @return Polygons
  */
 int                                 jo_cells_prepared_polygon_count(void);
@@ -312,6 +312,31 @@ int                                 jo_cells_depth_bias_at(const jo_fixed x, con
  *           move can keep it
  */
 int                                 jo_cells_object_cell(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+
+/** @brief The cells seen through the portals are drawn in the far window (JO_3D_FAR_WINDOW), clipped by the VDP1 to the
+ *  union of the rectangles of the portals on the screen (default: on). A room seen through a door was drawn whole: the
+ *  VDP1 spent its time on the walls around the door (up to 50 ms in a frame). Not in a frame with a mirror (it draws in
+ *  the far window). The objects of these cells go in the far window too: jo_cells_window_of()
+ *  @param enabled false: everything in the near window
+ */
+void                                jo_cells_set_portal_clipping(const bool enabled);
+
+/** @brief A polygon of the cell of the camera that covers the whole screen (the camera near a wall, facing it, or a
+ *  bench against it) hides everything behind it: the polygons behind it are not drawn (the depth limit of the near window,
+ *  see jo_3d_set_depth_limit(), set by jo_cells_prepare() in a frame where the cell of the camera is seen alone: nothing
+ *  seen through a door). Default: on. Against a wall, the VDP1 drew the whole room behind it (up to 50 ms). A polygon with
+ *  holes in its texture is taken as opaque: nothing is seen through the holes
+ *  @param enabled false: no depth limit
+ */
+void                                jo_cells_set_occluders(const bool enabled);
+
+/** @brief The window of an object drawn with a depth bias of the cells (see jo_cells_depth_bias_at(),
+ *  jo_cells_set_portal_clipping()): select it with jo_3d_select_window() (jo_3d_slave_select_window() on the slave CPU)
+ *  before the object is drawn, and the near window after
+ *  @param bias Depth bias of the object (without the bias of the program)
+ *  @return JO_3D_NEAR_WINDOW or JO_3D_FAR_WINDOW
+ */
+int                                 jo_cells_window_of(const int bias);
 
 /** @brief Depth bias of an object in a cell (see jo_cells_depth_bias_at())
  *  @param cell Cell of the object (jo_cells_object_cell()), -1: outside of the cells

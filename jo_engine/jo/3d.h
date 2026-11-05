@@ -1355,6 +1355,12 @@ void                                __jo_3d_bone_matrix(jo_fixed (* const out)[3
 /** @brief The current matrix (Internal usage): 4 rows of 3 */
 jo_fixed                            (*__jo_3d_current_matrix(void))[3];
 
+/** @brief Select the window of the next drawings of the slave CPU (call it on the slave CPU; jo_3d_slave_begin() selects
+ *  the window of the master CPU, see jo_3d_select_window())
+ *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
+ */
+void                                jo_3d_slave_select_window(const int window);
+
 /** @brief The current matrix of the slave CPU (Internal usage): 4 rows of 3 */
 jo_fixed                            (*__jo_3d_slave_current_matrix(void))[3];
 

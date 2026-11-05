@@ -185,12 +185,191 @@ typedef struct
 
 static __jo_cell_chunk              *__jo_cell_chunks[JO_CELL_MAX];
 static int                          __jo_cell_chunk_count[JO_CELL_MAX];
+/** @brief The bounds of each polygon of the model of a cell (see __jo_cells_occluder_depth()): its center, its radius
+ *  (world units), JO_NULL: none */
+typedef struct
+{
+    short                           x;
+    short                           y;
+    short                           z;
+    short                           radius;
+}                                   __jo_cell_polygon_bounds;
+static __jo_cell_polygon_bounds     *__jo_cell_bounds[JO_CELL_MAX];
 static void                         __jo_cell_make_chunks(const int cell, const jo_3d_mesh * const mesh);
+#ifdef JO_TEST_CELLS_TICKS
+# include "jo/profile.h"
+extern unsigned int                 __jo_cells_test_ticks[5];
+extern unsigned int                 __jo_cells_test_slave[2];
+#endif
 /** @brief The ranges of polygons to draw of each mesh to draw (-1: all of them) */
 static jo_3d_polygon_range          __jo_cell_mesh_ranges[JO_CELL_MAX_DRAWN][JO_CELL_MAX_RANGES];
 static int                          __jo_cell_mesh_range_count[JO_CELL_MAX_DRAWN];
 static unsigned char                __jo_cell_mesh_levels[JO_CELL_MAX_DRAWN];
 static int                          __jo_cell_mesh_count = 0;
+/** @brief The cells seen through the portals are drawn in the far window, clipped by the VDP1 to the union of their
+ *  rectangles (see jo_cells_set_portal_clipping()): on in this frame (no mirror: it uses the far window) */
+static bool                         __jo_cell_portal_clipping = true;
+static bool                         __jo_cell_far_window = false;
+/** @brief A polygon of the cell of the camera that covers the screen: the depth limit of the frame (see
+ *  jo_cells_set_occluders()) */
+static bool                         __jo_cell_occluders = true;
+/** @brief Distance from the camera under which the chunks of its cell are searched for a polygon that covers the screen */
+#define JO_CELL_OCCLUDER_NEAR               (160)
+/** @brief Depth under which a vertex is too near the camera for its polygon to be an occluder (world units) */
+#define JO_CELL_OCCLUDER_MIN_DEPTH          (4)
+/** @brief Margin over the depth of an occluder (world units): its polygon is drawn, the ones behind it are not */
+#define JO_CELL_OCCLUDER_MARGIN             (16)
+/** @brief The polygons around the camera (see __jo_cells_occluder_depth()): found again when the camera moved this far
+ *  (world units) from where they were found, this many at most */
+#define JO_CELL_OCCLUDER_MOVE               (24)
+#define JO_CELL_OCCLUDER_NEAR_MAX           (64)
+static unsigned short               __jo_cell_occluder_near[JO_CELL_OCCLUDER_NEAR_MAX];
+static int                          __jo_cell_occluder_near_count = 0;
+static int                          __jo_cell_occluder_near_cell = -1;
+static unsigned short               __jo_cell_occluder_near_generation = 0;
+static int                          __jo_cell_occluder_near_x = 0;
+static int                          __jo_cell_occluder_near_y = 0;
+static int                          __jo_cell_occluder_near_z = 0;
+
+/** @brief A polygon of the cell of the camera that covers the whole screen (near the camera: a wall, a bench against
+ *  it): the polygons behind it are hidden, not drawn (the depth limit of the window, see jo_3d_set_depth_limit()). Against
+ *  a wall the VDP1 drew the whole room behind it, up to 50 ms (it spends its time on the pixels of the polygons, hidden or
+ *  not). Only in a frame where the cell of the camera is seen alone (nothing seen through a door)
+ *  @param cell The cell of the camera
+ *  @param camera The camera
+ *  @return The depth limit (world units), -1: none
+ */
+static int                          __jo_cells_occluder_depth(const int cell, const jo_pos3D_fixed * const camera)
+{
+    const jo_cell                   *c;
+    const jo_3d_polygon_data        *d;
+    const __jo_cell_polygon_bounds  *b;
+    const jo_3d_polygon             *p;
+    jo_pos3D_fixed                  v[4];
+    jo_fixed                        pd;
+    jo_fixed                        k;
+    jo_fixed                        zmax;
+    jo_fixed                        m[4][3];
+    int                             sx[4];
+    int                             sy[4];
+    int                             i;
+    int                             j;
+    int                             n;
+    int                             corner;
+    int                             cx;
+    int                             cy;
+    int                             cz;
+    int                             depth;
+    int                             sign;
+    int                             cross;
+    bool                            covered;
+    // The polygons that may cover the screen, by depth
+#define JO_CELL_OCCLUDER_CANDIDATES (24)
+    unsigned short                  candidate[JO_CELL_OCCLUDER_CANDIDATES];
+    short                           candidate_depth[JO_CELL_OCCLUDER_CANDIDATES];
+    int                             count;
+    static const int                screen_x[4] = {0, JO_TV_WIDTH - 1, JO_TV_WIDTH - 1, 0};
+    static const int                screen_y[4] = {0, 0, JO_TV_HEIGHT - 1, JO_TV_HEIGHT - 1};
+
+    c = &__jo_cells[cell];
+    if (c->mesh == JO_NULL || __jo_cell_bounds[cell] == JO_NULL)
+        return (-1);
+    d = &c->mesh->data;
+    cx = jo_fixed2int(camera->x);
+    cy = jo_fixed2int(camera->y);
+    cz = jo_fixed2int(camera->z);
+    // The polygons around the camera: their bounds (cheap), kept while the camera stays near the place they were found
+    // (the loop over all the polygons of a room cost 0.5 ms)
+    if (cell != __jo_cell_occluder_near_cell || __jo_cell_occluder_near_generation != __jo_cell_generation ||
+        JO_ABS(cx - __jo_cell_occluder_near_x) > JO_CELL_OCCLUDER_MOVE || JO_ABS(cy - __jo_cell_occluder_near_y) > JO_CELL_OCCLUDER_MOVE ||
+        JO_ABS(cz - __jo_cell_occluder_near_z) > JO_CELL_OCCLUDER_MOVE)
+    {
+        __jo_cell_occluder_near_cell = cell;
+        __jo_cell_occluder_near_generation = __jo_cell_generation;
+        __jo_cell_occluder_near_x = cx;
+        __jo_cell_occluder_near_y = cy;
+        __jo_cell_occluder_near_z = cz;
+        __jo_cell_occluder_near_count = 0;
+        for (i = 0, b = __jo_cell_bounds[cell]; i < (int)d->polygon_count && __jo_cell_occluder_near_count < JO_CELL_OCCLUDER_NEAR_MAX; ++i, ++b)
+            if (JO_ABS(b->x - cx) <= b->radius + JO_CELL_OCCLUDER_NEAR + JO_CELL_OCCLUDER_MOVE &&
+                JO_ABS(b->y - cy) <= b->radius + JO_CELL_OCCLUDER_NEAR + JO_CELL_OCCLUDER_MOVE &&
+                JO_ABS(b->z - cz) <= b->radius + JO_CELL_OCCLUDER_NEAR + JO_CELL_OCCLUDER_MOVE)
+                __jo_cell_occluder_near[__jo_cell_occluder_near_count++] = (unsigned short)i;
+    }
+    // (the depth of a point: the third column of the matrix of the camera)
+    jo_3d_get_matrix((jo_fixed *)m);
+    count = 0;
+    for (n = 0; n < __jo_cell_occluder_near_count; ++n)
+    {
+        i = __jo_cell_occluder_near[n];
+        b = &__jo_cell_bounds[cell][i];
+        if (JO_ABS(b->x - cx) > b->radius + JO_CELL_OCCLUDER_NEAR || JO_ABS(b->y - cy) > b->radius + JO_CELL_OCCLUDER_NEAR ||
+            JO_ABS(b->z - cz) > b->radius + JO_CELL_OCCLUDER_NEAR)
+            continue;
+        // (in front of the camera, and big enough to cover the screen from its depth: half of the height of the screen at
+        // the depth z is 0.58 z, the radius is at least that)
+        depth = ((b->x * (m[0][2] >> 8) + b->y * (m[1][2] >> 8) + b->z * (m[2][2] >> 8)) >> 8) + jo_fixed2int(m[3][2]);
+        if (depth < -b->radius || depth > JO_CELL_OCCLUDER_NEAR + b->radius || b->radius * 2 < depth)
+            continue;
+        // (an opaque polygon: no screen doors, no half transparency)
+        if ((d->attributes[i].draw_mode & JO_VDP1_MESH) != 0 ||
+            (d->attributes[i].draw_mode & JO_VDP1_COLOR_CALC_HALF_TRANSPARENT) == JO_VDP1_COLOR_CALC_HALF_TRANSPARENT)
+            continue;
+        // (kept by depth, the nearest first: the first one that covers the screen is the limit)
+        for (j = count; j > 0 && candidate_depth[j - 1] > depth; --j)
+            if (j < JO_CELL_OCCLUDER_CANDIDATES)
+            {
+                candidate[j] = candidate[j - 1];
+                candidate_depth[j] = candidate_depth[j - 1];
+            }
+        if (j < JO_CELL_OCCLUDER_CANDIDATES)
+        {
+            candidate[j] = (unsigned short)i;
+            candidate_depth[j] = (short)depth;
+            if (count < JO_CELL_OCCLUDER_CANDIDATES)
+                ++count;
+        }
+    }
+    pd = jo_3d_get_projection_distance();
+    for (n = 0; n < count; ++n)
+    {
+        p = d->polygons + candidate[n];
+        // Its corners on the screen (all of them in front of the camera)
+        zmax = 0;
+        for (j = 0; j < 4; ++j)
+        {
+            jo_3d_transform_point(&d->points[p->vertices[j]], &v[j]);
+            if (v[j].z < jo_int2fixed(JO_CELL_OCCLUDER_MIN_DEPTH))
+                break;
+            zmax = JO_MAX(zmax, v[j].z);
+            k = jo_fixed_div(pd, v[j].z);
+            sx[j] = JO_TV_WIDTH_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].x, k)), -10000), 10000);
+            sy[j] = JO_TV_HEIGHT_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].y, k)), -10000), 10000);
+        }
+        if (j < 4)
+            continue;
+        // The 4 corners of the screen inside the quad: on the same side of its 4 edges
+        covered = true;
+        sign = 0;
+        for (corner = 0; corner < 4 && covered; ++corner)
+            for (j = 0; j < 4; ++j)
+            {
+                cross = (sx[(j + 1) & 3] - sx[j]) * (screen_y[corner] - sy[j]) - (sy[(j + 1) & 3] - sy[j]) * (screen_x[corner] - sx[j]);
+                if (cross == 0)
+                    continue;
+                if (sign == 0)
+                    sign = cross > 0 ? 1 : -1;
+                else if ((cross > 0) != (sign > 0))
+                {
+                    covered = false;
+                    break;
+                }
+            }
+        if (covered)
+            return (jo_fixed2int(zmax) + JO_CELL_OCCLUDER_MARGIN);
+    }
+    return (-1);
+}
 // Depth bias of the cells of the camera (see jo_cells_prepare())
 static int                          __jo_cell_depth_bias = 0;
 // The mirrors seen from the camera (see jo_cells_draw_mirror(), 2 at most: a polished floor and a mirror on a wall): their
@@ -217,6 +396,9 @@ void                                jo_cells_free(void)
         if (__jo_cell_ray_planes[k] != JO_NULL)
             jo_free(__jo_cell_ray_planes[k]);
         __jo_cell_ray_planes[k] = JO_NULL;
+        if (__jo_cell_bounds[k] != JO_NULL)
+            jo_free(__jo_cell_bounds[k]);
+        __jo_cell_bounds[k] = JO_NULL;
         if (__jo_cell_models[k] != JO_NULL)
             jo_3d_free_model(__jo_cell_models[k]);
         if (__jo_cell_reflection_models[k] != JO_NULL)
@@ -934,6 +1116,29 @@ static void                         __jo_cell_make_chunks(const int cell, const 
     __jo_cell_chunks[cell] = JO_NULL;
     __jo_cell_chunk_count[cell] = 0;
     d = &mesh->data;
+    // The bounds of each polygon (the occluders, see __jo_cells_occluder_depth())
+    __jo_cell_bounds[cell] = (__jo_cell_polygon_bounds *)jo_malloc(d->polygon_count * sizeof(__jo_cell_polygon_bounds));
+    if (__jo_cell_bounds[cell] != JO_NULL)
+        for (i = 0; i < (int)d->polygon_count; ++i)
+        {
+            lo[0] = lo[1] = lo[2] = 0x7fffffff;
+            hi[0] = hi[1] = hi[2] = -0x7fffffff;
+            for (v = 0; v < 4; ++v)
+            {
+                p[0] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].x);
+                p[1] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].y);
+                p[2] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].z);
+                for (a = 0; a < 3; ++a)
+                {
+                    lo[a] = JO_MIN(lo[a], p[a]);
+                    hi[a] = JO_MAX(hi[a], p[a]);
+                }
+            }
+            __jo_cell_bounds[cell][i].x = (short)((lo[0] + hi[0]) / 2);
+            __jo_cell_bounds[cell][i].y = (short)((lo[1] + hi[1]) / 2);
+            __jo_cell_bounds[cell][i].z = (short)((lo[2] + hi[2]) / 2);
+            __jo_cell_bounds[cell][i].radius = (short)(JO_MAX(JO_MAX(hi[0] - lo[0], hi[1] - lo[1]), hi[2] - lo[2]) / 2 + 2);
+        }
     if (d->polygon_count <= JO_CELL_CHUNK_POLYGONS)
         return;
     n = (int)(d->polygon_count + JO_CELL_CHUNK_POLYGONS - 1) / JO_CELL_CHUNK_POLYGONS;
@@ -1028,6 +1233,9 @@ static int                          __jo_cell_visible_ranges(const int cell, con
         }
         if (count >= JO_CELL_MAX_RANGES)
         {
+#ifdef JO_TEST_CELLS_TICKS
+            ++__jo_cells_test_ticks[3];
+#endif
             jo_3d_set_view_rect(had ? &saved : JO_NULL);
             return (-1);
         }
@@ -1055,6 +1263,17 @@ static void                         __jo_cell_add_mesh(const jo_cell * const c, 
         __jo_cell_mesh_range_count[__jo_cell_mesh_count] = view != JO_NULL ?
                                                             __jo_cell_visible_ranges((int)(c - __jo_cells), view, __jo_cell_mesh_ranges[__jo_cell_mesh_count]) : -1;
         __jo_cell_mesh_levels[__jo_cell_mesh_count] = (unsigned char)JO_MIN(level, 15);
+#ifdef JO_TEST_CELLS_TICKS
+        {
+            int                     r;
+
+            if (__jo_cell_mesh_range_count[__jo_cell_mesh_count] < 0)
+                __jo_cells_test_ticks[4] += c->mesh->data.polygon_count;
+            else
+                for (r = 0; r < __jo_cell_mesh_range_count[__jo_cell_mesh_count]; ++r)
+                    __jo_cells_test_ticks[4] += __jo_cell_mesh_ranges[__jo_cell_mesh_count][r].count;
+        }
+#endif
         __jo_cell_meshes[__jo_cell_mesh_count++] = c->mesh;
     }
 }
@@ -1229,6 +1448,7 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
     // Outside of the cells: the cells with a door to the outside that is seen (the cells without door to the outside: all)
     if (start < 0)
     {
+        jo_3d_set_depth_limit(-1);
         count = 0;
         for (k = 0; k < __jo_cell_count; ++k)
         {
@@ -1375,6 +1595,34 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
         __jo_cell_add_mesh(c, __jo_cell_from_outside[order[k]].level, &__jo_cell_from_outside[order[k]]);
         __jo_cell_find_mirror(order[k], &__jo_cell_from_outside[order[k]]);
     }
+    // A polygon of the cell of the camera that covers the screen: the polygons behind it are not drawn (the depth limit)
+    jo_3d_set_depth_limit(__jo_cell_occluders && drawn == 1 && __jo_cell_mirror_count == 0 ? __jo_cells_occluder_depth(start, camera) : -1);
+    // The cells seen through the portals: the far window, clipped by the VDP1 to the union of their rectangles (a room
+    // seen through a door was drawn whole: the VDP1 spent up to 50 ms on its walls around the door, see
+    // jo_cells_window_of()). Not with a mirror: it draws in the far window
+    __jo_cell_far_window = false;
+    if (__jo_cell_portal_clipping && __jo_cell_mirror_count == 0 && drawn > 1)
+    {
+        view.left = JO_TV_WIDTH;
+        view.top = JO_TV_HEIGHT;
+        view.right = -1;
+        view.bottom = -1;
+        for (k = 1; k < drawn; ++k)
+        {
+            view.left = JO_MIN(view.left, __jo_cell_from_outside[order[k]].left);
+            view.top = JO_MIN(view.top, __jo_cell_from_outside[order[k]].top);
+            view.right = JO_MAX(view.right, __jo_cell_from_outside[order[k]].right);
+            view.bottom = JO_MAX(view.bottom, __jo_cell_from_outside[order[k]].bottom);
+        }
+        if (view.left <= view.right && view.top <= view.bottom)
+        {
+            __jo_cell_far_window = true;
+            jo_3d_select_window(JO_3D_FAR_WINDOW);
+            jo_3d_window(view.left, view.top, view.right, view.bottom, 0x7fff, JO_TV_WIDTH_2, JO_TV_HEIGHT_2);
+            jo_3d_window_clip(true);
+            jo_3d_select_window(JO_3D_NEAR_WINDOW);
+        }
+    }
     __jo_cells_tell_lights();
     return (drawn);
 }
@@ -1429,99 +1677,95 @@ void                                jo_cells_draw_prepared_part(const bool slave
 
 void                                jo_cells_draw_prepared_share(const bool slave, const int part, const int share)
 {
-    jo_3d_polygon_range             range;
+    jo_3d_polygon_range             ranges[JO_CELL_MAX_RANGES];
+    jo_3d_polygon_range             all;
+    const jo_3d_polygon_range       *visible;
     jo_3d_mesh                      *mesh;
     int                             total;
     int                             cut;
-    int                             first;
+    int                             seen;
     int                             n;
+    int                             c;
+    int                             r;
+    int                             a;
+    int                             b;
+    int                             visible_count;
     int                             k;
 
-    for (k = 0, total = 0; k < __jo_cell_mesh_count; ++k)
-        total += (int)__jo_cell_meshes[k]->data.polygon_count;
-    // (the same cut on both CPUs: the polygons before it are the part 0)
+    // The cut among the polygons of the chunks seen (the same on both CPUs): the ones before it are the part 0. Tried: a
+    // cut in each mesh, so that both CPUs get a part of the room of the camera: the slave CPU got slower (17 to 36 ms
+    // instead of 13 to 28 in a big room with guards), the frames shown 3 fields went from 85 to 155 on a run
+    total = jo_cells_prepared_polygon_count();
     cut = total * JO_MAX(0, JO_MIN(share, 1024)) / 1024;
-    for (k = 0, first = 0; k < __jo_cell_mesh_count; ++k, first += n)
+    for (k = 0, seen = 0; k < __jo_cell_mesh_count; ++k)
     {
         mesh = __jo_cell_meshes[k];
         n = (int)mesh->data.polygon_count;
-        // The polygons of the mesh in the part: from range.first, range.count
-        if (part == 0)
+        visible_count = __jo_cell_mesh_range_count[k];
+        if (visible_count == 0)
+            continue;
+        if (visible_count < 0)
         {
-            range.first = 0;
-            range.count = (unsigned short)JO_MAX(0, JO_MIN(n, cut - first));
+            all.first = 0;
+            all.count = (unsigned short)n;
+            visible = &all;
+            visible_count = 1;
         }
         else
+            visible = __jo_cell_mesh_ranges[k];
+        // The ranges of this part: the polygons seen before the cut (part 0) or after it (part 1), counted over the meshes
+        for (r = 0, c = 0; r < visible_count; ++r)
         {
-            range.first = (unsigned short)JO_MAX(0, JO_MIN(n, cut - first));
-            range.count = (unsigned short)(n - range.first);
-        }
-        // (a polygon sorted with the previous one (a decal) stays in the part of the previous one)
-        if (part == 0 && range.count > 0)
-            while (range.first + range.count < n && (mesh->data.attributes[range.first + range.count].sort & JO_3D_SORT_MASK) == JO_3D_SORT_PREVIOUS)
-                ++range.count;
-        if (part == 1 && range.first > 0)
-            while (range.count > 0 && (mesh->data.attributes[range.first].sort & JO_3D_SORT_MASK) == JO_3D_SORT_PREVIOUS)
-            {
-                ++range.first;
-                --range.count;
-            }
-        if (range.count == 0 || __jo_cell_mesh_range_count[k] == 0)
-            continue;
-        if (__jo_cell_mesh_range_count[k] > 0)
-        {
-            // The chunks seen (see __jo_cell_visible_ranges()) in the part
-            jo_3d_polygon_range     clipped[JO_CELL_MAX_RANGES];
-            int                     c;
-            int                     j;
-            int                     a;
-            int                     b;
-
-            for (j = 0, c = 0; j < __jo_cell_mesh_range_count[k]; ++j)
-            {
-                a = JO_MAX((int)__jo_cell_mesh_ranges[k][j].first, (int)range.first);
-                b = JO_MIN((int)__jo_cell_mesh_ranges[k][j].first + (int)__jo_cell_mesh_ranges[k][j].count, (int)range.first + (int)range.count);
-                if (b <= a)
-                    continue;
-                clipped[c].first = (unsigned short)a;
-                clipped[c].count = (unsigned short)(b - a);
-                ++c;
-            }
-            if (c == 0)
-                continue;
-            if (slave)
-            {
-                jo_3d_slave_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-                jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, clipped, c);
-            }
+            a = visible[r].first;
+            b = a + visible[r].count;
+            if (part == 0)
+                b = JO_MIN(b, a + JO_MAX(0, cut - seen));
             else
-            {
-                jo_3d_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-                jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, clipped, c);
-            }
-            continue;
+                a = JO_MIN(b, a + JO_MAX(0, cut - seen));
+            seen += visible[r].count;
+            // (a polygon sorted with the previous one (a decal) stays in the part of the previous one)
+            if (part == 0 && b > a)
+                while (b < n && (mesh->data.attributes[b].sort & JO_3D_SORT_MASK) == JO_3D_SORT_PREVIOUS)
+                    ++b;
+            if (part == 1 && a > (int)visible[r].first)
+                while (a < b && (mesh->data.attributes[a].sort & JO_3D_SORT_MASK) == JO_3D_SORT_PREVIOUS)
+                    ++a;
+            if (b <= a)
+                continue;
+            ranges[c].first = (unsigned short)a;
+            ranges[c].count = (unsigned short)(b - a);
+            ++c;
         }
+        if (c == 0)
+            continue;
+        // (a cell seen through a portal: the far window, clipped to the portals)
         if (slave)
         {
+            jo_3d_slave_select_window(jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
             jo_3d_slave_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (range.count == n)
+            if (c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n)
                 jo_3d_slave_mesh_draw(mesh);
             else
-                jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, &range, 1);
+                jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, c);
         }
         else
         {
+            jo_3d_select_window(jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
             jo_3d_set_depth_bias(__jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS);
-            if (range.count == n)
+            if (c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n)
                 jo_3d_mesh_draw(mesh);
             else
-                jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, &range, 1);
+                jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, c);
         }
     }
     if (slave)
         jo_3d_slave_set_depth_bias(__jo_cell_depth_bias);
     else
         jo_3d_set_depth_bias(__jo_cell_depth_bias);
+    if (slave)
+        jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+    else
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
 }
 
 /** @brief Share of the polygons of the cells drawn by the master CPU (0 to 1024) in the frame, its limits (see
@@ -1546,6 +1790,25 @@ static void                         __jo_cells_slave_part(void)
 
     // (written by the master CPU before the job: read without the cache)
     before = *(volatile __jo_cells_draw_function *)JO_CACHE_THROUGH(&__jo_cells_slave_before);
+#ifdef JO_TEST_CELLS_TICKS
+    {
+        unsigned int                t0;
+        unsigned int                t1;
+
+        // (the ticks of the slave CPU: what it draws before its cells (the entities), its cells; the worst of each since
+        // the game reset them, written without the cache)
+        t0 = jo_profile_ticks();
+        if (before != JO_NULL)
+            before();
+        t1 = jo_profile_ticks();
+        jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&__jo_cell_share));
+        if (((t1 - t0) & 0xFFFF) > *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_cells_test_slave[0]))
+            *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_cells_test_slave[0]) = (t1 - t0) & 0xFFFF;
+        if (((jo_profile_ticks() - t1) & 0xFFFF) > *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_cells_test_slave[1]))
+            *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_cells_test_slave[1]) = (jo_profile_ticks() - t1) & 0xFFFF;
+        return;
+    }
+#endif
     if (before != JO_NULL)
         before();
     jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&__jo_cell_share));
@@ -1557,11 +1820,26 @@ int                                 jo_cells_prepared_polygon_count(void)
 {
     int                             total;
     int                             k;
+    int                             r;
 
+    // (the polygons of the chunks seen, not all the polygons of the meshes: the share of the CPUs is cut among them)
     for (k = 0, total = 0; k < __jo_cell_mesh_count; ++k)
-        total += (int)__jo_cell_meshes[k]->data.polygon_count;
+        if (__jo_cell_mesh_range_count[k] < 0)
+            total += (int)__jo_cell_meshes[k]->data.polygon_count;
+        else
+            for (r = 0; r < __jo_cell_mesh_range_count[k]; ++r)
+                total += __jo_cell_mesh_ranges[k][r].count;
     return (total);
 }
+
+#ifdef JO_TEST_CELLS_TICKS
+# include "jo/profile.h"
+/** @brief Test (JO_TEST_CELLS_TICKS, read by the game): the ticks of the master CPU adding the job of the slave CPU, drawing
+ *  its share, and the polygons of its share */
+unsigned int                        __jo_cells_test_ticks[5];
+/** @brief Test (JO_TEST_CELLS_TICKS): the worst ticks of the slave CPU before its cells (the entities), on its cells */
+unsigned int                        __jo_cells_test_slave[2];
+#endif
 
 void                                jo_cells_draw_prepared_on_both_cpus(void (* const slave_before)(void), const int slave_polygons)
 {
@@ -1575,8 +1853,23 @@ void                                jo_cells_draw_prepared_on_both_cpus(void (* 
     share = cells > 0 ? JO_MIN(1024, (cells + JO_MAX(slave_polygons, 0)) * 512 / cells) : 1024;
     __jo_cell_share = JO_MAX(__jo_cell_share_min, JO_MIN(__jo_cell_share_max, share + __jo_cell_share_correction));
     __jo_cells_slave_before = slave_before;
+#ifdef JO_TEST_CELLS_TICKS
+    {
+        unsigned int                t0;
+        unsigned int                t1;
+
+        t0 = jo_profile_ticks();
+        jo_core_exec_on_slave(__jo_cells_slave_part);
+        t1 = jo_profile_ticks();
+        jo_cells_draw_prepared_share(false, 0, __jo_cell_share);
+        __jo_cells_test_ticks[0] += (t1 - t0) & 0xFFFF;
+        __jo_cells_test_ticks[1] += (jo_profile_ticks() - t1) & 0xFFFF;
+        __jo_cells_test_ticks[2] += (unsigned int)JO_MAX(0, __jo_cell_share) * (unsigned int)cells / 1024;
+    }
+#else
     jo_core_exec_on_slave(__jo_cells_slave_part);
     jo_cells_draw_prepared_share(false, 0, __jo_cell_share);
+#endif
 #else
     JO_UNUSED_ARG(slave_polygons);
     if (slave_before != JO_NULL)
@@ -1807,6 +2100,23 @@ int                                 jo_cells_object_cell(const jo_fixed x, const
     if (__jo_cell_count == 0)
         return (-1);
     return (__jo_cells_find_object(x, y, z));
+}
+
+void                                jo_cells_set_portal_clipping(const bool enabled)
+{
+    __jo_cell_portal_clipping = enabled;
+}
+
+void                                jo_cells_set_occluders(const bool enabled)
+{
+    __jo_cell_occluders = enabled;
+    if (!enabled)
+        jo_3d_set_depth_limit(-1);
+}
+
+int                                 jo_cells_window_of(const int bias)
+{
+    return (__jo_cell_far_window && bias >= JO_CELL_LEVEL_BIAS ? JO_3D_FAR_WINDOW : JO_3D_NEAR_WINDOW);
 }
 
 int                                 jo_cells_depth_bias_of(const int cell)

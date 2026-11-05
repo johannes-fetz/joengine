@@ -865,7 +865,11 @@ static void                         __jo_entity_draw(const __jo_entity_drawn * c
 
     e = &__jo_entities[d->entity];
     if (d->bias != 0)
+    {
         jo_3d_set_depth_bias(__jo_entity_draw_base_bias + d->bias);
+        // (in a cell seen through a portal: the far window, clipped to the portals, see jo_cells_window_of())
+        jo_3d_select_window(jo_cells_window_of(d->bias));
+    }
     jo_3d_set_packed_tint(e->tint);
     if (e->cls->draw != JO_NULL)
         e->cls->draw(e);
@@ -882,7 +886,10 @@ static void                         __jo_entity_draw(const __jo_entity_drawn * c
     }
     jo_3d_set_tint(0, 0, 0);
     if (d->bias != 0)
+    {
         jo_3d_set_depth_bias(__jo_entity_draw_base_bias);
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
+    }
 }
 
 int                                 jo_entities_draw(void)
@@ -950,6 +957,7 @@ int                                 jo_entities_draw_slave(void)
             *(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) = 1;
         e = &__jo_entities[d->entity];
         jo_3d_slave_set_depth_bias(__jo_entity_draw_base_bias + d->bias);
+        jo_3d_slave_select_window(jo_cells_window_of(d->bias));
         jo_3d_slave_set_tint(e->tint);
         if (e->cls->draw_slave != JO_NULL)
             e->cls->draw_slave(e);
@@ -967,6 +975,7 @@ int                                 jo_entities_draw_slave(void)
         *(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) = 1;
     jo_3d_slave_set_tint(0);
     jo_3d_slave_set_depth_bias(__jo_entity_draw_base_bias);
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
     return (count);
 }
 
