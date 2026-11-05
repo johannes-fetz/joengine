@@ -294,6 +294,28 @@ static void                     set_camera(void)
  *  (the share of the cells, see jo_cells_draw_prepared_on_both_cpus()) */
 #define ENTITIES_SLAVE_SHARE    (1024)
 
+/** @brief The share of the entities drawn by the slave CPU in this frame: ENTITIES_SLAVE_SHARE, less when the master CPU
+ *  waits for the slave CPU while it has no cells left to take (the share of the cells at 0): from the walkway over the
+ *  bottling room, 4 guards and the whole room on the slave CPU made it 29 ms while the master CPU waited 4 to 7 ms; the
+ *  entities go back to the slave CPU when the master CPU draws a good part of the cells again (the slave CPU has time) */
+#define ENTITIES_SHARE_STEP     (64)
+#define ENTITIES_SHARE_MIN      (256)
+
+static int                      entities_slave_share(void)
+{
+    static int                  share = ENTITIES_SLAVE_SHARE;
+    int                         cells;
+
+    // (the slave CPU idle: back to it, whatever the cells (with the cells of the master CPU as the condition, the share
+    // stayed down once the master CPU was the slower one: 24 ms of guards on it in a general alert))
+    cells = jo_cells_get_share();
+    if (cells <= 128 && jo_core_master_wait_time() > 300)
+        share = JO_MAX(ENTITIES_SHARE_MIN, share - ENTITIES_SHARE_STEP);
+    else if (jo_core_slave_idle_time() > 1000)
+        share = JO_MIN(ENTITIES_SLAVE_SHARE, share + ENTITIES_SHARE_STEP);
+    return (share);
+}
+
 /** @brief What the slave CPU draws before its part of the cells: its entities (the job of the slave CPU) */
 static void                     slave_entities(void)
 {
@@ -312,7 +334,7 @@ static void                     draw_world(void)
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
         jo_cells_prepare(&eye);
         // The entities seen, their tints, the ones of the slave CPU (before its job)
-        jo_entities_prepare_draw(ENTITIES_SLAVE_SHARE);
+        jo_entities_prepare_draw(entities_slave_share());
         jo_3d_slave_begin();
         // (the entities of the slave CPU, then the cells shared by the 2 CPUs: half of the polygons of the frame to each
         // one, the share balanced at each frame)
@@ -430,6 +452,9 @@ void                            jo_main(void)
     jo_3d_perspective_angle(75);
     jo_3d_display_level(5);
     jo_3d_set_guard_band(WORLD_GUARD_BAND);
+    // The rooms cover the whole screen at each frame: the frame buffer is not cleared (the polygon that cleared it cost
+    // the VDP1 4 ms per frame)
+    jo_3d_set_frame_clear(false);
     // The weapons (cd/DEFS.JOL), the classes of the game, then the level: its rooms and its entities
     level = jo_level_load("DEFS.JOL");
     if (level != JO_NULL)

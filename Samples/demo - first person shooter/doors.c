@@ -651,6 +651,8 @@ static void                     door_draw(jo_entity * const entity)
     jo_3d_push_matrix();
     {
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        // (in a room seen through a door: the far window, clipped to the door, see jo_cells_window_of())
+        jo_3d_select_window(jo_cells_window_of(bias));
         if (d->hinge)
         {
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
@@ -666,6 +668,7 @@ static void                     door_draw(jo_entity * const entity)
         }
         jo_3d_mesh_draw(entity->mesh);
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_pop_matrix();
 }
@@ -683,6 +686,7 @@ static void                     door_draw_slave(jo_entity * const entity)
     if (bias < 0 || !jo_3d_slave_push_matrix())
         return;
     jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+    jo_3d_slave_select_window(jo_cells_window_of(bias));
     if (d->hinge)
     {
         jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
@@ -698,6 +702,7 @@ static void                     door_draw_slave(jo_entity * const entity)
     }
     jo_3d_slave_mesh_draw(entity->mesh);
     jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
     jo_3d_slave_pop_matrix();
 }
 
@@ -790,6 +795,7 @@ void                            billboards_draw(void)
             // (sorted nearer than its center: a sprite stands a few units in front of a wall, the parts of the wall cut near
             // the camera have their centers about as near as it: the wall was drawn over it)
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - BILLBOARD_SORT_BIAS);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y - jo_int2fixed(d->half_height), entity->position.z);
             jo_3d_rotate_matrix_y(yaw);
             // (the quad of a 3D sprite has the size of the sprite: the matrix scales it)
@@ -797,6 +803,7 @@ void                            billboards_draw(void)
             jo_3d_draw_sprite(d->sprite);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
     billboard_seen_count = 0;
@@ -1016,10 +1023,12 @@ static void                     glass_draw(jo_entity * const entity)
         {
             jo_3d_push_matrix();
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
             jo_3d_rotate_matrix_y(entity->yaw);
             jo_3d_mesh_draw(entity->mesh);
             jo_3d_pop_matrix();
+            jo_3d_select_window(JO_3D_NEAR_WINDOW);
         }
     }
     glass_shards_draw(entity);
@@ -1049,12 +1058,14 @@ void                            glass_shards_draw(const jo_entity * const entity
             continue;
         jo_3d_push_matrix();
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        jo_3d_select_window(jo_cells_window_of(bias));
         jo_3d_translate_matrix_fixed(s->position.x, s->position.y, s->position.z);
         jo_3d_rotate_matrix_y(s->yaw);
         jo_3d_rotate_matrix_x(s->pitch);
         jo_3d_mesh_draw(shard_mesh);
         jo_3d_pop_matrix();
     }
+    jo_3d_select_window(JO_3D_NEAR_WINDOW);
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }
 
@@ -1072,11 +1083,13 @@ void                            glass_shards_draw_slave(const jo_entity * const 
             !jo_3d_slave_push_matrix())
             continue;
         jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        jo_3d_slave_select_window(jo_cells_window_of(bias));
         jo_3d_slave_translate_matrix_fixed(s->position.x, s->position.y, s->position.z);
         jo_3d_slave_rotate_matrix(s->pitch, s->yaw, 0);
         jo_3d_slave_mesh_draw(shard_mesh);
         jo_3d_slave_pop_matrix();
     }
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
     jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
 }
 
@@ -1097,10 +1110,12 @@ static void                     glass_draw_slave(jo_entity * const entity)
         if (bias >= 0 && jo_3d_slave_push_matrix())
         {
             jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_slave_select_window(jo_cells_window_of(bias));
             jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
             jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
             jo_3d_slave_mesh_draw(entity->mesh);
             jo_3d_slave_pop_matrix();
+            jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
         }
     }
     glass_shards_draw_slave(entity);

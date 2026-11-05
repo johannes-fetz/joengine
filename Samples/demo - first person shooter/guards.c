@@ -180,9 +180,23 @@ static jo_pos3D_fixed               rifle_muzzle;
 #define GUARD_WAY_NONE              (0xFFFF)
 /** @brief Ways computed again per frame at most (the others keep their next point one more frame): the agent seen again
  *  moved the point of all the hunting guards in the same frame, 16 ways in a frame (a frame of 75 ms) */
-#define GUARD_WAY_BUDGET            (2)
+#define GUARD_WAY_BUDGET            (1)
+/** @brief The load of the frames (see persons_load_update()): 256 when the frames are on time, less after frames of 3 fields
+ *  or more (down to PERSONS_LOAD_MIN), back up slowly; under PERSONS_LOAD_MARKS the missed shots of the guards leave no mark
+ *  (the ray of the mark: a general alert, 16 guards shooting, 2 ms of rays per frame for the marks). Tried: the far model
+ *  of the persons nearer under load: no change in a general alert from the walkway (the guards come up next to the
+ *  agent, near whatever the distance) */
+#define PERSONS_LOAD_MIN            (96)
+#define PERSONS_LOAD_DROP           (48)
+#define PERSONS_LOAD_RISE           (3)
+#define PERSONS_LOAD_MARKS          (192)
+static int                          persons_load = 256;
 /** @brief Rays toward the nearest points of the doorways when none of the room is seen (see way_seen()) */
-#define GUARD_WAY_FALLBACK_RAYS     (6)
+#define GUARD_WAY_FALLBACK_RAYS     (3)
+/** @brief Rays toward the nearest points of the doorways of the room (see way_seen()) */
+#define GUARD_WAY_ROOM_RAYS         (4)
+/** @brief Doorways tried at most when no way is found through the points (see way_to_near()) */
+#define GUARD_WAY_NEAR_RAYS         (4)
 /** @brief The body stays this long (milliseconds), sinking in the floor during its last GUARD_BODY_SINK, then it goes */
 #define GUARD_BODY_TIME             (5000)
 #define GUARD_BODY_SINK             (1200)
@@ -315,6 +329,10 @@ typedef struct
 }                                   dropped_rifle;
 static dropped_rifle                drops[DROP_MAX];
 static jo_3d_model                  *rifle_model = JO_NULL;
+/** @brief The cap alone (CAP.JOM, the coordinates of the cap in the model of the guard): the cap of a dead guard on the
+ *  floor. Drawn from the model of the guard with all its bones hidden but the cap, it cost the whole model (300 points,
+ *  212 polygons rejected): 3 ms per frame for 6 s */
+static jo_3d_model                  *cap_model = JO_NULL;
 /** @brief The model of the guards without the rifle in the hands (the dead ones: they dropped it) */
 static jo_3d_model                  *unarmed_model = JO_NULL;
 static jo_3d_model                  *unarmed_far_model = JO_NULL;
@@ -345,6 +363,7 @@ static int                          distance_to_agent(const jo_entity * const e)
 }
 
 /** @brief Nothing between 2 points: no wall (with_doors: no closed door either; with_glass: no pane of a window either) */
+
 static bool                         is_clear(const jo_pos3D_fixed * const a, const jo_pos3D_fixed * const b, const bool with_doors,
                                              const bool with_glass)
 {
@@ -582,6 +601,10 @@ static void                         way_to_near(const jo_entity * const e, const
     int                             k;
     int                             best;
     int                             cost;
+    int                             count;
+    int                             j;
+    int                             costs[GUARD_MAX_DOORWAYS * 2];
+    int                             order[GUARD_MAX_DOORWAYS * 2];
 
     *wx = x;
     *wz = z;
@@ -598,22 +621,37 @@ static void                         way_to_near(const jo_entity * const e, const
     n = doors_doorways(doorways, GUARD_MAX_DOORWAYS, false);
     stalls = n;
     n += doors_doorways(&doorways[n], GUARD_MAX_DOORWAYS * 2 - n, true);
-    best = 0x7fffffff;
-    for (k = 0; k < n; ++k)
+    // The doorways by cost (the way through them), the first one seen (and that sees the point) is the best: the rays stop
+    // there, GUARD_WAY_NEAR_RAYS doorways at most (a ray toward each of the 18 doorways of the level, 25 rays and 16 ms in
+    // one frame in a general alert)
+    for (k = 0, count = 0; k < n; ++k)
     {
         doorways[k].y = a.y;
         // (the doorway where he is: not a way)
-        if (JO_ABS(jo_fixed2int(doorways[k].x - a.x)) + JO_ABS(jo_fixed2int(doorways[k].z - a.z)) < 24 || !is_clear(&a, &doorways[k], false, true))
-            continue;
-        if (k >= stalls && !is_clear(&doorways[k], &b, false, true))
+        if (JO_ABS(jo_fixed2int(doorways[k].x - a.x)) + JO_ABS(jo_fixed2int(doorways[k].z - a.z)) < 24)
             continue;
         cost = JO_ABS(jo_fixed2int(doorways[k].x - a.x)) + JO_ABS(jo_fixed2int(doorways[k].z - a.z)) +
                JO_ABS(jo_fixed2int(doorways[k].x - x)) + JO_ABS(jo_fixed2int(doorways[k].z - z));
-        if (cost >= best)
+        for (j = count; j > 0 && costs[j - 1] > cost; --j)
+        {
+            costs[j] = costs[j - 1];
+            order[j] = order[j - 1];
+        }
+        costs[j] = cost;
+        order[j] = k;
+        ++count;
+    }
+    for (j = 0, best = 0; j < count && best < GUARD_WAY_NEAR_RAYS; ++j)
+    {
+        k = order[j];
+        ++best;
+        if (!is_clear(&a, &doorways[k], false, true))
             continue;
-        best = cost;
+        if (k >= stalls && !is_clear(&doorways[k], &b, false, true))
+            continue;
         *wx = doorways[k].x;
         *wz = doorways[k].z;
+        return;
     }
 }
 
@@ -693,10 +731,19 @@ static void                         way_seen(const jo_pos3D_fixed * const p, int
     int                             best;
     int                             i;
     int                             length;
+    int                             nearest;
+    int                             distance_nearest;
     int                             distance[GUARD_WAY_NODES];
+    int                             room[GUARD_WAY_ROOM_RAYS + 1];
+    int                             room_distance[GUARD_WAY_ROOM_RAYS + 1];
+    int                             room_count;
+    int                             j;
 
     cell = jo_cells_find(p->x, p->y + jo_int2fixed(GUARD_SIZE(50)), p->z, PLAYER_STEP);
-    // The points in this room and the other sides of its doorways (through them)
+    // The points in this room and the other sides of its doorways (through them): the nearest GUARD_WAY_ROOM_RAYS of them
+    // get a ray (a ray costs 0.4 to 0.7 ms; the hall has 5 doors, 10 points: 7 ms for one way in a general alert)
+    nearest = -1;
+    room_count = 0;
     for (i = 0, seen = 0; i < way_node_count; ++i)
     {
         distance[i] = way_length(p->x, p->z, way_nodes[i].x, way_nodes[i].z);
@@ -706,11 +753,37 @@ static void                         way_seen(const jo_pos3D_fixed * const p, int
         // (tested: not tested again below)
         length = distance[i];
         distance[i] = -1;
-        if (length >= near && is_clear(p, &way_nodes[i], false, true))
+        if (length < near)
+            continue;
+        if (nearest < 0 || length < distance_nearest)
         {
-            lengths[i] = length;
+            nearest = i;
+            distance_nearest = length;
+        }
+        // (kept by distance, the nearest first)
+        for (j = room_count; j > 0 && room_distance[j - 1] > length; --j)
+        {
+            room[j] = room[j - 1];
+            room_distance[j] = room_distance[j - 1];
+        }
+        room[j] = i;
+        room_distance[j] = length;
+        if (room_count < GUARD_WAY_ROOM_RAYS)
+            ++room_count;
+    }
+    for (j = 0; j < room_count; ++j)
+        if (is_clear(p, &way_nodes[room[j]], false, true))
+        {
+            lengths[room[j]] = room_distance[j];
             ++seen;
         }
+    // The room has points but none is seen (a tank, a stall between): the nearest one, the furniture is gone around on the
+    // way (see go_to_way()). The rays toward the points of the other rooms found nothing (walls) and cost 4 ms per way: 2
+    // ways in a frame made a frame of 36 ms in the bottling room
+    if (seen == 0 && nearest >= 0)
+    {
+        lengths[nearest] = distance_nearest;
+        return;
     }
     // None (a room without a doorway, the openings of the bottling room, or between 2 cells): the nearest other points, a few
     // of them (the rays toward the 26 points cost 10 ms)
@@ -869,6 +942,7 @@ static void                         way_to_inner(jo_entity * const e, const jo_f
     g->way_z = *wz;
     g->way_valid = true;
 }
+
 
 static void                         way_to(jo_entity * const e, const jo_fixed x, const jo_fixed z, jo_fixed * const wx,
                                            jo_fixed * const wz, const int elapsed)
@@ -1071,8 +1145,9 @@ static void                         shoot_agent_inner(jo_entity * const e, const
         return;
     }
     // Missed: the bullet goes next to the agent (a mark on the wall behind him; a ray through the cells, 1.5 ms: not for a
-    // guard in a room the agent doesn't see)
-    if (jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0)
+    // guard in a room the agent doesn't see, nor when the frames are slow (a general alert: 16 guards shooting, 2 ms of
+    // rays per frame for their marks))
+    if (persons_load < PERSONS_LOAD_MARKS || jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0)
         return;
     player_eye(&target);
     target.x += jo_int2fixed(jo_random(2) == 2 ? 16 + (jo_random(30) - 1) : -16 - (jo_random(30) - 1));
@@ -2031,6 +2106,22 @@ static int                          face_model_count = 0;
 #define GUARD_FAR_COMMANDS          (60)
 #define GUARD_RESERVE_COMMANDS      (90)
 
+/** @brief The load of the last frame (its fields), once per frame (see persons_load) */
+static void                         persons_load_update(void)
+{
+    static unsigned int             last_vblank = 0;
+    unsigned int                    vblank;
+    int                             fields;
+
+    vblank = guard_vblank_count();
+    fields = (int)(vblank - last_vblank);
+    last_vblank = vblank;
+    if (fields >= 3 && fields < 30)
+        persons_load = JO_MAX(PERSONS_LOAD_MIN, persons_load - PERSONS_LOAD_DROP);
+    else
+        persons_load = JO_MIN(256, persons_load + PERSONS_LOAD_RISE);
+}
+
 /** @brief The polygons of a model that have the textures of the first face (found the first time) */
 static face_polygons                *find_face_polygons(const jo_3d_model * const model)
 {
@@ -2194,7 +2285,7 @@ static void                         knock_cap(const jo_entity * const e, const j
     else
     {
         c->position = e->position;
-        c->position.y -= jo_int2fixed(GUARD_CAP_CENTER);
+        c->position.y += cap_middle.y != 0 ? cap_middle.y : -jo_int2fixed(GUARD_CAP_CENTER);
     }
     c->speed.x = dir->x * 140;
     c->speed.y = -jo_int2fixed(160);
@@ -2595,6 +2686,9 @@ void                                guards_update_blood(const int elapsed)
     int                             k;
     blood_drop                      *b;
 
+    persons_load_update();
+
+
     for (k = 0; k < BLOOD_MAX; ++k)
     {
         b = &blood[k];
@@ -2658,8 +2752,9 @@ void                                guards_draw_blood(void)
     int                             bias;
     blood_drop                      *b;
 
-    // The falling caps: the model of the guard with all its bones hidden but the cap, turned around the middle of the cap
-    for (k = 0; k < CAP_MAX && cap_bone >= 0; ++k)
+    // The falling caps: the model of the cap (or the model of the guard with all its bones hidden but the cap), turned
+    // around the middle of the cap
+    for (k = 0; k < CAP_MAX && (cap_bone >= 0 || cap_model != JO_NULL); ++k)
     {
         if (!caps[k].used || caps[k].model == JO_NULL)
             continue;
@@ -2669,15 +2764,27 @@ void                                guards_draw_blood(void)
         jo_3d_push_matrix();
         {
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(caps[k].position.x, caps[k].position.y, caps[k].position.z);
             jo_3d_rotate_matrix_y(caps[k].yaw);
             jo_3d_rotate_matrix_x(caps[k].spin);
-            jo_3d_translate_matrix_fixed(0, jo_int2fixed(GUARD_CAP_CENTER), 0);
-            jo_3d_model_set_hidden_bones(~(1u << cap_bone));
-            jo_3d_model_draw_pose(caps[k].model, JO_NULL, JO_NULL, JO_NULL);
-            jo_3d_model_set_hidden_bones(0);
+            // (the middle of the cap at its position: GUARD_CAP_CENTER was 10 units too low, the cap on the floor was
+            // drawn 7 units under the floor, never seen)
+            if (cap_middle.y != 0)
+                jo_3d_translate_matrix_fixed(-cap_middle.x, -cap_middle.y, -cap_middle.z);
+            else
+                jo_3d_translate_matrix_fixed(0, jo_int2fixed(GUARD_CAP_CENTER), 0);
+            if (cap_model != JO_NULL)
+                jo_3d_model_draw(cap_model);
+            else
+            {
+                jo_3d_model_set_hidden_bones(~(1u << cap_bone));
+                jo_3d_model_draw_pose(caps[k].model, JO_NULL, JO_NULL, JO_NULL);
+                jo_3d_model_set_hidden_bones(0);
+            }
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     // The dropped rifles
     for (k = 0; k < DROP_MAX && rifle_model != JO_NULL; ++k)
@@ -2690,11 +2797,13 @@ void                                guards_draw_blood(void)
         jo_3d_push_matrix();
         {
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(drops[k].position.x, drops[k].position.y, drops[k].position.z);
             jo_3d_rotate_matrix_y(drops[k].yaw);
             jo_3d_model_draw(rifle_model);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     for (k = 0; k < GUARD_FLASH_MAX && tex_flash >= 0; ++k)
     {
@@ -2706,6 +2815,7 @@ void                                guards_draw_blood(void)
         jo_3d_push_matrix();
         {
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - 30);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(flash_position[k].x, flash_position[k].y, flash_position[k].z);
             jo_3d_rotate_matrix_y(yaw);
             jo_3d_rotate_matrix_x(-pitch);
@@ -2713,6 +2823,7 @@ void                                guards_draw_blood(void)
             jo_3d_draw_sprite(tex_flash);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     if (tex_blood < 0)
     {
@@ -2731,6 +2842,7 @@ void                                guards_draw_blood(void)
         {
             // (in front of the body it comes out of)
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - 30);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(b->position.x, b->position.y, b->position.z);
             // (facing the camera)
             jo_3d_rotate_matrix_y(yaw);
@@ -2739,6 +2851,7 @@ void                                guards_draw_blood(void)
             jo_3d_draw_sprite(tex_blood);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }
@@ -2771,6 +2884,7 @@ void                                guards_load(void)
     tex_blood = jo_sprite_add_bin_4bits_lut(JO_ROOT_DIR, "BLOOD.BIN", JO_COLOR_Transparent);
     tex_flash = jo_sprite_add_bin_4bits_lut(JO_ROOT_DIR, "GFLASH.BIN", JO_COLOR_Transparent);
     rifle_model = jo_3d_load_model("RIFLEW.JOM");
+    cap_model = jo_3d_load_model("CAP.JOM");
     unarmed_model = jo_3d_load_model("GUARDN.JOM");
     if (unarmed_model != JO_NULL)
         cap_bone = jo_3d_model_find_bone(unarmed_model, "cap");
