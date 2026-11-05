@@ -198,6 +198,13 @@ static  __jo_force_inline void      jo_profile_count(const jo_profile_slot slot,
  */
 bool                                jo_profile_get(const jo_profile_slot slot, unsigned int *average, unsigned int *maximum);
 
+/** @brief Ticks of the last drawing of the VDP1 (from the frame buffer change to the end of the drawing, see
+ *  jo_profile_ticks(); JO_PROFILE_VDP1_DRAW sums the drawings as they end: read between 2 frames, the sum of a frame
+ *  held 0 or 2 drawings, a frame of 20 ms looked like a frame of 42 ms)
+ *  @return Ticks (0: none yet)
+ */
+unsigned int                        jo_profile_vdp1_last(void);
+
 /** @brief Count the pixels drawn by the VDP1 for the 3D polygons (JO_PROFILE_3D_PIXELS)
  *  @param enabled true to count them (about 2 microseconds more per polygon), false by default
  */

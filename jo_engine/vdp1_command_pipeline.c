@@ -97,8 +97,21 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
  *  commands like the HUD disappear). The frame buffer is cleared by a polygon at the start of each command table */
 #ifdef JO_FRAMERATE_DYNAMIC
 # define JO_VDP1_MANUAL_CHANGE              (!JO_VDP1_INTERLACE)
+/** @brief The pace of the images (manual change, see __jo_vdp1_vblank()): not with the dynamic frame rate, the tables are
+ *  taken as they come */
+# define JO_VDP1_PACED                      (0)
 #else
 # define JO_VDP1_MANUAL_CHANGE              (JO_FRAMERATE > 1 && !JO_VDP1_INTERLACE)
+/** @brief The pace of the images (manual change, JO_FRAMERATE > 1): the table of a frame is sent in the last field of
+ *  the frame at the earliest (see __jo_vdp1_end_frame(): the master CPU waits for the end of its frame anyway), and the
+ *  VDP1 takes it at the VBLANK that starts the next frame: each image stays JO_FRAMERATE fields, the VDP1 has the whole
+ *  frame to draw it, the slave CPU never waits to copy the next one. Before: a table sent before the second VBLANK of
+ *  its frame (the CPUs under 16.7 ms) was taken at that VBLANK, the next one sent after it (17 ms) at the VBLANK after:
+ *  the image before stayed 3 fields, the one after 1 field (a stutter at each crossing of 16.7 ms: 37 in a 1200 frames
+ *  run of the first person shooter with the VDP1 at 9 ms, 0 after). When the VDP1 is over a frame, its table is taken at
+ *  the first VBLANK after (one image of 3 fields), the images go on from there, and come back to the VBLANKs that start
+ *  the frames as soon as the VDP1 draws a frame in a field (one image of 1 field) */
+# define JO_VDP1_PACED                      (1)
 #endif
 /** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check */
 # define JO_VDP1_CLEAR_POLYGON_MODE         (0x00C0)
@@ -162,6 +175,17 @@ bool                                    __jo_vdp1_windows_apart = false;
 
 /** @brief The polygons and the distorted sprites of the next frames drawn as their outline (see jo_3d_set_wireframe()) */
 bool                                    __jo_vdp1_wireframe = false;
+#ifdef JO_TEST_VDP1_VBLANKS
+/** @brief Test (JO_TEST_VDP1_VBLANKS, read by the game): the VBLANKs by what they found: no table and the VDP1 drawing,
+ *  no table and the VDP1 idle (the CPUs are late), the DMA still copying the table, the table waiting for the VDP1, the
+ *  table taken (manual change) */
+unsigned int                            __jo_vdp1_test_vblanks[5];
+/** @brief Test (JO_TEST_VDP1_VBLANKS): what the last VBLANK found (the index in __jo_vdp1_test_vblanks) */
+int                                     __jo_vdp1_test_last_state = 0;
+#endif
+
+/** @brief The frame buffer is cleared at the start of each frame (see jo_3d_set_frame_clear()) */
+bool                                    __jo_vdp1_frame_clear = true;
 /** @brief Color of the outlines in wireframe mode (RGB) */
 # define JO_VDP1_WIREFRAME_COLOR            (0x8000 | (8 << 10) | (31 << 5) | 8)
 
@@ -219,6 +243,8 @@ static volatile unsigned int            __jo_vdp1_pending_table;
 static volatile unsigned int            __jo_vdp1_next_table;
 /* VBLANK of the last table change, VBLANK count (JO_VDP1_SHARED) */
 static volatile unsigned int            __jo_vdp1_flip_field;
+/** @brief The field the current frame of the game started at (see __jo_vdp1_frame_start(), JO_VDP1_PACED) */
+static volatile unsigned int            __jo_vdp1_frame_field;
 static volatile unsigned int            __jo_vdp1_vblank_fields;
 /* Frame numbers (see __jo_vdp1_frame_tag()): the frame built (master CPU), the table pending, the last table given to
 ** the VDP1, the frame displayed from the field __jo_vdp1_shown_field (and the next one in 1 cycle mode) (JO_VDP1_SHARED) */
@@ -867,6 +893,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     // the indirect table and the headers are used again)
     while (JO_VDP1_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
         ;
+
     // 1-cycle mode: the table we are about to fill may still be read by the VDP1 if the jump to the
     // other table was changed after the VDP1 started this field: wait for the end of
     // the current drawing (or for the next field).
@@ -894,9 +921,11 @@ static void                             jo_vdp1_send_frame(void *argument)
     current_window = -1;
     skip = false;
     JO_ZERO(skip_key);
-    if (JO_VDP1_MANUAL_CHANGE)
+    if (JO_VDP1_MANUAL_CHANGE && __jo_vdp1_frame_clear)
     {
         // The frame buffer is not erased by the VDP1 (manual change mode): a polygon of the transparent color clears it
+        // (not when the program covers the whole screen at each frame, see jo_3d_set_frame_clear(): the polygon costs
+        // about 4 ms of VDP1 time)
         jo_vdp1_make_clear(&__jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND], frame);
         jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[0], offset, JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command));
         offset += JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command);
@@ -1002,6 +1031,11 @@ static void                             jo_vdp1_send_frame(void *argument)
 #endif
 }
 
+void                                    __jo_vdp1_frame_start(void)
+{
+    JO_VDP1_SHARED(__jo_vdp1_frame_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+}
+
 void                                    __jo_vdp1_end_frame(void)
 {
     jo_vdp1_frame                       *frame;
@@ -1019,6 +1053,11 @@ void                                    __jo_vdp1_end_frame(void)
     frame->wireframe = __jo_vdp1_wireframe;
     frame->windows_apart = __jo_vdp1_windows_apart;
     __jo_vdp1_last_count = frame->count;
+    // The pace of the images (see JO_VDP1_PACED): the table is sent in the last field of the frame at the earliest, the
+    // VDP1 takes it at the VBLANK that starts the next frame (the master CPU waits for that VBLANK anyway)
+    if (JO_VDP1_MANUAL_CHANGE && JO_VDP1_PACED)
+        while (JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
+            ;
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_core_is_slave_running())
     {
@@ -1078,6 +1117,17 @@ void                                    __jo_vdp1_vblank(void)
     }
     table = JO_VDP1_SHARED(__jo_vdp1_pending_table);
     // The SCU DMA still copies the table
+#ifdef JO_TEST_VDP1_VBLANKS
+    if (!table)
+        __jo_vdp1_test_last_state = (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0 ? 0 : 1;
+    else if (jo_vdp1_dma_busy())
+        __jo_vdp1_test_last_state = 2;
+    else if (JO_VDP1_MANUAL_CHANGE && drawing && (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0)
+        __jo_vdp1_test_last_state = 3;
+    else
+        __jo_vdp1_test_last_state = 4;
+    ++__jo_vdp1_test_vblanks[__jo_vdp1_test_last_state];
+#endif
     if (!table || jo_vdp1_dma_busy())
         return;
     if (JO_VDP1_MANUAL_CHANGE)
@@ -1452,6 +1502,11 @@ void                                    __jo_vdp1_set_window(const short left, c
     w->screen = w->clip_mode != 0 && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? left : 0;
     w->origin_y = w->screen ? top : 0;
+}
+
+void                                    jo_3d_set_depth_limit(const int z)
+{
+    __jo_vdp1_windows[__jo_vdp1_current_window].zlimit = z < 0 || z >= 0x7fff ? JO_VDP1_NO_Z_LIMIT : JO_INT_TO_FIXED((jo_fixed)z);
 }
 
 void                                    __jo_vdp1_set_window_clip(const bool clip)

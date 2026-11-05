@@ -84,6 +84,13 @@ void                                        jo_profile_count_pixels(const bool e
 /* The VDP1 draws a new table since this time (master CPU ticks), see __jo_profile_vdp1_start() */
 static volatile unsigned int                __jo_profile_vdp1_start_time;
 static volatile bool                        __jo_profile_vdp1_drawing;
+/** @brief Ticks of the last drawing of the VDP1 (see jo_profile_vdp1_last()) */
+static volatile unsigned int                __jo_profile_vdp1_last = 0;
+
+unsigned int                                jo_profile_vdp1_last(void)
+{
+    return (__jo_profile_vdp1_last);
+}
 
 static const char * const                   __jo_profile_engine_names[JO_PROFILE_FIRST_USER] =
 {
@@ -96,8 +103,8 @@ static void __attribute__((interrupt_handler)) jo_profile_sprite_end_handler(voi
     if (__jo_profile_vdp1_drawing)
     {
         // (the master CPU: its cached address, like jo_profile_end())
-        __jo_profile_add(&__jo_profile_cpu[0], JO_PROFILE_VDP1_DRAW,
-                         (jo_profile_ticks() - __jo_profile_vdp1_start_time) & 0xFFFF);
+        __jo_profile_vdp1_last = (jo_profile_ticks() - __jo_profile_vdp1_start_time) & 0xFFFF;
+        __jo_profile_add(&__jo_profile_cpu[0], JO_PROFILE_VDP1_DRAW, __jo_profile_vdp1_last);
         __jo_profile_vdp1_drawing = false;
     }
     __jo_core_restore_scu_mask();

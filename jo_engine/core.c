@@ -344,6 +344,7 @@ void                                        __jo_core_synch(void)
     jo_profile_end(JO_PROFILE_VSYNC);
     jo_profile_count(JO_PROFILE_VBLANKS, 100 * (__jo_core_vblank_count - __jo_core_last_synch_vblank));
     __jo_core_last_synch_vblank = __jo_core_vblank_count;
+    __jo_vdp1_frame_start();
     // The inputs of the new frame
     __jo_input_frame_start();
 }

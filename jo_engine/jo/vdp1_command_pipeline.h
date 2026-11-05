@@ -288,6 +288,9 @@ void                        __jo_vdp1_init(void);
 
 /** @brief Sort the commands of the frame and copy them into the VDP1 VRAM (internal usage) */
 void                        __jo_vdp1_end_frame(void);
+/** @brief A frame of the game starts (internal usage, the master CPU after the VBLANK it waited for): the table of the
+ *  frame is sent in its last field at the earliest (JO_FRAMERATE > 1, see __jo_vdp1_end_frame()) */
+void                        __jo_vdp1_frame_start(void);
 
 /** @brief Display the last complete command table (internal usage, called during VBLANK-IN) */
 void                        __jo_vdp1_vblank(void);
@@ -466,6 +469,31 @@ bool                        __jo_vdp1_draw_sprite_3d(const jo_vdp1_sprite_positi
  */
 void                        __jo_vdp1_set_window(const short left, const short top, const short right, const short bottom,
                                                  const short zlimit, const short center_x, const short center_y);
+
+/** @brief Depth limit of the current window (the far clipping distance of jo_3d_window()): the polygons beyond it are not
+ *  drawn (all their vertices farther, in the view space). A wall that fills the screen: nothing behind it is seen, the
+ *  polygons of the room behind it cost VDP1 time for nothing (up to 50 ms against a wall)
+ *  @param z Depth limit (world units), -1: none (the default)
+ *  @remarks Set it for the frame (the slave CPU draws in the same window); the mirrors use the far windows
+ */
+void                        jo_3d_set_depth_limit(const int z);
+
+/** @brief The frame buffer is cleared at the start of each frame (see jo_3d_set_frame_clear()) */
+extern bool                 __jo_vdp1_frame_clear;
+
+/** @brief Clear the frame buffer at the start of each frame (the default), or not
+ *  @param enabled false: the frame buffer is not cleared, what the frame does not draw keeps the pixels of the frame
+ *  drawn 2 frames before (the frame buffers alternate)
+ *  @remarks With JO_FRAMERATE > 1 (the frame buffers change when the VDP1 finished a frame) the frame buffer is cleared
+ *  by a polygon of the transparent color that costs the VDP1 about 4 ms: a program that covers the whole screen at each
+ *  frame (the rooms of a first person game) does not need it. The last pixel of a line between 2 polygons is the one
+ *  of the older frame instead of the background. With JO_FRAMERATE 1 the VDP1 erases the frame buffer itself
+ *  @remarks From the next frame
+ */
+static  __jo_force_inline void jo_3d_set_frame_clear(const bool enabled)
+{
+    __jo_vdp1_frame_clear = enabled;
+}
 
 /** @brief The 3D polygons of the current window clipped to its rectangle (internal usage, see jo_3d_window_clip()) */
 void                        __jo_vdp1_set_window_clip(const bool clip);
