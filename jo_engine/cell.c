@@ -1524,28 +1524,63 @@ void                                jo_cells_draw_prepared_share(const bool slav
         jo_3d_set_depth_bias(__jo_cell_depth_bias);
 }
 
-/** @brief Share of the polygons of the cells drawn by the master CPU (0 to 1024), its limits (see jo_cells_balance_share()) */
+/** @brief Share of the polygons of the cells drawn by the master CPU (0 to 1024) in the frame, its limits (see
+ *  jo_cells_balance_share()); the correction: added to the share computed from the polygons of the frame (see
+ *  jo_cells_draw_prepared_on_both_cpus()), balanced at each frame (the other work of the master CPU: the logic of the
+ *  game, the weapon) */
 static int                          __jo_cell_share = JO_CELLS_DEFAULT_SHARE;
+static int                          __jo_cell_share_correction = JO_CELLS_DEFAULT_SHARE - 512;
 static int                          __jo_cell_share_min = 0;
 static int                          __jo_cell_share_max = JO_CELLS_DEFAULT_MAX_SHARE;
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
-/** @brief The job of the slave CPU: its part of the cells */
+/** @brief What the slave CPU draws before its part of the cells (see jo_cells_draw_prepared_on_both_cpus()), JO_NULL: nothing */
+typedef void                        (*__jo_cells_draw_function)(void);
+static __jo_cells_draw_function     __jo_cells_slave_before = JO_NULL;
+
+/** @brief The job of the slave CPU: the other things it draws, then its part of the cells */
 static void                         __jo_cells_slave_part(void)
 {
+    __jo_cells_draw_function        before;
+
     // (written by the master CPU before the job: read without the cache)
+    before = *(volatile __jo_cells_draw_function *)JO_CACHE_THROUGH(&__jo_cells_slave_before);
+    if (before != JO_NULL)
+        before();
     jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&__jo_cell_share));
 }
 
 #endif
 
-void                                jo_cells_draw_prepared_on_both_cpus(void)
+int                                 jo_cells_prepared_polygon_count(void)
+{
+    int                             total;
+    int                             k;
+
+    for (k = 0, total = 0; k < __jo_cell_mesh_count; ++k)
+        total += (int)__jo_cell_meshes[k]->data.polygon_count;
+    return (total);
+}
+
+void                                jo_cells_draw_prepared_on_both_cpus(void (* const slave_before)(void), const int slave_polygons)
 {
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    int                             cells;
+    int                             share;
+
+    // The share of the frame: half of the polygons of the frame to each CPU (the cells, the other things of the slave
+    // CPU: the characters near the camera cost as much as a room), plus the correction (the other work of the master CPU)
+    cells = jo_cells_prepared_polygon_count();
+    share = cells > 0 ? JO_MIN(1024, (cells + JO_MAX(slave_polygons, 0)) * 512 / cells) : 1024;
+    __jo_cell_share = JO_MAX(__jo_cell_share_min, JO_MIN(__jo_cell_share_max, share + __jo_cell_share_correction));
+    __jo_cells_slave_before = slave_before;
     jo_core_exec_on_slave(__jo_cells_slave_part);
     jo_cells_draw_prepared_share(false, 0, __jo_cell_share);
 #else
+    JO_UNUSED_ARG(slave_polygons);
+    if (slave_before != JO_NULL)
+        slave_before();
     jo_cells_draw_prepared(false);
 #endif
 }
@@ -1559,7 +1594,7 @@ void                                jo_cells_balance_share(void)
     step = JO_MAX(-40, JO_MIN(40, jo_core_slave_idle_time() / 100));
     if (step > 0 && jo_3d_slave_get_command_count() > jo_3d_slave_get_max_commands() * 3 / 4)
         step = -16;
-    __jo_cell_share = JO_MAX(__jo_cell_share_min, JO_MIN(__jo_cell_share_max, __jo_cell_share - step));
+    __jo_cell_share_correction = JO_MAX(-1024, JO_MIN(1024, __jo_cell_share_correction - step));
 #endif
 }
 

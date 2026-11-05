@@ -188,18 +188,28 @@ void                                jo_cells_draw_prepared_share(const bool slav
 
 /** @brief Share of the polygons of the cells drawn by the master CPU at the start (0 to 1024, see jo_cells_draw_prepared_on_both_cpus()) */
 # define JO_CELLS_DEFAULT_SHARE              (400)
-/** @brief Highest share of the master CPU by default (the slave CPU keeps a part: it waits for nothing else) */
-# define JO_CELLS_DEFAULT_MAX_SHARE          (896)
+/** @brief Highest share of the master CPU by default (all the cells: the slave CPU may draw the entities) */
+# define JO_CELLS_DEFAULT_MAX_SHARE          (1024)
+
+/** @brief Polygons of the cells found by jo_cells_prepare() (the meshes seen, all their polygons: the share of each CPU is
+ *  cut in them, see jo_cells_draw_prepared_share())
+ *  @return Polygons
+ */
+int                                 jo_cells_prepared_polygon_count(void);
 
 /** @brief Draw the cells found by jo_cells_prepare() on the 2 CPUs: the slave CPU draws its part (a job, see
- *  jo_core_exec_on_slave()) while the master CPU draws the other part. The share of each CPU follows the load of the last
+ *  jo_core_exec_on_slave()) while the master CPU draws the other part. The share of each CPU: half of the polygons of the
+ *  frame to each one (the cells and what else the slave CPU draws), plus a correction that follows the load of the last
  *  frames (see jo_cells_balance_share())
+ *  @param slave_before What the slave CPU draws before its part of the cells (in its job: the entities,
+ *         jo_entities_draw_slave()), JO_NULL: nothing
+ *  @param slave_polygons Polygons of what slave_before draws (see jo_entities_polygon_count()), 0: none
  *  @remarks Call it between jo_3d_slave_begin() and jo_3d_slave_end(), then jo_cells_balance_share() after
  *  jo_core_wait_for_slave(). The master CPU draws the first part: its commands come first in the table, 2 polygons at the same
  *  depth are drawn in the same order as with one CPU
- *  @remarks Without JO_COMPILE_WITH_DUAL_CPU_MODULE: the master CPU draws all the cells
+ *  @remarks Without JO_COMPILE_WITH_DUAL_CPU_MODULE: the master CPU draws all the cells (and slave_before first)
  */
-void                                jo_cells_draw_prepared_on_both_cpus(void);
+void                                jo_cells_draw_prepared_on_both_cpus(void (* const slave_before)(void), const int slave_polygons);
 
 /** @brief Balance the share of the CPUs for the next frame (see jo_cells_draw_prepared_on_both_cpus()): more polygons
  *  to the slave CPU when it waited in the last frame, fewer when the master CPU waited for it (or when its command table
