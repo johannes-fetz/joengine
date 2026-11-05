@@ -833,6 +833,37 @@ static void                                 jo_3d_model_pose_bone(const jo_3d_mo
         jo_3d_model_pose_bone(model, child, pose, callback, param, m, (const jo_fixed (*)[3])matrix);
 }
 
+/** @brief The matrices of the bones of the pose drawn by the slave CPU (not on its stack: it is small) */
+static jo_3d_model_pose_matrices            __jo_3d_slave_pose_matrices;
+
+void                                        jo_3d_slave_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
+                                                                        const jo_3d_bone_callback callback, void * const param,
+                                                                        const unsigned int hidden_bones)
+{
+    jo_3d_model_pose_matrices               *m;
+    register unsigned int                   k;
+    unsigned int                            hidden;
+
+    // (the bones hidden: the mask of the master CPU replaced while the bones are posed, see jo_3d_model_set_hidden_bones();
+    // the slave CPU draws the characters while the master CPU draws no pose, see jo_entities_draw())
+    hidden = __jo_3d_hidden_bones;
+    __jo_3d_hidden_bones = hidden_bones;
+    m = &__jo_3d_slave_pose_matrices;
+    m->part_count = 0;
+    if (jo_3d_slave_push_matrix())
+    {
+        if (pose != JO_NULL && (pose->root.x | pose->root.y | pose->root.z) != 0)
+            jo_3d_slave_translate_matrix_fixed(pose->root.x, pose->root.y, pose->root.z);
+        for (JO_ZERO(k); k < model->bone_count; ++k)
+            if (model->bones[k].parent < 0)
+                jo_3d_model_pose_bone(model, (int)k, pose, callback, param, m, (const jo_fixed (*)[3])__jo_3d_slave_current_matrix());
+        jo_3d_slave_pop_matrix();
+    }
+    __jo_3d_hidden_bones = hidden;
+    if (m->part_count > 0)
+        __jo_3d_slave_draw_parts(&model->mesh->data, m->parts, m->part_count);
+}
+
 void                                        jo_3d_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
                                                                   const jo_3d_bone_callback callback, void * const param)
 {

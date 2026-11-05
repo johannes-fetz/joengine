@@ -361,7 +361,7 @@ static void                         __jo_vehicle_draw(jo_entity * const entity)
 }
 
 const jo_entity_class               __jo_vehicle_class = {"vehicle", sizeof(jo_vehicle), __jo_vehicle_spawn, JO_NULL, JO_NULL,
-                                                          JO_NULL, __jo_vehicle_draw};
+                                                          JO_NULL, __jo_vehicle_draw, JO_NULL, JO_NULL};
 
 #endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 

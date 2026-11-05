@@ -98,6 +98,12 @@ typedef struct
     void                            (*death)(jo_entity * const entity, jo_entity * const source);
     /** @brief Draw the entity (the camera matrix is the current matrix), JO_NULL: its model at its position */
     void                            (*draw)(jo_entity * const entity);
+    /** @brief Draw the entity on the slave CPU (see jo_entities_draw_slave(): the slave 3D calls, jo_actor_draw_slave()),
+     *  JO_NULL: the master CPU draws it (its draw callback). An entity without draw callback is drawn by both CPUs */
+    void                            (*draw_slave)(jo_entity * const entity);
+    /** @brief The tint of the entity (the light of the lamps on it, see jo_3d_point_lights_sample()) before it is drawn:
+     *  the class changes it (a character hit: red), JO_NULL: the light of the lamps */
+    void                            (*tint)(jo_entity * const entity, int * const r, int * const g, int * const b);
 }                                   jo_entity_class;
 
 /** @brief An entity */
@@ -132,6 +138,10 @@ struct __jo_entity
     jo_pos3D_fixed                  cell_position;
     short                           cells[5];
     unsigned short                  cell_generation;
+    // (internal) Prepared for the frame (see jo_entities_prepare_draw()): the distance of the view (see
+    // jo_entity_view_distance(), -1: not drawn), the tint (packed, see jo_3d_get_tint())
+    short                           view_distance;
+    unsigned short                  tint;
 } __attribute__((aligned(16)));     // (128 bytes: an entity of the table on 8 lines of the cache, see jo_entities_load())
 
 /** @brief Damage around a point given to the game (the player is not an entity)
@@ -165,10 +175,40 @@ void                                jo_entities_free(void);
  */
 void                                jo_entities_update(const jo_pos3D_fixed * const player, const int elapsed);
 
-/** @brief Draw the entities (the camera matrix is the current matrix, see jo_3d_set_depth_bias())
+/** @brief Prepare the drawing of the entities of the frame (the camera matrix is the current matrix, see
+ *  jo_3d_set_depth_bias()): the ones seen, their tint (the light of the lamps, see jo_3d_point_lights_sample()), the share
+ *  of the slave CPU (see jo_entities_draw_slave()). Before jo_3d_slave_begin() and the job of the slave CPU
+ *  @param slave_share Share of the cost of the entities drawn by the slave CPU (0 to 1024, 0: all by the master CPU): the
+ *         entities with a draw_slave callback or without draw callback, the others stay on the master CPU
+ *  @remarks Without it, jo_entities_draw() prepares the frame with everything on the master CPU
+ */
+void                                jo_entities_prepare_draw(const int slave_share);
+
+/** @brief Draw the entities of the master CPU (the camera matrix is the current matrix, see jo_3d_set_depth_bias())
  *  @return Number of entities drawn
+ *  @remarks The entities with a draw callback are drawn after the ones of the slave CPU with a draw_slave callback (the
+ *  master CPU waits for them: the callbacks of a class share its data, the faces of the characters)
  */
 int                                 jo_entities_draw(void);
+
+/** @brief Draw the entities of the slave CPU (call it on the slave CPU, in the job between jo_3d_slave_begin() and
+ *  jo_3d_slave_end(), see jo_entities_prepare_draw()): first the ones with a draw_slave callback, then the models
+ *  @return Number of entities drawn
+ */
+int                                 jo_entities_draw_slave(void);
+
+/** @brief Time the master CPU waited for the entities of the slave CPU in the last frame (see jo_entities_draw())
+ *  @return Microseconds
+ */
+int                                 jo_entities_slave_wait_time(void);
+int                                 jo_entities_test_counts(const int which);
+
+/** @brief Polygons of the entities of a CPU in the frame (see jo_entities_prepare_draw(): the polygons of their models, plus
+ *  8 each), to balance the CPUs
+ *  @param slave false: the master CPU, true: the slave CPU
+ *  @return Polygons
+ */
+int                                 jo_entities_polygon_count(const bool slave);
 
 /** @brief Number of entities */
 int                                 jo_entity_count(void);
@@ -376,6 +416,14 @@ void                                jo_actor_update(jo_entity * const entity, co
  *  @param entity Entity
  */
 void                                jo_actor_draw(jo_entity * const entity);
+
+/** @brief Draw an actor on the slave CPU (call it on the slave CPU, see jo_entities_draw_slave()): its model in the pose of
+ *  its animation at its position, turned by its yaw, with the distance and the tint prepared (see jo_entities_prepare_draw())
+ *  @param entity Entity
+ *  @param far_distance The far model farther (world units, on the ground), -1: the one of the entity
+ *  @param hidden_bones Bones not drawn (bits, see jo_3d_model_set_hidden_bones())
+ */
+void                                jo_actor_draw_slave(jo_entity * const entity, const int far_distance, const unsigned int hidden_bones);
 
 /** @brief Play an animation (nothing if it is already played)
  *  @param entity Entity

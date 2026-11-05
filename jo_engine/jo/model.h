@@ -364,6 +364,19 @@ void                                        jo_3d_pose_blend(const jo_3d_model *
 void                                        jo_3d_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
                                                                   const jo_3d_bone_callback callback, void * const param);
 
+/** @brief Draw a model with a skeleton in a pose on the slave CPU (call it on the slave CPU, see jo_3d_model_draw_pose())
+ *  @param model Model
+ *  @param pose Pose (JO_NULL: the pose of the OBJ)
+ *  @param callback Called after each bone (JO_NULL: none; on the slave CPU: what it writes is read by the master CPU
+ *         without its cache)
+ *  @param param Parameter of the callback
+ *  @param hidden_bones Bones not drawn (bits, see jo_3d_model_set_hidden_bones())
+ *  @remarks The tint of the slave CPU (see jo_3d_slave_set_tint())
+ */
+void                                        jo_3d_slave_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
+                                                                        const jo_3d_bone_callback callback, void * const param,
+                                                                        const unsigned int hidden_bones);
+
 /** @brief Bones not drawn by the next jo_3d_model_draw_pose() (a hat shot off the head of a character: its bone hidden, the hat
  *  drawn alone where it falls: the other bones hidden)
  *  @param mask Bit k: the bone k (and its children) hidden, 0: all drawn
