@@ -193,8 +193,34 @@ static void                         breakable_draw(jo_entity * const entity)
     jo_3d_pop_matrix();
 }
 
+/** @brief Draw a breakable on the slave CPU (see breakable_draw(): the distance of the view prepared by the master CPU) */
+static void                         breakable_draw_slave(jo_entity * const entity)
+{
+    breakable_data                  *b;
+    int                             id;
+
+    b = (breakable_data *)entity->data;
+    glass_shards_draw_slave(entity);
+    if (entity->mesh == JO_NULL || entity->view_distance < 0)
+        return;
+    if (!b->broken && b->frames > 1 && frames_loaded)
+    {
+        find_screen_polygon(entity->mesh);
+        id = frame_sprites[b->frame < SCREEN_FRAME_COUNT ? b->frame : 0];
+        if (screen_polygon >= 0 && id >= 0)
+            entity->mesh->data.attributes[screen_polygon].texture_id = (unsigned short)id;
+    }
+    if (!jo_3d_slave_push_matrix())
+        return;
+    jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+    if (entity->yaw != 0)
+        jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+    jo_3d_slave_mesh_draw(entity->mesh);
+    jo_3d_slave_pop_matrix();
+}
+
 static const jo_entity_class        breakable_class = {"breakable", sizeof(breakable_data), breakable_spawn, breakable_update,
-                                                       JO_NULL, breakable_death, breakable_draw};
+                                                       JO_NULL, breakable_death, breakable_draw, breakable_draw_slave, JO_NULL};
 
 void                                props_register(void)
 {

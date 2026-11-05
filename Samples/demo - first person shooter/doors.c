@@ -670,7 +670,39 @@ static void                     door_draw(jo_entity * const entity)
     jo_3d_pop_matrix();
 }
 
-static const jo_entity_class    door_class = {"door", sizeof(door_data), door_spawn, door_update, door_action, JO_NULL, door_draw};
+/** @brief Draw a door on the slave CPU (see door_draw(): the distance of the view prepared by the master CPU) */
+static void                     door_draw_slave(jo_entity * const entity)
+{
+    door_data                   *d;
+    int                         bias;
+
+    d = (door_data *)entity->data;
+    if (entity->mesh == JO_NULL || entity->view_distance < 0)
+        return;
+    bias = doors_depth_bias(entity);
+    if (bias < 0 || !jo_3d_slave_push_matrix())
+        return;
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+    if (d->hinge)
+    {
+        jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+        jo_3d_slave_rotate_matrix(0, door_angle(entity), 0);
+    }
+    else
+    {
+        jo_pos3D_fixed          offset;
+
+        door_slide_offset(entity, &offset);
+        jo_3d_slave_translate_matrix_fixed(entity->position.x + offset.x, entity->position.y + offset.y, entity->position.z + offset.z);
+        jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+    }
+    jo_3d_slave_mesh_draw(entity->mesh);
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
+    jo_3d_slave_pop_matrix();
+}
+
+static const jo_entity_class    door_class = {"door", sizeof(door_data), door_spawn, door_update, door_action, JO_NULL, door_draw,
+                                               door_draw_slave, JO_NULL};
 
 /*
 ** The class billboard: a sprite standing on the feet of the entity, turned toward the agent around the vertical axis (the
@@ -771,7 +803,7 @@ void                            billboards_draw(void)
 }
 
 static const jo_entity_class    billboard_class = {"billboard", sizeof(billboard_data), billboard_spawn, JO_NULL, JO_NULL, JO_NULL,
-                                                   billboard_draw};
+                                                   billboard_draw, JO_NULL, JO_NULL};
 
 
 /*
@@ -1026,7 +1058,56 @@ void                            glass_shards_draw(const jo_entity * const entity
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }
 
-static const jo_entity_class    glass_class = {"glass", sizeof(glass_data), glass_spawn, glass_update, JO_NULL, JO_NULL, glass_draw};
+void                            glass_shards_draw_slave(const jo_entity * const entity)
+{
+    glass_shard                 *s;
+    int                         bias;
+    int                         k;
+
+    if (shard_mesh == JO_NULL || entity != shard_owner)
+        return;
+    for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
+    {
+        if (s->age < 0 || (bias = jo_cells_depth_bias_at(s->position.x, s->position.y - JO_FIXED_1, s->position.z)) < 0 ||
+            !jo_3d_slave_push_matrix())
+            continue;
+        jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        jo_3d_slave_translate_matrix_fixed(s->position.x, s->position.y, s->position.z);
+        jo_3d_slave_rotate_matrix(s->pitch, s->yaw, 0);
+        jo_3d_slave_mesh_draw(shard_mesh);
+        jo_3d_slave_pop_matrix();
+    }
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
+}
+
+/** @brief Draw a pane on the slave CPU (see glass_draw(): the distance of the view prepared by the master CPU) */
+static void                     glass_draw_slave(jo_entity * const entity)
+{
+    int                         bias;
+    int                         side;
+
+    if (!((glass_data *)entity->data)->broken && entity->mesh != JO_NULL && entity->view_distance >= 0)
+    {
+        side = jo_fixed_mult(player_x - entity->position.x, jo_sin(entity->yaw)) + jo_fixed_mult(player_z - entity->position.z, jo_cos(entity->yaw)) >= 0 ? 8 : -8;
+        bias = jo_cells_depth_bias_at(entity->position.x + jo_sin(entity->yaw) * side, entity->position.y - jo_int2fixed(20),
+                                      entity->position.z + jo_cos(entity->yaw) * side);
+        if (bias < 0)
+            bias = jo_cells_depth_bias_at(entity->position.x - jo_sin(entity->yaw) * side, entity->position.y - jo_int2fixed(20),
+                                          entity->position.z - jo_cos(entity->yaw) * side);
+        if (bias >= 0 && jo_3d_slave_push_matrix())
+        {
+            jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+            jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+            jo_3d_slave_mesh_draw(entity->mesh);
+            jo_3d_slave_pop_matrix();
+        }
+    }
+    glass_shards_draw_slave(entity);
+}
+
+static const jo_entity_class    glass_class = {"glass", sizeof(glass_data), glass_spawn, glass_update, JO_NULL, JO_NULL, glass_draw,
+                                                glass_draw_slave, JO_NULL};
 
 jo_fixed                        doors_glass_ray_hit(const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir, const jo_fixed max_t,
                                                     jo_pos3D_fixed * const normal, jo_entity ** const glass)
@@ -1276,7 +1357,7 @@ void                            doors_lights_update(const int elapsed)
     jo_3d_point_lights_update();
 }
 
-static const jo_entity_class    lamp_class = {"lamp", 0, lamp_spawn, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
+static const jo_entity_class    lamp_class = {"lamp", 0, lamp_spawn, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
 
 /** @brief The walls hide the glows of the lamps behind them */
 static bool                     lamp_ray_hit(const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir, const jo_fixed max_t)

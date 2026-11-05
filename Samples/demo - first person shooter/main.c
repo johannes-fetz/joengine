@@ -289,7 +289,18 @@ static void                     set_camera(void)
     jo_3d_translate_matrix_fixed(-eye.x, -eye.y, -eye.z);
 }
 
-/** @brief The world: the cells seen from the camera (shared by the 2 CPUs), the entities, the impacts */
+/** @brief The share of the cost of the entities drawn by the slave CPU (0 to 1024, see jo_entities_prepare_draw()): all
+ *  of them (the characters cost the most: about 4 ms for one near the camera), the master CPU draws the cells they leave
+ *  (the share of the cells, see jo_cells_draw_prepared_on_both_cpus()) */
+#define ENTITIES_SLAVE_SHARE    (1024)
+
+/** @brief What the slave CPU draws before its part of the cells: its entities (the job of the slave CPU) */
+static void                     slave_entities(void)
+{
+    jo_entities_draw_slave();
+}
+
+/** @brief The world: the cells seen from the camera (shared by the 2 CPUs), the entities (the slave CPU), the impacts */
 static void                     draw_world(void)
 {
     jo_pos3D_fixed              eye;
@@ -300,12 +311,16 @@ static void                     draw_world(void)
         set_camera();
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
         jo_cells_prepare(&eye);
+        // The entities seen, their tints, the ones of the slave CPU (before its job)
+        jo_entities_prepare_draw(ENTITIES_SLAVE_SHARE);
         jo_3d_slave_begin();
-        // (the cells shared by the 2 CPUs, their share balanced at each frame)
-        jo_cells_draw_prepared_on_both_cpus();
+        // (the entities of the slave CPU, then the cells shared by the 2 CPUs: half of the polygons of the frame to each
+        // one, the share balanced at each frame)
+        jo_cells_draw_prepared_on_both_cpus(slave_entities, jo_entities_polygon_count(true));
         jo_cells_draw_mirror(JO_NULL);
         // The glows of the lamps (VDP2 layers, placed with the camera: after the cells, their rectangles)
         jo_3d_glows_draw(&eye);
+        // (the entities of the master CPU: the ones with a draw callback after the ones of the slave CPU)
         jo_entities_draw();
         billboards_draw();
         // The fire and the smoke of the explosions (the explosive barrels)

@@ -150,6 +150,8 @@ void                                glass_burst(const jo_pos3D_fixed * const cen
 /** @brief The pieces of glass moved and drawn by the entity broken last (glass_burst(), a window) */
 void                                glass_shards_update(const jo_entity * const entity, const int elapsed);
 void                                glass_shards_draw(const jo_entity * const entity);
+/** @brief Draw the pieces of glass on the slave CPU (see glass_shards_draw()) */
+void                                glass_shards_draw_slave(const jo_entity * const entity);
 /** @brief The classes of the breakable things (props.c): the monitors of the computers, the glassware */
 void                                props_register(void);
 /** @brief Play a sound on one of count channels from first, in turn (*next): the oldest one is stopped if it still
@@ -262,6 +264,9 @@ void                                billboards_draw(void);
 void                                guards_register(void);
 /** @brief Their sounds, the sprite of the blood */
 void                                guards_load(void);
+#ifdef DEMO_TRACE
+void                                guards_trace(void);
+#endif
 /** @brief A shot on the cap of a guard in his fall (the cap follows the fall: the place where it was drawn)
  *  @param max_t Distance of what the shot hits first (world, fixed)
  *  @param knock true: the cap flies off his head

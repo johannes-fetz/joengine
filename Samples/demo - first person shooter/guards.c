@@ -970,6 +970,21 @@ static bool                         go_to(jo_entity * const e, const jo_fixed tx
     return (there);
 }
 
+/** @brief Read a position written by the slave CPU (the bones of a guard it drew, see guard_bone()): without the cache of
+ *  the master CPU, it may hold the old value */
+static void                         read_slave_position(const jo_pos3D_fixed * const written, jo_pos3D_fixed * const p)
+{
+    p->x = *(const volatile jo_fixed *)JO_CACHE_THROUGH(&written->x);
+    p->y = *(const volatile jo_fixed *)JO_CACHE_THROUGH(&written->y);
+    p->z = *(const volatile jo_fixed *)JO_CACHE_THROUGH(&written->z);
+}
+
+/** @brief Read a frame number written by the slave CPU (see read_slave_position()) */
+static int                          read_slave_frame(const int * const written)
+{
+    return (*(const volatile int *)JO_CACHE_THROUGH(written));
+}
+
 /** @brief The end of his rifle in the world (the aim pose) */
 static void                         muzzle_position(const jo_entity * const e, jo_pos3D_fixed * const p, const bool kneeling)
 {
@@ -977,9 +992,9 @@ static void                         muzzle_position(const jo_entity * const e, j
 
     // (drawn in this frame or the last one: the end of the barrel of his model)
     g = (const guard *)e->data;
-    if (g != JO_NULL && g->muzzle_frame >= frame_counter - 1)
+    if (g != JO_NULL && read_slave_frame(&g->muzzle_frame) >= frame_counter - 1)
     {
-        *p = g->muzzle;
+        read_slave_position(&g->muzzle, p);
         return;
     }
     p->x = e->position.x + jo_sin(e->yaw) * GUARD_RIFLE_LENGTH - jo_cos(e->yaw) * 2;
@@ -2024,6 +2039,8 @@ static face_polygons                *find_face_polygons(const jo_3d_model * cons
     int                             t;
     int                             id;
 
+    if (model == JO_NULL || model->mesh == JO_NULL)
+        return (JO_NULL);
     for (t = 0; t < face_model_count; ++t)
         if (face_models[t].model == model)
             return (&face_models[t]);
@@ -2049,8 +2066,11 @@ static face_polygons                *find_face_polygons(const jo_3d_model * cons
     return (f);
 }
 
-/** @brief Set the textures of a face on a model of the guards */
-static void                         set_face(const jo_3d_model * const model, const int face)
+/** @brief Set the textures of a face on a model of the guards
+ *  @param force Written even if it is the face set last: on the master CPU (the slave CPU sets the faces of the guards it
+ *         draws, the master CPU may hold the old textures in its cache: it writes them all, they go to its cache too)
+ */
+static void                         set_face(const jo_3d_model * const model, const int face, const bool force)
 {
     face_polygons                   *f;
     int                             k;
@@ -2059,7 +2079,7 @@ static void                         set_face(const jo_3d_model * const model, co
     if (!faces_loaded || model == JO_NULL || model->mesh == JO_NULL || (f = find_face_polygons(model)) == JO_NULL)
         return;
     // (the face set last: the same textures, nothing to write. The guards near each other often have the same face)
-    if (f->face == face)
+    if (f->face == face && !force)
         return;
     f->face = face;
     for (k = 0; k < f->count; ++k)
@@ -2070,11 +2090,25 @@ static void                         set_face(const jo_3d_model * const model, co
     }
 }
 
-/** @brief Draw a guard: his face, red for a moment after a hit (a tint of his gouraud tables) */
+/** @brief The tint of a guard (the light of the lamps on him, see jo_entities_prepare_draw()): red for a moment after a
+ *  hit */
+static void                         guard_tint(jo_entity * const e, int * const r, int * const g, int * const b)
+{
+    const guard                     *gd;
+
+    gd = (const guard *)e->data;
+    if (gd != JO_NULL && gd->hurt > 0)
+    {
+        *r = GUARD_HURT_RED * gd->hurt / GUARD_HURT_TIME;
+        *g = 0;
+        *b = 0;
+    }
+}
+
+/** @brief Draw a guard on the master CPU: his face, his cap shot off (its bone hidden) */
 static void                         guard_draw(jo_entity * const e)
 {
     guard                           *g;
-
     int                             left;
 
     g = (guard *)e->data;
@@ -2086,20 +2120,46 @@ static void                         guard_draw(jo_entity * const e)
         if (left < GUARD_FAR_COMMANDS)
             return;
         e->far_distance = left < GUARD_NEAR_COMMANDS ? 0 : g->far_distance;
-        set_face(g->actor.model, g->face);
-        set_face(g->actor.far_model, g->face);
+        set_face(g->actor.model, g->face, true);
+        set_face(g->actor.far_model, g->face, true);
     }
-    if (g != JO_NULL && g->hurt > 0)
-        jo_3d_set_tint(GUARD_HURT_RED * g->hurt / GUARD_HURT_TIME, 0, 0);
-    // (his cap shot off: its bone hidden)
     if (g != JO_NULL && g->hatless && cap_bone >= 0)
         jo_3d_model_set_hidden_bones(1u << cap_bone);
     jo_actor_draw(e);
     jo_3d_model_set_hidden_bones(0);
 }
 
-static const jo_entity_class        guard_class = {"guard", sizeof(guard), guard_spawn, guard_update, JO_NULL, guard_death, guard_draw};
-static const jo_entity_class        scientist_class = {"scientist", sizeof(guard), scientist_spawn, guard_update, JO_NULL, guard_death, guard_draw};
+/** @brief Draw a guard on the slave CPU (see jo_entities_draw_slave()): like guard_draw(), with the commands of the slave
+ *  CPU (nothing written in the entity: the master CPU reads it) */
+static void                         guard_draw_slave(jo_entity * const e)
+{
+    guard                           *g;
+    int                             left;
+    int                             far_distance;
+
+    g = (guard *)e->data;
+    far_distance = e->far_distance;
+    if (g != JO_NULL)
+    {
+        // (the table of the VDP1 is shared by the 2 CPUs: the commands of the slave CPU so far, the polygons of the cells
+        // of the master CPU as planned (not its count now: it depends on how far it got, a run would differ from another);
+        // the slave CPU drops its last commands when the table is full)
+        left = JO_MIN(jo_3d_slave_get_max_commands() - jo_3d_slave_get_current_command_count(),
+                      jo_vdp1_command_max() - jo_cells_prepared_polygon_count() * jo_cells_get_share() / 1024 -
+                      jo_3d_slave_get_current_command_count()) - GUARD_RESERVE_COMMANDS;
+        if (left < GUARD_FAR_COMMANDS)
+            return;
+        far_distance = left < GUARD_NEAR_COMMANDS ? 0 : g->far_distance;
+        set_face(g->actor.model, g->face, false);
+        set_face(g->actor.far_model, g->face, false);
+    }
+    jo_actor_draw_slave(e, far_distance, g != JO_NULL && g->hatless && cap_bone >= 0 ? 1u << cap_bone : 0);
+}
+
+static const jo_entity_class        guard_class = {"guard", sizeof(guard), guard_spawn, guard_update, JO_NULL, guard_death, guard_draw,
+                                                   guard_draw_slave, guard_tint};
+static const jo_entity_class        scientist_class = {"scientist", sizeof(guard), scientist_spawn, guard_update, JO_NULL, guard_death,
+                                                       guard_draw, guard_draw_slave, guard_tint};
 
 /** @brief Blood: drops flying out of the hit, falling */
 static void                         add_blood(const jo_pos3D_fixed * const p, const jo_pos3D_fixed * const dir)
@@ -2159,6 +2219,7 @@ jo_fixed                            guards_cap_ray_hit(const jo_pos3D_fixed * co
     jo_fixed                        ox;
     jo_fixed                        oy;
     jo_fixed                        oz;
+    jo_pos3D_fixed                  cap;
     int                             dx;
     int                             dy;
     int                             dz;
@@ -2170,11 +2231,12 @@ jo_fixed                            guards_cap_ray_hit(const jo_pos3D_fixed * co
     {
         // (a guard in his fall, his cap on his head, drawn in the last frame: its place follows the fall)
         if (e->cls != &guard_class || (g = (guard *)e->data) == JO_NULL || g->state != GUARD_DEAD || g->hatless ||
-            g->cap_frame < frame_counter - 1 || (e->flags & JO_ENTITY_FLAG_HIDDEN))
+            read_slave_frame(&g->cap_frame) < frame_counter - 1 || (e->flags & JO_ENTITY_FLAG_HIDDEN))
             continue;
-        ox = g->cap.x - origin->x;
-        oy = g->cap.y - origin->y;
-        oz = g->cap.z - origin->z;
+        read_slave_position(&g->cap, &cap);
+        ox = cap.x - origin->x;
+        oy = cap.y - origin->y;
+        oz = cap.z - origin->z;
         if (JO_ABS(ox) > best_t || JO_ABS(oy) > best_t || JO_ABS(oz) > best_t)
             continue;
         // (the point of the shot nearest to the middle of the cap)
@@ -2195,7 +2257,8 @@ jo_fixed                            guards_cap_ray_hit(const jo_pos3D_fixed * co
     {
         g = (guard *)best->data;
         g->hatless = true;
-        knock_cap(best, dir, &g->cap);
+        read_slave_position(&g->cap, &cap);
+        knock_cap(best, dir, &cap);
     }
     return (best_t);
 }
@@ -2714,6 +2777,23 @@ void                                guards_load(void)
     find_cap_middle(unarmed_model);
     unarmed_far_model = jo_3d_load_model("GUARDNF.JOM");
     load_faces();
+    // (the face polygons of the models of the guards found now, by the master CPU: the slave CPU reads them when it draws
+    // the guards, it must not find them)
+    if (faces_loaded)
+    {
+        jo_entity                   *e;
+        const guard                 *g;
+        int                         k;
+
+        for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+            if ((e->cls == &guard_class || e->cls == &scientist_class) && (g = (const guard *)e->data) != JO_NULL)
+            {
+                find_face_polygons(g->actor.model);
+                find_face_polygons(g->actor.far_model);
+            }
+        find_face_polygons(unarmed_model);
+        find_face_polygons(unarmed_far_model);
+    }
     sounds_loaded = load_sound("GSHOT1.WAV", &guard_shots[0]) && load_sound("GSHOT2.WAV", &guard_shots[1]) &&
                     load_sound("GPAIN1.WAV", &pain_sounds[0]) && load_sound("GPAIN2.WAV", &pain_sounds[1]) &&
                     load_sound("GPAIN3.WAV", &pain_sounds[2]) && load_sound("GPAIN4.WAV", &pain_sounds[3]);
