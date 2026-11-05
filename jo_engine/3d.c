@@ -5918,7 +5918,10 @@ __asm__(
      /* (the budget of the subdivisions of the frame spent: drawn as one, the fast path, see jo_3d_subdivision_level()) */
 "    mov.l @(56, r14), r0\n"
 "    tst r0, r0\n"
-"    bf 55f\n"
+"    bt 60f\n"                           /* (55 is out of reach of a conditional branch) */
+"    bra 55f\n"
+"    nop\n"
+"60:\n"
 "    mov.w @(2, r9), r0\n"               /* the tiles of the texture (sprite x 12) */
 "    extu.w r0, r1\n"
 "    mov r1, r0\n"
@@ -5942,7 +5945,10 @@ __asm__(
 "    mov.l @(4, r7), r2\n"
 "    or r2, r0\n"
 "    tst #79, r0\n"
-"    bt 55f\n"
+"    bf 61f\n"
+"    bra 55f\n"
+"    nop\n"
+"61:\n"
 "    mov.l @r4, r0\n"
 "    swap.w r0, r0\n"
 "    exts.w r0, r2\n"
