@@ -155,6 +155,12 @@ int                                     __jo_vdp1_depth_bias = 0;
 /** @brief Variable shared by the CPUs: read and written through its cache-through address */
 # define JO_VDP1_SHARED(VARIABLE)           (*(volatile __typeof__(VARIABLE) *)JO_CACHE_THROUGH(&(VARIABLE)))
 
+/** @brief Changes of a window in a frame after commands were drawn in it, at most (see __jo_vdp1_keep_window(): beyond, the
+ *  commands before a change take the window as it is at the end of the frame) */
+# define JO_VDP1_WINDOW_CHANGES             (8)
+/** @brief Headers of a frame: the windows, the windows before their changes */
+# define JO_VDP1_HEADER_SLOTS               (JO_VDP1_WINDOW_COUNT + JO_VDP1_WINDOW_CHANGES)
+
 /** @brief Commands of a frame: filled by the master CPU, sorted and copied into the VRAM at the end of the frame */
 typedef struct
 {
@@ -168,6 +174,12 @@ typedef struct
     unsigned int                        tag;                    // Number of the frame (see __jo_vdp1_frame_tag())
     bool                                wireframe;              // The polygons drawn as their outline (see jo_3d_set_wireframe())
     bool                                windows_apart;          // The windows drawn one after the other (see jo_3d_set_windows_apart())
+    // The windows changed during the frame after commands (see __jo_vdp1_keep_window()): the commands before each change
+    // keep the window as it was (a header of its own, window JO_VDP1_WINDOW_COUNT + k)
+    unsigned int                        window_change_count;
+    unsigned int                        window_change_end[JO_VDP1_WINDOW_CHANGES];      // Commands before the change
+    unsigned short                      window_change_window[JO_VDP1_WINDOW_CHANGES];   // The window changed
+    jo_vdp1_window                      window_change_state[JO_VDP1_WINDOW_CHANGES];    // The window before the change
 }                                       jo_vdp1_frame;
 
 /** @brief The windows do not overlap: the commands of each window are drawn together (see jo_3d_set_windows_apart()) */
@@ -220,7 +232,7 @@ static unsigned short                   __jo_vdp1_sort_b[JO_VDP1_MAX_COMMANDS] J
 /* Copy of the command tables into the VRAM: SCU DMA level (the SCU DMA can't read the low work RAM) */
 # define JO_VDP1_SCU_DMA_LEVEL              (0)
 /** @brief Commands added to the frames: the headers of the windows, the clear polygon and the end command */
-# define JO_VDP1_DMA_CLEAR_COMMAND          (JO_VDP1_HEADER_COMMANDS * JO_VDP1_WINDOW_COUNT)
+# define JO_VDP1_DMA_CLEAR_COMMAND          (JO_VDP1_HEADER_COMMANDS * JO_VDP1_HEADER_SLOTS)
 # define JO_VDP1_DMA_END_COMMAND            (JO_VDP1_DMA_CLEAR_COMMAND + 1)
 static jo_vdp1_command                  __jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND + 1] __attribute__((aligned(16))) JO_WORK_RAM_ENGINE_WORK_SECTION;
 /** @brief Indirect table of the SCU DMA: byte count, VRAM address, source address (one entry per command at most, see
@@ -312,7 +324,10 @@ void                                    __jo_vdp1_init(void)
     JO_VDP1_SHARED(__jo_vdp1_shown_field) = ~0u;
     JO_VDP1_SHARED(__jo_vdp1_next_shown_field) = ~0u;
     for (JO_ZERO(i); i < JO_VDP1_FRAME_BUFFERS; ++i)
+    {
         JO_ZERO(__jo_vdp1_frames[i].count);
+        JO_ZERO(__jo_vdp1_frames[i].window_change_count);
+    }
     __jo_vdp1_frame = &__jo_vdp1_frames[0];
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     JO_ZERO(__jo_vdp1_frames_sent);
@@ -439,7 +454,7 @@ static void                             jo_vdp1_make_header(jo_vdp1_command * co
 {
     const jo_vdp1_window                *w;
 
-    w = &frame->windows[window];
+    w = window < JO_VDP1_WINDOW_COUNT ? &frame->windows[window] : &frame->window_change_state[window - JO_VDP1_WINDOW_COUNT];
     jo_memset(c, 0, JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command));
     c[0].ctrl = JO_VDP1_CMD_SYSTEM_CLIP;
     c[0].xc = frame->system_clip_right;
@@ -651,17 +666,17 @@ static unsigned short                   *jo_vdp1_radix_sort(const jo_vdp1_frame 
  */
 static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_frame * const frame, const unsigned short * const order)
 {
-    unsigned int                        first[JO_VDP1_WINDOW_COUNT];
+    unsigned int                        first[JO_VDP1_HEADER_SLOTS];
     unsigned int                        sum;
     register unsigned int               i;
     unsigned int                        n;
 
     n = frame->count;
-    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+    for (JO_ZERO(i); i < JO_VDP1_HEADER_SLOTS; ++i)
         JO_ZERO(first[i]);
     for (JO_ZERO(i); i < n; ++i)
         ++first[frame->window[i]];
-    for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_WINDOW_COUNT; ++i)
+    for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_HEADER_SLOTS; ++i)
     {
         n = first[i];
         first[i] = sum;
@@ -852,6 +867,35 @@ static  __jo_force_inline bool          jo_vdp1_dma_busy(void)
     return ((JO_SCU_DMA_STATUS & JO_SCU_DMA_STATUS_BUSY(JO_VDP1_SCU_DMA_LEVEL)) != 0);
 }
 
+/** @brief The first command that fits in the table with the headers of its window changes (the commands sorted far to
+ *  near: the farthest ones are dropped first)
+ *  @param frame Frame (the windows of its commands)
+ *  @param order Command indexes in the order of the sort
+ *  @param n Number of commands (at least one)
+ *  @param room Commands the table can take
+ *  @return Index in order of the first command to draw (0: all)
+ */
+static unsigned int                     jo_vdp1_first_fitting(const jo_vdp1_frame * const frame, const unsigned short * const order,
+                                                              unsigned int n, const unsigned int room)
+{
+    unsigned int                        cost;
+    unsigned short                      window;
+    unsigned short                      previous;
+
+    // From the nearest: each command, and the header of each run of commands of a window
+    previous = frame->window[order[n - 1]];
+    cost = JO_VDP1_HEADER_COMMANDS + 1;
+    while (--n > 0)
+    {
+        window = frame->window[order[n - 1]];
+        cost += window != previous ? JO_VDP1_HEADER_COMMANDS + 1 : 1;
+        if (cost > room)
+            return (n);
+        previous = window;
+    }
+    return (0);
+}
+
 /** @brief Sort the commands of a frame and copy them into the VDP1 VRAM: the table is displayed at the next VBLANK after the copy
  *  @param argument Frame (jo_vdp1_frame)
  *  @remarks Job of the slave CPU (see __jo_vdp1_end_frame()), or called by the master CPU
@@ -883,6 +927,11 @@ static void                             jo_vdp1_send_frame(void *argument)
     // The sort only uses the work RAM: it is done while the VDP1 is still drawing
     jo_profile_begin(JO_PROFILE_VDP1_SORT);
     n = frame->count;
+    // (the commands drawn before a change of their window: the window as it was, see __jo_vdp1_keep_window())
+    for (i = 0; i < frame->window_change_count; ++i)
+        for (j = 0; j < frame->window_change_end[i]; ++j)
+            if (frame->window[j] == frame->window_change_window[i])
+                ((jo_vdp1_frame *)frame)->window[j] = (unsigned short)(JO_VDP1_WINDOW_COUNT + i);
     order = jo_vdp1_radix_sort(frame);
     if (frame->windows_apart)
         order = jo_vdp1_group_windows(frame, order);
@@ -914,7 +963,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     // Keep room for the end command
     limit = ((table == JO_VDP1_TABLE_A_OFFSET) ? JO_VDP1_TABLE_B_OFFSET : JO_VDP1_TEXTURE_DEF_BASE_ADDRESS) - sizeof(jo_vdp1_command);
     // Headers of the windows and end command
-    for (window = 0; window < JO_VDP1_WINDOW_COUNT; ++window)
+    for (window = 0; window < JO_VDP1_WINDOW_COUNT + (int)frame->window_change_count; ++window)
         jo_vdp1_make_header(&__jo_vdp1_dma_commands[window * JO_VDP1_HEADER_COMMANDS], frame, window);
     jo_memset(&__jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND], 0, sizeof(jo_vdp1_command));
     __jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND].ctrl = JO_VDP1_CMD_END;
@@ -932,6 +981,16 @@ static void                             jo_vdp1_send_frame(void *argument)
         current_window = 0;
         jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND], offset, sizeof(jo_vdp1_command));
         offset += sizeof(jo_vdp1_command);
+    }
+    // A window change costs JO_VDP1_HEADER_COMMANDS commands in the table, jo_vdp1_command_max() keeps room for 2: when
+    // the commands of the windows are mixed by depth (a room seen through a door, drawn in its clipped window, around
+    // the camera standing in the door), the table could overflow, and the nearest commands (the weapon, the HUD) would
+    // be the ones dropped. The farthest ones are dropped instead (counted only when the frame could overflow)
+    if (n > 0 && n * (JO_VDP1_HEADER_COMMANDS + 1) > (limit - offset) / sizeof(jo_vdp1_command))
+    {
+        j = jo_vdp1_first_fitting(frame, order, n, (limit - offset) / sizeof(jo_vdp1_command));
+        order += j;
+        n -= j;
     }
     // Far to near. Commands with the same depth are drawn in submission order
 #ifndef JO_VDP1_SORT_IN_C
@@ -1055,9 +1114,12 @@ void                                    __jo_vdp1_end_frame(void)
     __jo_vdp1_last_count = frame->count;
     // The pace of the images (see JO_VDP1_PACED): the table is sent in the last field of the frame at the earliest, the
     // VDP1 takes it at the VBLANK that starts the next frame (the master CPU waits for that VBLANK anyway)
+    // (at 60 frames per second there is no field to wait for)
+#if JO_FRAMERATE > 1
     if (JO_VDP1_MANUAL_CHANGE && JO_VDP1_PACED)
         while (JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
             ;
+#endif
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_core_is_slave_running())
     {
@@ -1085,6 +1147,7 @@ void                                    __jo_vdp1_end_frame(void)
         while (jo_vdp1_dma_busy())
             ;
         JO_ZERO(frame->count);
+        JO_ZERO(frame->window_change_count);
         __jo_vdp1_frame = frame;
         return;
     }
@@ -1094,6 +1157,7 @@ void                                    __jo_vdp1_end_frame(void)
     while (jo_vdp1_dma_busy())
         ;
     JO_ZERO(frame->count);
+    JO_ZERO(frame->window_change_count);
 }
 
 void                                    jo_vdp1_redraw_last_frame(void)
@@ -1485,12 +1549,37 @@ void                                    jo_sprite_set_system_clipping_area(const
     __jo_vdp1_system_clip_bottom = height - 1;
 }
 
+/** @brief Before a change of the current window: the commands drawn so far in the frame keep the window as it is (its
+ *  header is written once per frame from the window at the end of the frame: a window changed in the middle of a frame,
+ *  like the render to image demo that draws into a window out of the screen and then sets it to the whole screen, lost
+ *  its first state)
+ */
+static void                             __jo_vdp1_keep_window(void)
+{
+    jo_vdp1_frame                       *frame;
+    unsigned int                        k;
+
+    frame = __jo_vdp1_frame;
+    k = frame->window_change_count;
+    // (no command yet, or none since the last change of this window: nothing to keep)
+    if (frame->count == 0 || k >= JO_VDP1_WINDOW_CHANGES ||
+        (k > 0 && frame->window_change_end[k - 1] == frame->count && frame->window_change_window[k - 1] == __jo_vdp1_current_window))
+        return;
+    frame->window_change_end[k] = frame->count;
+    frame->window_change_window[k] = (unsigned short)__jo_vdp1_current_window;
+    frame->window_change_state[k] = __jo_vdp1_windows[__jo_vdp1_current_window];
+    frame->window_change_count = k + 1;
+}
+
 void                                    __jo_vdp1_set_window(const short left, const short top, const short right, const short bottom,
                                                              const short zlimit, const short center_x, const short center_y)
 {
     jo_vdp1_window                      *w;
 
     w = &__jo_vdp1_windows[__jo_vdp1_current_window];
+    // (the header of the window changes: the commands before keep the window as it was)
+    if (w->left != left || w->top != top || w->right != right || w->bottom != bottom)
+        __jo_vdp1_keep_window();
     w->left = left;
     w->top = top;
     w->right = right;
@@ -1514,6 +1603,9 @@ void                                    __jo_vdp1_set_window_clip(const bool cli
     jo_vdp1_window                      *w;
 
     w = &__jo_vdp1_windows[__jo_vdp1_current_window];
+    // (the origin of the header changes with a screen of its own)
+    if ((clip && __jo_vdp1_windows_apart) != w->screen)
+        __jo_vdp1_keep_window();
     w->clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
     w->screen = clip && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? w->left : 0;
