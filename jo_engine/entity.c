@@ -579,6 +579,16 @@ void                                jo_entities_damage_area(const jo_pos3D_fixed
 ** Update, drawing
 */
 
+/** @brief Wake rule of the entities (see jo_entities_set_wake()) */
+static int                          __jo_entity_wake_distance = JO_ENTITY_WAKE_DISTANCE;
+static bool                         __jo_entity_wake_when_seen = false;
+
+void                                jo_entities_set_wake(const int distance, const bool when_seen)
+{
+    __jo_entity_wake_distance = JO_MAX(distance, 0);
+    __jo_entity_wake_when_seen = when_seen;
+}
+
 void                                jo_entities_update(const jo_pos3D_fixed * const player, const int elapsed)
 {
     int                             k;
@@ -609,7 +619,9 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
             continue;
         dx = JO_ABS(jo_fixed2int(e->position.x - player->x));
         dz = JO_ABS(jo_fixed2int(e->position.z - player->z));
-        if (e->timer > 0 || (dx < JO_ENTITY_WAKE_DISTANCE && dz < JO_ENTITY_WAKE_DISTANCE))
+        // (seen: drawn in the last frame, see jo_entities_prepare_draw())
+        if (e->timer > 0 || (dx < __jo_entity_wake_distance && dz < __jo_entity_wake_distance) ||
+                (__jo_entity_wake_when_seen && e->view_distance >= 0))
             e->cls->update(e, elapsed);
     }
 }
@@ -1678,6 +1690,7 @@ void                                jo_actor_spawn(jo_entity * const entity)
         a->far_model = JO_NULL;
     a->animation = -1;
     a->previous = -1;
+    a->shadow_radius = JO_MAX(0, jo_entity_get_int(entity, "shadow", 0));
     jo_actor_play(entity, jo_entity_get_string(entity, "animation", "idle"), 0);
     // (the time of the animation: a crowd doesn't move together)
     a->time = (int)(entity - __jo_entities) * 337;
@@ -1759,6 +1772,77 @@ static void                         __jo_actor_bone(const int bone, void * const
     ((jo_actor *)entity->data)->bone_callback(entity, bone, matrix);
 }
 
+void                                jo_actor_set_shadow(jo_entity * const entity, const int radius)
+{
+    if (entity != JO_NULL && entity->data != JO_NULL)
+        ((jo_actor *)entity->data)->shadow_radius = JO_MAX(0, radius);
+}
+
+/** @brief The shadow of an actor: an octagon on the ground in 3 quads, darkened by the VDP1 (color calculation "shadow"),
+ *  sorted on its center (the ground under it is sorted on its farthest corner: behind the shadow). One mesh for each CPU
+ *  (the slave CPU draws while the master CPU prepares the next frame) */
+typedef struct
+{
+    jo_pos3D_fixed                  points[8];
+    jo_3d_polygon                   polygons[3];
+    jo_3d_polygon_attribute         attributes[3];
+    jo_3d_mesh                      mesh;
+}                                   __jo_actor_shadow;
+
+static __jo_actor_shadow            __jo_actor_shadows[2];
+
+/** @brief The octagon of the shadow (cos and sin of k x 45 degrees, Q16), its quads */
+static const jo_fixed               __jo_actor_shadow_cos[8] = {65536, 46341, 0, -46341, -65536, -46341, 0, 46341};
+static const unsigned short         __jo_actor_shadow_quads[3][4] = {{0, 1, 2, 3}, {0, 3, 4, 7}, {7, 4, 5, 6}};
+
+/** @brief The shadow mesh of a CPU under an actor (world space), JO_NULL: none */
+static jo_3d_mesh                   *__jo_actor_shadow_mesh(const jo_entity * const entity, const int cpu)
+{
+    const jo_actor                  *a;
+    __jo_actor_shadow               *sh;
+    jo_fixed                        r;
+    int                             k;
+
+    a = (const jo_actor *)entity->data;
+    if (a->shadow_radius <= 0)
+        return (JO_NULL);
+    sh = &__jo_actor_shadows[cpu];
+    if (sh->mesh.data.points == JO_NULL)
+    {
+        for (k = 0; k < 3; ++k)
+        {
+            sh->polygons[k].normal.x = 0;
+            sh->polygons[k].normal.y = -JO_FIXED_1;
+            sh->polygons[k].normal.z = 0;
+            sh->polygons[k].vertices[0] = __jo_actor_shadow_quads[k][0];
+            sh->polygons[k].vertices[1] = __jo_actor_shadow_quads[k][1];
+            sh->polygons[k].vertices[2] = __jo_actor_shadow_quads[k][2];
+            sh->polygons[k].vertices[3] = __jo_actor_shadow_quads[k][3];
+            sh->attributes[k].plane = JO_3D_DUAL_PLANE;
+            sh->attributes[k].sort = JO_3D_SORT_CENTER | JO_VDP1_DIRECTION_OPTIONS(JO_VDP1_POLYGON);
+            sh->attributes[k].texture_id = JO_3D_NO_TEXTURE;
+            sh->attributes[k].draw_mode = JO_VDP1_COLOR_MODE_RGB | JO_VDP1_COLOR_CALC_SHADOW |
+                                          JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_POLYGON);
+            sh->attributes[k].color = JO_COLOR_Black;
+            sh->attributes[k].gouraud_table = JO_VDP1_NO_GOURAUD;
+            sh->attributes[k].direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_POLYGON);
+        }
+        sh->mesh.data.point_count = 8;
+        sh->mesh.data.polygons = sh->polygons;
+        sh->mesh.data.polygon_count = 3;
+        sh->mesh.data.attributes = sh->attributes;
+        sh->mesh.data.points = sh->points;
+    }
+    r = jo_int2fixed(a->shadow_radius);
+    for (k = 0; k < 8; ++k)
+    {
+        sh->points[k].x = entity->position.x + jo_fixed_mult(r, __jo_actor_shadow_cos[k]);
+        sh->points[k].y = entity->position.y;
+        sh->points[k].z = entity->position.z + jo_fixed_mult(r, __jo_actor_shadow_cos[(k + 6) & 7]);
+    }
+    return (&sh->mesh);
+}
+
 void                                jo_actor_draw(jo_entity * const entity)
 {
     jo_actor                        *a;
@@ -1790,6 +1874,13 @@ void                                jo_actor_draw(jo_entity * const entity)
         jo_3d_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity);
     }
     jo_3d_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 0);
+        if (shadow != JO_NULL)
+            jo_3d_mesh_draw(shadow);
+    }
 }
 
 void                                jo_actor_draw_slave(jo_entity * const entity, const int far_distance, const unsigned int hidden_bones)
@@ -1818,6 +1909,13 @@ void                                jo_actor_draw_slave(jo_entity * const entity
         jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
     jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
     jo_3d_slave_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 1);
+        if (shadow != JO_NULL)
+            jo_3d_slave_mesh_draw(shadow);
+    }
 #else
     // (without the dual CPU module: drawn by the master CPU)
     jo_3d_push_matrix();
@@ -1828,6 +1926,13 @@ void                                jo_actor_draw_slave(jo_entity * const entity
         jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
     }
     jo_3d_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 0);
+        if (shadow != JO_NULL)
+            jo_3d_mesh_draw(shadow);
+    }
 #endif
 }
 

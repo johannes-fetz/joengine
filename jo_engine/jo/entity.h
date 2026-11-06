@@ -57,7 +57,8 @@
 # define JO_ENTITY_MAX_PENDING              (32)
 /** @brief Different models of the entities at most (the models of the classes too: the things broken, the pieces) */
 # define JO_ENTITY_MAX_MODELS               (32)
-/** @brief The entities farther from the player are not updated (world units), unless they wait for something (timer) */
+/** @brief The entities farther from the player are not updated (world units), unless they wait for something (timer), see
+ *  jo_entities_set_wake() */
 # define JO_ENTITY_WAKE_DISTANCE            (3000)
 /** @brief The models of the entities farther are not drawn (world units), see the property draw_distance */
 # define JO_ENTITY_DRAW_DISTANCE            (2000)
@@ -174,6 +175,15 @@ void                                jo_entities_free(void);
  *  @param elapsed Time since the last update (milliseconds)
  */
 void                                jo_entities_update(const jo_pos3D_fixed * const player, const int elapsed);
+
+/** @brief The entities updated by jo_entities_update(): the ones that wait for something (timer > 0), the ones near the
+ *  player, and the ones seen
+ *  @param distance Nearer than it on X and Z (world units, JO_ENTITY_WAKE_DISTANCE by default; 0: none by the distance)
+ *  @param when_seen true: also the ones drawn in the last frame (in a cell seen, in the view: see jo_entities_prepare_draw()),
+ *  false by default. With a short distance, the entities behind the walls sleep (less CPU): their class wakes them by
+ *  their timer (a noise, an alarm)
+ */
+void                                jo_entities_set_wake(const int distance, const bool when_seen);
 
 /** @brief Prepare the drawing of the entities of the frame (the camera matrix is the current matrix, see
  *  jo_3d_set_depth_bias()): the ones seen, their tint (the light of the lamps, see jo_3d_point_lights_sample()), the share
@@ -398,6 +408,7 @@ typedef struct
     int                             blend;          // Milliseconds left of the blend with the previous animation
     int                             blend_duration;
     jo_actor_bone_callback          bone_callback;  // JO_NULL: none
+    int                             shadow_radius;  // (property shadow) Its shadow on the ground (world units), 0: none
 }                                   jo_actor;
 
 /** @brief Create the actor of an entity: its model (the model of the entity, it has a skeleton), the animation of its
@@ -405,6 +416,13 @@ typedef struct
  *  @param entity Entity (its data starts with a jo_actor)
  */
 void                                jo_actor_spawn(jo_entity * const entity);
+
+/** @brief The shadow of an actor on the ground: a dark disc under its position (its feet), drawn with its model by
+ *  jo_actor_draw() and jo_actor_draw_slave() (the VDP1 darkens the pixels under it: 1 to 3 commands)
+ *  @param entity The actor
+ *  @param radius Radius (world units), 0: none (the property shadow of the entity, 0 by default)
+ */
+void                                jo_actor_set_shadow(jo_entity * const entity, const int radius);
 
 /** @brief Advance the animation of an actor
  *  @param entity Entity
