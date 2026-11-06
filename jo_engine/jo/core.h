@@ -217,6 +217,74 @@ void    jo_core_tv_off(void);
  */
 void    jo_core_tv_on(void);
 
+/** @brief The screen now (Internal usage, see jo_core_set_screen_resolution()) */
+typedef struct
+{
+    short   width;
+    short   height;
+    short   width_2;
+    short   height_2;
+    /** @brief The size of the screen in pixels of NBG0 and NBG1 (jo_printf(), the NBG1 bitmap): they are zoomed 2 times
+     *  in the hi-res and interlace modes */
+    short   background_width;
+    short   background_height;
+    /** @brief 640 or 704 pixels: the frame buffer of the VDP1 has 8 bits per pixel */
+    bool    hires;
+    /** @brief 448 to 512 lines: double density interlace */
+    bool    interlace;
+    /** @brief 352 or 704 pixels: the system clock is 28.6 MHz (26.8 MHz otherwise) */
+    bool    clock_352;
+    /** @brief Single density interlace (see jo_core_set_screen_single_interlace()) */
+    bool    single_interlace;
+}           __jo_screen_mode;
+
+/** @brief The screen now (Internal usage) */
+extern __jo_screen_mode     __jo_screen;
+
+/** @brief Change the resolution of the screen while the game runs
+ *  @param width 320, 352, 640 or 704 pixels
+ *  @param height 224 or 240 lines (256 in PAL), or 448 or 480 (512 in PAL): double density interlace
+ *  @return true if succeed, false if the resolution is not supported
+ *  @remarks The text (jo_printf()) and the NBG1 bitmap keep their size: they are zoomed 2 times in the 640 and 704 pixels
+ *  modes and in the interlace modes. The sprites and the 3D are drawn with all the pixels of the screen
+ *  @remarks In the 640 and 704 pixels modes, the VDP1 draws 8 bits per pixel: only the palette sprites (8 bits images) and
+ *  the colors of a palette (see jo_core_set_screen_palette()) are displayed, not the RGB colors
+ *  @remarks 320 and 640 pixels use the 26.8 MHz clock, 352 and 704 pixels the 28.6 MHz clock: the clock is chosen at the
+ *  start by JO_SCREEN_WIDTH (makefile) and the width can only change inside its family (false otherwise)
+ *  @remarks The windows (jo_3d_window()) and the VDP2 windows (jo_vdp2_set_window()) are reset to the whole screen
+ */
+bool    jo_core_set_screen_resolution(const int width, const int height);
+
+/** @brief Single density interlace: the image of 224 to 256 lines is displayed in the 2 fields, the second one half a
+ *  line lower (the look of the games that use it on a CRT: no dark lines between the lines, a slight flicker)
+ *  @param enabled true to enable it, false for the progressive display (default)
+ *  @remarks Only in the modes of 224 to 256 lines: the 448 to 512 lines modes are always double density interlace
+ */
+void    jo_core_set_screen_single_interlace(const bool enabled);
+
+/** @brief Get the width of the screen
+ *  @return Width in pixels (JO_TV_WIDTH at the start, see jo_core_set_screen_resolution())
+ */
+static  __jo_force_inline int      jo_core_get_screen_width(void)
+{
+    return (__jo_screen.width);
+}
+
+/** @brief Get the height of the screen
+ *  @return Height in lines (JO_TV_HEIGHT at the start, see jo_core_set_screen_resolution())
+ */
+static  __jo_force_inline int      jo_core_get_screen_height(void)
+{
+    return (__jo_screen.height);
+}
+
+/** @brief Choose the palette of the sprites in the 640 and 704 pixels modes (the frame buffer of the VDP1 has 8 bits per
+ *  pixel: one palette of 256 colors for all the sprites)
+ *  @param palette_id Palette (jo_create_palette())
+ *  @remarks A polygon of color palette_id * 256 + k (k from 1 to 255) has the color k of the palette in all the modes
+ */
+void    jo_core_set_screen_palette(const int palette_id);
+
 /** @brief Get the refresh rate of the console
  *  @return 50 for a PAL console, 60 for a NTSC console
  *  @remarks This is the number of VBLANK per second (see jo_core_add_vblank_callback())

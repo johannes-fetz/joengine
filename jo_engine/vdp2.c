@@ -67,16 +67,18 @@ static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
 static int                          *nbg1_scroll_table = JO_NULL;
 static int                          *nbg1_vertical_cell_scroll_table = JO_NULL;
-#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 //NBG2
 static unsigned short               *nbg2_map = JO_NULL;
 static unsigned char                *nbg2_cell = JO_NULL;
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 static char                         *nbg2_font_str = JO_NULL;
 static unsigned short               nbg2_font_paloff = 0;
 static int                          nbg2_font_map_offset = 0;
+#endif
 //NBG3
 static unsigned short               *nbg3_map = JO_NULL;
 static unsigned char                *nbg3_cell = JO_NULL;
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 static char                         *nbg3_font_str = JO_NULL;
 static unsigned short               nbg3_font_paloff = 0;
 static int                          nbg3_font_map_offset = 0;
@@ -85,6 +87,7 @@ static int                          nbg3_font_map_offset = 0;
 static unsigned char                *rbg0_cell_a = JO_NULL;
 static unsigned char                *rbg0_cell_b = JO_NULL;
 static unsigned short               *rbg0_map_a = JO_NULL;
+static unsigned short               *rbg0_map_a_border = JO_NULL;
 static unsigned short               *rbg0_map_b = JO_NULL;
 static void                         *rbg0_ktable = JO_NULL;
 static void                         *rbg0_rtable = JO_NULL;
@@ -130,6 +133,8 @@ applied atomically between two frames.
 # define JO_VDP2_TVMD_BORDER_BACK_COLOR     (1 << 8)
 /** @brief TVMD: double density interlace */
 # define JO_VDP2_TVMD_DOUBLE_DENSITY        (3 << 6)
+/** @brief TVMD: single density interlace */
+# define JO_VDP2_TVMD_SINGLE_DENSITY        (2 << 6)
 /** @brief TVMD: vertical resolution shift */
 # define JO_VDP2_TVMD_VRESO_SHIFT           (4)
 
@@ -249,6 +254,10 @@ applied atomically between two frames.
 
 /** @brief SPCTL: sprite type 3 */
 # define JO_VDP2_SPCTL_TYPE_3               (3)
+/** @brief SPCTL: sprite type F (8 bits frame buffer of the hi-res modes: 256 colors, priority register 0) */
+# define JO_VDP2_SPCTL_TYPE_F               (0xF)
+/** @brief SPCTL: sprite type bits */
+# define JO_VDP2_SPCTL_TYPE_MASK            (0xF)
 /** @brief SPCTL: palette and RGB sprites mixed */
 # define JO_VDP2_SPCTL_MIXED_COLOR          (1 << 5)
 /** @brief SPCTL: color calculation condition bits */
@@ -401,10 +410,19 @@ static jo_vdp2_screen               __jo_vdp2_screens[JO_VDP2_SCREEN_COUNT];
 static unsigned int                 __jo_vdp2_displayed_screens;
 /* The NBG1 registers hold the configuration of the NBG1 bitmap (see jo_vdp2_use_nbg1_bitmap()) */
 static bool                         __jo_vdp2_nbg1_bitmap_registers = false;
+/** @brief The NBG1 bitmap has 256 colors at the resolution of the screen (see jo_vdp2_set_nbg1_8bits_bitmap()) */
+static bool                         __jo_vdp2_nbg1_native = false;
+/** @brief BMPNA and BMPNB: palette number of a 256 colors bitmap (x 256 colors) */
+# define JO_VDP2_BMPN_PALETTE_MASK      (0x0007)
+/** @brief Sprite type of the 640 and 704 pixels modes (see jo_vdp2_set_hires_sprite_mode()) */
+static unsigned short               __jo_vdp2_hires_sprite_type = 0xF;
 static void                         jo_vdp2_use_nbg1_bitmap(void);
 static bool                         jo_vdp2_nbg1_bitmap_ready(void);
 static void                         jo_vdp2_display_nbg1(void);
 static unsigned int                 __jo_vdp2_rotation_map[2];
+/** @brief Map of the 15 planes around the plane A of the rotation parameter A (see jo_vdp2_set_rbg0_plane_a_8bits_island()),
+ *  0: the 16 planes show the map of the image */
+static unsigned int                 __jo_vdp2_rotation_island_map = 0;
 
 /** @brief Get the VRAM offset of an address
  *  @param addr Address in VDP2 VRAM
@@ -444,6 +462,15 @@ static unsigned short               jo_vdp2_supplementary_character(const jo_vdp
     return ((character >> 10) & JO_VDP2_SUPPLEMENTARY_CHARACTER_MASK);
 }
 
+/** @brief Screens whose special function codes change the priority (see jo_vdp2_enable_special_priority()) */
+static unsigned short               __jo_vdp2_special_priority_screens = 0;
+/** @brief Screens whose special function codes enable the color calculation (see jo_vdp2_enable_special_blend()) */
+static unsigned short               __jo_vdp2_special_blend_screens = 0;
+/** @brief PNCN: special priority bit of the characters (1 word pattern names) */
+# define JO_VDP2_PNCN_SPECIAL_PRIORITY      (1 << 9)
+/** @brief PNCN: special color calculation bit of the characters (1 word pattern names) */
+# define JO_VDP2_PNCN_SPECIAL_BLEND         (1 << 8)
+
 /** @brief Update the pattern name control register of a screen
  *  @param n Screen (JO_VDP2_SCREEN_xxx)
  */
@@ -457,7 +484,9 @@ static void                         jo_vdp2_update_pattern_register(const int n)
     };
 
     s = &__jo_vdp2_screens[n];
-    jo_vdp2_shadow_set(regs[n], (s->pattern & (JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT)) | jo_vdp2_supplementary_character(s));
+    jo_vdp2_shadow_set(regs[n], (s->pattern & (JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT)) | jo_vdp2_supplementary_character(s) |
+                                ((__jo_vdp2_special_priority_screens & (1 << n)) ? JO_VDP2_PNCN_SPECIAL_PRIORITY : 0) |
+                                ((__jo_vdp2_special_blend_screens & (1 << n)) ? JO_VDP2_PNCN_SPECIAL_BLEND : 0));
 }
 
 /** @brief Update the map registers of a normal scroll screen
@@ -494,14 +523,16 @@ static void                         jo_vdp2_update_rotation_map_registers(void)
     unsigned int                    unit;
     unsigned int                    pa;
     unsigned int                    pb;
+    unsigned int                    border;
 
     unit = jo_vdp2_page_size(&__jo_vdp2_screens[JO_VDP2_SCREEN_RBG0]);
     pa = (__jo_vdp2_rotation_map[0] / unit) & JO_VDP2_MAP_ADDRESS_MASK;
     pb = (__jo_vdp2_rotation_map[1] / unit) & JO_VDP2_MAP_ADDRESS_MASK;
+    border = __jo_vdp2_rotation_island_map ? (__jo_vdp2_rotation_island_map / unit) & JO_VDP2_MAP_ADDRESS_MASK : pa;
     // 16 planes for each rotation parameter (MPABRA to MPOPRA, MPABRB to MPOPRB)
     for (JO_ZERO(i); i < 8; ++i)
     {
-        jo_vdp2_shadow_set(JO_VDP2_REG_INDEX(JO_VDP2_MPABRA) + i, (pa << 8) | pa);
+        jo_vdp2_shadow_set(JO_VDP2_REG_INDEX(JO_VDP2_MPABRA) + i, (border << 8) | (i ? border : pa));
         jo_vdp2_shadow_set(JO_VDP2_REG_INDEX(JO_VDP2_MPABRB) + i, (pb << 8) | pb);
     }
     JO_VDP2_SET_BITS(JO_VDP2_MPOFR, JO_VDP2_MAP_OFFSET_MASK, (__jo_vdp2_rotation_map[0] / unit) >> 6);
@@ -604,9 +635,9 @@ static unsigned int                 jo_vdp2_character_access_count(const jo_vdp2
 
     count = counts[s->color > 4 ? 4 : s->color];
     // Reduction needs more accesses
-    if (s->zoom_x > JO_FIXED_2)
+    if ((s->zoom_x >> __jo_screen.hires) > JO_FIXED_2)
         count <<= 2;
-    else if (s->zoom_x > JO_FIXED_1)
+    else if ((s->zoom_x >> __jo_screen.hires) > JO_FIXED_1)
         count <<= 1;
     return (count);
 }
@@ -850,13 +881,20 @@ static void                         jo_vdp2_set_back_color(void *addr, const jo_
  *  @param y Vertical coordinate increment
  *  @remarks A reduction needs more VRAM accesses (the cycle patterns are updated)
  */
-static void                         jo_vdp2_set_zoom(const int n, const jo_fixed x, const jo_fixed y)
+static void                         jo_vdp2_set_zoom(const int n, jo_fixed x, jo_fixed y)
 {
     unsigned short                  ctl;
     jo_fixed                           max;
 
     __jo_vdp2_screens[n].zoom_x = x;
     __jo_vdp2_screens[n].zoom_y = y;
+    if (n == JO_VDP2_SCREEN_NBG1 && __jo_vdp2_nbg1_native)
+        x >>= __jo_screen.hires && __jo_screen.interlace;
+    else
+    {
+        x >>= __jo_screen.hires;
+        y >>= __jo_screen.interlace;
+    }
     max = x > y ? x : y;
     // Reduction above 1:1 needs the reduction enable bits (1/2 or 1/4)
     JO_ZERO(ctl);
@@ -937,10 +975,28 @@ void                                __jo_vdp2_set_priority(const jo_scroll_scree
    ╚═╝     ╚═══╝
 */
 
-# define JO_VDP2_TV_INTERLACE           (JO_TV_HEIGHT > 256)
-# define JO_VDP2_TV_LINES               (JO_VDP2_TV_INTERLACE ? JO_TV_HEIGHT_2 : JO_TV_HEIGHT)
-# define JO_VDP2_TV_HRESO               (JO_TV_WIDTH == 352 ? 1 : JO_TV_WIDTH == 640 ? 2 : JO_TV_WIDTH == 704 ? 3 : 0)
-# define JO_VDP2_TV_VRESO               (JO_VDP2_TV_LINES == 240 ? 1 : JO_VDP2_TV_LINES == 256 ? 2 : 0)
+# define JO_VDP2_TV_HRESO               (__jo_screen.width == 352 ? 1 : __jo_screen.width == 640 ? 2 : __jo_screen.width == 704 ? 3 : 0)
+# define JO_VDP2_TV_VRESO               (__jo_screen.background_height == 240 ? 1 : __jo_screen.background_height == 256 ? 2 : 0)
+
+/** @brief The TV mode of the screen (display off), the type of the sprites (8 bits in hi-res) and the zoom of NBG0 and NBG1 */
+/** @brief The palette of the sprites in hi-res (see jo_core_set_screen_palette()) */
+static int                          __jo_vdp2_screen_palette = 0;
+
+static void                         jo_vdp2_set_tv_mode(void)
+{
+    __jo_vdp2_tvmd = JO_VDP2_TVMD_BORDER_BACK_COLOR | (JO_VDP2_TV_VRESO << JO_VDP2_TVMD_VRESO_SHIFT) | JO_VDP2_TV_HRESO;
+    if (__jo_screen.interlace)
+        __jo_vdp2_tvmd |= JO_VDP2_TVMD_DOUBLE_DENSITY;
+    else if (__jo_screen.single_interlace)
+        __jo_vdp2_tvmd |= JO_VDP2_TVMD_SINGLE_DENSITY;
+    if (__jo_screen.hires)
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_MIXED_COLOR | JO_VDP2_SPCTL_TYPE_MASK, __jo_vdp2_hires_sprite_type);
+    else
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_MIXED_COLOR | JO_VDP2_SPCTL_TYPE_MASK, JO_VDP2_SPCTL_MIXED_COLOR | JO_VDP2_SPCTL_TYPE_3);
+    JO_VDP2_SET_BITS(JO_VDP2_CRAOFB, JO_VDP2_CRAOFB_SPRITE_OFFSET_MASK, JO_VDP2_CRAOFB_SPRITE_OFFSET(__jo_screen.hires ? __jo_vdp2_screen_palette : 0));
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG0, __jo_vdp2_screens[JO_VDP2_SCREEN_NBG0].zoom_x, __jo_vdp2_screens[JO_VDP2_SCREEN_NBG0].zoom_y);
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, __jo_vdp2_screens[JO_VDP2_SCREEN_NBG1].zoom_x, __jo_vdp2_screens[JO_VDP2_SCREEN_NBG1].zoom_y);
+}
 
 /** @brief Turn the display on or off (Internal usage)
  *  @param on true to turn the display on
@@ -1045,12 +1101,14 @@ static  __jo_force_inline unsigned int  jo_vdp2_rotation_value(const jo_fixed v)
 static void                         jo_vdp2_set_default_rotation_parameter(jo_vdp2_rotation_parameter *p, const unsigned int ktable_offset)
 {
     jo_memset(p, 0, sizeof(*p));
-    p->dyst = JO_FIXED_1;
-    p->dx = JO_FIXED_1;
+    // The rotation screens are computed for 1 pixel out of 2 in hi-res and for the lines of a field in double density
+    // interlace: the screen steps are in pixels of the screen
+    p->dyst = __jo_screen.interlace ? JO_FIXED_2 : JO_FIXED_1;
+    p->dx = __jo_screen.hires ? JO_FIXED_2 : JO_FIXED_1;
     p->matrix[0] = JO_FIXED_1;
     p->matrix[4] = JO_FIXED_1;
-    p->px = p->cx = JO_TV_WIDTH_2;
-    p->py = p->cy = JO_TV_HEIGHT_2;
+    p->px = p->cx = __jo_screen.width_2;
+    p->py = p->cy = __jo_screen.height_2;
     p->pz = p->cz = __jo_vdp1_projection_distance >> 16;
     p->kx = JO_FIXED_1;
     p->ky = JO_FIXED_1;
@@ -1235,8 +1293,8 @@ static void                         jo_vdp2_set_rotation_matrix(const int parame
         t[2] = 1;
     scale = use_scroll_format_matrix ? JO_FIXED_4 : JO_FIXED_2;
     f = __jo_vdp1_projection_distance;
-    cx = JO_MULT_BY_65536(JO_TV_WIDTH_2);
-    cy = JO_MULT_BY_65536(JO_TV_HEIGHT_2);
+    cx = JO_MULT_BY_65536(__jo_screen.width_2);
+    cy = JO_MULT_BY_65536(__jo_screen.height_2);
     p = &__jo_vdp2_rparams[parameter];
     kt = __jo_vdp2_ktable_offset[parameter];
     jo_vdp2_set_default_rotation_parameter(p, kt);
@@ -1270,8 +1328,8 @@ static void                         jo_vdp2_set_rotation_matrix(const int parame
     ka = jo_vdp2_div64(((q * ka) >> 16) << 16, t[2]);
     ka += ((long long)((kt >> 2) + JO_VDP2_KTABLE_ORIGIN)) << 16;
     p->kast = ((unsigned int)ka) & JO_VDP2_ROTATION_VALUE_MASK;
-    p->dkast = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][1]) >> 16)) << 16, t[2]));
-    p->dkax = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][0]) >> 16)) << 16, t[2]));
+    p->dkast = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][1]) >> 16)) << (16 + __jo_screen.interlace), t[2]));
+    p->dkax = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][0]) >> 16)) << (16 + __jo_screen.hires), t[2]));
     __jo_vdp2_rparams_dirty = true;
 }
 
@@ -1284,11 +1342,17 @@ static void                         jo_vdp2_set_rotation_matrix(const int parame
   ╚═══╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
 */
 
+/** @brief Fields displayed black after a change of the screen mode (the frame buffer of the VDP1 has still the previous
+ *  format) */
+static volatile int                 __jo_vdp2_hidden_fields = 0;
+
 /** @brief VDP2 VBLANK-IN processing (Internal usage)
  *  @remarks Applies the registers and the rotation parameters
  */
 void                                __jo_vdp2_vblank(void)
 {
+    if (__jo_vdp2_hidden_fields > 0 && --__jo_vdp2_hidden_fields == 0)
+        __jo_vdp2_set_tv_display(true);
     jo_vdp2_commit();
     jo_vdp2_rotation_vblank();
 }
@@ -1366,9 +1430,7 @@ void                                __jo_vdp2_init_registers(void)
     jo_vdp2_update_character_registers(JO_VDP2_SCREEN_RBG0);
     jo_vdp2_update_cycle_patterns();
     // TV mode (display off). BDCLMD: border uses the back screen color
-    __jo_vdp2_tvmd = JO_VDP2_TVMD_BORDER_BACK_COLOR | (JO_VDP2_TV_VRESO << JO_VDP2_TVMD_VRESO_SHIFT) | JO_VDP2_TV_HRESO;
-    if (JO_VDP2_TV_INTERLACE)
-        __jo_vdp2_tvmd |= JO_VDP2_TVMD_DOUBLE_DENSITY;
+    jo_vdp2_set_tv_mode();
     JO_VDP2_SET(JO_VDP2_TVMD, __jo_vdp2_tvmd);
     jo_vdp2_flush_now();
 }
@@ -1392,8 +1454,6 @@ The 16 colors palettes 0 to 7 are in the first 256 colors of the color RAM, whic
 /** @brief Glyph pixel color (in the 16 colors palette) */
 # define JO_VDP2_PRINTF_GLYPH_COLOR     (1)
 
-# define JO_VDP2_PRINTF_CELL_OFFSET     (0x60000)
-# define JO_VDP2_PRINTF_MAP_OFFSET      (0x76000)
 # define JO_VDP2_PRINTF_MAP             ((volatile unsigned short *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_MAP_OFFSET))
 # define JO_VDP2_PRINTF_CHARACTER_BASE  ((JO_VDP2_PRINTF_CELL_OFFSET >> 5) & JO_VDP2_CHARACTER_NUMBER_MASK)
 
@@ -1626,6 +1686,12 @@ static  __jo_force_inline void  __jo_switch_to_bitmap_mode(void)
         jo_vdp2_free(rbg0_map_a);
         rbg0_map_a = JO_NULL;
     }
+    if (rbg0_map_a_border != JO_NULL)
+    {
+        jo_vdp2_free(rbg0_map_a_border);
+        rbg0_map_a_border = JO_NULL;
+        __jo_vdp2_rotation_island_map = 0;
+    }
     if (rbg0_map_b != JO_NULL)
     {
         jo_vdp2_free(rbg0_map_b);
@@ -1776,6 +1842,7 @@ void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_
 
 void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
+    __jo_vdp2_rotation_island_map = 0;
     if (rbg0_map_a == JO_NULL)
         rbg0_map_a = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
     jo_vdp2_set_rotation_map(0, rbg0_map_a);
@@ -1791,6 +1858,31 @@ void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bit
         return ;
     jo_img_to_vdp2_cells(img, vertical_flip, rbg0_cell_a);
 	__jo_create_map(img, rbg0_map_a, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(rbg0_cell_a));
+}
+
+void                            jo_vdp2_set_rbg0_plane_a_8bits_island(jo_img_8bits *img, int palette_id, bool vertical_flip)
+{
+    unsigned short                  border;
+    int                             i;
+
+    jo_vdp2_set_rbg0_plane_a_8bits_image(img, palette_id, true, vertical_flip);
+    if (rbg0_map_a == JO_NULL || rbg0_cell_a == JO_NULL)
+        return;
+    __jo_create_map_blank(img, rbg0_map_a, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(rbg0_cell_a), 0);
+    border = (unsigned short)(JO_MULT_BY_4096(palette_id) + JO_VDP2_CELL_TO_MAP_OFFSET(rbg0_cell_a));
+    // The 15 other planes: the border cell only (in the same 512 KB as the map of the image, see MPOFR)
+    if (rbg0_map_a_border == JO_NULL)
+        rbg0_map_a_border = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
+    if (rbg0_map_a_border != JO_NULL)
+    {
+        for (i = 0; i < MAP_LENGTH; ++i)
+            rbg0_map_a_border[i] = border;
+        __jo_vdp2_rotation_island_map = jo_vdp2_vram_offset(rbg0_map_a_border);
+        jo_vdp2_update_rotation_map_registers();
+    }
+    JO_VDP2_SET(JO_VDP2_OVPNRA, border);
+    JO_VDP2_SET_BITS(JO_VDP2_PLSZ, JO_VDP2_OVER_MODE_MASK << JO_VDP2_PLSZ_RA_OVER_SHIFT,
+                     JO_VDP2_OVER_MODE_CHARACTER << JO_VDP2_PLSZ_RA_OVER_SHIFT);
 }
 
 void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
@@ -2047,6 +2139,96 @@ static void                     jo_vdp2_use_nbg1_bitmap(void)
         s->bitmap_size == JO_VDP2_SIZE && s->bitmap_addr == jo_vdp2_vram_offset(nbg1_bitmap))
         return;
     jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, nbg1_bitmap);
+    if (__jo_vdp2_nbg1_native)
+    {
+        __jo_vdp2_nbg1_native = false;
+        jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, s->zoom_x, s->zoom_y);
+    }
+}
+
+/** @brief Layout of the 256 colors NBG1 bitmap: 1024 x 256 pixels, 512 x 512 pixels in the 448 to 512 lines modes */
+# define JO_VDP2_NATIVE_BITMAP_SIZE     (__jo_screen.interlace ? 0x06 : 0x0A)
+
+void                            jo_vdp2_set_nbg1_16bits_bitmap(void)
+{
+    if (!jo_vdp2_nbg1_bitmap_ready())
+        return;
+    jo_vdp2_use_nbg1_bitmap();
+    jo_vdp2_display_nbg1();
+}
+
+int                             jo_vdp2_get_nbg1_8bits_bitmap_width(void)
+{
+    return (__jo_screen.interlace ? 512 : 1024);
+}
+
+int                             jo_vdp2_get_nbg1_8bits_bitmap_height(void)
+{
+    return (__jo_screen.interlace ? 512 : 256);
+}
+
+/** @brief Registers of the 256 colors NBG1 bitmap for the current screen mode */
+static void                     jo_vdp2_use_nbg1_native_bitmap(void)
+{
+    jo_vdp2_screen              *s;
+
+    s = &__jo_vdp2_screens[JO_VDP2_SCREEN_NBG1];
+    __jo_vdp2_nbg1_native = true;
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_256, JO_VDP2_NATIVE_BITMAP_SIZE, nbg1_bitmap);
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, s->zoom_x, s->zoom_y);
+}
+
+bool                            jo_vdp2_set_nbg1_8bits_bitmap(const int palette_id)
+{
+    if (!jo_vdp2_nbg1_bitmap_ready())
+        return (false);
+    JO_VDP2_SET_BITS(JO_VDP2_BMPNA, JO_VDP2_BMPN_PALETTE_MASK << 8, (palette_id & JO_VDP2_BMPN_PALETTE_MASK) << 8);
+    jo_vdp2_use_nbg1_native_bitmap();
+    jo_vdp2_display_nbg1();
+    return (true);
+}
+
+void                            jo_vdp2_clear_bitmap_nbg1_8bits(const unsigned char index)
+{
+    unsigned short              back;
+
+    if (!__jo_vdp2_nbg1_native)
+        return;
+    back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
+    jo_dma_fill32((void *)JO_VDP2_VRAM_A0, index * 0x01010101u, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color));
+    *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
+}
+
+void                            jo_vdp2_put_pixel_bitmap_nbg1_8bits(const int x, const int y, const unsigned char index)
+{
+    if (!__jo_vdp2_nbg1_native || (unsigned int)x >= (unsigned int)jo_vdp2_get_nbg1_8bits_bitmap_width() ||
+        (unsigned int)y >= (unsigned int)jo_vdp2_get_nbg1_8bits_bitmap_height())
+        return;
+    ((volatile unsigned char *)JO_VDP2_VRAM_A0)[y * jo_vdp2_get_nbg1_8bits_bitmap_width() + x] = index;
+}
+
+void                            jo_vdp2_draw_bitmap_nbg1_8bits_image(const jo_img_8bits * const img, const int x, const int y)
+{
+    volatile unsigned char      *dst;
+    const unsigned char         *src;
+    int                         width;
+    int                         w;
+    int                         h;
+    int                         i;
+    int                         j;
+
+    if (!__jo_vdp2_nbg1_native || x < 0 || y < 0)
+        return;
+    width = jo_vdp2_get_nbg1_8bits_bitmap_width();
+    w = JO_MIN(img->width, width - x);
+    h = JO_MIN(img->height, jo_vdp2_get_nbg1_8bits_bitmap_height() - y);
+    for (JO_ZERO(j); j < h; ++j)
+    {
+        dst = (volatile unsigned char *)JO_VDP2_VRAM_A0 + (y + j) * width + x;
+        src = img->data + j * img->width;
+        for (JO_ZERO(i); i < w; ++i)
+            dst[i] = src[i];
+    }
 }
 
 bool                            __jo_vdp2_reserve_nbg1_bitmap(void)
@@ -2381,6 +2563,66 @@ void                            jo_vdp2_disable_nbg1_vertical_cell_scroll(void)
 }
 
 
+void			                __jo_set_nbg2_8bits_image(jo_img_8bits *img, bool vertical_flip)
+{
+    if (nbg2_cell != JO_NULL)
+    {
+        jo_vdp2_free(nbg2_cell);
+        nbg2_cell = JO_NULL;
+    }
+    jo_vdp2_set_plane_size(JO_VDP2_SCREEN_NBG2, 0);
+    jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG2, JO_VDP2_COLOR_256, 0);
+    if (nbg2_map == JO_NULL)
+        nbg2_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG2, JO_VDP2_MAP_SIZE);
+    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG2, nbg2_map);
+    nbg2_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG2, img->width * img->height);
+    if (nbg2_map == JO_NULL || nbg2_cell == JO_NULL)
+        return ;
+    jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG2, nbg2_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
+    jo_img_to_vdp2_cells(img, vertical_flip, nbg2_cell);
+}
+
+void			                jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
+{
+    __jo_set_nbg2_8bits_image(img, vertical_flip);
+	__jo_create_map(img, nbg2_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg2_cell));
+	if (enabled)
+    {
+        JO_ADD_FLAG(screen_flags, JO_NBG2_SCREEN);
+        jo_vdp2_set_displayed_screens(screen_flags);
+    }
+}
+
+void			                __jo_set_nbg3_8bits_image(jo_img_8bits *img, bool vertical_flip)
+{
+    if (nbg3_cell != JO_NULL)
+    {
+        jo_vdp2_free(nbg3_cell);
+        nbg3_cell = JO_NULL;
+    }
+    jo_vdp2_set_plane_size(JO_VDP2_SCREEN_NBG3, 0);
+    jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG3, JO_VDP2_COLOR_256, 0);
+    if (nbg3_map == JO_NULL)
+        nbg3_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG3, JO_VDP2_MAP_SIZE);
+    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG3, nbg3_map);
+    nbg3_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG3, img->width * img->height);
+    if (nbg3_map == JO_NULL || nbg3_cell == JO_NULL)
+        return ;
+    jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG3, nbg3_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
+    jo_img_to_vdp2_cells(img, vertical_flip, nbg3_cell);
+}
+
+void			                jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
+{
+    __jo_set_nbg3_8bits_image(img, vertical_flip);
+	__jo_create_map(img, nbg3_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg3_cell));
+	if (enabled)
+    {
+        JO_ADD_FLAG(screen_flags, JO_NBG3_SCREEN);
+        jo_vdp2_set_displayed_screens(screen_flags);
+    }
+}
+
 #ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
 
 /*
@@ -2407,24 +2649,6 @@ void                            jo_nbg2_clear(void)
         nbg2_map[i] = nbg2_font_paloff + nbg2_font_map_offset;
 }
 
-void			                __jo_set_nbg2_8bits_image(jo_img_8bits *img, bool vertical_flip)
-{
-    if (nbg2_cell != JO_NULL)
-    {
-        jo_vdp2_free(nbg2_cell);
-        nbg2_cell = JO_NULL;
-    }
-    jo_vdp2_set_plane_size(JO_VDP2_SCREEN_NBG2, 0);
-    jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG2, JO_VDP2_COLOR_256, 0);
-    if (nbg2_map == JO_NULL)
-        nbg2_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG2, JO_VDP2_MAP_SIZE);
-    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG2, nbg2_map);
-    nbg2_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG2, img->width * img->height);
-    if (nbg2_map == JO_NULL || nbg2_cell == JO_NULL)
-        return ;
-    jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG2, nbg2_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
-    jo_img_to_vdp2_cells(img, vertical_flip, nbg2_cell);
-}
 
 void                            jo_nbg2_print(int x, int y, char * str)
 {
@@ -2477,16 +2701,6 @@ void			                jo_vdp2_set_nbg2_8bits_font(jo_img_8bits *img, char *mapp
     }
 }
 
-void			                jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
-{
-    __jo_set_nbg2_8bits_image(img, vertical_flip);
-	__jo_create_map(img, nbg2_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg2_cell));
-	if (enabled)
-    {
-        JO_ADD_FLAG(screen_flags, JO_NBG2_SCREEN);
-        jo_vdp2_set_displayed_screens(screen_flags);
-    }
-}
 
 /*
 ███╗   ██╗██████╗  ██████╗ ██████╗
@@ -2512,24 +2726,6 @@ void                            jo_nbg3_clear(void)
         nbg3_map[i] = nbg3_font_paloff + nbg3_font_map_offset;
 }
 
-void			                __jo_set_nbg3_8bits_image(jo_img_8bits *img, bool vertical_flip)
-{
-    if (nbg3_cell != JO_NULL)
-    {
-        jo_vdp2_free(nbg3_cell);
-        nbg3_cell = JO_NULL;
-    }
-    jo_vdp2_set_plane_size(JO_VDP2_SCREEN_NBG3, 0);
-    jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG3, JO_VDP2_COLOR_256, 0);
-    if (nbg3_map == JO_NULL)
-        nbg3_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG3, JO_VDP2_MAP_SIZE);
-    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG3, nbg3_map);
-    nbg3_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG3, img->width * img->height);
-    if (nbg3_map == JO_NULL || nbg3_cell == JO_NULL)
-        return ;
-    jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG3, nbg3_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
-    jo_img_to_vdp2_cells(img, vertical_flip, nbg3_cell);
-}
 
 void                            jo_nbg3_print(int x, int y, char * str)
 {
@@ -2582,16 +2778,6 @@ void			                jo_vdp2_set_nbg3_8bits_font(jo_img_8bits *img, char *mapp
     }
 }
 
-void			                jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
-{
-    __jo_set_nbg3_8bits_image(img, vertical_flip);
-	__jo_create_map(img, nbg3_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg3_cell));
-	if (enabled)
-    {
-        JO_ADD_FLAG(screen_flags, JO_NBG3_SCREEN);
-        jo_vdp2_set_displayed_screens(screen_flags);
-    }
-}
 
 #endif
 
@@ -2888,3 +3074,396 @@ void                            jo_fade_screens(const jo_scroll_screen screens, 
 /*
 ** END OF FILE
 */
+
+/*
+** Windows, color calculation and shadows
+*/
+
+/** @brief WCTLA to WCTLC: the bits of a window for a screen (area: 1 = the outside of the window, enable) */
+# define JO_VDP2_WINDOW_OUTSIDE_BIT(W)      (1 << ((W) << 1))
+# define JO_VDP2_WINDOW_ENABLE_BIT(W)       (2 << ((W) << 1))
+# define JO_VDP2_WINDOW_BITS(W)             (3 << ((W) << 1))
+/** @brief LWTAnU: line window enable */
+# define JO_VDP2_LINE_WINDOW_ENABLE         (1 << 15)
+/** @brief Window coordinates (10 bits) */
+# define JO_VDP2_WINDOW_COORDINATE_MASK     (0x3FF)
+/** @brief SDCTL: the screens that receive the shadows */
+# define JO_VDP2_SDCTL_SCREENS_MASK         (0x003F)
+/** @brief CCCTL: the screens with a color calculation */
+# define JO_VDP2_CCCTL_SCREENS_MASK         (0x007F)
+/** @brief CCCTL: extended color calculation (EXCCEN) */
+# define JO_VDP2_CCCTL_EXTENDED             (1 << 10)
+/** @brief CCCTL: gradation calculation (BOKEN) */
+# define JO_VDP2_CCCTL_BLUR                 (1 << 15)
+/** @brief CCCTL: screen of the gradation calculation (BOKN) */
+# define JO_VDP2_CCCTL_BLUR_SHIFT           (12)
+# define JO_VDP2_CCCTL_BLUR_MASK            (0xF000)
+/** @brief RAMCTL: color RAM mode bits */
+# define JO_VDP2_RAMCTL_CRAM_MODE_MASK      (3 << 12)
+/** @brief SFPRMD and SFCCMD: special function by dot (special function codes) */
+# define JO_VDP2_SPECIAL_BY_DOT             (2)
+/** @brief Screens with special functions: NBG0 to NBG3 and RBG0 */
+# define JO_VDP2_SPECIAL_SCREENS_MASK       (0x001F)
+/** @brief BMPNA and BMPNB: special priority and special color calculation bits of a bitmap */
+# define JO_VDP2_BMPN_SPECIAL_PRIORITY_SHIFT (5)
+# define JO_VDP2_BMPN_SPECIAL_BLEND_SHIFT   (4)
+# define JO_VDP2_BMPN_SPECIAL_MASK          (0x0030)
+/** @brief Lines of a line window table (the most lines of a screen) */
+# define JO_VDP2_LINE_WINDOW_LINES          (512)
+
+static unsigned short                   *__jo_vdp2_line_window[2] = {JO_NULL, JO_NULL};
+
+/** @brief A horizontal coordinate of a window: in the normal resolutions (320 and 352 pixels), the bit 0 is not used */
+static  __jo_force_inline unsigned short jo_vdp2_window_x(const int x)
+{
+    return ((unsigned short)((__jo_screen.hires ? x : x << 1) & JO_VDP2_WINDOW_COORDINATE_MASK));
+}
+
+/** @brief The window control register and the shift of a screen
+ *  @return false if the screen has no window
+ */
+static bool                             jo_vdp2_window_control(const jo_scroll_screen screen, volatile unsigned short **reg, int *shift)
+{
+    switch (screen)
+    {
+        case JO_NBG0_SCREEN: *reg = &JO_VDP2_WCTLA; *shift = 0; return (true);
+        case JO_NBG1_SCREEN: *reg = &JO_VDP2_WCTLA; *shift = 8; return (true);
+        case JO_NBG2_SCREEN: *reg = &JO_VDP2_WCTLB; *shift = 0; return (true);
+        case JO_NBG3_SCREEN: *reg = &JO_VDP2_WCTLB; *shift = 8; return (true);
+        case JO_RBG0_SCREEN: *reg = &JO_VDP2_WCTLC; *shift = 0; return (true);
+        case JO_SPRITE_SCREEN: *reg = &JO_VDP2_WCTLC; *shift = 8; return (true);
+        default: return (false);
+    }
+}
+
+static void                             jo_vdp2_set_window_registers(const int window, const int left, const int top, const int right, const int bottom)
+{
+    if (window == JO_VDP2_WINDOW_0)
+    {
+        JO_VDP2_SET(JO_VDP2_WPSX0, jo_vdp2_window_x(left));
+        JO_VDP2_SET(JO_VDP2_WPSY0, (unsigned short)(top & JO_VDP2_WINDOW_COORDINATE_MASK));
+        JO_VDP2_SET(JO_VDP2_WPEX0, jo_vdp2_window_x(right));
+        JO_VDP2_SET(JO_VDP2_WPEY0, (unsigned short)(bottom & JO_VDP2_WINDOW_COORDINATE_MASK));
+    }
+    else
+    {
+        JO_VDP2_SET(JO_VDP2_WPSX1, jo_vdp2_window_x(left));
+        JO_VDP2_SET(JO_VDP2_WPSY1, (unsigned short)(top & JO_VDP2_WINDOW_COORDINATE_MASK));
+        JO_VDP2_SET(JO_VDP2_WPEX1, jo_vdp2_window_x(right));
+        JO_VDP2_SET(JO_VDP2_WPEY1, (unsigned short)(bottom & JO_VDP2_WINDOW_COORDINATE_MASK));
+    }
+}
+
+void                                    jo_vdp2_set_window(const int window, int x, int y, int width, int height)
+{
+    if (window != JO_VDP2_WINDOW_0 && window != JO_VDP2_WINDOW_1)
+        return;
+    if (x < 0)
+    {
+        width += x;
+        JO_ZERO(x);
+    }
+    if (y < 0)
+    {
+        height += y;
+        JO_ZERO(y);
+    }
+    if (window == JO_VDP2_WINDOW_0)
+        JO_VDP2_SET(JO_VDP2_LWTA0U, 0);
+    else
+        JO_VDP2_SET(JO_VDP2_LWTA1U, 0);
+    if (x + width > __jo_screen.width)
+        width = __jo_screen.width - x;
+    if (y + height > __jo_screen.height)
+        height = __jo_screen.height - y;
+    if (width <= 0 || height <= 0)
+        jo_vdp2_set_window_registers(window, 1, 1, 0, 0);
+    else
+        jo_vdp2_set_window_registers(window, x, y, x + width - 1, y + height - 1);
+}
+
+bool                                    jo_vdp2_set_window_lines(const int window, const int top, const int count, const short * const left, const short * const right)
+{
+    unsigned short                      *table;
+    unsigned int                        offset;
+    int                                 line;
+    int                                 i;
+
+    if (window != JO_VDP2_WINDOW_0 && window != JO_VDP2_WINDOW_1)
+        return (false);
+    if ((table = __jo_vdp2_line_window[window]) == JO_NULL &&
+        (table = __jo_vdp2_line_window[window] = (unsigned short *)jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_VDP2_LINE_WINDOW_LINES * 4)) == JO_NULL)
+        return (false);
+    for (JO_ZERO(line); line < JO_VDP2_LINE_WINDOW_LINES; ++line)
+    {
+        i = line - top;
+        if (i >= 0 && i < count && left[i] <= right[i])
+        {
+            table[line * 2] = jo_vdp2_window_x(JO_MAX(left[i], 0));
+            table[line * 2 + 1] = jo_vdp2_window_x(JO_MAX(right[i], 0));
+        }
+        else
+        {
+            table[line * 2] = JO_VDP2_WINDOW_COORDINATE_MASK;
+            table[line * 2 + 1] = JO_VDP2_WINDOW_COORDINATE_MASK;
+        }
+    }
+    jo_vdp2_set_window_registers(window, 0, 0, __jo_screen.width - 1, __jo_screen.height - 1);
+    offset = jo_vdp2_vram_offset(table) >> 1;
+    if (window == JO_VDP2_WINDOW_0)
+    {
+        JO_VDP2_SET(JO_VDP2_LWTA0U, JO_VDP2_LINE_WINDOW_ENABLE | ((offset >> 16) & JO_VDP2_TABLE_ADDRESS_HIGH_MASK));
+        JO_VDP2_SET(JO_VDP2_LWTA0L, offset & JO_VDP2_TABLE_ADDRESS_LOW_MASK);
+    }
+    else
+    {
+        JO_VDP2_SET(JO_VDP2_LWTA1U, JO_VDP2_LINE_WINDOW_ENABLE | ((offset >> 16) & JO_VDP2_TABLE_ADDRESS_HIGH_MASK));
+        JO_VDP2_SET(JO_VDP2_LWTA1L, offset & JO_VDP2_TABLE_ADDRESS_LOW_MASK);
+    }
+    return (true);
+}
+
+bool                                    jo_vdp2_set_window_circle(const int window, const int x, const int y, const int radius)
+{
+    short                               left[JO_VDP2_LINE_WINDOW_LINES];
+    short                               right[JO_VDP2_LINE_WINDOW_LINES];
+    int                                 count;
+    int                                 dy;
+    int                                 dx;
+    int                                 i;
+
+    count = JO_MIN(2 * radius + 1, JO_VDP2_LINE_WINDOW_LINES);
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        dy = i - radius;
+        dx = (int)jo_sqrt((unsigned int)(radius * radius - dy * dy));
+        left[i] = (short)(x - dx);
+        right[i] = (short)(x + dx);
+    }
+    return (jo_vdp2_set_window_lines(window, y - radius, count, left, right));
+}
+
+void                                    jo_vdp2_enable_window(const jo_scroll_screen screens, const int window, const jo_vdp2_window_area area)
+{
+    volatile unsigned short             *reg;
+    int                                 shift;
+    unsigned int                        screen;
+
+    if (window != JO_VDP2_WINDOW_0 && window != JO_VDP2_WINDOW_1)
+        return;
+    for (screen = JO_NBG0_SCREEN; screen <= JO_SPRITE_SCREEN; screen <<= 1)
+        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &shift))
+            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), JO_VDP2_WINDOW_BITS(window) << shift,
+                                    (JO_VDP2_WINDOW_ENABLE_BIT(window) | (area == JO_VDP2_WINDOW_SHOW_INSIDE ? JO_VDP2_WINDOW_OUTSIDE_BIT(window) : 0)) << shift);
+}
+
+void                                    jo_vdp2_disable_window(const jo_scroll_screen screens)
+{
+    volatile unsigned short             *reg;
+    int                                 shift;
+    unsigned int                        screen;
+
+    for (screen = JO_NBG0_SCREEN; screen <= JO_SPRITE_SCREEN; screen <<= 1)
+        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &shift))
+            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), (JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_0) | JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_1)) << shift, 0);
+}
+
+void                                    jo_vdp2_set_blend_mode(const jo_vdp2_blend_mode mode)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_CCCTL, JO_VDP2_CCCTL_MODE_MASK, ((mode & JO_VDP2_BLEND_ADD) ? JO_VDP2_CCCTL_ADD : 0) |
+                                                         ((mode & JO_VDP2_BLEND_EXTENDED) ? JO_VDP2_CCCTL_EXTENDED : 0));
+}
+
+bool                                    jo_vdp2_enable_blur(const jo_scroll_screen screen)
+{
+    unsigned short                      source;
+
+    switch (screen)
+    {
+        case JO_SPRITE_SCREEN: source = 0; break;
+        case JO_RBG0_SCREEN: source = 1; break;
+        case JO_NBG0_SCREEN: source = 2; break;
+        case JO_NBG1_SCREEN: source = 4; break;
+        case JO_NBG2_SCREEN: source = 5; break;
+        case JO_NBG3_SCREEN: source = 6; break;
+        default: return (false);
+    }
+    JO_VDP2_SET_BITS(JO_VDP2_RAMCTL, JO_VDP2_RAMCTL_CRAM_MODE_MASK, 0);
+    JO_VDP2_SET_BITS(JO_VDP2_CCCTL, JO_VDP2_CCCTL_BLUR_MASK, JO_VDP2_CCCTL_BLUR | (source << JO_VDP2_CCCTL_BLUR_SHIFT));
+    return (true);
+}
+
+void                                    jo_vdp2_disable_blur(void)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_CCCTL, JO_VDP2_CCCTL_BLUR_MASK, 0);
+    JO_VDP2_SET_BITS(JO_VDP2_RAMCTL, JO_VDP2_RAMCTL_CRAM_MODE_MASK, JO_VDP2_RAMCTL_CRAM_MODE_1);
+}
+
+void                                    jo_vdp2_set_special_colors(const unsigned char codes)
+{
+    JO_VDP2_SET(JO_VDP2_SFSEL, 0);
+    JO_VDP2_SET(JO_VDP2_SFCODE, codes);
+}
+
+/** @brief The special bits of the characters and of the bitmaps, and the special function modes (by dot) of the screens */
+static void                             jo_vdp2_update_special_functions(void)
+{
+    unsigned short                      priority;
+    unsigned short                      blend;
+    unsigned short                      bitmap;
+    int                                 n;
+
+    JO_ZERO(priority);
+    JO_ZERO(blend);
+    for (JO_ZERO(n); n < JO_VDP2_SCREEN_COUNT; ++n)
+    {
+        if (__jo_vdp2_special_priority_screens & (1 << n))
+            priority |= JO_VDP2_SPECIAL_BY_DOT << JO_MULT_BY_2(n);
+        if (__jo_vdp2_special_blend_screens & (1 << n))
+            blend |= JO_VDP2_SPECIAL_BY_DOT << JO_MULT_BY_2(n);
+        jo_vdp2_update_pattern_register(n);
+    }
+    JO_VDP2_SET(JO_VDP2_SFPRMD, priority);
+    JO_VDP2_SET(JO_VDP2_SFCCMD, blend);
+    JO_ZERO(bitmap);
+    for (JO_ZERO(n); n < 2; ++n)
+        bitmap |= (((__jo_vdp2_special_priority_screens >> n) & 1) << JO_VDP2_BMPN_SPECIAL_PRIORITY_SHIFT |
+                   ((__jo_vdp2_special_blend_screens >> n) & 1) << JO_VDP2_BMPN_SPECIAL_BLEND_SHIFT) << JO_MULT_BY_8(n);
+    JO_VDP2_SET_BITS(JO_VDP2_BMPNA, JO_VDP2_BMPN_SPECIAL_MASK | (JO_VDP2_BMPN_SPECIAL_MASK << 8), bitmap);
+    JO_VDP2_SET_BITS(JO_VDP2_BMPNB, JO_VDP2_BMPN_SPECIAL_MASK,
+                     ((__jo_vdp2_special_priority_screens >> JO_VDP2_SCREEN_RBG0) & 1) << JO_VDP2_BMPN_SPECIAL_PRIORITY_SHIFT |
+                     ((__jo_vdp2_special_blend_screens >> JO_VDP2_SCREEN_RBG0) & 1) << JO_VDP2_BMPN_SPECIAL_BLEND_SHIFT);
+}
+
+void                                    jo_vdp2_enable_special_priority(const jo_scroll_screen screens)
+{
+    __jo_vdp2_special_priority_screens |= (unsigned short)(screens & JO_VDP2_SPECIAL_SCREENS_MASK);
+    jo_vdp2_update_special_functions();
+}
+
+void                                    jo_vdp2_disable_special_priority(const jo_scroll_screen screens)
+{
+    __jo_vdp2_special_priority_screens &= (unsigned short)~screens;
+    jo_vdp2_update_special_functions();
+}
+
+void                                    jo_vdp2_enable_special_blend(const jo_scroll_screen screens)
+{
+    __jo_vdp2_special_blend_screens |= (unsigned short)(screens & JO_VDP2_SPECIAL_SCREENS_MASK);
+    jo_vdp2_update_special_functions();
+}
+
+void                                    jo_vdp2_disable_special_blend(const jo_scroll_screen screens)
+{
+    __jo_vdp2_special_blend_screens &= (unsigned short)~screens;
+    jo_vdp2_update_special_functions();
+}
+
+void                                    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio)
+{
+    unsigned short                      both;
+
+    if (ratio > JO_VDP2_BLEND_RATIO_MAX)
+        ratio = JO_VDP2_BLEND_RATIO_MAX;
+    both = (unsigned short)((ratio << 8) | ratio);
+    if (screens & JO_NBG0_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRNA, JO_VDP2_COLOR_RATE_LOW_MASK, ratio);
+    if (screens & JO_NBG1_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRNA, JO_VDP2_COLOR_RATE_HIGH_MASK, ratio << 8);
+    if (screens & JO_NBG2_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRNB, JO_VDP2_COLOR_RATE_LOW_MASK, ratio);
+    if (screens & JO_NBG3_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRNB, JO_VDP2_COLOR_RATE_HIGH_MASK, ratio << 8);
+    if (screens & JO_RBG0_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRR, JO_VDP2_COLOR_RATE_LOW_MASK, ratio);
+    if (screens & JO_BACK_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_CCRLB, JO_VDP2_COLOR_RATE_HIGH_MASK, ratio << 8);
+    if (screens & JO_SPRITE_SCREEN)
+    {
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, JO_VDP2_SPCTL_COLOR_CALC_ALL);
+        JO_VDP2_SET(JO_VDP2_CCRSA, both);
+        JO_VDP2_SET(JO_VDP2_CCRSB, both);
+        JO_VDP2_SET(JO_VDP2_CCRSC, both);
+        JO_VDP2_SET(JO_VDP2_CCRSD, both);
+    }
+    JO_VDP2_SET_BITS(JO_VDP2_CCCTL, screens & JO_VDP2_CCCTL_SCREENS_MASK, screens & JO_VDP2_CCCTL_SCREENS_MASK);
+}
+
+void                                    jo_vdp2_disable_blend(const jo_scroll_screen screens)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_CCCTL, screens & JO_VDP2_CCCTL_SCREENS_MASK, 0);
+    if (screens & JO_SPRITE_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, 0);
+}
+
+void                                    jo_vdp2_enable_shadow(const jo_scroll_screen screens)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_SDCTL, JO_VDP2_SDCTL_SCREENS_MASK, screens & JO_VDP2_SDCTL_SCREENS_MASK);
+}
+
+void                                    jo_vdp2_disable_shadow(void)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_SDCTL, JO_VDP2_SDCTL_SCREENS_MASK, 0);
+}
+
+void                                    jo_vdp2_enable_mosaic(const jo_scroll_screen screens, const int width, const int height)
+{
+    jo_enable_screen_mozaic(screens, (short)width, (short)height);
+}
+
+void                                    jo_vdp2_disable_mosaic(void)
+{
+    jo_disable_all_screen_mozaic();
+}
+
+void                                    jo_vdp2_set_hires_sprite_mode(const jo_vdp2_hires_sprite_mode mode)
+{
+    static const unsigned char          types[3] = {0xF, 0xE, 0xD};
+
+    __jo_vdp2_hires_sprite_type = types[mode];
+    jo_vdp2_set_tv_mode();
+}
+
+void                                    jo_vdp2_set_sprite_priorities(const unsigned char p0, const unsigned char p1,
+                                                                      const unsigned char p2, const unsigned char p3)
+{
+    JO_VDP2_SET(JO_VDP2_PRISA, JO_VDP2_PRIORITY_PAIR(p1, p0));
+    JO_VDP2_SET(JO_VDP2_PRISB, JO_VDP2_PRIORITY_PAIR(p3, p2));
+}
+
+void                                    jo_vdp2_set_sprite_blend_ratios(const unsigned char r0, const unsigned char r1,
+                                                                        const unsigned char r2, const unsigned char r3)
+{
+    JO_VDP2_SET(JO_VDP2_CCRSA, (unsigned short)((JO_MIN(r1, JO_VDP2_BLEND_RATIO_MAX) << 8) | JO_MIN(r0, JO_VDP2_BLEND_RATIO_MAX)));
+    JO_VDP2_SET(JO_VDP2_CCRSB, (unsigned short)((JO_MIN(r3, JO_VDP2_BLEND_RATIO_MAX) << 8) | JO_MIN(r2, JO_VDP2_BLEND_RATIO_MAX)));
+}
+
+void                                    __jo_vdp2_set_screen_mode(void)
+{
+    bool                                on;
+
+    on = (JO_VDP2_GET(JO_VDP2_TVMD) & JO_VDP2_TVMD_DISPLAY) != 0 || __jo_vdp2_hidden_fields > 0;
+    jo_vdp2_set_tv_mode();
+    __jo_vdp2_set_tv_display(false);
+    if (on)
+        __jo_vdp2_hidden_fields = 4;
+    if (__jo_vdp2_nbg1_native)
+        jo_vdp2_use_nbg1_native_bitmap();
+    jo_vdp2_set_window(JO_VDP2_WINDOW_0, 0, 0, __jo_screen.width, __jo_screen.height);
+    jo_vdp2_set_window(JO_VDP2_WINDOW_1, 0, 0, __jo_screen.width, __jo_screen.height);
+}
+
+void                                    __jo_vdp2_update_tv_mode(void)
+{
+    bool                                on;
+
+    on = (JO_VDP2_GET(JO_VDP2_TVMD) & JO_VDP2_TVMD_DISPLAY) != 0;
+    jo_vdp2_set_tv_mode();
+    __jo_vdp2_set_tv_display(on);
+}
+
+void                                    jo_core_set_screen_palette(const int palette_id)
+{
+    __jo_vdp2_screen_palette = palette_id;
+    jo_vdp2_set_tv_mode();
+}

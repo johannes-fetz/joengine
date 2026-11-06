@@ -223,11 +223,12 @@ else
 	endif
 endif
 
-ifeq (${JO_480i},)
-else
-	ifeq (1,${JO_480i})
-		CCFLAGS += -DJO_480i
-	endif
+ifneq (${JO_SCREEN_WIDTH},)
+	CCFLAGS += -DJO_SCREEN_WIDTH=${JO_SCREEN_WIDTH}
+endif
+
+ifneq (${JO_SCREEN_HEIGHT},)
+	CCFLAGS += -DJO_SCREEN_HEIGHT=${JO_SCREEN_HEIGHT}
 endif
 
 ifeq (${JO_NTSC},)

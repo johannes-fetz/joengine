@@ -127,9 +127,9 @@ bool        jo_init_mode7_for_screen_output(jo_mode7 * const params, const unsig
     // (the output: the NBG1 bitmap, allocated at its first use)
     if (!__jo_vdp2_reserve_nbg1_bitmap())
         return (false);
-    jo_mode7_check_cache_size(params, JO_TV_HEIGHT);
-    params->__cache.output_width = JO_TV_WIDTH;
-    params->__cache.output_height = JO_TV_HEIGHT;
+    jo_mode7_check_cache_size(params, __jo_screen.background_height);
+    params->__cache.output_width = __jo_screen.background_width;
+    params->__cache.output_height = __jo_screen.background_height;
     params->__cache.output_y_start = params->horizon + params->output_top;
     params->__cache.output = ((unsigned short *)JO_VDP2_VRAM_A0 + params->__cache.output_y_start * JO_VDP2_WIDTH) + params->output_left;
     params->__cache.output_line_width = JO_VDP2_WIDTH;

@@ -79,15 +79,17 @@ _Static_assert(JO_VDP1_MAX_COMMANDS >= 64 && JO_VDP1_MAX_COMMANDS <= 1000, "JO_V
 /** @brief 32 bits word of a command (may alias a jo_vdp1_command) */
 typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_word;
 /** @brief Hi-res mode (640 or 704 pixels width) */
-# define JO_VDP1_HIRES                      (JO_TV_WIDTH > 352)
-/** @brief Double density interlace (480 lines) */
-# define JO_VDP1_INTERLACE                  (JO_TV_HEIGHT > 256)
+# define JO_VDP1_HIRES                      (__jo_screen.hires)
+/** @brief Double density interlace (448 to 512 lines) */
+# define JO_VDP1_INTERLACE                  (__jo_screen.interlace)
 /** @brief Frame buffer lines */
-# define JO_VDP1_LINES                      (JO_VDP1_INTERLACE ? JO_TV_HEIGHT_2 : JO_TV_HEIGHT)
+# define JO_VDP1_LINES                      (__jo_screen.background_height)
 /** @brief TVMR: 8 bits per pixel, 1024x256 frame buffer (hi-res modes) */
 # define JO_VDP1_TVMR_HIRES                 (0x0001)
 /** @brief FBCR: double density interlace (DIE | DIL) */
 # define JO_VDP1_FBCR_DOUBLE_INTERLACE      (0x000C)
+/** @brief FBCR: double density interlace, the even lines are drawn (DIE) */
+# define JO_VDP1_FBCR_DOUBLE_INTERLACE_EVEN (0x0008)
 /** @brief FBCR: manual frame buffer change mode (FCM) and change at the next VBLANK (FCT) */
 # define JO_VDP1_FBCR_MANUAL                (0x0002)
 # define JO_VDP1_FBCR_MANUAL_CHANGE         (0x0003)
@@ -120,7 +122,7 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
 /** @brief EDSR: the drawing of the current frame is finished */
 # define JO_VDP1_EDSR_CURRENT_END           (0x0002)
 /** @brief EWRR: erase/write area (right in 8 or 16 pixels unit, excluded: the width / unit; bottom line, included) */
-# define JO_VDP1_ERASE_AREA(X_UNIT, BOTTOM)       (((JO_TV_WIDTH / (X_UNIT)) << 9) | ((BOTTOM) - 1))
+# define JO_VDP1_ERASE_AREA(X_UNIT, BOTTOM)       (((__jo_screen.width / (X_UNIT)) << 9) | ((BOTTOM) - 1))
 /** @brief Default Z limit of a window (no limit) */
 # define JO_VDP1_NO_Z_LIMIT                 (0x7fff0000)
 /** @brief Command link: the VRAM address divided by 8 */
@@ -293,6 +295,17 @@ static void                             jo_vdp1_write_jump(const unsigned int ta
     head->ctrl = JO_VDP1_CMD_SKIP_ASSIGN;
 }
 
+/** @brief The frame buffer registers of the screen mode: 16 bits per pixel (8 bits in hi-res), 1 cycle or manual change
+ *  mode, double density interlace, erase area */
+static void                             __jo_vdp1_set_registers(void)
+{
+    JO_VDP1_TVMR = JO_VDP1_HIRES ? JO_VDP1_TVMR_HIRES : 0;
+    JO_VDP1_FBCR = JO_VDP1_INTERLACE ? JO_VDP1_FBCR_DOUBLE_INTERLACE : (JO_VDP1_MANUAL_CHANGE ? JO_VDP1_FBCR_MANUAL : 0);
+    JO_VDP1_EWDR = 0;
+    JO_VDP1_EWLR = 0;
+    JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
+}
+
 void                                    __jo_vdp1_init(void)
 {
     register unsigned int               i;
@@ -338,10 +351,10 @@ void                                    __jo_vdp1_init(void)
     {
         __jo_vdp1_windows[i].left = 0;
         __jo_vdp1_windows[i].top = 0;
-        __jo_vdp1_windows[i].right = JO_TV_WIDTH - 1;
-        __jo_vdp1_windows[i].bottom = JO_TV_HEIGHT - 1;
-        __jo_vdp1_windows[i].center_x = JO_TV_WIDTH_2;
-        __jo_vdp1_windows[i].center_y = JO_TV_HEIGHT_2;
+        __jo_vdp1_windows[i].right = __jo_screen.width - 1;
+        __jo_vdp1_windows[i].bottom = __jo_screen.height - 1;
+        __jo_vdp1_windows[i].center_x = __jo_screen.width_2;
+        __jo_vdp1_windows[i].center_y = __jo_screen.height_2;
         __jo_vdp1_windows[i].zlimit = JO_VDP1_NO_Z_LIMIT;
         __jo_vdp1_windows[i].clip_mode = 0;
         __jo_vdp1_windows[i].origin_x = 0;
@@ -349,14 +362,29 @@ void                                    __jo_vdp1_init(void)
         __jo_vdp1_windows[i].screen = false;
     }
     __jo_vdp1_current_window = 0;
-    // 16 bits frame buffer (8 bits in hi-res), 1 cycle mode
-    JO_VDP1_TVMR = JO_VDP1_HIRES ? JO_VDP1_TVMR_HIRES : 0;
-    JO_VDP1_FBCR = JO_VDP1_INTERLACE ? JO_VDP1_FBCR_DOUBLE_INTERLACE : (JO_VDP1_MANUAL_CHANGE ? JO_VDP1_FBCR_MANUAL : 0);
-    // Frame buffer erase: transparent color on the whole screen
-    JO_VDP1_EWDR = 0;
-    JO_VDP1_EWLR = 0;
-    JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
+    __jo_vdp1_set_registers();
     JO_VDP1_PTMR = JO_VDP1_PTMR_AUTOMATIC_DRAW;
+}
+
+void                                    __jo_vdp1_set_screen_mode(void)
+{
+    int                                 i;
+
+    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+    {
+        __jo_vdp1_windows[i].left = 0;
+        __jo_vdp1_windows[i].top = 0;
+        __jo_vdp1_windows[i].right = __jo_screen.width - 1;
+        __jo_vdp1_windows[i].bottom = __jo_screen.height - 1;
+        __jo_vdp1_windows[i].center_x = __jo_screen.width_2;
+        __jo_vdp1_windows[i].center_y = __jo_screen.height_2;
+        __jo_vdp1_windows[i].origin_x = 0;
+        __jo_vdp1_windows[i].origin_y = 0;
+        __jo_vdp1_windows[i].screen = false;
+    }
+    __jo_vdp1_system_clip_right = __jo_screen.width - 1;
+    __jo_vdp1_system_clip_bottom = __jo_screen.height - 1;
+    __jo_vdp1_set_registers();
 }
 
 /** @brief Commands of the last frame sent (see jo_vdp1_command_count()) */
@@ -1173,6 +1201,9 @@ void                                    __jo_vdp1_vblank(void)
     unsigned int                        table;
 
     JO_VDP1_SHARED(__jo_vdp1_vblank_fields) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields) + 1;
+    // Double density interlace: the VDP1 draws the lines of the next field
+    if (JO_VDP1_INTERLACE)
+        JO_VDP1_FBCR = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_ODD) ? JO_VDP1_FBCR_DOUBLE_INTERLACE_EVEN : JO_VDP1_FBCR_DOUBLE_INTERLACE;
     // 1 cycle mode: the table given at the last VBLANK is displayed from this field
     if (JO_VDP1_SHARED(__jo_vdp1_next_shown_field) == JO_VDP1_SHARED(__jo_vdp1_vblank_fields))
     {

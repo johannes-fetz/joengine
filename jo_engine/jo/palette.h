@@ -52,6 +52,21 @@
  */
 void                jo_create_palette(jo_palette * const output);
 
+/** @brief Write the shades of colors in a palette for the palette lighting (see jo_3d_set_palette_light()): the shade s
+ *  (0 = the darkest, levels - 1 = the brightest) of the color i is the index first + s * count + i
+ *  @param palette Palette (jo_create_palette())
+ *  @param first Index of the darkest shade of the first color (1 to 255; a multiple of 16 for the textures of 16 colors)
+ *  @param colors Colors (the color itself at the shade levels / 2, from 35 % of it at the shade 0 to 125 % at the last one)
+ *  @param count Colors count (16 for a texture of 16 colors: its color bank is the shade 0)
+ *  @param levels Shades of each color (2 to 32)
+ *  @remarks The polygon of the color i: jo_3d_set_mesh_polygon_color(mesh, JO_PALETTE_LIGHT_COLOR(palette->id, first, i), index)
+ */
+void                jo_palette_set_light_shades(jo_palette * const palette, const int first, const jo_color * const colors,
+                                                const int count, const int levels);
+
+/** @brief Color code of the color i of the shades written by jo_palette_set_light_shades() (its darkest shade) */
+# define JO_PALETTE_LIGHT_COLOR(PALETTE_ID, FIRST, I)   ((jo_color)((PALETTE_ID) * 256 + (FIRST) + (I)))
+
 /** @brief Copies the image palette data to CRAM
  *  @param data Data source
  *  @param cram_addr Color RAM address

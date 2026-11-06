@@ -122,6 +122,18 @@ static unsigned int                         __jo_core_last_synch_vblank = 0;
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
+__jo_screen_mode                            __jo_screen =
+{
+    JO_TV_WIDTH, JO_TV_HEIGHT, JO_TV_WIDTH_2, JO_TV_HEIGHT_2,
+    JO_TV_WIDTH > 352 ? JO_TV_WIDTH_2 : JO_TV_WIDTH, JO_TV_HEIGHT > 256 ? JO_TV_HEIGHT_2 : JO_TV_HEIGHT,
+    JO_TV_WIDTH > 352, JO_TV_HEIGHT > 256, JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704, false
+};
+void                                        __jo_vdp1_set_screen_mode(void);
+void                                        __jo_vdp2_set_screen_mode(void);
+void                                        __jo_vdp2_update_tv_mode(void);
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+void                                        __jo_3d_set_screen_mode(void);
+#endif
 /** @brief The music streamed from the CD (see jo_audio_play_music()): its samples at each VBLANK, its reads at each frame */
 void                                        (*__jo_core_music_vblank)(void) = JO_NULL;
 void                                        (*__jo_core_music_update)(void) = JO_NULL;
@@ -369,16 +381,38 @@ static void         jo_core_init_vdp(const jo_color back_color)
     jo_core_init_system();
     jo_core_tv_off();
     __jo_init_vdp2(back_color);
-/*Credit: slinga-homebrew, fafling and Ponut64
-  https://github.com/johannes-fetz/joengine/pull/58
-*/
-# if defined(JO_480i)
-    // Sprite color RAM address offset: 1
-    JO_VDP2_CRAOFB = JO_VDP2_CRAOFB_SPRITE_OFFSET(1) | (JO_VDP2_CRAOFB & ~JO_VDP2_CRAOFB_SPRITE_OFFSET_MASK);
-#  if defined(JO_COMPILE_WITH_PRINTF_SUPPORT)
-    jo_vdp2_zoom_nbg0(0.5f);
-#  endif
-# endif
+}
+
+bool                                        jo_core_set_screen_resolution(const int width, const int height)
+{
+    bool                                    pal;
+
+    pal = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_PAL) != 0;
+    if ((width != 320 && width != 352 && width != 640 && width != 704) ||
+        (height != 224 && height != 240 && height != 448 && height != 480 && (!pal || (height != 256 && height != 512))))
+        return (false);
+    if ((width == 352 || width == 704) != __jo_screen.clock_352)
+        return (false);
+    __jo_screen.width = (short)width;
+    __jo_screen.height = (short)height;
+    __jo_screen.width_2 = (short)(width >> 1);
+    __jo_screen.height_2 = (short)(height >> 1);
+    __jo_screen.hires = width > 352;
+    __jo_screen.interlace = height > 256;
+    __jo_screen.background_width = (short)(__jo_screen.hires ? width >> 1 : width);
+    __jo_screen.background_height = (short)(__jo_screen.interlace ? height >> 1 : height);
+    __jo_vdp1_set_screen_mode();
+    __jo_vdp2_set_screen_mode();
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+    __jo_3d_set_screen_mode();
+#endif
+    return (true);
+}
+
+void                    jo_core_set_screen_single_interlace(const bool enabled)
+{
+    __jo_screen.single_interlace = enabled;
+    __jo_vdp2_update_tv_mode();
 }
 
 void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ...)

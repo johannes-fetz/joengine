@@ -204,19 +204,14 @@ void            jo_print(int x, int y, char * str)
 
 void                    jo_clear_screen_line(const int y)
 {
-    // One call for the whole line (40 or 44 characters)
-# if defined(JO_480i)
     __jo_vdp2_print(0, y, "                                            ");
-#else
-    __jo_vdp2_print(0, y, "                                        ");
-#endif
 }
 
 void                    jo_clear_screen(void)
 {
     register int        y;
 
-    for (JO_ZERO(y); y < 30; ++y)
+    for (JO_ZERO(y); y < JO_DIV_BY_8(__jo_screen.background_height); ++y)
         jo_clear_screen_line(y);
 }
 

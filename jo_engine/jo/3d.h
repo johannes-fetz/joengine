@@ -682,6 +682,33 @@ static  __jo_force_inline void      jo_3d_light(const int x, const int y, const 
     __jo_3d_light(&p);
 }
 
+/** @brief Use a light source: its direction as a unit vector
+ *  @param x X of the direction (Q16.16)
+ *  @param y Y of the direction (Q16.16)
+ *  @param z Z of the direction (Q16.16)
+ *  @remarks The vector is transformed by the current matrix, so call it after jo_3d_camera_look_at()
+ */
+static  __jo_force_inline void      jo_3d_light_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z)
+{
+    jo_pos3D_fixed  p;
+
+    p.x = x;
+    p.y = y;
+    p.z = z;
+    __jo_3d_light(&p);
+}
+
+/** @brief Palette lighting (the light of jo_3d_light() without the RGB colors: the only lighting of the 640 and 704 pixels
+ *  modes): a lit polygon of a palette color (or a texture of 16 colors with a color bank) takes the shade of its light,
+ *  its color code + shade * stride (shade 0 = the darkest)
+ *  @param levels Shades of each color (2 to 32; 0 = off, the default)
+ *  @param stride Color codes between 2 shades of a color (the count of jo_palette_set_light_shades(): the same for all the
+ *  lit palette polygons)
+ *  @remarks In the 640 and 704 pixels modes, the polygons of the RGB textures are not lit (their gouraud shading needs an
+ *  RGB frame buffer)
+ */
+void                                jo_3d_set_palette_light(const int levels, const int stride);
+
 /** @brief Enable/Disable light on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param enabled true to enable light support

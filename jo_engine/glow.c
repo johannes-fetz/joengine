@@ -395,18 +395,18 @@ static void                         jo_glow_vblank(void)
         {
             JO_VDP2_SCXN2 = (unsigned short)(l->scroll_x & 0x7FF);
             JO_VDP2_SCYN2 = (unsigned short)(l->scroll_y & 0x7FF);
-            JO_VDP2_WPSX0 = (unsigned short)(l->rect.left << 1);
+            JO_VDP2_WPSX0 = (unsigned short)(l->rect.left << !__jo_screen.hires);
             JO_VDP2_WPSY0 = (unsigned short)l->rect.top;
-            JO_VDP2_WPEX0 = (unsigned short)(l->rect.right << 1);
+            JO_VDP2_WPEX0 = (unsigned short)(l->rect.right << !__jo_screen.hires);
             JO_VDP2_WPEY0 = (unsigned short)l->rect.bottom;
         }
         else
         {
             JO_VDP2_SCXN3 = (unsigned short)(l->scroll_x & 0x7FF);
             JO_VDP2_SCYN3 = (unsigned short)(l->scroll_y & 0x7FF);
-            JO_VDP2_WPSX1 = (unsigned short)(l->rect.left << 1);
+            JO_VDP2_WPSX1 = (unsigned short)(l->rect.left << !__jo_screen.hires);
             JO_VDP2_WPSY1 = (unsigned short)l->rect.top;
-            JO_VDP2_WPEX1 = (unsigned short)(l->rect.right << 1);
+            JO_VDP2_WPEX1 = (unsigned short)(l->rect.right << !__jo_screen.hires);
             JO_VDP2_WPEY1 = (unsigned short)l->rect.bottom;
         }
         JO_VDP2_WCTLB = JO_GLOW_WINDOWS;
@@ -609,18 +609,18 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
             sy[i] = jo_fixed2int(jo_fixed_mult(v.y, k));
             diameter[i] = jo_fixed2int(jo_fixed_mult(jo_int2fixed(glow->radius * 2), k));
             s = JO_MIN(diameter[i], 128) / 2;
-            on_screen[i] = sx[i] + s > -JO_TV_WIDTH_2 && sx[i] - s < JO_TV_WIDTH_2 && sy[i] + s > -JO_TV_HEIGHT_2 && sy[i] - s < JO_TV_HEIGHT_2;
+            on_screen[i] = sx[i] + s > -__jo_screen.width_2 && sx[i] - s < __jo_screen.width_2 && sy[i] + s > -__jo_screen.height_2 && sy[i] - s < __jo_screen.height_2;
             // Seen only where the place of the lamp is seen (the rectangle of a door: the walls around it hide its glow)
             rect[i].left = 0;
             rect[i].top = 0;
-            rect[i].right = JO_TV_WIDTH - 1;
-            rect[i].bottom = JO_TV_HEIGHT - 1;
+            rect[i].right = __jo_screen.width - 1;
+            rect[i].bottom = __jo_screen.height - 1;
             if (on_screen[i] && __jo_glow_clip != JO_NULL)
             {
                 on_screen[i] = __jo_glow_clip(&glow->position, &rect[i]);
                 // (the disc and the rectangle)
-                on_screen[i] = on_screen[i] && sx[i] + JO_TV_WIDTH_2 + s > rect[i].left && sx[i] + JO_TV_WIDTH_2 - s < rect[i].right &&
-                               sy[i] + JO_TV_HEIGHT_2 + s > rect[i].top && sy[i] + JO_TV_HEIGHT_2 - s < rect[i].bottom;
+                on_screen[i] = on_screen[i] && sx[i] + __jo_screen.width_2 + s > rect[i].left && sx[i] + __jo_screen.width_2 - s < rect[i].right &&
+                               sy[i] + __jo_screen.height_2 + s > rect[i].top && sy[i] + __jo_screen.height_2 - s < rect[i].bottom;
             }
         }
     }
@@ -713,8 +713,8 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
         l->size = (char)size;
         l->rect = rect[i];
         // The middle of the disc on the lamp
-        l->scroll_x = (short)(__jo_glow_sizes[size] / 2 - (JO_TV_WIDTH_2 + sx[i]));
-        l->scroll_y = (short)(__jo_glow_sizes[size] / 2 - (JO_TV_HEIGHT_2 + sy[i]));
+        l->scroll_x = (short)(__jo_glow_sizes[size] / 2 - (__jo_screen.width_2 + sx[i]));
+        l->scroll_y = (short)(__jo_glow_sizes[size] / 2 - (__jo_screen.height_2 + sy[i]));
         // (the light of a level: (level / 15)^2: a soft halo, the light falls quickly away from the lamp. Linear, the halo
         // was a wide bright disc with a visible edge)
         for (s = 0; s < JO_GLOW_LEVELS; ++s)

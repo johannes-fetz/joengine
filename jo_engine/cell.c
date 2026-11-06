@@ -268,8 +268,8 @@ static int                          __jo_cells_occluder_depth(const int cell, co
     unsigned short                  candidate[JO_CELL_OCCLUDER_CANDIDATES];
     short                           candidate_depth[JO_CELL_OCCLUDER_CANDIDATES];
     int                             count;
-    static const int                screen_x[4] = {0, JO_TV_WIDTH - 1, JO_TV_WIDTH - 1, 0};
-    static const int                screen_y[4] = {0, 0, JO_TV_HEIGHT - 1, JO_TV_HEIGHT - 1};
+    const int                       screen_x[4] = {0, __jo_screen.width - 1, __jo_screen.width - 1, 0};
+    const int                       screen_y[4] = {0, 0, __jo_screen.height - 1, __jo_screen.height - 1};
 
     c = &__jo_cells[cell];
     if (c->mesh == JO_NULL || __jo_cell_bounds[cell] == JO_NULL)
@@ -343,8 +343,8 @@ static int                          __jo_cells_occluder_depth(const int cell, co
                 break;
             zmax = JO_MAX(zmax, v[j].z);
             k = jo_fixed_div(pd, v[j].z);
-            sx[j] = JO_TV_WIDTH_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].x, k)), -10000), 10000);
-            sy[j] = JO_TV_HEIGHT_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].y, k)), -10000), 10000);
+            sx[j] = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].x, k)), -10000), 10000);
+            sy[j] = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].y, k)), -10000), 10000);
         }
         if (j < 4)
             continue;
@@ -1083,8 +1083,8 @@ static bool                         __jo_cell_portal_view(const jo_cell_portal *
     {
         k = jo_fixed_div(pd, points[j].z);
         // (far outside of the screen: the rectangle of the cell before it is the limit)
-        sx = JO_TV_WIDTH_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].x, k)), -10000), 10000);
-        sy = JO_TV_HEIGHT_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].y, k)), -10000), 10000);
+        sx = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].x, k)), -10000), 10000);
+        sy = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].y, k)), -10000), 10000);
         left = JO_MIN(left, sx);
         right = JO_MAX(right, sx);
         top = JO_MIN(top, sy);
@@ -1457,8 +1457,8 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
             __jo_cell_drawn[k] = 1;
             view.left = 0;
             view.top = 0;
-            view.right = JO_TV_WIDTH - 1;
-            view.bottom = JO_TV_HEIGHT - 1;
+            view.right = __jo_screen.width - 1;
+            view.bottom = __jo_screen.height - 1;
             __jo_cell_from_outside[k] = view;
             __jo_cell_through_window[k] = false;
             seen = false;
@@ -1515,8 +1515,8 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
     stack[0].level = 0;
     stack[0].left = 0;
     stack[0].top = 0;
-    stack[0].right = JO_TV_WIDTH - 1;
-    stack[0].bottom = JO_TV_HEIGHT - 1;
+    stack[0].right = __jo_screen.width - 1;
+    stack[0].bottom = __jo_screen.height - 1;
     count = 1;
     drawn = 0;
     while (count > 0)
@@ -1603,8 +1603,8 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
     __jo_cell_far_window = false;
     if (__jo_cell_portal_clipping && __jo_cell_mirror_count == 0 && drawn > 1)
     {
-        view.left = JO_TV_WIDTH;
-        view.top = JO_TV_HEIGHT;
+        view.left = __jo_screen.width;
+        view.top = __jo_screen.height;
         view.right = -1;
         view.bottom = -1;
         for (k = 1; k < drawn; ++k)
@@ -1618,7 +1618,7 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
         {
             __jo_cell_far_window = true;
             jo_3d_select_window(JO_3D_FAR_WINDOW);
-            jo_3d_window(view.left, view.top, view.right, view.bottom, 0x7fff, JO_TV_WIDTH_2, JO_TV_HEIGHT_2);
+            jo_3d_window(view.left, view.top, view.right, view.bottom, 0x7fff, __jo_screen.width_2, __jo_screen.height_2);
             jo_3d_window_clip(true);
             jo_3d_select_window(JO_3D_NEAR_WINDOW);
         }
@@ -1966,7 +1966,7 @@ static void                         __jo_cells_draw_one_mirror(const int m, void
     __jo_cell_mirror_drawn = m;
     // A far window (one per mirror): the rectangle of the mirror on the screen, the VDP1 clips the polygons to it
     jo_3d_select_window(m == 0 ? JO_3D_FAR_WINDOW : JO_3D_FAR_WINDOW_2);
-    jo_3d_window(v->left, v->top, v->right, v->bottom, JO_CELL_MIRROR_FAR, JO_TV_WIDTH_2, JO_TV_HEIGHT_2);
+    jo_3d_window(v->left, v->top, v->right, v->bottom, JO_CELL_MIRROR_FAR, __jo_screen.width_2, __jo_screen.height_2);
     jo_3d_window_clip(true);
     // The camera reflected by the plane of the mirror: the room is behind the mirror (farther: sorted behind the wall
     // around it, which has a hole for the mirror)
@@ -2038,8 +2038,8 @@ bool                                jo_cells_view_rect_at(const jo_pos3D_fixed *
 
     rect->left = 0;
     rect->top = 0;
-    rect->right = JO_TV_WIDTH - 1;
-    rect->bottom = JO_TV_HEIGHT - 1;
+    rect->right = __jo_screen.width - 1;
+    rect->bottom = __jo_screen.height - 1;
     if (__jo_cell_count == 0)
         return (true);
     cell = __jo_cells_find_object(position->x, position->y, position->z);

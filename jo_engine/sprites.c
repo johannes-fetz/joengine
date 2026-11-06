@@ -567,8 +567,8 @@ void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_po
         __jo_vdp1_draw_sprite_4p(four_points, z, &attr);
         return;
     }
-    delta.x = jo_int2fixed(JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-    delta.y = jo_int2fixed(JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+    delta.x = jo_int2fixed(__jo_screen.width_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+    delta.y = jo_int2fixed(__jo_screen.height_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     for (JO_ZERO(i); i < 4; ++i)
     {
         points[i].x = four_points[i].x - delta.x;
@@ -595,8 +595,8 @@ static void             jo_sprite_compute_position(const int sprite_id, const jo
     }
     else
     {
-        output->x = jo_int2fixed(pos->x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-        output->y = jo_int2fixed(pos->y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+        output->x = jo_int2fixed(pos->x - __jo_screen.width_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
+        output->y = jo_int2fixed(pos->y - __jo_screen.height_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
     }
 }
 

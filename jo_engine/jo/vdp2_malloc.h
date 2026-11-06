@@ -41,6 +41,11 @@
 # define JO_VDP2_KTABLE_SIZE                    (0x1FE00)
 # define JO_VDP2_ROTATION_TABLE_SIZE            (0x00080)
 # define JO_VDP2_MAP_SIZE                       (8192)
+/** @brief The font of jo_printf() (NBG0, 256 cells of 16 colors) at the start of the bank B1 (VRAM offset) */
+# define JO_VDP2_PRINTF_CELL_OFFSET             (0x60000)
+# define JO_VDP2_PRINTF_CELL_SIZE               (0x2000)
+/** @brief The map of jo_printf() (NBG0) in the bank B1 (VRAM offset) */
+# define JO_VDP2_PRINTF_MAP_OFFSET              (0x76000)
 # define JO_VDP2_CELL_TO_MAP_OFFSET(CELL_PTR)   JO_DIV_BY_32(JO_MOD_POW2((int)CELL_PTR, JO_VDP2_BANK_SIZE))
 
 typedef enum

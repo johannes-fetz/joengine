@@ -200,6 +200,50 @@ void    jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  */
 void    jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
+/** @brief The NBG1 bitmap in 256 colors at the resolution of the screen (one pixel of the bitmap = one pixel of the screen,
+ *  not zoomed): 1024 x 256 pixels, 512 x 512 pixels in the 448 to 512 lines modes (in 640 x 480 and 704 x 480: one pixel
+ *  of the bitmap = 2 pixels of the screen horizontally)
+ *  @param palette_id Palette (jo_create_palette(): from 0 to 7)
+ *  @return false if the bitmap can't be allocated (the bank A0 is used)
+ *  @remarks Its memory is the memory of the 32768 colors bitmap: jo_vdp2_set_nbg1_16bits_bitmap() (and the images drawn in
+ *  32768 colors: jo_vdp2_set_nbg1_image()...) set the 32768 colors bitmap again. A change of the screen mode changes its
+ *  size: draw it again
+ *  @warning The last 2 pixels of the bitmap hold the color of the back screen
+ */
+bool    jo_vdp2_set_nbg1_8bits_bitmap(const int palette_id);
+
+/** @brief The NBG1 bitmap in 32768 colors again (see jo_vdp2_set_nbg1_8bits_bitmap()): draw it again */
+void    jo_vdp2_set_nbg1_16bits_bitmap(void);
+
+/** @brief Width of the 256 colors NBG1 bitmap (see jo_vdp2_set_nbg1_8bits_bitmap())
+ *  @return 1024 or 512 pixels
+ */
+int     jo_vdp2_get_nbg1_8bits_bitmap_width(void);
+
+/** @brief Height of the 256 colors NBG1 bitmap (see jo_vdp2_set_nbg1_8bits_bitmap())
+ *  @return 256 or 512 pixels
+ */
+int     jo_vdp2_get_nbg1_8bits_bitmap_height(void);
+
+/** @brief Fill the 256 colors NBG1 bitmap (see jo_vdp2_set_nbg1_8bits_bitmap())
+ *  @param index Color index (0 = transparent)
+ */
+void    jo_vdp2_clear_bitmap_nbg1_8bits(const unsigned char index);
+
+/** @brief Put a pixel in the 256 colors NBG1 bitmap (see jo_vdp2_set_nbg1_8bits_bitmap())
+ *  @param x Horizontal position
+ *  @param y Vertical position
+ *  @param index Color index (0 = transparent)
+ */
+void    jo_vdp2_put_pixel_bitmap_nbg1_8bits(const int x, const int y, const unsigned char index);
+
+/** @brief Copy an image in the 256 colors NBG1 bitmap (see jo_vdp2_set_nbg1_8bits_bitmap())
+ *  @param img 8 bits image (cut at the borders of the bitmap)
+ *  @param x Horizontal position
+ *  @param y Vertical position
+ */
+void    jo_vdp2_draw_bitmap_nbg1_8bits_image(const jo_img_8bits * const img, const int x, const int y);
+
 /** @brief Set NBG1 bitmap image
  *  @param img Pointer to an image struct
  *  @param left Left location
@@ -389,6 +433,16 @@ void                            jo_vdp2_disable_rbg0(void);
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
  */
 void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip);
+
+/** @brief Setup plane A as an island: the image once, its top left cell (8 x 8 pixels) repeated around it to the infinite
+ *  (a ring in the sea, a field in a desert)
+ *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
+ *  @param palette_id palette id from TGA (see also jo_palette)
+ *  @param vertical_flip Flip image vertically
+ *  @remarks The image is at the origin of the plane (its top left corner): translate the plane to center it
+ *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ */
+void                            jo_vdp2_set_rbg0_plane_a_8bits_island(jo_img_8bits *img, int palette_id, bool vertical_flip);
 
 /** @brief Setup plane B
  *  @param img 8 bits 255 colors max image. (Width AND height must be a multiple of 8)
@@ -586,6 +640,230 @@ void      jo_enable_additive_sprites(void);
 
 /** @brief The additive sprites are opaque again (see jo_enable_additive_sprites()) */
 void      jo_disable_additive_sprites(void);
+
+/*
+** Windows: the screens shown only in a part of the screen (or hidden there)
+*/
+
+/** @brief Window 0 (see jo_vdp2_set_window()) */
+# define JO_VDP2_WINDOW_0                   (0)
+/** @brief Window 1 (see jo_vdp2_set_window()) */
+# define JO_VDP2_WINDOW_1                   (1)
+
+/** @brief Where the screens of a window are shown (see jo_vdp2_enable_window()) */
+typedef enum
+{
+    /** @brief The screens are shown only inside the window */
+    JO_VDP2_WINDOW_SHOW_INSIDE,
+    /** @brief The screens are hidden inside the window */
+    JO_VDP2_WINDOW_SHOW_OUTSIDE
+}                                   jo_vdp2_window_area;
+
+/** @brief Set a rectangle window
+ *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
+ *  @param x Left (pixels, 0 is the left of the screen)
+ *  @param y Top (lines, 0 is the top of the screen)
+ *  @param width Width (pixels)
+ *  @param height Height (lines)
+ *  @remarks Then choose its screens with jo_vdp2_enable_window(). The glows (jo/glow.h) use the 2 windows
+ */
+void    jo_vdp2_set_window(const int window, int x, int y, int width, int height);
+
+/** @brief Set a window of any shape: its left and right pixels on each line
+ *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
+ *  @param top First line of the window
+ *  @param count Line count (up to 512)
+ *  @param left Left pixel of each line (count values)
+ *  @param right Right pixel of each line, included (count values; smaller than left: nothing on the line)
+ *  @return true if succeed, false if the VDP2 memory is full (2 KB per window)
+ */
+bool    jo_vdp2_set_window_lines(const int window, const int top, const int count, const short * const left, const short * const right);
+
+/** @brief Set a round window (a spotlight, a transition)
+ *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
+ *  @param x Horizontal position of the center (pixels)
+ *  @param y Vertical position of the center (lines)
+ *  @param radius Radius (pixels)
+ *  @return true if succeed, false if the VDP2 memory is full
+ */
+bool    jo_vdp2_set_window_circle(const int window, const int x, const int y, const int radius);
+
+/** @brief Show screens only inside a window, or hide them there
+ *  @param screens Screens (example: JO_NBG1_SCREEN | JO_SPRITE_SCREEN): NBG0 to NBG3, RBG0 and the sprites
+ *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
+ *  @param area JO_VDP2_WINDOW_SHOW_INSIDE or JO_VDP2_WINDOW_SHOW_OUTSIDE
+ *  @remarks A screen with the 2 windows is hidden where one of the 2 windows hides it
+ */
+void    jo_vdp2_enable_window(const jo_scroll_screen screens, const int window, const jo_vdp2_window_area area);
+
+/** @brief The screens are shown on all the screen again (see jo_vdp2_enable_window())
+ *  @param screens Screens
+ */
+void    jo_vdp2_disable_window(const jo_scroll_screen screens);
+
+/*
+** Color calculation: the screens mixed with the image under them
+*/
+
+/** @brief How the screens are mixed with the image under them (see jo_vdp2_set_blend_mode()) */
+typedef enum
+{
+    /** @brief A part of the color of the screen and a part of the image under it (transparency) */
+    JO_VDP2_BLEND_RATIO,
+    /** @brief The color of the screen is added to the image under it (light, fire, glow) */
+    JO_VDP2_BLEND_ADD = 1,
+    /** @brief Option of JO_VDP2_BLEND_RATIO and JO_VDP2_BLEND_ADD (example: JO_VDP2_BLEND_RATIO | JO_VDP2_BLEND_EXTENDED):
+     *  when the screen under is also mixed, the 2 screens under the top screen are mixed together (3 screens are seen
+     *  through each other). Not in the 640 and 704 pixels modes */
+    JO_VDP2_BLEND_EXTENDED = 2
+}                                   jo_vdp2_blend_mode;
+
+/** @brief Maximum ratio of jo_vdp2_enable_blend() */
+# define JO_VDP2_BLEND_RATIO_MAX            (31)
+
+/** @brief Set how the screens are mixed (jo_vdp2_enable_blend()): the same for all the screens
+ *  @param mode JO_VDP2_BLEND_RATIO (default) or JO_VDP2_BLEND_ADD, with or without JO_VDP2_BLEND_EXTENDED
+ */
+void    jo_vdp2_set_blend_mode(const jo_vdp2_blend_mode mode);
+
+/** @brief Mix screens with the image under them
+ *  @param screens Screens (example: JO_NBG1_SCREEN | JO_SPRITE_SCREEN)
+ *  @param ratio JO_VDP2_BLEND_RATIO mode: 0 (the screen is opaque) to 31 (almost invisible), 16 = half and half.
+ *  Not used by the JO_VDP2_BLEND_ADD mode
+ */
+void    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio);
+
+/** @brief The screens are opaque again (see jo_vdp2_enable_blend())
+ *  @param screens Screens
+ */
+void    jo_vdp2_disable_blend(const jo_scroll_screen screens);
+
+/** @brief Blur a screen horizontally where it is mixed: under a transparent screen (jo_vdp2_enable_blend()), or where it is
+ *  transparent itself (water, glass, heat)
+ *  @param screen One screen: JO_NBG0_SCREEN to JO_NBG3_SCREEN, JO_RBG0_SCREEN or JO_SPRITE_SCREEN
+ *  @return false if the screen is not supported
+ *  @remarks Ratio mode only (JO_VDP2_BLEND_RATIO without JO_VDP2_BLEND_EXTENDED), not in the 640 and 704 pixels modes
+ *  @warning The color RAM has 1024 colors while the blur is enabled: the palettes 0 to 3 are displayed, the palettes after
+ *  them (the 4th jo_create_palette() and the next ones) are not, and their colors must not be changed (they overwrite
+ *  the first ones)
+ */
+bool    jo_vdp2_enable_blur(const jo_scroll_screen screen);
+
+/** @brief No blur (see jo_vdp2_enable_blur()): the color RAM has 2048 colors again */
+void    jo_vdp2_disable_blur(void);
+
+/*
+** Sprites of the 640 and 704 pixels modes (8 bits per pixel: the color index of a sprite is also its priority or its
+** transparency)
+*/
+
+/** @brief What the 2 highest bits of the color index of a sprite choose in the 640 and 704 pixels modes */
+typedef enum
+{
+    /** @brief The blend ratio (jo_vdp2_set_sprite_blend_ratios()): 256 colors, one priority (default) */
+    JO_VDP2_HIRES_SPRITES_BLEND,
+    /** @brief The priority (jo_vdp2_set_sprite_priorities()): the colors 0 to 63 at the priority 0, 64 to 127 at the
+     *  priority 1... (the 256 colors displayed) */
+    JO_VDP2_HIRES_SPRITES_PRIORITY,
+    /** @brief The bit 7 the priority (0 or 1), the bit 6 the blend ratio (0 or 1) */
+    JO_VDP2_HIRES_SPRITES_PRIORITY_BLEND
+}                                   jo_vdp2_hires_sprite_mode;
+
+/** @brief Choose what the color index of the sprites gives in the 640 and 704 pixels modes (sprite types F, E and D)
+ *  @param mode JO_VDP2_HIRES_SPRITES_BLEND (default), JO_VDP2_HIRES_SPRITES_PRIORITY or
+ *  JO_VDP2_HIRES_SPRITES_PRIORITY_BLEND
+ */
+void    jo_vdp2_set_hires_sprite_mode(const jo_vdp2_hires_sprite_mode mode);
+
+/** @brief The priorities of the sprites (by default all the sprites have the priority of jo_core_set_screens_order()):
+ *  chosen by the color of a sprite (its bits 14-13 in palette mode, its 2 highest bits in the 640 and 704 pixels modes)
+ *  @param p0 Priority 0 (1 to 7; 0 = hidden)
+ *  @param p1 Priority 1
+ *  @param p2 Priority 2
+ *  @param p3 Priority 3
+ *  @remarks jo_core_set_screens_order() gives the same priority to all of them again
+ */
+void    jo_vdp2_set_sprite_priorities(const unsigned char p0, const unsigned char p1, const unsigned char p2, const unsigned char p3);
+
+/** @brief The 4 blend ratios of the sprites (jo_vdp2_enable_blend() gives the same ratio to all of them), chosen by the color
+ *  of a sprite (its bits 12-11 in palette mode, its 2 highest bits in the 640 and 704 pixels modes)
+ *  @param r0 Ratio 0 (0 to JO_VDP2_BLEND_RATIO_MAX)
+ *  @param r1 Ratio 1
+ *  @param r2 Ratio 2
+ *  @param r3 Ratio 3
+ *  @remarks Call it after jo_vdp2_enable_blend(JO_SPRITE_SCREEN, ...)
+ */
+void    jo_vdp2_set_sprite_blend_ratios(const unsigned char r0, const unsigned char r1, const unsigned char r2, const unsigned char r3);
+
+/*
+** Special colors: some colors of a palette screen have their own priority or their own transparency
+*/
+
+/** @brief The special color code of the palette colors whose index ends with c (index & 15 = c): c and c ^ 1 share a code
+ *  (see jo_vdp2_set_special_colors())
+ */
+# define JO_VDP2_SPECIAL_COLOR(INDEX)       ((unsigned char)(1 << (((INDEX) & 15) >> 1)))
+
+/** @brief Choose the special colors of the screens (see jo_vdp2_enable_special_priority() and jo_vdp2_enable_special_blend())
+ *  @param codes Special color codes (example: JO_VDP2_SPECIAL_COLOR(4) | JO_VDP2_SPECIAL_COLOR(10): the colors 4, 5, 10,
+ *  11, 20, 21, 26, 27... of the palette)
+ */
+void    jo_vdp2_set_special_colors(const unsigned char codes);
+
+/** @brief The special colors of the screens are drawn one priority above the others pixels of the screen (a window or
+ *  lights of a background over the screen just above it, the sprites behind a part of the background)
+ *  @param screens Palette screens (16 or 256 colors): NBG0 to NBG3 and RBG0
+ *  @remarks The priority of the screen (jo_core_set_screens_order()) loses its lowest bit: the other pixels have the even
+ *  priority below it (a screen at the priority 5: 4 and 5 for the special colors)
+ */
+void    jo_vdp2_enable_special_priority(const jo_scroll_screen screens);
+
+/** @brief The screens have one priority again (see jo_vdp2_enable_special_priority())
+ *  @param screens Screens
+ */
+void    jo_vdp2_disable_special_priority(const jo_scroll_screen screens);
+
+/** @brief Only the special colors of the screens are mixed (jo_vdp2_enable_blend()): the other pixels are opaque (the
+ *  windows of a building, the water of a map)
+ *  @param screens Palette screens (16 or 256 colors): NBG0 to NBG3 and RBG0
+ */
+void    jo_vdp2_enable_special_blend(const jo_scroll_screen screens);
+
+/** @brief All the pixels of the screens are mixed again (see jo_vdp2_enable_special_blend())
+ *  @param screens Screens
+ */
+void    jo_vdp2_disable_special_blend(const jo_scroll_screen screens);
+
+/*
+** Shadows: the sprites drawn with JO_VDP2_SHADOW_COLOR darken the screens under them
+*/
+
+/** @brief The color of a shadow: a polygon or the pixels of a palette sprite drawn with it darken the screens under
+ *  them by half (see jo_vdp2_enable_shadow()). The sprite itself is not shown
+ */
+# define JO_VDP2_SHADOW_COLOR               (0x07FE)
+
+/** @brief The shadows darken these screens
+ *  @param screens Screens (example: JO_NBG1_SCREEN | JO_BACK_SCREEN): NBG0 to NBG3, RBG0 and the back screen
+ */
+void    jo_vdp2_enable_shadow(const jo_scroll_screen screens);
+
+/** @brief No screen is darkened by the shadows (see jo_vdp2_enable_shadow()) */
+void    jo_vdp2_disable_shadow(void);
+
+/*
+** Mosaic
+*/
+
+/** @brief Enable the mosaic effect (big pixels)
+ *  @param screens Screens: NBG0 to NBG3 and RBG0
+ *  @param width Width of the big pixels (1 to 16)
+ *  @param height Height of the big pixels (1 to 16)
+ */
+void    jo_vdp2_enable_mosaic(const jo_scroll_screen screens, const int width, const int height);
+
+/** @brief Disable the mosaic effect (see jo_vdp2_enable_mosaic()) */
+void    jo_vdp2_disable_mosaic(void);
 
 #endif /* !__JO_VDP2_H__ */
 

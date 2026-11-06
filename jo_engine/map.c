@@ -224,8 +224,8 @@ static void             __internal_jo_map_add_tile(const unsigned int layer, con
         sprite_id = jo_get_anim_sprite(sprite_or_anim_id);
     else
         sprite_id = sprite_or_anim_id;
-    new_tile->x = x - JO_TV_WIDTH_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width);
-    new_tile->y = y - JO_TV_HEIGHT_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height);
+    new_tile->x = x - __jo_screen.width_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width);
+    new_tile->y = y - __jo_screen.height_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height);
     new_tile->width = __jo_sprite_def[sprite_id].width;
     new_tile->height = __jo_sprite_def[sprite_id].height;
     new_tile->is_animated = is_animated;
@@ -321,10 +321,10 @@ void						jo_map_scroll_background(const unsigned int layer, const short x, cons
     new_y = -y;
     dx = new_x - view_x;
     dy = new_y - view_y;
-    if (!drawn || drawn_layer != layer || JO_ABS(dx) > JO_VDP2_WIDTH - JO_TV_WIDTH || JO_ABS(dy) > JO_VDP2_HEIGHT - JO_TV_HEIGHT)
+    if (!drawn || drawn_layer != layer || JO_ABS(dx) > JO_VDP2_WIDTH - __jo_screen.background_width || JO_ABS(dy) > JO_VDP2_HEIGHT - __jo_screen.background_height)
     {
         // First call or too big move: draw the whole screen
-        jo_map_draw_background_region(layer, new_x, new_y, JO_TV_WIDTH, JO_TV_HEIGHT, clear_color);
+        jo_map_draw_background_region(layer, new_x, new_y, __jo_screen.background_width, __jo_screen.background_height, clear_color);
         drawn = true;
         drawn_layer = layer;
     }
@@ -332,13 +332,13 @@ void						jo_map_scroll_background(const unsigned int layer, const short x, cons
     {
         // Only the new columns and lines (outside of the screen until the scroll registers change at the next VBLANK)
         if (dx > 0)
-            jo_map_draw_background_region(layer, view_x + JO_TV_WIDTH, new_y, dx, JO_TV_HEIGHT, clear_color);
+            jo_map_draw_background_region(layer, view_x + __jo_screen.background_width, new_y, dx, __jo_screen.background_height, clear_color);
         else if (dx < 0)
-            jo_map_draw_background_region(layer, new_x, new_y, -dx, JO_TV_HEIGHT, clear_color);
+            jo_map_draw_background_region(layer, new_x, new_y, -dx, __jo_screen.background_height, clear_color);
         if (dy > 0)
-            jo_map_draw_background_region(layer, new_x, view_y + JO_TV_HEIGHT, JO_TV_WIDTH, dy, clear_color);
+            jo_map_draw_background_region(layer, new_x, view_y + __jo_screen.background_height, __jo_screen.background_width, dy, clear_color);
         else if (dy < 0)
-            jo_map_draw_background_region(layer, new_x, new_y, JO_TV_WIDTH, -dy, clear_color);
+            jo_map_draw_background_region(layer, new_x, new_y, __jo_screen.background_width, -dy, clear_color);
     }
     view_x = new_x;
     view_y = new_y;
@@ -370,7 +370,7 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
-        current_tile->is_visible_on_screen = jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, screen_x, screen_y, JO_TV_WIDTH, JO_TV_HEIGHT);
+        current_tile->is_visible_on_screen = jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, screen_x, screen_y, __jo_screen.width, __jo_screen.height);
         if (current_tile->is_visible_on_screen)
         {
             current_tile->pos.x = current_tile->x - screen_x;

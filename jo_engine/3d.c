@@ -1188,19 +1188,28 @@ void                                        __jo_3d_look_at(const jo_fixed * con
 ** Projection & light
 */
 
+/** @brief The angle of view (see __jo_3d_set_screen_mode()) */
+static jo_angle                             __jo_3d_perspective_angle = JO_DEG_TO_ANGLE(JO_3D_DEFAULT_PERSPECTIVE_ANGLE);
+
 void                                        __jo_3d_set_perspective(const jo_angle angle)
 {
     jo_fixed                                s;
     jo_fixed                                c;
 
+    __jo_3d_perspective_angle = angle;
     s = jo_sin_angle((jo_angle)(angle >> 1));
     c = jo_cos_angle((jo_angle)(angle >> 1));
     if (s <= 0)
         s = 1;
     // Distance between the eye and the screen: (screen width / 2) / tan(angle / 2)
     // (the divider of the CPU instead of a 64 bits division: the same quotient, (width / 2) x c < 2^31)
-    __jo_vdp1_projection_distance = jo_fixed_div(JO_TV_WIDTH_2 * c, s);
+    __jo_vdp1_projection_distance = jo_fixed_div(__jo_screen.width_2 * c, s);
     __jo_vdp1_update_near_clip();
+}
+
+void                                        __jo_3d_set_screen_mode(void)
+{
+    __jo_3d_set_perspective(__jo_3d_perspective_angle);
 }
 
 void                                        __jo_3d_light(const jo_pos3D_fixed * const light)
@@ -1340,6 +1349,17 @@ static const unsigned char                  jo_3d_light_clamp[JO_3D_RGB_COMPONEN
     31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31
 };
 
+/** @brief Shades of the palette lighting (see jo_3d_set_palette_light()): 0 = off */
+static int                                  __jo_3d_palette_light_levels = 0;
+/** @brief Color codes between 2 shades of a color (see jo_3d_set_palette_light()) */
+static int                                  __jo_3d_palette_light_stride = 0;
+
+void                                        jo_3d_set_palette_light(const int levels, const int stride)
+{
+    __jo_3d_palette_light_levels = levels > 0 && levels <= JO_3D_LIGHT_MAX_LEVEL + 1 ? levels : 0;
+    __jo_3d_palette_light_stride = stride;
+}
+
 /** @brief Apply the lighting to a VDP1 command
  *  @param cmd VDP1 command
  *  @param context Lighting context of the object
@@ -1373,9 +1393,17 @@ static  __jo_force_inline void              jo_3d_apply_light(jo_vdp1_command *c
     level = JO_3D_LIGHT_NEUTRAL_LEVEL;
     if (d)
         level += (-JO_MULT_BY_16(d) + (d > 0 ? 1 : -1)) >> 16;
+    if (__jo_3d_palette_light_levels && (attribute->sort & JO_3D_USE_TEXTURE ?
+        (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_BANK : !(attribute->color & JO_COLOR_SATURN_MSB)))
+    {
+        cmd->colr = (unsigned short)(attribute->color + ((level * __jo_3d_palette_light_levels) >> 5) * __jo_3d_palette_light_stride);
+        return;
+    }
     if (attribute->sort & JO_3D_USE_TEXTURE)
     {
-        // Gouraud shading with the same brightness for the 4 vertices
+        // Gouraud shading with the same brightness for the 4 vertices (RGB frame buffer only)
+        if (__jo_screen.hires)
+            return;
         cmd->pmod = (cmd->pmod & ~JO_VDP1_COLOR_CALC_MASK) | JO_VDP1_COLOR_CALC_GOURAUD;
         cmd->grda = JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + level;
         return;
@@ -1397,7 +1425,8 @@ static  __jo_force_inline bool              jo_3d_is_lit(const jo_3d_polygon_att
 {
     return ((attribute->sort & JO_3D_USE_LIGHT) && !(attribute->sort & JO_3D_USE_PALETTE) &&
             ((attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_RGB ||
-             (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_LOOKUP));
+             (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_LOOKUP ||
+             (__jo_3d_palette_light_levels && (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_BANK)));
 }
 
 /** @brief Outcode of a vertex: position against the screen, the guard band and the near plane
@@ -3089,14 +3118,14 @@ typedef struct
 
 /** @brief Largest distance to the center of the screen of the vertices of a tile drawn by jo_3d_emit_near_tile() (pixels): the
  *  VDP1 spends time on the pixels outside of the screen */
-# define JO_3D_NEAR_TILE_LIMIT              (JO_TV_WIDTH)
+# define JO_3D_NEAR_TILE_LIMIT              (__jo_screen.width)
 /** @brief A point of the clipping plane of jo_3d_emit_near_tile() nearer than this to the screen (pixels) is seen */
 # define JO_3D_NEAR_TILE_MARGIN             (8)
 /** @brief Largest distance to the center of the screen of a corner of a tile placed by jo_3d_extrapolate_near_tile() (pixels) */
 # define JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT (1024)
 /** @brief Largest distance to the center of the screen of a corner of a tile used to place the other corners by
  *  jo_3d_extrapolate_near_tile() (pixels) */
-# define JO_3D_NEAR_TILE_ANCHOR_LIMIT       (JO_TV_WIDTH)
+# define JO_3D_NEAR_TILE_ANCHOR_LIMIT       (__jo_screen.width)
 /** @brief Smallest part of an edge of a tile in front of the clipping plane for jo_3d_extrapolate_near_tile() (1 / 4: the
  *  edge is drawn 4 times longer than its part on the screen at most) */
 # define JO_3D_NEAR_TILE_MIN_PART           (JO_FIXED_1 / 4)
@@ -3206,20 +3235,20 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
                 switch (j)
                 {
                     case 0:
-                        fa = (long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 1:
-                        fa = -(long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 2:
-                        fa = (long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 3:
-                        fa = -(long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     default:
                         fa = clip_z - in[n].z;
@@ -3868,8 +3897,8 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
             y = jo_fixed_mult_to_int(out[i].y, k);
             // (the plane moved away: a point of the plane on the screen means that the part of the tile removed is seen,
             // the edges of the screen clip it instead)
-            if (pass > 0 && out[i].z == clip_z && JO_ABS(x) <= JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN &&
-                JO_ABS(y) <= JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN)
+            if (pass > 0 && out[i].z == clip_z && JO_ABS(x) <= __jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN &&
+                JO_ABS(y) <= __jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN)
             {
                 if (i + 1 < n)
                     (void)jo_fixed_div_result();
@@ -6650,12 +6679,12 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_points(const j
     sx = jo_fixed_mult(v->x, k);
     sy = jo_fixed_mult(v->y, k);
     // Outside of the screen
-    if (sx + w < -jo_int2fixed(JO_TV_WIDTH_2) || sx - w > jo_int2fixed(JO_TV_WIDTH_2) ||
-        sy < -jo_int2fixed(JO_TV_HEIGHT_2) || sy - h > jo_int2fixed(JO_TV_HEIGHT_2))
+    if (sx + w < -jo_int2fixed(__jo_screen.width_2) || sx - w > jo_int2fixed(__jo_screen.width_2) ||
+        sy < -jo_int2fixed(__jo_screen.height_2) || sy - h > jo_int2fixed(__jo_screen.height_2))
         return (false);
     // The camera is in the sprite: a huge sprite would hide the whole view (and cost a lot of VDP1 time): not drawn.
     // (a plant near the camera stays: it disappeared when the player came close to it)
-    if (h > jo_int2fixed(JO_TV_HEIGHT * 2) || w > jo_int2fixed(JO_TV_WIDTH))
+    if (h > jo_int2fixed(__jo_screen.height * 2) || w > jo_int2fixed(__jo_screen.width))
         return (false);
     s = jo_fixed_mult(sway, k);
     // A: top left, B: top right, C: bottom right, D: bottom left (the sway moves the top)
@@ -8010,10 +8039,10 @@ void                                        jo_3d_set_view_rect(const jo_3d_rect
         return;
     __jo_3d_view_rect_value = *rect;
     __jo_3d_view_rect.empty = rect->left > rect->right || rect->top > rect->bottom;
-    edges[0] = rect->left - JO_TV_WIDTH_2;
-    edges[1] = rect->right + 1 - JO_TV_WIDTH_2;
-    edges[2] = rect->top - JO_TV_HEIGHT_2;
-    edges[3] = rect->bottom + 1 - JO_TV_HEIGHT_2;
+    edges[0] = rect->left - __jo_screen.width_2;
+    edges[1] = rect->right + 1 - __jo_screen.width_2;
+    edges[2] = rect->top - __jo_screen.height_2;
+    edges[3] = rect->bottom + 1 - __jo_screen.height_2;
     for (k = 0; k < 4; ++k)
     {
         __jo_3d_view_rect.k[k] = jo_fixed_div(jo_int2fixed(edges[k]), __jo_vdp1_projection_distance);
@@ -8056,8 +8085,8 @@ static bool                                 jo_3d_is_sphere_visible_in(const jo_
     if (s->projection_distance != __jo_vdp1_projection_distance)
     {
         s->projection_distance = __jo_vdp1_projection_distance;
-        s->kx = jo_fixed_div(jo_int2fixed(JO_TV_WIDTH_2), s->projection_distance);
-        s->ky = jo_fixed_div(jo_int2fixed(JO_TV_HEIGHT_2), s->projection_distance);
+        s->kx = jo_fixed_div(jo_int2fixed(__jo_screen.width_2), s->projection_distance);
+        s->ky = jo_fixed_div(jo_int2fixed(__jo_screen.height_2), s->projection_distance);
         s->margin_x = JO_FIXED_1 + jo_fixed_mult(s->kx, s->kx) / 2;
         s->margin_y = JO_FIXED_1 + jo_fixed_mult(s->ky, s->ky) / 2;
     }

@@ -169,6 +169,8 @@
 # define JO_VDP2_TVSTAT      (*(volatile unsigned short *)0x25F80004) // N/A
 /** @brief TVSTAT: PAL console (50 Hz) */
 # define JO_VDP2_TVSTAT_PAL  (1 << 0)
+/** @brief TVSTAT: odd field of an interlace mode */
+# define JO_VDP2_TVSTAT_ODD  (1 << 1)
 
 /* 180006 - r/w - VRSIZE - VRAM Size
  bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\

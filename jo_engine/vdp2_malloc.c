@@ -79,7 +79,15 @@ static unsigned char            *__jo_b0 = (unsigned char *)JO_VDP2_VRAM_B0;
 static jo_vdp2_memory_segment   __jo_b0_segments[6];
 // B1
 # define B1_SEGMENT_COUNT       (12)
-static unsigned char            *__jo_b1 = (unsigned char *)JO_VDP2_VRAM_B1;
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+/** @brief The font and the map of jo_printf() stay in the bank B1: the blocks start after the font and skip the map */
+# define JO_VDP2_B1_START               ((unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_CELL_OFFSET + JO_VDP2_PRINTF_CELL_SIZE))
+# define JO_VDP2_B1_HOLE_START          ((unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_MAP_OFFSET))
+# define JO_VDP2_B1_HOLE_END            (JO_VDP2_B1_HOLE_START + JO_VDP2_MAP_SIZE)
+#else
+# define JO_VDP2_B1_START               ((unsigned char *)JO_VDP2_VRAM_B1)
+#endif
+static unsigned char            *__jo_b1 = JO_VDP2_B1_START;
 static jo_vdp2_memory_segment   __jo_b1_segments[12];
 
 void                            jo_vdp2_malloc_init(void)
@@ -193,6 +201,10 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
                     // an aligned map belongs to the block: freed with it)
                     start = jo_vdp2_block_start(__jo_b1, usage);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+                    if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
+                        start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
+#endif
                     if (start + n > (unsigned char *)(JO_VDP2_VRAM + 0x80000))
                         break;
                     __jo_b1_segments[i].ptr = __jo_b1;
