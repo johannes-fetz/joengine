@@ -180,6 +180,38 @@ int                                         __jo_fs_get_file_size(void *handle);
  */
 int                                         __jo_fs_get_sector_count(void *handle);
 
+/** @brief Get the first sector of a file (Internal usage)
+ *  @param handle File handle
+ *  @return Frame address of the first sector
+ */
+unsigned int                                __jo_fs_get_fad(void *handle);
+
+/** @brief Start a read of sectors for a stream, without waiting for them (Internal usage)
+ *  @param fad First sector (frame address)
+ *  @param count Sector count
+ *  @return 0 if succeed, -1 if failed
+ *  @remarks A read of a file (jo_fs_read_file()...) takes the drive back: see __jo_fs_stream_take()
+ */
+int                                         __jo_fs_stream_read(const unsigned int fad, const unsigned int count);
+
+/** @brief Take the sectors of the stream read already in the buffer of the CD block, without waiting (Internal usage)
+ *  @param buf Output buffer (aligned on 4 bytes)
+ *  @param max_sectors Maximum sector count
+ *  @return Sector count (0: none yet), -1 if the read is over or was cancelled by another read
+ */
+int                                         __jo_fs_stream_take(void *buf, const int max_sectors);
+
+/** @brief The stream read started by __jo_fs_stream_read() still has sectors to come (Internal usage)
+ *  @return true if the drive reads for the stream
+ */
+bool                                        __jo_fs_stream_is_reading(void);
+
+/** @brief Stop the stream read (Internal usage) */
+void                                        __jo_fs_stream_stop(void);
+
+/** @brief Called by the reads of files while they wait for the drive (Internal usage) */
+extern void                                 (*__jo_fs_stream_service)(void);
+
 /** @brief Set the current position of a file (Internal usage)
  *  @param handle File handle
  *  @param sector Sector index from the beginning of the file

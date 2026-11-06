@@ -788,6 +788,13 @@ static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
 # define JO_SCSP_COMMON_MASTER_VOLUME       (0x00)
 /** @brief Ring buffer of the DSP: its length (bits 8-7: 8K, 16K, 32K, 64K words) and its address (bits 6-0: 8 KB units) */
 # define JO_SCSP_COMMON_RING_BUFFER         (0x02)
+/** @brief Monitor register: the slot monitored (MSLC, bits 15-11, written) and the 4096 samples block it plays (CA, bits
+ *  10-7, read) */
+# define JO_SCSP_COMMON_MONITOR             (0x08)
+/** @brief The slot monitored (JO_SCSP_COMMON_MONITOR) */
+# define JO_SCSP_MONITOR_SLOT(SLOT)         ((unsigned short)((SLOT) << 11))
+/** @brief The 4096 samples block played by the slot monitored (JO_SCSP_COMMON_MONITOR) */
+# define JO_SCSP_MONITOR_BLOCK(VALUE)       (((VALUE) >> 7) & 0xF)
 /** @brief The registers of the DSP of the SCSP: coefficients (0x700), memory addresses (0x780), program (0x800, 128
  *  steps of 4 words) */
 # define JO_SCSP_DSP_AREA                   (0x25B00700)

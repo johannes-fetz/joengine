@@ -122,6 +122,9 @@ static unsigned int                         __jo_core_last_synch_vblank = 0;
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
+/** @brief The music streamed from the CD (see jo_audio_play_music()): its samples at each VBLANK, its reads at each frame */
+void                                        (*__jo_core_music_vblank)(void) = JO_NULL;
+void                                        (*__jo_core_music_update)(void) = JO_NULL;
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
@@ -279,6 +282,8 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     ++__jo_core_vblank_count;
     __jo_vdp2_vblank();
     __jo_vdp1_vblank();
+    if (__jo_core_music_vblank != JO_NULL)
+        __jo_core_music_vblank();
     if (__vblank_callbacks.count)
         __jo_vblank_callbacks();
     // Requests the SMPC status and the peripheral data (like the Sega libraries, during the VBLANK)
@@ -688,6 +693,8 @@ void			        jo_core_run(void)
                 jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START) && __jo_restart_game_callback != JO_NULL)
             __jo_restart_game_callback();
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
+        if (__jo_core_music_update != JO_NULL)
+            __jo_core_music_update();
         if (__jo_fs_background_job_count)
             jo_fs_do_background_jobs();
 #endif

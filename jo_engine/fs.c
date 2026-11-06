@@ -235,6 +235,11 @@ static unsigned int             __jo_fs_data_end_fad = 0;
 static jo_fs_dir_entry          __jo_fs_dir[JO_FS_MAX_FILES];
 static int                      __jo_fs_dir_count = 0;
 static jo_fs_handle             __jo_fs_handles[JO_OPEN_MAX];
+/** @brief The current read of the drive belongs to the stream (__jo_fs_stream_read()) */
+static bool                     __jo_cd_stream_owner = false;
+/** @brief Called by the reads of files while they wait for the drive (the music keeps its buffer filled) */
+void                            (*__jo_fs_stream_service)(void) = JO_NULL;
+static bool                     __jo_fs_stream_service_running = false;
 
 /** @brief Send a command to the CD block
  *  @param cr1 Command register 1 (JO_CD_CR1_VALUE())
@@ -356,6 +361,7 @@ static void                     jo_cd_stop_read(void)
     jo_cd_reset_partition();
     JO_ZERO(__jo_cd_play_next_fad);
     JO_ZERO(__jo_cd_play_end_fad);
+    __jo_cd_stream_owner = false;
 }
 
 /** @brief Start reading sectors in the buffer partition
@@ -379,6 +385,7 @@ static int                      jo_cd_start_read(const unsigned int fad, const u
         return (-1);
     __jo_cd_play_next_fad = fad;
     __jo_cd_play_end_fad = fad + count;
+    __jo_cd_stream_owner = false;
     return (0);
 }
 
@@ -419,14 +426,14 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     if (read_ahead_end < fad + count)
         read_ahead_end = fad + count;
     // A little after the sectors read in advance: the sectors between are dropped (a seek costs more, about 10 frames)
-    if (__jo_cd_play_end_fad && fad > __jo_cd_play_next_fad && fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX &&
+    if (__jo_cd_play_end_fad && !__jo_cd_stream_owner && fad > __jo_cd_play_next_fad && fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX &&
         fad + count <= __jo_cd_play_end_fad)
     {
         while (__jo_cd_play_next_fad < fad)
             if (jo_cd_read_sectors(__jo_cd_play_next_fad, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, read_ahead_end) < 0)
                 return (-1);
     }
-    if (fad != __jo_cd_play_next_fad || fad + count > __jo_cd_play_end_fad)
+    if (__jo_cd_stream_owner || fad != __jo_cd_play_next_fad || fad + count > __jo_cd_play_end_fad)
     {
         if (jo_cd_start_read(fad, read_ahead_end - fad) < 0)
             return (-1);
@@ -435,6 +442,15 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     JO_ZERO(timeout);
     while (done < count)
     {
+        if (__jo_fs_stream_service != JO_NULL && !__jo_fs_stream_service_running)
+        {
+            __jo_fs_stream_service_running = true;
+            __jo_fs_stream_service();
+            __jo_fs_stream_service_running = false;
+            if ((__jo_cd_stream_owner || __jo_cd_play_next_fad != fad + done) &&
+                jo_cd_start_read(fad + done, read_ahead_end - (fad + done)) < 0)
+                return (-1);
+        }
         if ((available = jo_cd_sector_count()) < 0)
             return (-1);
         if (available == 0)
@@ -791,6 +807,59 @@ int                             __jo_fs_get_file_size(void *handle)
 int                             __jo_fs_get_sector_count(void *handle)
 {
     return (((jo_fs_handle *)handle)->sector_count);
+}
+
+unsigned int                    __jo_fs_get_fad(void *handle)
+{
+    return (((jo_fs_handle *)handle)->fad);
+}
+
+int                             __jo_fs_stream_read(const unsigned int fad, const unsigned int count)
+{
+    if (jo_cd_init() < 0 || count == 0 || jo_cd_start_read(fad, count) < 0)
+        return (-1);
+    __jo_cd_stream_owner = true;
+    return (0);
+}
+
+int                             __jo_fs_stream_take(void *buf, const int max_sectors)
+{
+    int                         available;
+    int                         n;
+
+    if (!__jo_cd_stream_owner)
+        return (-1);
+    if ((available = jo_cd_sector_count()) < 0)
+        return (-1);
+    n = available < max_sectors ? available : max_sectors;
+    if (n <= 0)
+        return (0);
+    if (jo_cd_command(JO_CD_CR1_VALUE(JO_CD_COMMAND_GET_THEN_DELETE, 0), 0, JO_CD_PARTITION << 8, (unsigned short)n, JO_CD_HIRQ_DRDY, JO_NULL) < 0)
+    {
+        jo_cd_stop_read();
+        return (-1);
+    }
+    __jo_dma_read_port32(&JO_CD_DATA, buf, (unsigned int)n * JO_SECTOR_SIZE);
+    jo_cd_end_transfer();
+    __jo_cd_play_next_fad += (unsigned int)n;
+    if (__jo_cd_play_next_fad >= __jo_cd_play_end_fad)
+    {
+        JO_ZERO(__jo_cd_play_next_fad);
+        JO_ZERO(__jo_cd_play_end_fad);
+        __jo_cd_stream_owner = false;
+    }
+    return (n);
+}
+
+bool                            __jo_fs_stream_is_reading(void)
+{
+    return (__jo_cd_stream_owner);
+}
+
+void                            __jo_fs_stream_stop(void)
+{
+    if (__jo_cd_stream_owner)
+        jo_cd_stop_read();
 }
 
 bool                            __jo_fs_seek_sector(void *handle, const int sector)
