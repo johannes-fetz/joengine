@@ -88,6 +88,9 @@ typedef void	(*jo_slave_callback)(void);
 /** @brief Init the engine
  *  @param back_color Default background color (colors.h)
  *  @warning Must be the first function called in jo_main()
+ *  @remarks With JO_DEBUG, a NULL pointer trap of the master CPU (its user break controller) stops each data access to
+ *  the first 4 KB of the memory after this call: the error screen shows the PC (the instruction after the access) and the
+ *  PR (return address of its function), to find in the map file. The emulators (Mednafen, Yabause) do not emulate it
  */
 void	jo_core_init(const jo_color back_color);
 
@@ -135,10 +138,17 @@ void    jo_core_remove_slave_callback(const int event_id);
 
 #endif
 
-/** @brief Add a callback when A+B+C+Start is pressed on the first control pad
- *  @param callback Function name with no parameters and no return value
+/** @brief Add a callback when A+B+C+Start is pressed on the first control pad (called at each frame while they are pressed)
+ *  @param callback Function name with no parameters and no return value (JO_NULL: back to the multiplayer screen of the
+ *  BIOS, see jo_core_exit_to_multiplayer())
  */
 void    jo_core_set_restart_game_callback(const jo_event_callback callback);
+
+/** @brief Add a callback when the tray of the CD is opened
+ *  @param callback Function name with no parameters and no return value (JO_NULL, by default: back to the multiplayer
+ *  screen of the BIOS, see jo_core_exit_to_multiplayer())
+ */
+void    jo_core_set_cd_tray_open_callback(const jo_event_callback callback);
 
 /** @brief Return to the boot menu
  */
@@ -194,19 +204,19 @@ void    __jo_core_add_slave_job(const jo_slave_job_function function, void *argu
 #endif
 
 /** @brief Disable reset button
+ *  @remarks The calls are nested: the reset button is enabled again when each call has its jo_core_enable_reset(). The backup
+ *  functions disable it while they write (a reset would corrupt the backup)
  */
 static  __jo_force_inline void jo_core_disable_reset(void)
 {
-    jo_smpc_begin_command();
-    jo_smpc_end_command(DisableReset);
+    __jo_smpc_set_reset_button(false);
 }
 
-/** @brief Enable reset button
+/** @brief Enable reset button (see jo_core_disable_reset())
  */
 static  __jo_force_inline void jo_core_enable_reset(void)
 {
-    jo_smpc_begin_command();
-    jo_smpc_end_command(EnableReset);
+    __jo_smpc_set_reset_button(true);
 }
 
 /** @brief Turn OFF scroll drawing processing in the monitor
@@ -295,12 +305,13 @@ static  __jo_force_inline int      jo_core_get_refresh_rate(void)
 }
 
 /** @brief Exit program and return to the Saturn multiplayer (CD player) screen
- *  @warning Works but I didn't found documentation about it
- *  @todo Investigate and give feedback to https://segaxtreme.net/threads/best-way-to-debug-saturn-bios.18644/
+ *  @remarks Routine of the Boot ROM (SYS_EXECDMP). Called when the tray of the CD is opened and on A+B+C+Start by default
+ *  (see jo_core_set_cd_tray_open_callback() and jo_core_set_restart_game_callback())
  */
 static  __jo_force_inline void jo_core_exit_to_multiplayer(void)
 {
-
+    // (the NULL pointer trap of JO_DEBUG off: the Boot ROM reads its own data, see jo_core_init())
+    *(volatile unsigned short *)0xFFFFFF48 = 0;
     (**(void(**)(void))0x600026C)();
 }
 

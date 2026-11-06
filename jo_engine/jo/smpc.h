@@ -281,6 +281,11 @@ extern jo_smpc_status   __jo_smpc_status;
  */
 void                    __jo_smpc_command(const jo_smpc_command command);
 
+/** @brief Enable or disable the reset button, nested calls (Internal usage, see jo_core_disable_reset())
+ *  @param enabled false: disable (once more), true: enable when every disable has its enable
+ */
+void                    __jo_smpc_set_reset_button(const bool enabled);
+
 #endif /* !__JO_SMPC_H__ */
 
 /*

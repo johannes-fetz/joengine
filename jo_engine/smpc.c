@@ -394,11 +394,41 @@ void                                    __jo_smpc_init(void)
 
 void                                    __jo_smpc_command(const jo_smpc_command command)
 {
-    // Wait for the INTBACK of the current frame
-    while (__jo_smpc_intback_busy)
-        ;
+    unsigned int                        sr;
+
+    // Wait for the INTBACK of the current frame, then mask the interrupts: the VBLANK-IN interrupt would start the next
+    // INTBACK between the wait and the command (2 commands at the same time: one of them is lost, the reset button of a
+    // backup write was not disabled)
+    for (;;)
+    {
+        while (__jo_smpc_intback_busy)
+            ;
+        sr = __jo_core_disable_interrupts();
+        if (!__jo_smpc_intback_busy)
+            break;
+        __jo_core_restore_interrupts(sr);
+    }
     jo_smpc_begin_command();
     jo_smpc_end_command(command);
+    __jo_core_restore_interrupts(sr);
+}
+
+/** @brief Depth of jo_core_disable_reset() (see __jo_smpc_set_reset_button()) */
+static int                              __jo_smpc_reset_disable_depth = 0;
+
+void                                    __jo_smpc_set_reset_button(const bool enabled)
+{
+    // (the calls are nested: a backup write between jo_core_disable_reset() and jo_core_enable_reset() of the game does not
+    // enable the reset button at its end)
+    if (!enabled)
+    {
+        if (__jo_smpc_reset_disable_depth++ == 0)
+            __jo_smpc_command(DisableReset);
+        return;
+    }
+    if (__jo_smpc_reset_disable_depth > 0 && --__jo_smpc_reset_disable_depth > 0)
+        return;
+    __jo_smpc_command(EnableReset);
 }
 
 /*

@@ -137,6 +137,106 @@ void                                        __jo_3d_set_screen_mode(void);
 /** @brief The music streamed from the CD (see jo_audio_play_music()): its samples at each VBLANK, its reads at each frame */
 void                                        (*__jo_core_music_vblank)(void) = JO_NULL;
 void                                        (*__jo_core_music_update)(void) = JO_NULL;
+static jo_event_callback                   __jo_cd_tray_open_callback = JO_NULL;
+
+/** @brief CD block: HIRQ register and its "disc changed" flag (set when the tray opens), CR1 (drive status in its high byte) */
+# define JO_CORE_CD_HIRQ                    (*(volatile unsigned short *)0x25890008)
+# define JO_CORE_CD_HIRQ_DCHG               (0x0020)
+# define JO_CORE_CD_CR1                     (*(volatile unsigned short *)0x25890018)
+/** @brief Drive status: tray open, no disc */
+# define JO_CORE_CD_STATUS_OPEN             (0x06)
+# define JO_CORE_CD_STATUS_NO_DISC          (0x07)
+
+#ifdef JO_DEBUG
+
+/*
+** NULL pointer trap: the user break controller (UBC) of the master SH-2 stops each data access to the first 4 KB of the
+** memory (a NULL pointer, or a small offset from it: a field of a NULL structure)
+*/
+# define JO_SH2_UBC_BARAH                   (*(volatile unsigned short *)0xFFFFFF40)
+# define JO_SH2_UBC_BARAL                   (*(volatile unsigned short *)0xFFFFFF42)
+# define JO_SH2_UBC_BAMRAH                  (*(volatile unsigned short *)0xFFFFFF44)
+# define JO_SH2_UBC_BAMRAL                  (*(volatile unsigned short *)0xFFFFFF46)
+# define JO_SH2_UBC_BBRA                    (*(volatile unsigned short *)0xFFFFFF48)
+# define JO_SH2_UBC_BBRB                    (*(volatile unsigned short *)0xFFFFFF68)
+# define JO_SH2_UBC_BRCR                    (*(volatile unsigned short *)0xFFFFFF78)
+/** @brief Break on CPU cycles (01), data accesses (10), reads and writes (11), any size (00) */
+# define JO_SH2_UBC_BBR_CPU_DATA_READ_WRITE (0x006C)
+/** @brief Address mask: the 12 low bits are ignored (0x00000000 to 0x00000FFF) */
+# define JO_SH2_UBC_NULL_MASK               (0x0FFF)
+/** @brief Vector of the user break interrupt */
+# define JO_VECTOR_USER_BREAK               (12)
+
+/** @brief Accesses trapped (0), and the first one: PC (1, the instruction after the access) and PR (2, return address of its
+ *  function) */
+volatile unsigned int                       __jo_core_null_access[3] __attribute__((used, externally_visible)) = {0, 0, 0};
+
+/** @brief User break interrupt: counts the access, keeps the PC and the PR of the first one, then the program goes on (the
+ *  error is shown at the next frame, see jo_core_check_null_access()) */
+void                                        __jo_core_user_break_handler(void);
+__asm__(
+"    .text\n"
+"    .align 2\n"
+"    .global ___jo_core_user_break_handler\n"
+"___jo_core_user_break_handler:\n"
+"    mov.l r0, @-r15\n"
+"    mov.l r1, @-r15\n"
+"    mov.l r2, @-r15\n"
+"    mov.l 1f, r1\n"                   /* count */
+"    mov.l @r1, r0\n"
+"    add #1, r0\n"
+"    mov.l r0, @r1\n"
+"    cmp/eq #1, r0\n"
+"    bf 3f\n"
+"    mov.l @(12, r15), r0\n"           /* PC pushed by the exception (above r2, r1, r0) */
+"    mov.l r0, @(4, r1)\n"
+"    sts pr, r0\n"
+"    mov.l r0, @(8, r1)\n"
+"3:\n"
+"    mov.l 4f, r1\n"                   /* BRCR: clear the condition match flags (bits 15 and 14) */
+"    mov.w @r1, r0\n"
+"    mov.w 5f, r2\n"
+"    and r2, r0\n"
+"    mov.w r0, @r1\n"
+"    mov.l @r15+, r2\n"
+"    mov.l @r15+, r1\n"
+"    mov.l @r15+, r0\n"
+"    rte\n"
+"    nop\n"
+"    .align 2\n"
+"1:  .long ___jo_core_null_access\n"
+"4:  .long 0xFFFFFF78\n"
+"5:  .word 0x3FFF\n"
+"    .align 2\n"
+);
+
+/** @brief Start the NULL pointer trap of the master CPU */
+static void                                 jo_core_init_null_trap(void)
+{
+    __jo_core_set_interrupt_handler(JO_VECTOR_USER_BREAK, (jo_interrupt_handler)__jo_core_user_break_handler);
+    JO_SH2_UBC_BBRA = 0;
+    JO_SH2_UBC_BBRB = 0;
+    JO_SH2_UBC_BRCR = 0;
+    JO_SH2_UBC_BARAH = 0;
+    JO_SH2_UBC_BARAL = 0;
+    JO_SH2_UBC_BAMRAH = 0;
+    JO_SH2_UBC_BAMRAL = JO_SH2_UBC_NULL_MASK;
+    JO_SH2_UBC_BBRA = JO_SH2_UBC_BBR_CPU_DATA_READ_WRITE;
+}
+
+/** @brief An access to the first 4 KB of the memory since the start: the error screen */
+static void                                 jo_core_check_null_access(void)
+{
+    static bool                             shown = false;
+
+    if (__jo_core_null_access[0] == 0 || shown)
+        return;
+    shown = true;
+    jo_core_error("NULL pointer: access to 0-0xFFF before PC %x, PR %x (%d times)",
+                  __jo_core_null_access[1], __jo_core_null_access[2], __jo_core_null_access[0]);
+}
+
+#endif
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
@@ -328,6 +428,8 @@ static void                                 jo_core_init_system(void)
     __jo_vdp2_init_registers();
     __jo_vdp1_init();
     __jo_smpc_init();
+    // (the "disc changed" flag of the boot: only a tray opened from now on, see jo_core_check_system_keys())
+    JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
     __jo_core_set_interrupt_handler(JO_VECTOR_VBLANK_IN, jo_core_vblank_in_handler);
     __jo_core_enable_scu_interrupts(JO_SCU_INT_VBLANK_IN | JO_SCU_INT_SMPC);
     JO_ZERO(__jo_core_vblank_count);
@@ -503,6 +605,10 @@ void			    jo_core_init(const jo_color back_color)
                     JO_MULT_BY_32(dt.year) -
                     JO_MULT_BY_256(dt.month) -
                     JO_MULT_BY_16(dt.day);
+#ifdef JO_DEBUG
+    // (after the initialization: the code of the Boot ROM reads its own data in the first 4 KB)
+    jo_core_init_null_trap();
+#endif
 }
 
 inline int			jo_core_add_vblank_callback(const jo_event_callback callback)
@@ -681,6 +787,50 @@ void    jo_core_set_restart_game_callback(const jo_event_callback callback)
     __jo_restart_game_callback = callback;
 }
 
+void    jo_core_set_cd_tray_open_callback(const jo_event_callback callback)
+{
+    __jo_cd_tray_open_callback = callback;
+}
+
+/** @brief The tray of the CD opened, A+B+C+Start on the first pad: the callback of the game, or the multiplayer (CD player)
+ *  screen of the BIOS (what Sega asked of the games)
+ */
+/** @brief Frames A+B+C+Start are held before the restart (see jo_core_check_system_keys()) */
+# define JO_CORE_RESET_KEYS_FRAMES          (4)
+static int                                  __jo_core_reset_keys_frames = 0;
+
+static void                                 jo_core_check_system_keys(void)
+{
+    unsigned short                          status;
+
+    // (the drive status of the last report of the CD block, periodic or the answer to a command: CR1 high byte, 0xff for a
+    // rejected command)
+    status = JO_CORE_CD_CR1 >> 8;
+    status = status == 0xff ? 0 : (status & 0x0f);
+    if (status == JO_CORE_CD_STATUS_OPEN || status == JO_CORE_CD_STATUS_NO_DISC || (JO_CORE_CD_HIRQ & JO_CORE_CD_HIRQ_DCHG))
+    {
+        JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
+        if (__jo_cd_tray_open_callback != JO_NULL)
+            __jo_cd_tray_open_callback();
+        else
+            jo_core_exit_to_multiplayer();
+    }
+    // (held during JO_CORE_RESET_KEYS_FRAMES frames: the first reports of the pad after the boot can read all the keys
+    // pressed for 1 or 2 frames)
+    if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
+            jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START))
+    {
+        if (__jo_core_reset_keys_frames < JO_CORE_RESET_KEYS_FRAMES)
+            ++__jo_core_reset_keys_frames;
+        else if (__jo_restart_game_callback != JO_NULL)
+            __jo_restart_game_callback();
+        else
+            jo_core_exit_to_multiplayer();
+    }
+    else
+        JO_ZERO(__jo_core_reset_keys_frames);
+}
+
 void			        jo_core_run(void)
 {
     jo_profile_begin(JO_PROFILE_FRAME);
@@ -723,9 +873,10 @@ void			        jo_core_run(void)
         if (__slave_callbacks.count)
             jo_core_exec_on_slave(jo_slave_callbacks);
 #endif
-        if (jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
-                jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START) && __jo_restart_game_callback != JO_NULL)
-            __jo_restart_game_callback();
+        jo_core_check_system_keys();
+#ifdef JO_DEBUG
+        jo_core_check_null_access();
+#endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
         if (__jo_core_music_update != JO_NULL)
             __jo_core_music_update();
