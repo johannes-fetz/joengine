@@ -260,11 +260,11 @@ char			convert_button_to_char(void)
 	{
 		return 'Z';
 	}
-	else if(jo_is_input_key_down(0, JO_KEY_LEFT))
+	else if(jo_is_input_key_down(0, JO_KEY_L))
 	{
 		return 'L';
 	}
-	else if(jo_is_input_key_down(0, JO_KEY_RIGHT))
+	else if(jo_is_input_key_down(0, JO_KEY_R))
 	{
 		return 'R';
 	}

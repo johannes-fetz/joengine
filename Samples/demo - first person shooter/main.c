@@ -32,6 +32,21 @@
 
 #include "demo.h"
 
+#ifdef DEMO_BENCH
+/** @brief The measures of the benchmark (see bench_print()) */
+# define BENCH_BEGIN(N)                 jo_profile_begin(JO_PROFILE_USER(N))
+# define BENCH_END(N)                   jo_profile_end(JO_PROFILE_USER(N))
+#else
+# define BENCH_BEGIN(N)                 do {} while (0)
+# define BENCH_END(N)                   do {} while (0)
+#endif
+
+#ifdef DEMO_BENCH
+static void                     bench_print(void);
+static bool                     bench_done(void);
+static int                      bench_entities_share;
+#endif
+
 jo_fixed                        player_x;
 jo_fixed                        player_y;
 jo_fixed                        player_z;
@@ -239,6 +254,11 @@ void                            hurt_player(const int damage)
     static int                  last_sound_frame = -HURT_SOUND_FRAMES;
     jo_sound                    grunt;
 
+#ifdef DEMO_BENCH
+    // (the benchmark: the agent is not hurt, the scene goes on)
+    JO_UNUSED_ARG(damage);
+    return;
+#endif
     if (player_health <= 0)
         return;
     player_health = JO_MAX(0, player_health - damage);
@@ -289,36 +309,49 @@ static void                     set_camera(void)
     jo_3d_translate_matrix_fixed(-eye.x, -eye.y, -eye.z);
 }
 
-/** @brief The share of the polygons of the cells drawn by the master CPU (0 to 1024, see jo_cells_draw_prepared_share()),
- *  balanced at each frame (see balance_cells_share()): the slave CPU draws the other part. The master CPU draws the first
- *  part: its commands come first in the table, 2 polygons at the same depth are drawn in the same order as with a CPU.
- *  (Down to 0: all the guards on alert, the master CPU draws the entities and the slave CPU still waited with 64 / 1024) */
-#define CELLS_SHARE_MIN         (0)
-#define CELLS_SHARE_MAX         (896)
-static int                      cells_share = 400;
+/** @brief The share of the cost of the entities drawn by the slave CPU (0 to 1024, see jo_entities_prepare_draw()): all
+ *  of them (the characters cost the most: about 4 ms for one near the camera), the master CPU draws the cells they leave
+ *  (the share of the cells, see jo_cells_draw_prepared_on_both_cpus()) */
+#define ENTITIES_SLAVE_SHARE    (1024)
 
-/** @brief The job of the slave CPU: its part of the cells */
-static void                     slave_cells(void)
+/** @brief The share of the entities drawn by the slave CPU in this frame: ENTITIES_SLAVE_SHARE, less when the master CPU
+ *  waits for the slave CPU while it has no cells left to take (the share of the cells at 0): from the walkway over the
+ *  bottling room, 4 guards and the whole room on the slave CPU made it 29 ms while the master CPU waited 4 to 7 ms; the
+ *  entities go back to the slave CPU when the master CPU draws a good part of the cells again (the slave CPU has time) */
+#define ENTITIES_SHARE_STEP     (64)
+#define ENTITIES_SHARE_MIN      (256)
+
+static int                      entities_slave_share(void)
 {
-    // (written by the master CPU before the job: read without the cache)
-    jo_cells_draw_prepared_share(true, 1, *(volatile int *)JO_CACHE_THROUGH(&cells_share));
+    static int                  share = ENTITIES_SLAVE_SHARE;
+    int                         cells;
+
+    // (the slave CPU idle: back to it, whatever the cells (with the cells of the master CPU as the condition, the share
+    // stayed down once the master CPU was the slower one: 24 ms of guards on it in a general alert))
+    // (jo_cells_get_share() is the share of the MASTER CPU: at its maximum, the master CPU draws all the cells and can't take
+    // more of them, only entities. With only the test of the share at 0, 9 scientists in front of the agent kept all the
+    // entities on the slave CPU (23 ms of characters) while the master CPU waited 16 ms for it: 28 frames per second)
+    cells = jo_cells_get_share();
+    if ((cells <= 128 || cells >= 1024 - 128) && jo_core_master_wait_time() > 300)
+        share = JO_MAX(ENTITIES_SHARE_MIN, share - ENTITIES_SHARE_STEP);
+    else if (jo_core_slave_idle_time() > 1000)
+        share = JO_MIN(ENTITIES_SLAVE_SHARE, share + ENTITIES_SHARE_STEP);
+#ifdef DEMO_BENCH
+# ifdef DEMO_BENCH_SHARE
+    share = DEMO_BENCH_SHARE;
+# endif
+    bench_entities_share = share;
+#endif
+    return (share);
 }
 
-/** @brief More polygons of the cells to the slave CPU when it waited in the last frame, fewer when the master CPU waited for
- *  it (or when its command table was nearly full: its polygons would be lost) */
-static void                     balance_cells_share(void)
+/** @brief What the slave CPU draws before its part of the cells: its entities (the job of the slave CPU) */
+static void                     slave_entities(void)
 {
-    int                         step;
-
-    // (1 / 1024 of the polygons per 100 microseconds, 40 / 1024 at most per frame)
-    step = JO_MAX(-40, JO_MIN(40, jo_core_slave_idle_time() / 100));
-    if (step > 0 && jo_3d_slave_get_command_count() > jo_3d_slave_get_max_commands() * 3 / 4)
-        step = -16;
-    cells_share = JO_MAX(CELLS_SHARE_MIN, JO_MIN(CELLS_SHARE_MAX, cells_share - step));
+    jo_entities_draw_slave();
 }
 
-
-/** @brief The world: the cells seen from the camera (shared by the 2 CPUs), the entities, the impacts */
+/** @brief The world: the cells seen from the camera (shared by the 2 CPUs), the entities (the slave CPU), the impacts */
 static void                     draw_world(void)
 {
     jo_pos3D_fixed              eye;
@@ -328,21 +361,29 @@ static void                     draw_world(void)
     {
         set_camera();
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
+        BENCH_BEGIN(1);
         jo_cells_prepare(&eye);
+        // The entities seen, their tints, the ones of the slave CPU (before its job)
+        jo_entities_prepare_draw(entities_slave_share());
+        BENCH_END(1);
         jo_3d_slave_begin();
-        jo_core_exec_on_slave(slave_cells);
-        jo_cells_draw_prepared_share(false, 0, cells_share);
+        BENCH_BEGIN(2);
+        // (the entities of the slave CPU, then the cells shared by the 2 CPUs: half of the polygons of the frame to each
+        // one, the share balanced at each frame)
+        jo_cells_draw_prepared_on_both_cpus(slave_entities, jo_entities_polygon_count(true));
         jo_cells_draw_mirror(JO_NULL);
         // The glows of the lamps (VDP2 layers, placed with the camera: after the cells, their rectangles)
         jo_3d_glows_draw(&eye);
+        // (the entities of the master CPU: the ones with a draw callback after the ones of the slave CPU)
         jo_entities_draw();
         billboards_draw();
         // The fire and the smoke of the explosions (the explosive barrels)
         jo_effects_draw();
         impacts_draw();
         guards_draw_blood();
+        BENCH_END(2);
         jo_core_wait_for_slave();
-        balance_cells_share();
+        jo_cells_balance_share();
         jo_3d_slave_end();
     }
     jo_3d_pop_matrix();
@@ -399,15 +440,27 @@ static void                     my_draw(void)
         feet.x = player_x;
         feet.y = player_y;
         feet.z = player_z;
+        BENCH_BEGIN(0);
         jo_entities_update(&feet, FRAME_MS);
+        BENCH_END(0);
         doors_lights_update(FRAME_MS);
         guards_update_blood(FRAME_MS);
         jo_effects_update();
     }
+#ifdef DEMO_BENCH
+    if (bench_done())
+    {
+        bench_print();
+        return;
+    }
+#endif
     draw_world();
     weapon_draw();
     hud_draw();
     draw_texts();
+#ifdef DEMO_BENCH
+    bench_print();
+#endif
 }
 
 /** @brief Put the agent on the spawn of the level */
@@ -428,6 +481,187 @@ static void                     place_player(void)
     (void)floor;
 }
 
+#ifdef DEMO_BENCH
+/*
+** Benchmark, disabled by default (make _CCFLAGS="-DDEMO_BENCH ..." JO_COMPILE_WITH_PROFILER_MODULE=1): the agent placed at a
+** view (DEMO_BENCH_VIEW), no input needed, the game measured from the frame DEMO_BENCH_START to DEMO_BENCH_END, then the
+** summary on a black screen (late frames, averages and maximums of the profiler in microseconds, the share of the entities
+** of the slave CPU). Options:
+**   DEMO_BENCH_HIDDEN         the persons don't see the agent (they patrol: the same scene in every run)
+**   DEMO_BENCH_CROWD=N        N persons gathered in rows in front of the agent (view 4: the laboratory), the scientists first
+**   DEMO_BENCH_SCIENTISTS     with DEMO_BENCH_CROWD: the guards become scientists
+**   DEMO_BENCH_SHARE=S        the share of the entities of the slave CPU fixed (0 to 1024)
+**   DEMO_BENCH_DOORS_OPEN     all the doors open at the start and kept open (view 7: the walkway seen through the airlock)
+**   DEMO_BENCH_FREEZE=F       the game paused at the frame F (the same picture in every run, to compare them)
+**   DEMO_BENCH_PCPROF         the program counter sampling during the measures (tools/pcprof_report.py on a save state)
+**   DEMO_BENCH_CHECK          a check (tests/run_tests.py, config.json "samples.checks"): each person in the view of a frame
+**                             must be drawn in it; the summary on a green screen (PASS) or a red one (FAIL), with the persons
+**                             in the view (one per person and per frame) and the ones missed. View 6, 7/11/2026: 83 missed
+**                             of 384 (the guard of the walkway vanished: the ones out of the view in the bottling room
+**                             below took the VDP1 budget of the persons, see plan_draw() in guards.c), 0 after the fix.
+**                             View 7 (with DEMO_BENCH_DOORS_OPEN): the guard of the walkway, far away through the airlock,
+**                             vanished (all the polygons of the cells found counted as commands), 0 missed of 576 after
+** Measured (Mednafen, 7/11/2026, 9 scientists, view 4): 37 late frames out of 384 before the parallel drawing of the persons
+** (see guards_register()) and their models in the high work RAM (see guards_reserve_fast_memory()), 0 after
+*/
+# ifndef DEMO_BENCH_VIEW
+#  define DEMO_BENCH_VIEW       (1)
+# endif
+/** @brief The views: x, z, yaw, pitch */
+static const int                bench_views[][4] =
+{
+    {0, 0, 0, 0},
+    // 1: the laboratory from its corner (south-east): its 2 scientists and its 2 guards
+    {1720, 1880, 235, 0},
+    // 2: the laboratory from the door of the hall
+    {1280, 1380, 20, 0},
+    // 3: the office from the door of the laboratory (its scientist and its guard)
+    {1610, 1380, 180, 0},
+    // 4: the laboratory from its east side (for DEMO_BENCH_CROWD: the persons gathered in front of the agent)
+    {1720, 1640, 270, 0},
+    // 5: the bottling room from the walkway (its guards below)
+    {3480, 1480, 180, 15},
+    // 6: the walkway from the door of the airlock (its guard in front of the agent)
+    {3300, 1480, 90, 0},
+    // 7: the walkway from the gallery, through the 2 doors of the airlock (with DEMO_BENCH_DOORS_OPEN: its guard far away)
+    {3100, 1430, 90, 0},
+};
+
+static void                     bench_place(void)
+{
+    player_x = jo_int2fixed(bench_views[DEMO_BENCH_VIEW][0]);
+    player_y = 0;
+    player_z = jo_int2fixed(bench_views[DEMO_BENCH_VIEW][1]);
+    yaw = bench_views[DEMO_BENCH_VIEW][2];
+    pitch = bench_views[DEMO_BENCH_VIEW][3];
+# ifdef DEMO_BENCH_DOORS_OPEN
+    doors_bench_open();
+# endif
+# ifdef DEMO_BENCH_CROWD
+    // (DEMO_BENCH_CROWD persons in rows in front of the agent; DEMO_BENCH_SCIENTISTS: all of them scientists)
+#  ifdef DEMO_BENCH_SCIENTISTS
+    guards_bench_gather(player_x, player_z, yaw, DEMO_BENCH_CROWD, true);
+#  else
+    guards_bench_gather(player_x, player_z, yaw, DEMO_BENCH_CROWD, false);
+#  endif
+# endif
+    jo_profile_set_name(JO_PROFILE_USER(0), "ent_upd");
+    jo_profile_set_name(JO_PROFILE_USER(1), "prepare");
+    jo_profile_set_name(JO_PROFILE_USER(2), "m_draw");
+}
+
+# ifndef DEMO_BENCH_START
+#  define DEMO_BENCH_START      (64)
+# endif
+# ifndef DEMO_BENCH_END
+#  define DEMO_BENCH_END        (64 + 32 * 12)
+# endif
+/** @brief The measures summed from DEMO_BENCH_START to DEMO_BENCH_END (frames of the game), then shown on a black screen */
+static const jo_profile_slot    bench_slots[] =
+{
+    JO_PROFILE_FRAME, JO_PROFILE_CALLBACKS, JO_PROFILE_WAIT_SLAVE, JO_PROFILE_SLAVE, JO_PROFILE_VDP1_DRAW, JO_PROFILE_POLYGONS,
+    JO_PROFILE_USER(0), JO_PROFILE_USER(1), JO_PROFILE_USER(2),
+};
+static const char               *bench_names[] =
+{
+    "FRAME", "MASTER", "WAITSLAVE", "SLAVE", "VDP1", "POLYGONS", "UPDATE", "PREPARE", "MDRAW",
+};
+#define BENCH_SLOTS             ((int)(sizeof(bench_slots) / sizeof(bench_slots[0])))
+
+static bool                     bench_done(void)
+{
+    return (frame_counter > DEMO_BENCH_END);
+}
+
+static void                     bench_print(void)
+{
+    static unsigned int         first_late = 0;
+    static unsigned int         first_vblank = 0;
+    static unsigned int         late = 0;
+    static unsigned int         vblanks = 0;
+    static unsigned int         sums[BENCH_SLOTS];
+    static unsigned int         maxs[BENCH_SLOTS];
+    static int                  samples = 0;
+    static int                  min_share = 1024;
+    static int                  max_share = 0;
+# ifdef DEMO_BENCH_CHECK
+    static int                  check_seen = 0;
+    static int                  check_missed = 0;
+# endif
+    int                         k;
+
+# ifdef DEMO_BENCH_PCPROF
+    // (the program counter sampling over the frames of the measures, the histograms at the end of the low work RAM, read in
+    // a save state by tools/pcprof_report.py)
+    if (frame_counter == DEMO_BENCH_START)
+        jo_profile_sampling_start((unsigned int *)0x002E0000, (unsigned int *)0x002F0000);
+    else if (frame_counter == DEMO_BENCH_END)
+        jo_profile_sampling_stop();
+# endif
+# ifdef DEMO_BENCH_FREEZE
+    // (the scene frozen at this frame (the pause): the same picture in every run, to compare them)
+    if (frame_counter == DEMO_BENCH_FREEZE)
+        paused = true;
+# endif
+    if (frame_counter == DEMO_BENCH_START)
+    {
+# ifdef DEMO_BENCH_CHECK
+        check_seen = guards_check_seen;
+        check_missed = guards_check_missed;
+# endif
+        first_late = jo_core_get_late_frame_count();
+        first_vblank = jo_core_get_vblank_count();
+    }
+    if (frame_counter > DEMO_BENCH_START && frame_counter <= DEMO_BENCH_END)
+    {
+        min_share = JO_MIN(min_share, bench_entities_share);
+        max_share = JO_MAX(max_share, bench_entities_share);
+    }
+#ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
+    // (the averages of the profiler change every 32 frames: summed when they change)
+    if (frame_counter > DEMO_BENCH_START && frame_counter <= DEMO_BENCH_END && ((frame_counter - DEMO_BENCH_START) & 31) == 1)
+    {
+        unsigned int            avg;
+        unsigned int            max;
+
+        for (k = 0; k < BENCH_SLOTS; ++k)
+            if (jo_profile_get(bench_slots[k], &avg, &max))
+            {
+                sums[k] += avg;
+                maxs[k] = JO_MAX(maxs[k], max);
+            }
+        ++samples;
+    }
+#endif
+    if (frame_counter == DEMO_BENCH_END)
+    {
+# ifdef DEMO_BENCH_CHECK
+        check_seen = guards_check_seen - check_seen;
+        check_missed = guards_check_missed - check_missed;
+# endif
+        late = jo_core_get_late_frame_count() - first_late;
+        vblanks = jo_core_get_vblank_count() - first_vblank;
+        // (the summary on a black screen: the 3D is no longer drawn)
+        jo_3d_set_frame_clear(true);
+    }
+    if (frame_counter == DEMO_BENCH_END + 4)
+    {
+        jo_clear_screen();
+        jo_printf(1, 1, "FRAMES %d VBLANKS %d LATE %d", DEMO_BENCH_END - DEMO_BENCH_START, (int)vblanks, (int)late);
+        jo_printf(1, 2, "SHARE %d TO %d", min_share, max_share);
+        for (k = 0; k < BENCH_SLOTS && samples > 0; ++k)
+            jo_printf(1, 4 + k, "%s %d MAX %d", bench_names[k], (int)(sums[k] / samples), (int)maxs[k]);
+# ifdef DEMO_BENCH_CHECK
+        // (the verdict: the color of the whole screen, read by the tests; none in the view: the scene is broken, a failure)
+        jo_printf(1, 15, "PERSONS SEEN %d MISSED %d", check_seen, check_missed);
+        jo_printf(1, 16, "CHECK %s", check_seen > 0 && check_missed == 0 ? "PASS" : "FAIL");
+        jo_set_default_background_color(check_seen > 0 && check_missed == 0 ? JO_COLOR_Green : JO_COLOR_Red);
+# endif
+    }
+}
+#endif
+
+
 void                            jo_main(void)
 {
     jo_level                    *level;
@@ -444,6 +678,11 @@ void                            jo_main(void)
     jo_3d_perspective_angle(75);
     jo_3d_display_level(5);
     jo_3d_set_guard_band(WORLD_GUARD_BAND);
+    // The rooms cover the whole screen at each frame: the frame buffer is not cleared (the polygon that cleared it cost
+    // the VDP1 4 ms per frame)
+    jo_3d_set_frame_clear(false);
+    // (the high work RAM kept for the models of the persons, given to them after the level is loaded: see guards_load())
+    guards_reserve_fast_memory();
     // The weapons (cd/DEFS.JOL), the classes of the game, then the level: its rooms and its entities
     level = jo_level_load("DEFS.JOL");
     if (level != JO_NULL)
@@ -453,11 +692,14 @@ void                            jo_main(void)
     }
     doors_register();
     guards_register();
+    props_register();
     level = jo_level_load("LEVEL.JOL");
     if (level != JO_NULL)
     {
         jo_cells_load(level);
         jo_entities_set_area_damage_callback(player_area_damage);
+        // (the table of the entities and their data in the high work RAM, see guards_reserve_fast_memory())
+        guards_release_entity_memory();
         jo_entities_load(level);
         jo_level_free(level);
     }
@@ -475,6 +717,9 @@ void                            jo_main(void)
     // (at half the level of the CD audio, -6 dB: at the full level the music covered the sounds of the game)
     jo_audio_set_cd_volume(JO_AUDIO_CD_VOLUME_MAX - 1);
     jo_audio_play_cd_track(2, 2, true);
+#ifdef DEMO_BENCH
+    bench_place();
+#endif
     jo_core_add_callback(my_draw);
     jo_core_run();
 }

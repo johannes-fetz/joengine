@@ -92,6 +92,7 @@ void	jo_audio_pause_cd(void);
 
 /** @brief Resume the audio track paused by jo_audio_pause_cd()
  *  @remarks The playback continues from the pause position until the end of the last track given to jo_audio_play_cd_track()
+ *  @remarks Repeated tracks (repeat true): the CD drive then repeats from the pause position, not from the first track
  *  @remarks Nothing happens if the CD audio is not paused
  *  @warning Requires JO_COMPILE_WITH_FS_MODULE
  */
@@ -275,6 +276,49 @@ bool     jo_audio_load_pcm_async(const char * const filename, const jo_sound_mod
  *  @return true if succeed otherwise false
  */
 bool     jo_audio_load_wav(const char * const filename, jo_sound *sound);
+
+/** @brief Play a music streamed from a WAV file of the CD (only a few seconds of it in memory)
+ *  @param filename WAV filename (example: MUSIC.WAV): PCM 8 or 16 bits, or IMA ADPCM (4 times smaller: recommended),
+ *  mono or stereo, up to 44100 Hz
+ *  @param loop The music starts again at its end
+ *  @remarks The music goes on while the files are loaded (jo_fs_read_file()...): the drive reads it again when its buffer
+ *  is low, then goes back to the file. It uses 64 KB of work RAM (JO_AUDIO_MUSIC_BUFFER_SIZE) and 64 KB of sound RAM
+ *  @remarks Convert any audio file with ffmpeg (http://ffmpeg.org):
+ *  @remarks ffmpeg -i MUSIC.MP3 -acodec adpcm_ima_wav -ar 32000 MUSIC.WAV
+ *  @remarks ffmpeg -i MUSIC.MP3 -acodec pcm_s16le -ar 22050 MUSIC.WAV
+ *  @remarks Not with the CD audio tracks (jo_audio_play_cd_track()): both use the drive
+ *  @return true if succeed otherwise false
+ */
+bool     jo_audio_play_music(const char * const filename, const bool loop);
+
+/** @brief Stop the music (jo_audio_play_music()) */
+void     jo_audio_stop_music(void);
+
+/** @brief Pause the music (jo_audio_play_music()) */
+void     jo_audio_pause_music(void);
+
+/** @brief Resume the music paused by jo_audio_pause_music() */
+void     jo_audio_resume_music(void);
+
+/** @brief Check if the music is playing (jo_audio_play_music())
+ *  @return true if the music is playing or paused, false when it is over (no loop) or stopped
+ */
+bool     jo_audio_is_music_playing(void);
+
+/** @brief Check if the music is paused (jo_audio_pause_music())
+ *  @return true if the music is paused
+ */
+bool     jo_audio_is_music_paused(void);
+
+/** @brief Set the volume of the music (jo_audio_play_music())
+ *  @param volume Volume (JO_MIN_AUDIO_VOLUME to JO_MAX_AUDIO_VOLUME)
+ */
+void     jo_audio_set_music_volume(const unsigned char volume);
+
+/** @brief Count the times the music had no data to play (the drive was too late: a silence of about 0.1 s)
+ *  @return Count since jo_audio_play_music()
+ */
+unsigned int    jo_audio_get_music_underruns(void);
 
 #endif
 

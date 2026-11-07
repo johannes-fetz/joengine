@@ -1,0 +1,563 @@
+{
+ "rom:320x224": {
+  "perf.cubes_40.3d_polygons": 12390,
+  "perf.cubes_40.3d_vertices": 7419,
+  "perf.cubes_40.callbacks": 26059,
+  "perf.cubes_40.frame": 26152,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 14083,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16734,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1440,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 8983,
+  "perf.nbg1_pattern.frame": 9067,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1441,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 660,
+  "perf.printf_12.frame": 16734,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1439,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3992,
+  "perf.sprites_200.frame": 16734,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13459
+ },
+ "rom:704x480": {
+  "perf.cubes_40.3d_polygons": 18130,
+  "perf.cubes_40.3d_vertices": 7588,
+  "perf.cubes_40.callbacks": 32726,
+  "perf.cubes_40.frame": 32815,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 0,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16681,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1405,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 16313,
+  "perf.nbg1_pattern.frame": 16389,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1406,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 619,
+  "perf.printf_12.frame": 16681,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1405,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3742,
+  "perf.sprites_200.frame": 16680,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 12015
+ },
+ "rom:fuzz": {
+  "perf.cubes_40.3d_polygons": 12390,
+  "perf.cubes_40.3d_vertices": 7419,
+  "perf.cubes_40.callbacks": 26059,
+  "perf.cubes_40.frame": 26152,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 14083,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16734,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1440,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 8983,
+  "perf.nbg1_pattern.frame": 9067,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1441,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 660,
+  "perf.printf_12.frame": 16734,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1439,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3992,
+  "perf.sprites_200.frame": 16734,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13459
+ },
+ "rom:fuzz_release": {
+  "perf.cubes_40.3d_polygons": 12114,
+  "perf.cubes_40.3d_vertices": 7288,
+  "perf.cubes_40.callbacks": 25645,
+  "perf.cubes_40.frame": 25743,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 14085,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16733,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1438,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 14816,
+  "perf.nbg1_pattern.frame": 14905,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1441,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 659,
+  "perf.printf_12.frame": 16733,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1436,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3996,
+  "perf.sprites_200.frame": 16733,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13455
+ },
+ "rom:release": {
+  "perf.cubes_40.3d_polygons": 12114,
+  "perf.cubes_40.3d_vertices": 7288,
+  "perf.cubes_40.callbacks": 25645,
+  "perf.cubes_40.frame": 25743,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 14085,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16733,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1438,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 14816,
+  "perf.nbg1_pattern.frame": 14905,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1441,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 659,
+  "perf.printf_12.frame": 16733,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1436,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3996,
+  "perf.sprites_200.frame": 16733,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13455
+ },
+ "sizes": {
+  "demo - 2D storyboard [default]": {
+   "bin": 33580,
+   "bss": 409940,
+   "data": 44,
+   "rodata": 6611,
+   "text": 26792
+  },
+  "demo - 3D - programmatically [default]": {
+   "bin": 69156,
+   "bss": 419304,
+   "data": 148,
+   "rodata": 7496,
+   "text": 61400
+  },
+  "demo - 3D [default]": {
+   "bin": 71680,
+   "bss": 421076,
+   "data": 512,
+   "rodata": 7739,
+   "text": 63328
+  },
+  "demo - 3D camera [default]": {
+   "bin": 70892,
+   "bss": 419308,
+   "data": 156,
+   "rodata": 7495,
+   "text": 63132
+  },
+  "demo - 3D map [default]": {
+   "bin": 73320,
+   "bss": 420952,
+   "data": 168,
+   "rodata": 8059,
+   "text": 64992
+  },
+  "demo - 3D model [default]": {
+   "bin": 84884,
+   "bss": 427508,
+   "data": 148,
+   "rodata": 8190,
+   "text": 76440
+  },
+  "demo - 8bits tga [default]": {
+   "bin": 29224,
+   "bss": 409724,
+   "data": 72,
+   "rodata": 6523,
+   "text": 22512
+  },
+  "demo - advanced 3D [default]": {
+   "bin": 80882,
+   "bss": 419844,
+   "data": 7490,
+   "rodata": 7809,
+   "text": 65456
+  },
+  "demo - analog - mission stick [default]": {
+   "bin": 30924,
+   "bss": 409880,
+   "data": 44,
+   "rodata": 6515,
+   "text": 24244
+  },
+  "demo - analog - wheel [default]": {
+   "bin": 30732,
+   "bss": 409864,
+   "data": 44,
+   "rodata": 6491,
+   "text": 24076
+  },
+  "demo - analog [default]": {
+   "bin": 31180,
+   "bss": 409884,
+   "data": 44,
+   "rodata": 6587,
+   "text": 24444
+  },
+  "demo - audio [default]": {
+   "bin": 25860,
+   "bss": 410496,
+   "data": 36,
+   "rodata": 2195,
+   "text": 23504
+  },
+  "demo - background [default]": {
+   "bin": 24908,
+   "bss": 409368,
+   "data": 28,
+   "rodata": 2183,
+   "text": 22564
+  },
+  "demo - backup [default]": {
+   "bin": 26012,
+   "bss": 409720,
+   "data": 28,
+   "rodata": 2558,
+   "text": 23328
+  },
+  "demo - benchmark [default]": {
+   "bin": 81000,
+   "bss": 493988,
+   "data": 152,
+   "rodata": 8171,
+   "text": 72548
+  },
+  "demo - bullet [default]": {
+   "bin": 29964,
+   "bss": 409724,
+   "data": 44,
+   "rodata": 6555,
+   "text": 23260
+  },
+  "demo - debug console [default]": {
+   "bin": 38972,
+   "bss": 409884,
+   "data": 44,
+   "rodata": 8079,
+   "text": 30728
+  },
+  "demo - display modes [default]": {
+   "bin": 80040,
+   "bss": 421432,
+   "data": 200,
+   "rodata": 8088,
+   "text": 71644
+  },
+  "demo - environment mapping [default]": {
+   "bin": 76784,
+   "bss": 421892,
+   "data": 176,
+   "rodata": 7672,
+   "text": 68820
+  },
+  "demo - everydaycute [default]": {
+   "bin": 33552,
+   "bss": 410072,
+   "data": 48,
+   "rodata": 6747,
+   "text": 26628
+  },
+  "demo - fighters [default]": {
+   "bin": 94072,
+   "bss": 601012,
+   "data": 264,
+   "rodata": 7747,
+   "text": 85940
+  },
+  "demo - filesystem [default]": {
+   "bin": 24044,
+   "bss": 409332,
+   "data": 28,
+   "rodata": 2223,
+   "text": 21672
+  },
+  "demo - first person shooter [default]": {
+   "bin": 228616,
+   "bss": 536180,
+   "data": 488,
+   "rodata": 11511,
+   "text": 216512
+  },
+  "demo - gamepad [default]": {
+   "bin": 30684,
+   "bss": 409864,
+   "data": 44,
+   "rodata": 6447,
+   "text": 24072
+  },
+  "demo - gouraud shading [default]": {
+   "bin": 31944,
+   "bss": 409872,
+   "data": 72,
+   "rodata": 6583,
+   "text": 25180
+  },
+  "demo - hardcoded image [default]": {
+   "bin": 29224,
+   "bss": 271376,
+   "data": 328,
+   "rodata": 10675,
+   "text": 18088
+  },
+  "demo - homing laser [default]": {
+   "bin": 30448,
+   "bss": 409788,
+   "data": 48,
+   "rodata": 6547,
+   "text": 23740
+  },
+  "demo - line scroll [default]": {
+   "bin": 30464,
+   "bss": 409364,
+   "data": 32,
+   "rodata": 6463,
+   "text": 23852
+  },
+  "demo - map [default]": {
+   "bin": 36288,
+   "bss": 409996,
+   "data": 48,
+   "rodata": 7049,
+   "text": 29072
+  },
+  "demo - mode7 [default]": {
+   "bin": 207068,
+   "bss": 409436,
+   "data": 28,
+   "rodata": 183511,
+   "text": 23400
+  },
+  "demo - mouse [default]": {
+   "bin": 31232,
+   "bss": 409900,
+   "data": 48,
+   "rodata": 6635,
+   "text": 24436
+  },
+  "demo - multitap [default]": {
+   "bin": 31068,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6503,
+   "text": 24396
+  },
+  "demo - nbg2 font [default]": {
+   "bin": 21644,
+   "bss": 409208,
+   "data": 28,
+   "rodata": 1059,
+   "text": 20440
+  },
+  "demo - paint [default]": {
+   "bin": 31892,
+   "bss": 409860,
+   "data": 52,
+   "rodata": 6559,
+   "text": 25184
+  },
+  "demo - printf [default]": {
+   "bin": 35476,
+   "bss": 409860,
+   "data": 68,
+   "rodata": 7088,
+   "text": 28204
+  },
+  "demo - render to image [default]": {
+   "bin": 73308,
+   "bss": 421264,
+   "data": 748,
+   "rodata": 7844,
+   "text": 64608
+  },
+  "demo - serial link [default]": {
+   "bin": 31772,
+   "bss": 409916,
+   "data": 44,
+   "rodata": 6723,
+   "text": 24884
+  },
+  "demo - shooter [default]": {
+   "bin": 300192,
+   "bss": 279120,
+   "data": 80,
+   "rodata": 269059,
+   "text": 30916
+  },
+  "demo - simple water effect [default]": {
+   "bin": 33076,
+   "bss": 409876,
+   "data": 68,
+   "rodata": 6635,
+   "text": 26248
+  },
+  "demo - software rendering [default]": {
+   "bin": 36796,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6599,
+   "text": 30044
+  },
+  "demo - sonic [default]": {
+   "bin": 42304,
+   "bss": 410256,
+   "data": 80,
+   "rodata": 7461,
+   "text": 34628
+  },
+  "demo - sprite animation [default]": {
+   "bin": 32944,
+   "bss": 410064,
+   "data": 48,
+   "rodata": 6707,
+   "text": 26064
+  },
+  "demo - tileset [default]": {
+   "bin": 31764,
+   "bss": 409864,
+   "data": 84,
+   "rodata": 6551,
+   "text": 25020
+  },
+  "demo - vcd card [default]": {
+   "bin": 30748,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6511,
+   "text": 24068
+  },
+  "demo - vdp2 map [default]": {
+   "bin": 31164,
+   "bss": 409496,
+   "data": 28,
+   "rodata": 2737,
+   "text": 28276
+  },
+  "demo - vdp2 plane [default]": {
+   "bin": 74140,
+   "bss": 418696,
+   "data": 44,
+   "rodata": 7433,
+   "text": 66560
+  },
+  "demo - video [default]": {
+   "bin": 35884,
+   "bss": 507552,
+   "data": 44,
+   "rodata": 7127,
+   "text": 28584
+  },
+  "demo - visual novel [default]": {
+   "bin": 118832,
+   "bss": 421132,
+   "data": 48,
+   "rodata": 22995,
+   "text": 95668
+  },
+  "demo - voxel [default]": {
+   "bin": 33592,
+   "bss": 543080,
+   "data": 72,
+   "rodata": 6635,
+   "text": 26784
+  },
+  "demo1 [default]": {
+   "bin": 28220,
+   "bss": 409700,
+   "data": 44,
+   "rodata": 6511,
+   "text": 21560
+  },
+  "test rom [320x224]": {
+   "bin": 280612,
+   "bss": 568148,
+   "data": 1460,
+   "rodata": 43117,
+   "text": 235936
+  },
+  "test rom [704x480]": {
+   "bin": 280644,
+   "bss": 568148,
+   "data": 1460,
+   "rodata": 43117,
+   "text": 235948
+  },
+  "test rom [all_modules]": {
+   "bin": 288008,
+   "bss": 568368,
+   "data": 1464,
+   "rodata": 45709,
+   "text": 240724
+  },
+  "test rom [all_modules_release]": {
+   "bin": 271144,
+   "bss": 568280,
+   "data": 1464,
+   "rodata": 41581,
+   "text": 227992
+  },
+  "test rom [fuzz]": {
+   "bin": 280612,
+   "bss": 568148,
+   "data": 1460,
+   "rodata": 43117,
+   "text": 235936
+  },
+  "test rom [fuzz_release]": {
+   "bin": 262996,
+   "bss": 568060,
+   "data": 1460,
+   "rodata": 39037,
+   "text": 222372
+  },
+  "test rom [release]": {
+   "bin": 262996,
+   "bss": 568060,
+   "data": 1460,
+   "rodata": 39037,
+   "text": 222372
+  }
+ }
+}

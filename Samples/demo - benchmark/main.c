@@ -75,11 +75,6 @@ const benchmark_result          *benchmark_get(const int index)
     return (&results[index]);
 }
 
-int                             benchmark_count(void)
-{
-    return (result_count);
-}
-
 /** @brief Nanoseconds per item of a result */
 static unsigned int             nanoseconds_per_item(const benchmark_result * const result)
 {

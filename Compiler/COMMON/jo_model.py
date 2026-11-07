@@ -55,10 +55,14 @@ Material options (MTL, after newmtl, besides Kd, Ns, d and map_Kd):
     jo_value N              value of the program (jo_3d_material.user)
 
 Groups: each OBJ "o" or "g" is a group, for the animations of the program: its polygons (together in the OBJ) and its
-points (the points used only by its polygons, together in the OBJ: the points shared with other groups don't move).
+points. A point belongs to the group it is declared in (the "v" lines after the "g" line, together); in an OBJ whose
+points are all declared before the groups, a group owns the points used only by its polygons (the points shared with
+other groups don't move).
 
-Skeleton (--skeleton FILE.json): rigid parts. Each bone moves one group of the OBJ (its polygons use only its own points:
-a mercenary, a jeep with its wheels, a door). The file:
+Skeleton (--skeleton FILE.json): rigid parts. Each bone moves one group of the OBJ (a mercenary, a jeep with its wheels,
+a door). A polygon of a group may use points of other groups: a skin stretched between 2 parts (the polygons around an
+elbow use the points of the upper arm and of the forearm, each point moves with its own bone: no gap at the joint). The
+file:
     {"bones": [{"name": "hips", "parent": null, "pivot": [x, y, z]},        (OBJ axes and units, before --scale)
                {"name": "thigh_l", "parent": "hips", "pivot": [...], "group": "thigh_l"}, ...],
      "animations": [{"name": "walk", "key_time": 0.125, "loop": true,
@@ -212,6 +216,7 @@ def read_obj(path, warnings):
     materials = {}
     material = None
     group = None
+    point_groups = []   # The group each point is declared in (None: before the first group)
     with open(path, encoding='utf-8', errors='replace') as f:
         for number, raw in enumerate(f, 1):
             line = raw.split('#', 1)[0].strip()
@@ -223,6 +228,7 @@ def read_obj(path, warnings):
                 v = [float(x) for x in words[1:]]
                 points.append(tuple(v[:3]))
                 colors.append(tuple(v[3:6]) if len(v) >= 6 else None)
+                point_groups.append(group)
             elif key == 'vn':
                 normals.append(tuple(float(x) for x in words[1:4]))
             elif key == 'vt':
@@ -251,7 +257,7 @@ def read_obj(path, warnings):
                     read_mtl(mtl, materials, warnings)
                 else:
                     warnings.append('%s not found' % mtl)
-    return points, colors, normals, faces, materials
+    return points, colors, normals, faces, materials, point_groups
 
 
 def sub(a, b):
@@ -412,7 +418,7 @@ def name16(s):
     return b + b'\0' * (16 - len(b))
 
 
-def skeleton_chunks(path, groups, quads, points, scale, s_yz):
+def skeleton_chunks(path, groups, quads, points, scale, s_yz, point_groups):
     """The "BONE" and "ANIM" chunks of a skeleton file (see the documentation of the module)"""
     rig = json.load(open(path))
     bones = rig.get('bones', [])
@@ -430,16 +436,18 @@ def skeleton_chunks(path, groups, quads, points, scale, s_yz):
         gi = 0xFFFF
         if gname is not None and gname in group_index:
             gi = group_index[gname]
-            # A bone draws its group alone: its polygons use only its points (together)
+            # Each point of the polygons of a bone belongs to the group of a bone (its own, or another one: a skin
+            # between 2 parts), or it would not move
             _, first, end, used = groups[gi]
-            lo, hi = min(used), max(used)
-            for q in quads[first:end]:
-                for i in q[0]:
-                    if not lo <= i <= hi:
-                        raise ModelError('bone %s: a polygon uses a point of another group' % b['name'])
-            for other in groups:
-                if other[0] != gname and any(lo <= i <= hi for i in other[3]):
-                    raise ModelError('bone %s: its points are shared with the group %s' % (b['name'], other[0]))
+            bone_groups = {bb.get('group', bb['name']) for bb in bones}
+            owners = {}
+            for k, g in enumerate(groups):
+                for i in group_points(groups, k, point_groups):
+                    owners[i] = g[0]
+            for i in used:
+                if owners.get(i) not in bone_groups:
+                    raise ModelError('bone %s: a polygon uses a point that belongs to no bone (declared in the group %s)'
+                                     % (b['name'], owners.get(i)))
         elif gname is not None:
             raise ModelError('bone %s: no group %s in the OBJ' % (b['name'], gname))
         px, py, pz = b.get('pivot', [0, 0, 0])
@@ -472,9 +480,24 @@ def skeleton_chunks(path, groups, quads, points, scale, s_yz):
     return chunk('BONE', data), chunk('ANIM', header + body), len(bones), len(anims)
 
 
-def weld_points(points, colors, quads):
-    """Merge the points at the same position (same fixed point values) used by the same groups (a group can move its
-    points: see "GRUP"). A point is replaced by the first one of its kind: the order is kept. Returns (points, colors, quads)"""
+def group_points(groups, gi, point_groups):
+    """The points of a group (its index gi): the points declared in it; none declared (the points of the OBJ before its
+    groups): the points used only by its polygons"""
+    name = groups[gi][0]
+    own = [i for i, g in enumerate(point_groups) if g == name]
+    if own:
+        return own
+    users = {}
+    for k, (n, first, end, used) in enumerate(groups):
+        for i in used:
+            users.setdefault(i, set()).add(k)
+    return [i for i in groups[gi][3] if users[i] == {gi}]
+
+
+def weld_points(points, colors, quads, point_groups):
+    """Merge the points at the same position (same fixed point values) used by the same groups and declared in the same
+    group (a group can move its points: see "GRUP"). A point is replaced by the first one of its kind: the order is kept.
+    Returns (points, colors, quads, point_groups)"""
     users = {}
     for c, n, m, g in quads:
         for i in c:
@@ -483,17 +506,19 @@ def weld_points(points, colors, quads):
     remap = []
     out_points = []
     out_colors = []
+    out_groups = []
     for i, p in enumerate(points):
         if i not in users:
             key = ('unused', i)
         else:
-            key = (tuple(fixed(v) for v in p), frozenset(users[i]))
+            key = (tuple(fixed(v) for v in p), frozenset(users[i]), point_groups[i])
         if key not in first:
             first[key] = len(out_points)
             out_points.append(p)
             out_colors.append(colors[i])
+            out_groups.append(point_groups[i])
         remap.append(first[key])
-    return out_points, out_colors, [([remap[i] for i in c], n, m, g) for c, n, m, g in quads]
+    return out_points, out_colors, [([remap[i] for i in c], n, m, g) for c, n, m, g in quads], out_groups
 
 
 def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangles=False, remove_unused=False,
@@ -504,7 +529,7 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
         out_path = os.path.splitext(obj_path)[0] + '.JOM'
     if texture_dir is None:
         texture_dir = os.path.dirname(os.path.abspath(out_path))
-    points, colors, normals, faces, materials = read_obj(obj_path, warnings)
+    points, colors, normals, faces, materials, point_groups = read_obj(obj_path, warnings)
     if not points or not faces:
         raise ModelError('%s: no points or no faces' % obj_path)
     # Saturn axes: rotation of 180 degrees around X, the vertex order is reversed (front faces: clockwise on the screen)
@@ -531,6 +556,7 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
         if len(used) < len(points):
             points = [points[i] for i in used]
             colors = [colors[i] for i in used]
+            point_groups = [point_groups[i] for i in used]
             quads = [([remap[i] for i in c], n, m, g) for c, n, m, g in quads]
     else:
         unused = len(points) - len({i for q in quads for i in q[0]})
@@ -541,7 +567,7 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
     welded = 0
     if weld:
         count = len(points)
-        points, colors, quads = weld_points(points, colors, quads)
+        points, colors, quads, point_groups = weld_points(points, colors, quads, point_groups)
         welded = count - len(points)
     # Materials (in the order of their first use), the polygons without material use a white one
     names = []
@@ -672,22 +698,20 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
                     data += struct.pack('>H', rgb555(color) if gouraud else 0)
             out += chunk('GOUR', data)
     if groups:
-        # The points of a group: the points used only by its polygons (a point shared with another group doesn't move
-        # with it), they must be together in the OBJ
-        users = {}
-        for gi, (name, first, end, used) in enumerate(groups):
-            for i in used:
-                users.setdefault(i, set()).add(gi)
+        # The points of a group (they must be together in the OBJ): the points declared in it; an OBJ with its points
+        # before its groups: the points used only by its polygons (a point shared with another group doesn't move with it)
         data = bytearray(struct.pack('>I', len(groups)))
         for gi, (name, first, end, used) in enumerate(groups):
-            own = [i for i in used if users[i] == {gi}]
+            own = group_points(groups, gi, point_groups)
             lo, hi = (min(own), max(own)) if own else (0, -1)
             # (the range includes points of other groups if its points are not together in the OBJ, see --info)
+            if own and hi - lo + 1 != len(own):
+                warnings.append('group %s: its points are not together in the OBJ' % name)
             data += name16(name) + struct.pack('>HHHH', lo, hi - lo + 1, first, end - first)
         out += chunk('GRUP', data)
     bone_count = animation_count = 0
     if skeleton:
-        bones, anims, bone_count, animation_count = skeleton_chunks(skeleton, groups, quads, points, scale, s_yz)
+        bones, anims, bone_count, animation_count = skeleton_chunks(skeleton, groups, quads, points, scale, s_yz, point_groups)
         out += bones + anims
     out += chunk('END ', b'')
     with open(out_path, 'wb') as f:

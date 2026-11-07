@@ -37,6 +37,8 @@
 #include "jo/math.h"
 #include "jo/core.h"
 #include "jo/input.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
 
 /*
 ** The SMPC system status and the peripheral data are requested once per frame
@@ -114,6 +116,30 @@
 # define JO_SMPC_MOUSE_Y_OVERFLOW       (1 << 7)
 
 /*
+** Light gun (Virtua Gun, Stunner), Sega technical note STN-41: the SMPC cannot read it (INTBACK reports the port status
+** A0H only), the port is switched to the SH-2 direct mode (IOSEL): the SH-2 reads the trigger and the start button in the
+** port data register (PDR) and the light sensor (TH line, bit 6) latches the HV counters of the VDP2 (EXLE of the SMPC,
+** EXLTEN of the VDP2)
+*/
+/** @brief INTBACK port status of a light gun: Mega Drive ID AH, 0 peripheral data */
+# define JO_SMPC_PORT_STATUS_GUN        (0xA0)
+/** @brief ID of a light gun in SH-2 direct mode (see jo_smpc_gun_read_id()) */
+# define JO_SMPC_GUN_ID                 (0xA)
+/** @brief PDR: trigger (active low) */
+# define JO_SMPC_GUN_TRIGGER            (1 << 4)
+/** @brief PDR: start button (active low) */
+# define JO_SMPC_GUN_START              (1 << 5)
+/** @brief PDR: TH line (the light sensor of the gun) */
+# define JO_SMPC_GUN_TH                 (1 << 6)
+/** @brief PDR: the 7 lines of a port */
+# define JO_SMPC_PORT_LINES             (0x7F)
+/** @brief IREG1 of INTBACK: 0-byte mode of a port in SH-2 direct mode (P1MD or P2MD = 11) */
+# define JO_SMPC_INTBACK_NO_DATA(PORT)  (0x30 << ((PORT) << 1))
+
+/** @brief Set the latch of the HV counters by the external signal (Internal usage, vdp2.c, applied at the next VBLANK) */
+void                                    __jo_vdp2_set_external_latch(const bool enabled);
+
+/*
 ** GLOBALS
 */
 jo_peripheral                              __jo_smpc_peripherals[JO_SMPC_MAX_PERIPHERAL];
@@ -125,6 +151,15 @@ static unsigned short                   __jo_smpc_previous_pressed[JO_SMPC_MAX_P
 /** @brief End of the peripherals of each port filled by the last parse (the next ones are cleared already: the 2 x 15 entries
  *  were cleared at each VBLANK; the whole port the first time) */
 static unsigned char                    __jo_smpc_port_end[2] = {JO_SMPC_PERIPHERAL_PER_PORT, JO_SMPC_PERIPHERAL_PER_PORT * 2};
+/** @brief Ports (bit 0: port 1, bit 1: port 2) with a light gun: SH-2 direct mode */
+static unsigned char                    __jo_smpc_gun_ports = 0;
+/** @brief Ports where the last INTBACK found a light gun (switched to the SH-2 direct mode at the next VBLANK) */
+static unsigned char                    __jo_smpc_gun_found = 0;
+/** @brief Ports in SH-2 direct mode during the current INTBACK (0-byte mode: no data for them) */
+static unsigned char                    __jo_smpc_intback_gun_ports = 0;
+/** @brief Port whose light sensor latches the HV counters during the current field (2 guns: one per field, the VDP2 has
+ *  one latch) */
+static unsigned char                    __jo_smpc_gun_latch_port = 0;
 
 /** @brief Mark a peripheral as not connected
  *  @param p Peripheral
@@ -273,16 +308,20 @@ static unsigned int                     jo_smpc_parse_port(unsigned int pos, con
         return (pos);
     }
     port_status = __jo_smpc_intback_buffer[pos++];
+    // (a light gun: switched to the SH-2 direct mode at the next VBLANK, see __jo_smpc_gun_vblank())
+    if (port_status == JO_SMPC_PORT_STATUS_GUN)
+        __jo_smpc_gun_found |= (first_index == 0 ? 1 : 2);
     count = JO_SMPC_PORT_PERIPHERAL_COUNT(port_status);
     index = first_index;
     for (JO_ZERO(i); i < count && pos < __jo_smpc_intback_length; ++i)
     {
         id = __jo_smpc_intback_buffer[pos++];
         size = JO_SMPC_PERIPHERAL_SIZE(id);
-        if (size == JO_SMPC_PERIPHERAL_EXTENDED_SIZE && pos < __jo_smpc_intback_length)
-            size = __jo_smpc_intback_buffer[pos++];
+        // (not connected, 0xFF: no data and no size byte, its low 4 bits are not the extended size)
         if (id == JO_PERIPHERAL_ID_NOT_CONNECTED)
             JO_ZERO(size);
+        else if (size == JO_SMPC_PERIPHERAL_EXTENDED_SIZE && pos < __jo_smpc_intback_length)
+            size = __jo_smpc_intback_buffer[pos++];
         if (index < first_index + JO_SMPC_PERIPHERAL_PER_PORT)
         {
             if (id == JO_PERIPHERAL_ID_NOT_CONNECTED)
@@ -343,7 +382,10 @@ static void __attribute__((interrupt_handler)) jo_smpc_handler(void)
     }
     else
     {
-        jo_smpc_parse_port(jo_smpc_parse_port(0, 0), JO_SMPC_PERIPHERAL_PER_PORT);
+        // (a port in SH-2 direct mode has no data: the light gun is read by __jo_smpc_gun_vblank())
+        i = (__jo_smpc_intback_gun_ports & 1) ? 0 : jo_smpc_parse_port(0, 0);
+        if (!(__jo_smpc_intback_gun_ports & 2))
+            jo_smpc_parse_port(i, JO_SMPC_PERIPHERAL_PER_PORT);
         __jo_smpc_intback_busy = false;
     }
     // The SCU masked its interrupts when this one was taken
@@ -359,11 +401,155 @@ void                                    __jo_smpc_vblank_in(void)
         return;
     __jo_smpc_intback_busy = true;
     JO_ZERO(__jo_smpc_intback_length);
+    __jo_smpc_intback_gun_ports = __jo_smpc_gun_ports;
     jo_smpc_write_byte(StatusFlag, JO_SMPC_STATUS_FLAG_BUSY);
     jo_smpc_write_byte(InputRegister0, JO_SMPC_INTBACK_SYSTEM_STATUS);
-    jo_smpc_write_byte(InputRegister1, JO_SMPC_INTBACK_PERIPHERALS);
+    // (the SMPC manual: a port in SH-2 direct mode is read in 0-byte mode)
+    jo_smpc_write_byte(InputRegister1, JO_SMPC_INTBACK_PERIPHERALS | ((__jo_smpc_gun_ports & 1) ? JO_SMPC_INTBACK_NO_DATA(0) : 0) |
+                                       ((__jo_smpc_gun_ports & 2) ? JO_SMPC_INTBACK_NO_DATA(1) : 0));
     jo_smpc_write_byte(InputRegister2, JO_SMPC_INTBACK_END);
     jo_smpc_write_byte(CommandRegister, FetchStatusAndPeripheralData);
+}
+
+/*
+** LIGHT GUN
+*/
+
+/** @brief Port data register of a port
+ *  @param port 0: port 1, 1: port 2
+ *  @return PDR1 or PDR2
+ */
+static __jo_force_inline jo_smpc_memory_address jo_smpc_gun_pdr(const int port)
+{
+    return (port ? PortDataRegister2 : PortDataRegister1);
+}
+
+/** @brief Read the ID of the peripheral of a port in SH-2 direct mode (STN-41: TH as output, the data lines read with TH
+ *  high then low)
+ *  @param port 0: port 1, 1: port 2
+ *  @return JO_SMPC_GUN_ID for a light gun, 0xF without peripheral (the lines are pulled up), 0xB for a Saturn pad
+ *  @remarks The external latch is disabled by the caller (TH low would latch the HV counters)
+ */
+static unsigned char                    jo_smpc_gun_read_id(const int port)
+{
+    jo_smpc_memory_address              pdr;
+    jo_smpc_memory_address              ddr;
+    unsigned char                       high;
+    unsigned char                       low;
+
+    pdr = jo_smpc_gun_pdr(port);
+    ddr = port ? DataDirectionRegister2 : DataDirectionRegister1;
+    jo_smpc_write_byte(ddr, JO_SMPC_GUN_TH);
+    jo_smpc_write_byte(pdr, JO_SMPC_GUN_TH);
+    // (2 reads: the lines settle after the change of TH)
+    jo_smpc_read_byte(pdr);
+    high = jo_smpc_read_byte(pdr);
+    jo_smpc_write_byte(pdr, 0);
+    jo_smpc_read_byte(pdr);
+    low = jo_smpc_read_byte(pdr);
+    // All the lines as inputs again (the gun drives TH)
+    jo_smpc_write_byte(ddr, 0);
+    jo_smpc_write_byte(pdr, JO_SMPC_PORT_LINES);
+    return ((((high & 0xC) != 0) << 3) | (((high & 0x3) != 0) << 2) | (((low & 0xC) != 0) << 1) | ((low & 0x3) != 0));
+}
+
+/** @brief Switch a port to the SH-2 direct mode (a light gun) or back to the SMPC control mode
+ *  @param port 0: port 1, 1: port 2
+ *  @param gun true: SH-2 direct mode
+ */
+static void                             jo_smpc_gun_set_port(const int port, const bool gun)
+{
+    int                                 first;
+    int                                 index;
+
+    first = port * JO_SMPC_PERIPHERAL_PER_PORT;
+    for (index = first; index < __jo_smpc_port_end[port]; ++index)
+        jo_smpc_clear_peripheral(&__jo_smpc_peripherals[index]);
+    if (gun)
+    {
+        __jo_smpc_gun_ports |= (1 << port);
+        __jo_smpc_peripherals[first].id = JO_PERIPHERAL_ID_GUN;
+        JO_ZERO(__jo_smpc_previous_pressed[first]);
+        __jo_smpc_port_end[port] = (unsigned char)(first + 1);
+        jo_smpc_write_byte(port ? DataDirectionRegister2 : DataDirectionRegister1, 0);
+        jo_smpc_write_byte(jo_smpc_gun_pdr(port), JO_SMPC_PORT_LINES);
+    }
+    else
+    {
+        __jo_smpc_gun_ports &= ~(1 << port);
+        __jo_smpc_port_end[port] = (unsigned char)first;
+    }
+    jo_smpc_write_byte(InputOutputSelectRegister, __jo_smpc_gun_ports);
+    __jo_vdp2_set_external_latch(__jo_smpc_gun_ports != 0);
+}
+
+void                                    __jo_smpc_gun_vblank(void)
+{
+    register int                        port;
+    jo_peripheral_gun                   *gun;
+    unsigned short                      hcnt;
+    unsigned short                      vcnt;
+    bool                                latched;
+    unsigned char                       data;
+    unsigned short                      buttons;
+
+    if ((__jo_smpc_gun_ports | __jo_smpc_gun_found) == 0)
+        return;
+    if (__jo_smpc_gun_ports)
+    {
+        // The position latched during the field just displayed (reading TVSTAT clears the flag)
+        latched = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_EXLTFG) != 0;
+        hcnt = JO_VDP2_HCNT;
+        vcnt = JO_VDP2_VCNT;
+        // (the TH line low would latch the HV counters during the ID check)
+        jo_smpc_write_byte(ExternalLatchEnableRegister, 0);
+        for (JO_ZERO(port); port < 2; ++port)
+        {
+            if (!(__jo_smpc_gun_ports & (1 << port)))
+                continue;
+            // Unplugged (or another peripheral): back to the SMPC control mode
+            if (jo_smpc_gun_read_id(port) != JO_SMPC_GUN_ID)
+            {
+                jo_smpc_gun_set_port(port, false);
+                continue;
+            }
+            gun = (jo_peripheral_gun *)&__jo_smpc_peripherals[port * JO_SMPC_PERIPHERAL_PER_PORT];
+            data = jo_smpc_read_byte(jo_smpc_gun_pdr(port));
+            JO_ZERO(buttons);
+            if (!(data & JO_SMPC_GUN_TRIGGER))
+                buttons |= JO_GUN_TRIGGER;
+            if (!(data & JO_SMPC_GUN_START))
+                buttons |= JO_GUN_START_BUTTON;
+            jo_smpc_set_buttons(port * JO_SMPC_PERIPHERAL_PER_PORT, ~buttons);
+            // (2 guns: the position of the other field is kept, each gun latches every other field)
+            if (port != __jo_smpc_gun_latch_port)
+                continue;
+            gun->light = (unsigned char)latched;
+            if (latched)
+            {
+                // VDP2 manual: HCNT bit 0 is valid in the high resolution modes only (640 or 704 pixels). VCNT counts the
+                // lines of the frame in double density interlace (bit 0: the field)
+                gun->x = (short)((__jo_screen.width >= 640 ? hcnt : hcnt >> 1) & 0x3FF);
+                gun->y = (short)(vcnt & 0x3FF);
+            }
+        }
+        // 2 guns: one latch per field each (STN-41: the guns are read on the even and on the odd fields)
+        if (__jo_smpc_gun_ports == 3)
+            __jo_smpc_gun_latch_port ^= 1;
+        else
+            __jo_smpc_gun_latch_port = (__jo_smpc_gun_ports & 1) ? 0 : 1;
+        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & (1 << __jo_smpc_gun_latch_port));
+    }
+    // Light guns found by the last INTBACK (complete: the ports don't change during an INTBACK)
+    if (__jo_smpc_gun_found && !__jo_smpc_intback_busy)
+    {
+        for (JO_ZERO(port); port < 2; ++port)
+            if ((__jo_smpc_gun_found & (1 << port)) && !(__jo_smpc_gun_ports & (1 << port)))
+                jo_smpc_gun_set_port(port, true);
+        JO_ZERO(__jo_smpc_gun_found);
+        __jo_smpc_gun_latch_port = (__jo_smpc_gun_ports & 1) ? 0 : 1;
+        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & (1 << __jo_smpc_gun_latch_port));
+    }
 }
 
 /** @brief Initialize the peripherals and read the system status once (Internal usage) */
@@ -394,11 +580,41 @@ void                                    __jo_smpc_init(void)
 
 void                                    __jo_smpc_command(const jo_smpc_command command)
 {
-    // Wait for the INTBACK of the current frame
-    while (__jo_smpc_intback_busy)
-        ;
+    unsigned int                        sr;
+
+    // Wait for the INTBACK of the current frame, then mask the interrupts: the VBLANK-IN interrupt would start the next
+    // INTBACK between the wait and the command (2 commands at the same time: one of them is lost, the reset button of a
+    // backup write was not disabled)
+    for (;;)
+    {
+        while (__jo_smpc_intback_busy)
+            ;
+        sr = __jo_core_disable_interrupts();
+        if (!__jo_smpc_intback_busy)
+            break;
+        __jo_core_restore_interrupts(sr);
+    }
     jo_smpc_begin_command();
     jo_smpc_end_command(command);
+    __jo_core_restore_interrupts(sr);
+}
+
+/** @brief Depth of jo_core_disable_reset() (see __jo_smpc_set_reset_button()) */
+static int                              __jo_smpc_reset_disable_depth = 0;
+
+void                                    __jo_smpc_set_reset_button(const bool enabled)
+{
+    // (the calls are nested: a backup write between jo_core_disable_reset() and jo_core_enable_reset() of the game does not
+    // enable the reset button at its end)
+    if (!enabled)
+    {
+        if (__jo_smpc_reset_disable_depth++ == 0)
+            __jo_smpc_command(DisableReset);
+        return;
+    }
+    if (__jo_smpc_reset_disable_depth > 0 && --__jo_smpc_reset_disable_depth > 0)
+        return;
+    __jo_smpc_command(EnableReset);
 }
 
 /*

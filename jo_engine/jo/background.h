@@ -62,6 +62,7 @@ static  __jo_force_inline void    jo_set_background_8bits_sprite(jo_img_8bits *i
  *  @param img Pointer to an image struct
  *  @param left Left location
  *  @param top Top location
+ *  @remarks To show a TGA file: jo_set_background_tga()
  */
 static  __jo_force_inline void	jo_set_background_sprite(const jo_img * const img, const unsigned short left, const unsigned short top)
 {

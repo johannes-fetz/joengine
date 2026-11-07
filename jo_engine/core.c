@@ -54,6 +54,10 @@
 #include "jo/keyboard.h"
 #include "jo/3d.h"
 #include "jo/profile.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/profile.h"
 
 /*
 ** DEFINITIONS
@@ -72,6 +76,8 @@ extern void                                 jo_main(void);
 void                                        __jo_init_vdp2(const jo_color back_color);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 extern jo_list                              __slave_callbacks;
+extern volatile bool                        __jo_slave_callbacks_running;
+void                                        __jo_slave_callbacks_done(void);
 void                                        jo_core_slave_init(void);
 void                                        jo_core_exec_on_slave(jo_slave_callback callback);
 #endif
@@ -105,6 +111,7 @@ void                                        __jo_smpc_init(void);
 void                                        __jo_smpc_vblank_in(void);
 void                                        __jo_vdp2_init_registers(void);
 void                                        __jo_vdp2_vblank(void);
+void                                        __jo_time_vblank(void);
 void                                        __jo_vdp2_set_tv_display(const bool on);
 void                                        __jo_vdp2_set_priority(const jo_scroll_screen screen, const unsigned short priority);
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
@@ -119,9 +126,128 @@ char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 /** @brief Number of VBLANK since startup */
 volatile unsigned int                       __jo_core_vblank_count = 0;
 static unsigned int                         __jo_core_last_synch_vblank = 0;
+int                                         __jo_core_fps = 0;
+unsigned int                                __jo_core_late_frames = 0;
+static unsigned int                         __jo_core_fps_frames = 0;
+static unsigned int                         __jo_core_fps_vblank = 0;
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
+__jo_screen_mode                            __jo_screen =
+{
+    JO_TV_WIDTH, JO_TV_HEIGHT, JO_TV_WIDTH_2, JO_TV_HEIGHT_2,
+    JO_TV_WIDTH > 352 ? JO_TV_WIDTH_2 : JO_TV_WIDTH, JO_TV_HEIGHT > 256 ? JO_TV_HEIGHT_2 : JO_TV_HEIGHT,
+    JO_TV_WIDTH > 352, JO_TV_HEIGHT > 256, JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704, false
+};
+void                                        __jo_vdp1_set_screen_mode(void);
+void                                        __jo_vdp2_set_screen_mode(void);
+void                                        __jo_vdp2_update_tv_mode(void);
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+void                                        __jo_3d_set_screen_mode(void);
+#endif
+/** @brief The music streamed from the CD (see jo_audio_play_music()): its samples at each VBLANK, its reads at each frame */
+void                                        (*__jo_core_music_vblank)(void) = JO_NULL;
+void                                        (*__jo_core_music_update)(void) = JO_NULL;
+static jo_event_callback                   __jo_cd_tray_open_callback = JO_NULL;
+
+/** @brief CD block: HIRQ register and its "disc changed" flag (set when the tray opens), CR1 (drive status in its high byte) */
+# define JO_CORE_CD_HIRQ                    (*(volatile unsigned short *)0x25890008)
+# define JO_CORE_CD_HIRQ_DCHG               (0x0020)
+# define JO_CORE_CD_CR1                     (*(volatile unsigned short *)0x25890018)
+/** @brief Drive status: tray open, no disc */
+# define JO_CORE_CD_STATUS_OPEN             (0x06)
+# define JO_CORE_CD_STATUS_NO_DISC          (0x07)
+
+#ifdef JO_DEBUG
+
+/*
+** NULL pointer trap: the user break controller (UBC) of the master SH-2 stops each data access to the first 4 KB of the
+** memory (a NULL pointer, or a small offset from it: a field of a NULL structure)
+*/
+# define JO_SH2_UBC_BARAH                   (*(volatile unsigned short *)0xFFFFFF40)
+# define JO_SH2_UBC_BARAL                   (*(volatile unsigned short *)0xFFFFFF42)
+# define JO_SH2_UBC_BAMRAH                  (*(volatile unsigned short *)0xFFFFFF44)
+# define JO_SH2_UBC_BAMRAL                  (*(volatile unsigned short *)0xFFFFFF46)
+# define JO_SH2_UBC_BBRA                    (*(volatile unsigned short *)0xFFFFFF48)
+# define JO_SH2_UBC_BBRB                    (*(volatile unsigned short *)0xFFFFFF68)
+# define JO_SH2_UBC_BRCR                    (*(volatile unsigned short *)0xFFFFFF78)
+/** @brief Break on CPU cycles (01), data accesses (10), reads and writes (11), any size (00) */
+# define JO_SH2_UBC_BBR_CPU_DATA_READ_WRITE (0x006C)
+/** @brief Address mask: the 12 low bits are ignored (0x00000000 to 0x00000FFF) */
+# define JO_SH2_UBC_NULL_MASK               (0x0FFF)
+/** @brief Vector of the user break interrupt */
+# define JO_VECTOR_USER_BREAK               (12)
+
+/** @brief Accesses trapped (0), and the first one: PC (1, the instruction after the access) and PR (2, return address of its
+ *  function) */
+volatile unsigned int                       __jo_core_null_access[3] __attribute__((used, externally_visible)) = {0, 0, 0};
+
+/** @brief User break interrupt: counts the access, keeps the PC and the PR of the first one, then the program goes on (the
+ *  error is shown at the next frame, see jo_core_check_null_access()) */
+void                                        __jo_core_user_break_handler(void);
+__asm__(
+"    .text\n"
+"    .align 2\n"
+"    .global ___jo_core_user_break_handler\n"
+"___jo_core_user_break_handler:\n"
+"    mov.l r0, @-r15\n"
+"    mov.l r1, @-r15\n"
+"    mov.l r2, @-r15\n"
+"    mov.l 1f, r1\n"                   /* count */
+"    mov.l @r1, r0\n"
+"    add #1, r0\n"
+"    mov.l r0, @r1\n"
+"    cmp/eq #1, r0\n"
+"    bf 3f\n"
+"    mov.l @(12, r15), r0\n"           /* PC pushed by the exception (above r2, r1, r0) */
+"    mov.l r0, @(4, r1)\n"
+"    sts pr, r0\n"
+"    mov.l r0, @(8, r1)\n"
+"3:\n"
+"    mov.l 4f, r1\n"                   /* BRCR: clear the condition match flags (bits 15 and 14) */
+"    mov.w @r1, r0\n"
+"    mov.w 5f, r2\n"
+"    and r2, r0\n"
+"    mov.w r0, @r1\n"
+"    mov.l @r15+, r2\n"
+"    mov.l @r15+, r1\n"
+"    mov.l @r15+, r0\n"
+"    rte\n"
+"    nop\n"
+"    .align 2\n"
+"1:  .long ___jo_core_null_access\n"
+"4:  .long 0xFFFFFF78\n"
+"5:  .word 0x3FFF\n"
+"    .align 2\n"
+);
+
+/** @brief Start the NULL pointer trap of the master CPU */
+static void                                 jo_core_init_null_trap(void)
+{
+    __jo_core_set_interrupt_handler(JO_VECTOR_USER_BREAK, (jo_interrupt_handler)__jo_core_user_break_handler);
+    JO_SH2_UBC_BBRA = 0;
+    JO_SH2_UBC_BBRB = 0;
+    JO_SH2_UBC_BRCR = 0;
+    JO_SH2_UBC_BARAH = 0;
+    JO_SH2_UBC_BARAL = 0;
+    JO_SH2_UBC_BAMRAH = 0;
+    JO_SH2_UBC_BAMRAL = JO_SH2_UBC_NULL_MASK;
+    JO_SH2_UBC_BBRA = JO_SH2_UBC_BBR_CPU_DATA_READ_WRITE;
+}
+
+/** @brief An access to the first 4 KB of the memory since the start: the error screen */
+static void                                 jo_core_check_null_access(void)
+{
+    static bool                             shown = false;
+
+    if (__jo_core_null_access[0] == 0 || shown)
+        return;
+    shown = true;
+    jo_core_error("NULL pointer: access to 0-0xFFF before PC %x, PR %x (%d times)",
+                  __jo_core_null_access[1], __jo_core_null_access[2], __jo_core_null_access[0]);
+}
+
+#endif
 
 #ifdef JO_COMPILE_WITH_RAM_CARD_SUPPORT
 
@@ -277,8 +403,13 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     divisor = JO_SH2_DVSR;
     high = JO_SH2_DVDNTH;
     ++__jo_core_vblank_count;
+    // (first: the light guns read TVSTAT, other reads would clear the flag of the latch)
+    __jo_smpc_gun_vblank();
+    __jo_time_vblank();
     __jo_vdp2_vblank();
     __jo_vdp1_vblank();
+    if (__jo_core_music_vblank != JO_NULL)
+        __jo_core_music_vblank();
     if (__vblank_callbacks.count)
         __jo_vblank_callbacks();
     // Requests the SMPC status and the peripheral data (like the Sega libraries, during the VBLANK)
@@ -311,6 +442,8 @@ static void                                 jo_core_init_system(void)
     __jo_vdp2_init_registers();
     __jo_vdp1_init();
     __jo_smpc_init();
+    // (the "disc changed" flag of the boot: only a tray opened from now on, see jo_core_check_system_keys())
+    JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
     __jo_core_set_interrupt_handler(JO_VECTOR_VBLANK_IN, jo_core_vblank_in_handler);
     __jo_core_enable_scu_interrupts(JO_SCU_INT_VBLANK_IN | JO_SCU_INT_SMPC);
     JO_ZERO(__jo_core_vblank_count);
@@ -333,14 +466,36 @@ void                                        __jo_core_synch(void)
     while ((int)(__jo_core_vblank_count - target) < 0 || __jo_core_vblank_count == __jo_core_last_synch_vblank)
     {
 #ifdef JO_CORE_SYNCH_SLEEP
-        // The CPU sleeps until the next interrupt (the VBLANK, the SMPC just after it): the same wait, without the loop
-        // (an emulator does not run the instructions of the loop: Mednafen emulates the game faster)
+        // (JO_CORE_SYNCH_SLEEP, not by default) The CPU sleeps until the next interrupt (the VBLANK, the SMPC just after
+        // it): the same wait, without the loop (an emulator does not run the instructions of the loop: Mednafen emulates
+        // the game 7 % faster). Not by default: the emulators get SLEEP wrong (see JO_SLAVE_SLEEP in slave.c)
         __asm__ volatile ("sleep");
+#else
+        __jo_core_pause();
 #endif
     }
     jo_profile_end(JO_PROFILE_VSYNC);
     jo_profile_count(JO_PROFILE_VBLANKS, 100 * (__jo_core_vblank_count - __jo_core_last_synch_vblank));
+    // The frames really shown (see jo_core_get_fps()): a frame is late when it took more VBLANK than JO_FRAMERATE (not
+    // the first one: the time of the loading before it)
+    if (__jo_core_fps_vblank == 0)
+        __jo_core_fps_vblank = __jo_core_vblank_count;
+    else
+    {
+        if (__jo_core_vblank_count - __jo_core_last_synch_vblank > (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE))
+            ++__jo_core_late_frames;
+        ++__jo_core_fps_frames;
+        // (every 2 seconds: 120 VBLANK in NTSC, 100 in PAL. Rounded)
+        if (__jo_core_vblank_count - __jo_core_fps_vblank >= 2 * (unsigned int)jo_core_get_refresh_rate())
+        {
+            __jo_core_fps = (int)((__jo_core_fps_frames * (unsigned int)jo_core_get_refresh_rate() * 2 + (__jo_core_vblank_count - __jo_core_fps_vblank)) /
+                                  (2 * (__jo_core_vblank_count - __jo_core_fps_vblank)));
+            JO_ZERO(__jo_core_fps_frames);
+            __jo_core_fps_vblank = __jo_core_vblank_count;
+        }
+    }
     __jo_core_last_synch_vblank = __jo_core_vblank_count;
+    __jo_vdp1_frame_start();
     // The inputs of the new frame
     __jo_input_frame_start();
 }
@@ -360,16 +515,38 @@ static void         jo_core_init_vdp(const jo_color back_color)
     jo_core_init_system();
     jo_core_tv_off();
     __jo_init_vdp2(back_color);
-/*Credit: slinga-homebrew, fafling and Ponut64
-  https://github.com/johannes-fetz/joengine/pull/58
-*/
-# if defined(JO_480i)
-    // Sprite color RAM address offset: 1
-    JO_VDP2_CRAOFB = JO_VDP2_CRAOFB_SPRITE_OFFSET(1) | (JO_VDP2_CRAOFB & ~JO_VDP2_CRAOFB_SPRITE_OFFSET_MASK);
-#  if defined(JO_COMPILE_WITH_PRINTF_SUPPORT)
-    jo_vdp2_zoom_nbg0(0.5f);
-#  endif
-# endif
+}
+
+bool                                        jo_core_set_screen_resolution(const int width, const int height)
+{
+    bool                                    pal;
+
+    pal = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_PAL) != 0;
+    if ((width != 320 && width != 352 && width != 640 && width != 704) ||
+        (height != 224 && height != 240 && height != 448 && height != 480 && (!pal || (height != 256 && height != 512))))
+        return (false);
+    if ((width == 352 || width == 704) != __jo_screen.clock_352)
+        return (false);
+    __jo_screen.width = (short)width;
+    __jo_screen.height = (short)height;
+    __jo_screen.width_2 = (short)(width >> 1);
+    __jo_screen.height_2 = (short)(height >> 1);
+    __jo_screen.hires = width > 352;
+    __jo_screen.interlace = height > 256;
+    __jo_screen.background_width = (short)(__jo_screen.hires ? width >> 1 : width);
+    __jo_screen.background_height = (short)(__jo_screen.interlace ? height >> 1 : height);
+    __jo_vdp1_set_screen_mode();
+    __jo_vdp2_set_screen_mode();
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+    __jo_3d_set_screen_mode();
+#endif
+    return (true);
+}
+
+void                    jo_core_set_screen_single_interlace(const bool enabled)
+{
+    __jo_screen.single_interlace = enabled;
+    __jo_vdp2_update_tv_mode();
 }
 
 void                    __jo_core_set_screens_order(jo_scroll_screen screen1, ...)
@@ -460,6 +637,10 @@ void			    jo_core_init(const jo_color back_color)
                     JO_MULT_BY_32(dt.year) -
                     JO_MULT_BY_256(dt.month) -
                     JO_MULT_BY_16(dt.day);
+#ifdef JO_DEBUG
+    // (after the initialization: the code of the Boot ROM reads its own data in the first 4 KB)
+    jo_core_init_null_trap();
+#endif
 }
 
 inline int			jo_core_add_vblank_callback(const jo_event_callback callback)
@@ -522,10 +703,10 @@ inline void    jo_core_remove_callback(const int event_id)
 
 void            jo_goto_boot_menu(void)
 {
+    // Back to the boot ROM (multiplayer screen). After the INTBACK of the frame (see __jo_smpc_command(): a command sent
+    // during an INTBACK is lost), then the interrupts masked until the reset
+    __jo_smpc_command(SystemReset);
     __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
-    // Back to the boot ROM (multiplayer screen)
-    jo_smpc_begin_command();
-    jo_smpc_end_command(SystemReset);
     for (;;)
         ;
 }
@@ -537,15 +718,30 @@ void            __jo_core_errorf(const char *function, const char *format, ...)
     va_list     args;
 
     va_start(args, format);
-    jo_vsprintf(__jo_last_error, format, args);
+    jo_vsnprintf(__jo_last_error, sizeof(__jo_last_error), format, args);
     va_end(args);
     __jo_core_error(__jo_last_error, function);
+}
+
+static jo_core_error_handler                 __jo_core_error_handler = JO_NULL;
+
+void            jo_core_set_error_handler(const jo_core_error_handler handler)
+{
+    __jo_core_error_handler = handler;
 }
 
 void            __jo_core_error(char *message, const char *function)
 {
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     int         usage;
+#endif
+
+    if (__jo_core_error_handler != JO_NULL)
+    {
+        __jo_core_error_handler(message, function);
+        return;
+    }
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
     // (the NBG1 bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap(): the back color, the text stays on NBG0)
     if (__jo_vdp2_reserve_nbg1_bitmap())
@@ -569,7 +765,7 @@ void            __jo_core_error(char *message, const char *function)
     else
         jo_printf_with_color(0, 18, JO_COLOR_INDEX_Green, "Sprite memory usage:  %d%%  ", usage);
     jo_printf_with_color(0, 21, JO_COLOR_INDEX_Red, "In %s():", function);
-    jo_printf_with_color(0, 23, JO_COLOR_INDEX_Red, message);
+    jo_printf_with_color(0, 23, JO_COLOR_INDEX_Red, "%s", message);
     jo_set_printf_color_index(0);
     jo_printf(2, 27, "Press [START] to continue...");
     jo_core_suspend();
@@ -638,6 +834,69 @@ void    jo_core_set_restart_game_callback(const jo_event_callback callback)
     __jo_restart_game_callback = callback;
 }
 
+void    jo_core_set_cd_tray_open_callback(const jo_event_callback callback)
+{
+    __jo_cd_tray_open_callback = callback;
+}
+
+/** @brief The tray of the CD opened, A+B+C+Start on the first pad: the callback of the game, or the multiplayer (CD player)
+ *  screen of the BIOS (what Sega asked of the games)
+ */
+/** @brief Frames A+B+C+Start are held before the restart (see jo_core_check_system_keys()) */
+# define JO_CORE_RESET_KEYS_FRAMES          (4)
+static int                                  __jo_core_reset_keys_frames = 0;
+/** @brief A disc was in the drive, the opening of the tray was reported (see jo_core_check_system_keys()) */
+static bool                                 __jo_core_cd_disc_seen = false;
+static bool                                 __jo_core_cd_tray_reported = false;
+
+static void                                 jo_core_check_system_keys(void)
+{
+    unsigned short                          status;
+
+    // (the drive status of the last report of the CD block, periodic or the answer to a command: CR1 high byte, 0xff for a
+    // rejected command)
+    status = JO_CORE_CD_CR1 >> 8;
+    status = status == 0xff ? 0 : (status & 0x0f);
+    if (status == JO_CORE_CD_STATUS_OPEN || status == JO_CORE_CD_STATUS_NO_DISC || (JO_CORE_CD_HIRQ & JO_CORE_CD_HIRQ_DCHG))
+    {
+        JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
+        // Once when the tray opens (not at each frame while it is open), and only after a disc was seen: a program started
+        // without a disc (a cartridge, a program loaded in the memory) does not leave at its first frame
+        if (__jo_core_cd_disc_seen && !__jo_core_cd_tray_reported)
+        {
+            __jo_core_cd_tray_reported = true;
+            if (__jo_cd_tray_open_callback != JO_NULL)
+                __jo_cd_tray_open_callback();
+            else
+                jo_core_exit_to_multiplayer();
+        }
+    }
+    else if (status != 0)
+    {
+        __jo_core_cd_disc_seen = true;
+        __jo_core_cd_tray_reported = false;
+    }
+    // (held during JO_CORE_RESET_KEYS_FRAMES frames: the first reports of the pad after the boot can read all the keys
+    // pressed for 1 or 2 frames)
+    if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
+            jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START))
+    {
+        // (once: the callback restarted the game at each frame while the keys were held)
+        if (__jo_core_reset_keys_frames < JO_CORE_RESET_KEYS_FRAMES)
+            ++__jo_core_reset_keys_frames;
+        else if (__jo_core_reset_keys_frames == JO_CORE_RESET_KEYS_FRAMES)
+        {
+            ++__jo_core_reset_keys_frames;
+            if (__jo_restart_game_callback != JO_NULL)
+                __jo_restart_game_callback();
+            else
+                jo_core_exit_to_multiplayer();
+        }
+    }
+    else
+        JO_ZERO(__jo_core_reset_keys_frames);
+}
+
 void			        jo_core_run(void)
 {
     jo_profile_begin(JO_PROFILE_FRAME);
@@ -678,12 +937,18 @@ void			        jo_core_run(void)
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)
+        {
+            *(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running) = true;
             jo_core_exec_on_slave(jo_slave_callbacks);
+        }
 #endif
-        if (jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
-                jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START) && __jo_restart_game_callback != JO_NULL)
-            __jo_restart_game_callback();
+        jo_core_check_system_keys();
+#ifdef JO_DEBUG
+        jo_core_check_null_access();
+#endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
+        if (__jo_core_music_update != JO_NULL)
+            __jo_core_music_update();
         if (__jo_fs_background_job_count)
             jo_fs_do_background_jobs();
 #endif
@@ -691,8 +956,11 @@ void			        jo_core_run(void)
         jo_list_foreach(&__callbacks, __jo_call_event);
         jo_profile_end(JO_PROFILE_CALLBACKS);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
-        if (__slave_callbacks.count)
+        if (*(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running))
+        {
             jo_core_wait_for_slave();
+            __jo_slave_callbacks_done();
+        }
 #endif
 
         __jo_core_synch();

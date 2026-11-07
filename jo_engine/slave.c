@@ -41,6 +41,8 @@
 #include "jo/list.h"
 #include "jo/time.h"
 #include "jo/profile.h"
+#include "internal/core.h"
+#include "internal/profile.h"
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
@@ -115,7 +117,7 @@ static int                          __jo_slave_master_wait_time;
 
 #ifdef JO_SLAVE_SLEEP
 /*
-** THE SLAVE CPU SLEEPS WHILE IT WAITS
+** THE SLAVE CPU SLEEPS WHILE IT WAITS (JO_SLAVE_SLEEP, not by default)
 **
 ** The slave CPU waits for its jobs in SLEEP (the CPU stops until an interrupt), not in a loop on the flag of its free
 ** running timer: an emulator (Mednafen) does not run the instructions of a sleeping CPU (a game ran 7 % faster with
@@ -126,6 +128,9 @@ static int                          __jo_slave_master_wait_time;
 ** write: the master CPU writes again while it waits for the slave CPU (jo_core_wait_for_slave()).
 ** The vectors of the slave CPU: its own table (the table of the Boot ROM stands under its stack: an interrupt during
 ** the loading of a level, the stack deep, jumped into the stack).
+** Not by default: SLEEP is rarely used by the games, the emulators get it wrong. Yabause (and its forks) saves the
+** address of the SLEEP itself at an interrupt (the CPU sleeps again after the RTE, before testing its flag: the slave
+** CPU never ran its jobs, the game froze); with it the demos crashed in SSF too. Mednafen: a game emulated 4 % faster.
 */
 /** @brief Vector of the input capture interrupt of the free running timer (user vectors: 64 to 127; 0x66: the sampling
  *  of the profiler) */
@@ -196,8 +201,28 @@ inline int			jo_core_add_slave_callback(const jo_event_callback callback)
     return (int)node;
 }
 
+/** @brief The slave CPU runs the callbacks (set by the master CPU, see jo_core_run()): a callback removed then waits */
+volatile bool                       __jo_slave_callbacks_running = false;
+/** @brief The callbacks removed while the slave CPU runs them (written without the cache: by both CPUs) */
+static int                          __jo_slave_callbacks_removed[8];
+static unsigned int                 __jo_slave_callbacks_removed_count = 0;
+# define JO_SLAVE_REMOVED_COUNT     (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_callbacks_removed_count))
+# define JO_SLAVE_REMOVED(INDEX)    (((volatile int *)JO_CACHE_THROUGH(__jo_slave_callbacks_removed))[(INDEX)])
+
+void                                __jo_slave_callbacks_done(void)
+{
+    unsigned int                    i;
+
+    __jo_slave_callbacks_running = false;
+    for (JO_ZERO(i); i < JO_SLAVE_REMOVED_COUNT; ++i)
+        jo_list_remove(&__slave_callbacks, (jo_node *)JO_SLAVE_REMOVED(i));
+    JO_SLAVE_REMOVED_COUNT = 0;
+}
+
 inline void    jo_core_remove_slave_callback(const int event_id)
 {
+    unsigned int                    count;
+
 #ifdef JO_DEBUG
     if (event_id == 0)
     {
@@ -205,6 +230,18 @@ inline void    jo_core_remove_slave_callback(const int event_id)
         return;
     }
 #endif
+    // (the slave CPU reads the list while it runs the callbacks: the node is freed after, see __jo_slave_callbacks_done())
+    if (*(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running))
+    {
+        count = JO_SLAVE_REMOVED_COUNT;
+        if (count < (sizeof(__jo_slave_callbacks_removed) / sizeof(__jo_slave_callbacks_removed[0])))
+        {
+            JO_SLAVE_REMOVED(count) = event_id;
+            JO_SLAVE_REMOVED_COUNT = count + 1;
+            return;
+        }
+        // (more than 8 at once: removed now, as before. Waiting for the slave CPU here would block a slave callback)
+    }
     jo_list_remove(&__slave_callbacks, (jo_node *)event_id);
 }
 
@@ -259,7 +296,7 @@ static void                         jo_slave_main(void)
             {
 #ifndef JO_SLAVE_SLEEP
                 while (!(JO_SH2_FRT_FTCSR & JO_SH2_FRT_FTCSR_ICF))
-                    ;
+                    __jo_core_pause();
                 JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_ICF;
 #else
                 // (the interrupt enabled again each time: the sampling of the profiler writes TIER, see jo_profile_sampling_install())
@@ -302,7 +339,10 @@ void                                jo_core_slave_init(void)
     JO_SLAVE_QUEUE_TAIL = 0;
     JO_SLAVE_USER_DONE = 0;
     JO_SLAVE_IDLE_TICKS = 0;
-    JO_SLAVE_MASTER_WAITING = 0;
+    // (as after a jo_core_wait_for_slave(): the slave CPU counts its idle time from the first jo_core_exec_on_slave(). At 0,
+    // the waits of the jobs of the engine (3D) were added until then: after 2.6 s of idle time, the first
+    // jo_core_slave_idle_time() overflowed (ticks x 1000), a big negative time)
+    JO_SLAVE_MASTER_WAITING = 1;
     JO_SLAVE_USER_ADDED = 0;
     JO_ZERO(__jo_slave_last_idle_ticks);
     JO_ZERO(__jo_slave_idle_time);

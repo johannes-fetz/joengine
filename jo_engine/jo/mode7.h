@@ -53,7 +53,8 @@ typedef struct
     int                             output_y_start;
 }					                jo_mode7_computation_cache;
 
-/** @brief mode7 struct */
+/** @brief mode7 struct (all zero before its first initialization: jo_mode7 params = {0}, its cache is freed by the next
+ *  initialization) */
 typedef struct
 {
     unsigned short                  output_top;

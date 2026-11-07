@@ -42,6 +42,9 @@
 #include "jo/colors.h"
 #include "jo/image.h"
 #include "jo/vdp2.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
+#include "internal/tools.h"
 
 /*
 ** GLOBALS
@@ -71,53 +74,73 @@ static char                 *__jo_format_unsigned(unsigned int value, const unsi
     return (end);
 }
 
-int                         jo_vsprintf(char * const str, const char * format, va_list args)
+int                         jo_vsnprintf(char * const str, const unsigned int size, const char * format, va_list args)
 {
     char                    number[12];
     char                    *out;
+    char                    *limit;
     const char              *text;
     int                     length;
     int                     width;
+    int                     precision;
+    int                     zeros;
     int                     value;
     bool                    left;
     bool                    zero;
-    bool                    negative;
+    char                    sign;
+    char                    plus;
     char                    c;
 
+// (the characters after size - 1 are not written: the count is the length of the string written)
+# define JO_SPRINTF_PUT(C)  do { if (out < limit) *out++ = (C); } while (0)
+
     out = str;
+    limit = size == 0 ? str : str + size - 1;
     for (; *format != '\0'; ++format)
     {
         if (*format != '%')
         {
-            *out++ = *format;
+            JO_SPRINTF_PUT(*format);
             continue;
         }
         ++format;
         left = false;
         zero = false;
+        plus = '\0';
         for (;; ++format)
         {
             if (*format == '-')
                 left = true;
             else if (*format == '0')
                 zero = true;
+            else if (*format == '+')
+                plus = '+';
+            else if (*format == ' ' && plus == '\0')
+                plus = ' ';
             else
                 break;
         }
         for (JO_ZERO(width); *format >= '0' && *format <= '9'; ++format)
             width = width * 10 + *format - '0';
+        // Precision: the minimum of digits of a number, the maximum of characters of a string
+        precision = -1;
+        if (*format == '.')
+        {
+            for (JO_ZERO(precision), ++format; *format >= '0' && *format <= '9'; ++format)
+                precision = precision * 10 + *format - '0';
+        }
         // (the long type is an int: the l and h modifiers change nothing)
         while (*format == 'l' || *format == 'h')
             ++format;
-        negative = false;
+        sign = '\0';
         c = *format;
         switch (c)
         {
             case 'd':
             case 'i':
                 value = va_arg(args, int);
-                negative = value < 0;
-                text = __jo_format_unsigned(negative ? 0u - (unsigned int)value : (unsigned int)value, 10, "0123456789", number + sizeof(number));
+                sign = value < 0 ? '-' : plus;
+                text = __jo_format_unsigned(value < 0 ? 0u - (unsigned int)value : (unsigned int)value, 10, "0123456789", number + sizeof(number));
                 break;
             case 'u':
                 text = __jo_format_unsigned(va_arg(args, unsigned int), 10, "0123456789", number + sizeof(number));
@@ -141,38 +164,83 @@ int                         jo_vsprintf(char * const str, const char * format, v
                 zero = false;
                 break;
             case '%':
-                *out++ = '%';
+                JO_SPRINTF_PUT('%');
                 continue;
             case '\0':
                 --format;
                 continue;
+            case 'f':
+            case 'F':
+            case 'e':
+            case 'E':
+            case 'g':
+            case 'G':
+                // (not supported: written as it is, its argument skipped, the next ones are right)
+                (void)va_arg(args, double);
+                JO_SPRINTF_PUT('%');
+                JO_SPRINTF_PUT(c);
+                continue;
             default:
-                // (not supported, %f...: written as it is)
-                *out++ = '%';
-                *out++ = c;
+                // (not supported: written as it is)
+                JO_SPRINTF_PUT('%');
+                JO_SPRINTF_PUT(c);
                 continue;
         }
+        JO_ZERO(zeros);
         if (c == 'c')
             length = 1;
         else if (c == 's')
+        {
             length = (int)jo_strlen(text);
+            if (precision >= 0 && length > precision)
+                length = precision;
+        }
         else
+        {
             length = (int)(number + sizeof(number) - text);
-        width -= length + (negative ? 1 : 0);
-        if (negative && zero)
-            *out++ = '-';
+            if (precision >= 0)
+            {
+                // (a precision: no padding with 0 by the width)
+                zero = false;
+                if (precision > length)
+                    zeros = precision - length;
+            }
+        }
+        width -= length + zeros + (sign != '\0' ? 1 : 0);
+        if (sign != '\0' && zero)
+            JO_SPRINTF_PUT(sign);
         if (!left)
             for (; width > 0; --width)
-                *out++ = zero ? '0' : ' ';
-        if (negative && !zero)
-            *out++ = '-';
+                JO_SPRINTF_PUT(zero ? '0' : ' ');
+        if (sign != '\0' && !zero)
+            JO_SPRINTF_PUT(sign);
+        for (; zeros > 0; --zeros)
+            JO_SPRINTF_PUT('0');
         for (; length > 0; --length)
-            *out++ = *text++;
+            JO_SPRINTF_PUT(*text++);
         for (; width > 0; --width)
-            *out++ = ' ';
+            JO_SPRINTF_PUT(' ');
     }
-    *out = '\0';
+    if (size != 0)
+        *out = '\0';
+# undef JO_SPRINTF_PUT
     return ((int)(out - str));
+}
+
+int                         jo_vsprintf(char * const str, const char * format, va_list args)
+{
+    return (jo_vsnprintf(str, 0x7FFFFFFFu, format, args));
+}
+
+int                         jo_snprintf(char * const str, const unsigned int size, const char * const format, ...)
+{
+    va_list                 args;
+    int                     length;
+
+    va_start(args, format);
+    length = jo_vsnprintf(str, size, format, args);
+    va_end(args);
+    return (length);
 }
 
 int                         jo_sprintf(char * const str, const char * const format, ...)
@@ -204,19 +272,14 @@ void            jo_print(int x, int y, char * str)
 
 void                    jo_clear_screen_line(const int y)
 {
-    // One call for the whole line (40 or 44 characters)
-# if defined(JO_480i)
     __jo_vdp2_print(0, y, "                                            ");
-#else
-    __jo_vdp2_print(0, y, "                                        ");
-#endif
 }
 
 void                    jo_clear_screen(void)
 {
     register int        y;
 
-    for (JO_ZERO(y); y < 30; ++y)
+    for (JO_ZERO(y); y < JO_DIV_BY_8(__jo_screen.background_height); ++y)
         jo_clear_screen_line(y);
 }
 
@@ -239,6 +302,9 @@ static unsigned int             jo_bcd_to_int(unsigned int bcd)
 
 void                    jo_getdate(jo_datetime *now)
 {
+    jo_smpc_status      status;
+    unsigned int        sr;
+
 #ifdef JO_DEBUG
    if (now == JO_NULL)
    {
@@ -246,14 +312,18 @@ void                    jo_getdate(jo_datetime *now)
 	 	return;
    }
 #endif
-    // The SMPC status is refreshed every frame
-    now->year = (unsigned short)jo_bcd_to_int(__jo_smpc_status.year);
-    now->month = (unsigned char)(__jo_smpc_status.month & 0x0f);
-    now->week = (unsigned char)(__jo_smpc_status.month >> 4);
-    now->day = (unsigned char)jo_bcd_to_int(__jo_smpc_status.day);
-    now->hour = (unsigned char)jo_bcd_to_int(__jo_smpc_status.hour);
-    now->minute = (unsigned char)jo_bcd_to_int(__jo_smpc_status.minute);
-    now->second = (unsigned char)jo_bcd_to_int(__jo_smpc_status.second);
+    // The SMPC status is refreshed every frame (by the SMPC interrupt: copied at once, a refresh between the reads of the
+    // fields gave 10:05:00 for 10:05:59 -> 10:06:00, 23:00:00 at midnight)
+    sr = __jo_core_disable_interrupts();
+    status = __jo_smpc_status;
+    __jo_core_restore_interrupts(sr);
+    now->year = (unsigned short)jo_bcd_to_int(status.year);
+    now->month = (unsigned char)(status.month & 0x0f);
+    now->week = (unsigned char)(status.month >> 4);
+    now->day = (unsigned char)jo_bcd_to_int(status.day);
+    now->hour = (unsigned char)jo_bcd_to_int(status.hour);
+    now->minute = (unsigned char)jo_bcd_to_int(status.minute);
+    now->second = (unsigned char)jo_bcd_to_int(status.second);
 }
 
 
@@ -285,12 +355,12 @@ inline int				jo_tools_atoi(const char * restrict str)
         return (0);
     }
 #endif
-    if (*str == '-')
-    {
+    // (the spaces before, a sign, then the digits until another character)
+    while (jo_tools_is_whitespace(*str))
         ++str;
-        is_negative = true;
-    }
-    while (*str)
+    if (*str == '-' || *str == '+')
+        is_negative = *str++ == '-';
+    while (*str >= '0' && *str <= '9')
         val = val * 10 + (*str++ - '0');
     if (is_negative)
         return (-val);

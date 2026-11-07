@@ -63,7 +63,8 @@ int jo_vcd_card_get_vcd_card_rom(unsigned int index, unsigned int num_indexes, v
         return -1;
     }
 
-    if(!num_indexes || num_indexes * INDEX_SIZE_BYTES < num_indexes)
+    // (the product wrapped around: 0x200401 indexes is 0x200800 bytes, the old test product < num_indexes let it through)
+    if(!num_indexes || num_indexes > 0xFFFFFFFFu / INDEX_SIZE_BYTES)
     {
         // bad number of num_indexes
         return -2;

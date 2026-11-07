@@ -147,16 +147,12 @@ void                            polygon_benchmarks_init(void)
 static void                     draw_mesh(jo_3d_mesh * const mesh, const char * const name, const int x, const int z, const int angle_y,
                                           const unsigned int items)
 {
-    unsigned int                t0;
-
     jo_3d_push_matrix();
     {
         jo_3d_translate_matrix(x, 0, z);
         if (angle_y != 0)
             jo_3d_rotate_matrix_y(angle_y);
-        t0 = jo_profile_ticks();
-        jo_3d_mesh_draw(mesh);
-        benchmark_add(name, (jo_profile_ticks() - t0) & 0xFFFF, items);
+        BENCHMARK_MEASURE(name, items, jo_3d_mesh_draw(mesh));
     }
     jo_3d_pop_matrix();
 }
@@ -164,16 +160,13 @@ static void                     draw_mesh(jo_3d_mesh * const mesh, const char * 
 /** @brief Draw the small mesh several times at a place and measure it */
 static void                     draw_small_meshes(const char * const name, const int x)
 {
-    unsigned int                t0;
     int                         k;
 
     jo_3d_push_matrix();
     {
         jo_3d_translate_matrix(x, 0, DEPTH);
-        t0 = jo_profile_ticks();
-        for (k = 0; k < SMALL_MESH_COUNT; ++k)
-            jo_3d_mesh_draw(mesh_small);
-        benchmark_add(name, (jo_profile_ticks() - t0) & 0xFFFF, SMALL_MESH_COUNT * SMALL_GRID_SIZE * SMALL_GRID_SIZE);
+        BENCHMARK_MEASURE(name, SMALL_MESH_COUNT * SMALL_GRID_SIZE * SMALL_GRID_SIZE,
+                          for (k = 0; k < SMALL_MESH_COUNT; ++k) jo_3d_mesh_draw(mesh_small));
     }
     jo_3d_pop_matrix();
 }

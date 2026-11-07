@@ -282,8 +282,9 @@ void                                jo_effect_flash(const int r, const int g, co
     __jo_flash_color[2] = JO_MIN(b, 255);
     __jo_flash_frames = frames;
     __jo_flash_age = 0;
-    if (__jo_flash_event < 0)
-        __jo_flash_event = jo_core_add_vblank_callback(__jo_effect_flash_vblank);
+    // (its first frame at the next VBLANK, the whole color: jo_effects_update() computed it after a frame, a flash of 1
+    // frame was not seen)
+    __jo_effect_update_offset();
 }
 
 void                                jo_effect_shake(const int amount, const int frames)
@@ -363,15 +364,23 @@ int                                 jo_effects_draw(void)
     jo_pos3D_fixed                  foot;
     const jo_effect_def             *def;
     __jo_effect                     *e;
+    unsigned short                  effect;
 
     count = 0;
+    // (the sprite effect of the program: kept, jo_sprite_disable_half_transparency() cleared a half transparency set by it)
+    effect = __jo_sprite_attributes.effect;
     for (k = 0, e = __jo_effects; k < JO_EFFECT_MAX; ++k, ++e)
     {
         def = e->def;
-        if (def == JO_NULL || e->age < 0)
+        // (a life of 0: nothing to draw, it divided by 0)
+        if (def == JO_NULL || e->age < 0 || def->life == 0 || def->frame_count == 0)
             continue;
         frame = e->age * def->frame_count / def->life;
-        size = jo_int2fixed(def->size_start) + jo_int2fixed(def->size_end - def->size_start) * e->age / def->life;
+        // (the sprites of the definition: not after the last one)
+        if (frame >= JO_MIN(def->frame_count, JO_EFFECT_MAX_FRAMES))
+            frame = JO_MIN(def->frame_count, JO_EFFECT_MAX_FRAMES) - 1;
+        // (divided first: the size x the age overflowed for a size change over 128)
+        size = jo_int2fixed(def->size_start) + jo_int2fixed(def->size_end - def->size_start) / def->life * e->age;
         foot = e->position;
         if (!(def->flags & JO_EFFECT_STANDING))
             foot.y += size;
@@ -379,8 +388,7 @@ int                                 jo_effects_draw(void)
             jo_sprite_enable_half_transparency();
         if (jo_3d_draw_standing_sprite(def->sprites[frame], &foot, size * 2, size * 2, 0, e->flip))
             ++count;
-        if (def->flags & JO_EFFECT_HALF_TRANSPARENT)
-            jo_sprite_disable_half_transparency();
+        __jo_sprite_attributes.effect = effect;
     }
     return (count);
 }

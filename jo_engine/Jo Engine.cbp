@@ -67,6 +67,20 @@
 		<Unit filename="input.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="internal/3d.h" />
+		<Unit filename="internal/console_builtins.h" />
+		<Unit filename="internal/core.h" />
+		<Unit filename="internal/fs.h" />
+		<Unit filename="internal/model.h" />
+		<Unit filename="internal/profile.h" />
+		<Unit filename="internal/sega_saturn.h" />
+		<Unit filename="internal/smpc.h" />
+		<Unit filename="internal/sprites.h" />
+		<Unit filename="internal/tools.h" />
+		<Unit filename="internal/vdp1_command_pipeline.h" />
+		<Unit filename="internal/vdp2.h" />
+		<Unit filename="internal/vdp2_malloc.h" />
+		<Unit filename="internal/vehicle.h" />
 		<Unit filename="jo/3d.h" />
 		<Unit filename="jo/audio.h" />
 		<Unit filename="jo/background.h" />
@@ -74,7 +88,6 @@
 		<Unit filename="jo/colors.h" />
 		<Unit filename="jo/conf.h" />
 		<Unit filename="jo/console.h" />
-		<Unit filename="jo/console_builtins.h" />
 		<Unit filename="jo/core.h" />
 		<Unit filename="jo/effects.h" />
 		<Unit filename="jo/font.h" />

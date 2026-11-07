@@ -118,9 +118,9 @@
 /** @brief Mode status */
 # define JO_VDP1_MODR               (*(volatile unsigned short *)0x25D00016) // 0x1100
 /** @brief VDP1 user area size */
-# define JO_VDP1_USER_AREA_SIZE             (0x70538)
+# define JO_VDP1_USER_AREA_SIZE             (JO_VDP1_USER_AREA_END_ADDR - (JO_VDP1_VRAM + JO_VDP1_TEXTURE_DEF_BASE_ADDRESS))
 /** @brief VDP1 user area end address */
-# define JO_VDP1_USER_AREA_END_ADDR         (0x25C7E6F8) // Before the gouraud tables of the 3D (JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET)
+# define JO_VDP1_USER_AREA_END_ADDR         (0x25C7E4F8) // Before the gouraud tables of the sprites (jo_set_gouraud_shading_colors()), then of the 3D (JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET)
 /** @brief VDP1 Sprite base address */
 # define JO_VDP1_TEXTURE_DEF_BASE_ADDRESS   (0x10000)
 
@@ -169,6 +169,14 @@
 # define JO_VDP2_TVSTAT      (*(volatile unsigned short *)0x25F80004) // N/A
 /** @brief TVSTAT: PAL console (50 Hz) */
 # define JO_VDP2_TVSTAT_PAL  (1 << 0)
+/** @brief TVSTAT: odd field of an interlace mode */
+# define JO_VDP2_TVSTAT_ODD  (1 << 1)
+/** @brief TVSTAT: HCNT and VCNT were latched by the external signal (a light gun) since the last read of TVSTAT (the read
+ *  clears it) */
+# define JO_VDP2_TVSTAT_EXLTFG  (1 << 9)
+/** @brief EXTEN: HCNT and VCNT are latched by the external signal (the light sensor of a light gun, see the EXLE register of
+ *  the SMPC) instead of the reads of EXTEN */
+# define JO_VDP2_EXTEN_EXLTEN   (1 << 9)
 
 /* 180006 - r/w - VRSIZE - VRAM Size
  bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
@@ -723,37 +731,6 @@ extern unsigned int                             _jo_work_start;
  */
 # define JO_SCSP_TOTAL_LEVEL(VOLUME)        (((127 - ((VOLUME) & 127)) << 1) & 0xFF)
 
-/** @brief Pitch register value for a sampling rate (Internal usage)
- *  @param rate Sampling rate in Hz (0 means JO_SCSP_BASE_SAMPLING_RATE)
- *  @return Octave and frequency number (JO_SCSP_PITCH())
- *  @remarks frequency = 44100 * 2^OCT * (1 + FNS / 1024)
- */
-static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
-{
-    int                 oct;
-    unsigned int        base;
-    unsigned int        fns;
-
-    if (rate == 0)
-        rate = JO_SCSP_BASE_SAMPLING_RATE;
-    oct = 0;
-    base = JO_SCSP_BASE_SAMPLING_RATE;
-    while (rate < base && oct > -8)
-    {
-        base >>= 1;
-        --oct;
-    }
-    while (rate >= (base << 1) && oct < 7)
-    {
-        base <<= 1;
-        ++oct;
-    }
-    fns = ((rate - base) * JO_SCSP_FNS_PER_OCTAVE) / base;
-    if (fns > JO_SCSP_FNS_MAX)
-        fns = JO_SCSP_FNS_MAX;
-    return ((unsigned short)JO_SCSP_PITCH(oct, fns));
-}
-
 /*
 ** JO_SCSP_SLOT_MIXER fields
 */
@@ -788,6 +765,13 @@ static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
 # define JO_SCSP_COMMON_MASTER_VOLUME       (0x00)
 /** @brief Ring buffer of the DSP: its length (bits 8-7: 8K, 16K, 32K, 64K words) and its address (bits 6-0: 8 KB units) */
 # define JO_SCSP_COMMON_RING_BUFFER         (0x02)
+/** @brief Monitor register: the slot monitored (MSLC, bits 15-11, written) and the 4096 samples block it plays (CA, bits
+ *  10-7, read) */
+# define JO_SCSP_COMMON_MONITOR             (0x08)
+/** @brief The slot monitored (JO_SCSP_COMMON_MONITOR) */
+# define JO_SCSP_MONITOR_SLOT(SLOT)         ((unsigned short)((SLOT) << 11))
+/** @brief The 4096 samples block played by the slot monitored (JO_SCSP_COMMON_MONITOR) */
+# define JO_SCSP_MONITOR_BLOCK(VALUE)       (((VALUE) >> 7) & 0xF)
 /** @brief The registers of the DSP of the SCSP: coefficients (0x700), memory addresses (0x780), program (0x800, 128
  *  steps of 4 words) */
 # define JO_SCSP_DSP_AREA                   (0x25B00700)
@@ -805,7 +789,9 @@ static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
  *  @param ADDR Address in the sound RAM (8 KB aligned)
  */
 # define JO_SCSP_RING_BUFFER(WORDS, ADDR)   ((((WORDS) >= 65536 ? 3 : (WORDS) >= 32768 ? 2 : (WORDS) >= 16384 ? 1 : 0) << 7) | (((ADDR) >> 13) & 0x7F))
-/** @brief Register 0x400: the sound RAM of 4 Mbits (512 KB). Without it the SCSP addresses 2 Mbits (256 KB) */
+/** @brief Register 0x400: the sound RAM of 4 Mbits (512 KB). Without it the SCSP addresses 2 Mbits (256 KB): the slots and
+ *  the DSP read and write the upper half in the lower half (Yabause, Kronos: the sounds placed above 256 KB (the resident
+ *  ones), and the samples under the ring buffer of the DSP, were silent) */
 # define JO_SCSP_MEMORY_4MBITS              (0x0200)
 /** @brief Master volume bits */
 # define JO_SCSP_MASTER_VOLUME_MASK         (0x000F)

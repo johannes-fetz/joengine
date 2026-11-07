@@ -46,6 +46,9 @@
 #include "jo/sprites.h"
 #include "jo/3d.h"
 #include "jo/profile.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/profile.h"
 
 /*
 ** Commands are collected in work RAM during the frame with a depth value.
@@ -79,15 +82,17 @@ _Static_assert(JO_VDP1_MAX_COMMANDS >= 64 && JO_VDP1_MAX_COMMANDS <= 1000, "JO_V
 /** @brief 32 bits word of a command (may alias a jo_vdp1_command) */
 typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_word;
 /** @brief Hi-res mode (640 or 704 pixels width) */
-# define JO_VDP1_HIRES                      (JO_TV_WIDTH > 352)
-/** @brief Double density interlace (480 lines) */
-# define JO_VDP1_INTERLACE                  (JO_TV_HEIGHT > 256)
+# define JO_VDP1_HIRES                      (__jo_screen.hires)
+/** @brief Double density interlace (448 to 512 lines) */
+# define JO_VDP1_INTERLACE                  (__jo_screen.interlace)
 /** @brief Frame buffer lines */
-# define JO_VDP1_LINES                      (JO_VDP1_INTERLACE ? JO_TV_HEIGHT_2 : JO_TV_HEIGHT)
+# define JO_VDP1_LINES                      (__jo_screen.background_height)
 /** @brief TVMR: 8 bits per pixel, 1024x256 frame buffer (hi-res modes) */
 # define JO_VDP1_TVMR_HIRES                 (0x0001)
 /** @brief FBCR: double density interlace (DIE | DIL) */
 # define JO_VDP1_FBCR_DOUBLE_INTERLACE      (0x000C)
+/** @brief FBCR: double density interlace, the even lines are drawn (DIE) */
+# define JO_VDP1_FBCR_DOUBLE_INTERLACE_EVEN (0x0008)
 /** @brief FBCR: manual frame buffer change mode (FCM) and change at the next VBLANK (FCT) */
 # define JO_VDP1_FBCR_MANUAL                (0x0002)
 # define JO_VDP1_FBCR_MANUAL_CHANGE         (0x0003)
@@ -97,17 +102,31 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
  *  commands like the HUD disappear). The frame buffer is cleared by a polygon at the start of each command table */
 #ifdef JO_FRAMERATE_DYNAMIC
 # define JO_VDP1_MANUAL_CHANGE              (!JO_VDP1_INTERLACE)
+/** @brief The pace of the images (manual change, see __jo_vdp1_vblank()): not with the dynamic frame rate, the tables are
+ *  taken as they come */
+# define JO_VDP1_PACED                      (0)
 #else
 # define JO_VDP1_MANUAL_CHANGE              (JO_FRAMERATE > 1 && !JO_VDP1_INTERLACE)
+/** @brief The pace of the images (manual change, JO_FRAMERATE > 1): the table of a frame is sent in the last field of
+ *  the frame at the earliest (see __jo_vdp1_end_frame(): the master CPU waits for the end of its frame anyway), and the
+ *  VDP1 takes it at the VBLANK that starts the next frame: each image stays JO_FRAMERATE fields, the VDP1 has the whole
+ *  frame to draw it, the slave CPU never waits to copy the next one. Before: a table sent before the second VBLANK of
+ *  its frame (the CPUs under 16.7 ms) was taken at that VBLANK, the next one sent after it (17 ms) at the VBLANK after:
+ *  the image before stayed 3 fields, the one after 1 field (a stutter at each crossing of 16.7 ms: 37 in a 1200 frames
+ *  run of the first person shooter with the VDP1 at 9 ms, 0 after). When the VDP1 is over a frame, its table is taken at
+ *  the first VBLANK after (one image of 3 fields), the images go on from there, and come back to the VBLANKs that start
+ *  the frames as soon as the VDP1 draws a frame in a field (one image of 1 field) */
+# define JO_VDP1_PACED                      (1)
 #endif
-/** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check */
-# define JO_VDP1_CLEAR_POLYGON_MODE         (0x00C0)
+/** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check, no pre-clipping (it is the
+ *  system clipping area: see JO_VDP1_PRE_CLIPPING_DISABLE) */
+# define JO_VDP1_CLEAR_POLYGON_MODE         (0x00C0 | JO_VDP1_PRE_CLIPPING_DISABLE)
 /** @brief PTMR: the drawing starts automatically when the frame buffer changes */
 # define JO_VDP1_PTMR_AUTOMATIC_DRAW        (0x0002)
 /** @brief EDSR: the drawing of the current frame is finished */
 # define JO_VDP1_EDSR_CURRENT_END           (0x0002)
 /** @brief EWRR: erase/write area (right in 8 or 16 pixels unit, excluded: the width / unit; bottom line, included) */
-# define JO_VDP1_ERASE_AREA(X_UNIT, BOTTOM)       (((JO_TV_WIDTH / (X_UNIT)) << 9) | ((BOTTOM) - 1))
+# define JO_VDP1_ERASE_AREA(X_UNIT, BOTTOM)       (((__jo_screen.width / (X_UNIT)) << 9) | ((BOTTOM) - 1))
 /** @brief Default Z limit of a window (no limit) */
 # define JO_VDP1_NO_Z_LIMIT                 (0x7fff0000)
 /** @brief Command link: the VRAM address divided by 8 */
@@ -130,6 +149,23 @@ unsigned short                          __jo_vdp1_display_level = 1;
 jo_fixed                                __jo_vdp1_near_z = JO_MULT_BY_65536(JO_TV_WIDTH_2) >> 1;
 short                                   __jo_vdp1_system_clip_right = JO_TV_WIDTH - 1;
 short                                   __jo_vdp1_system_clip_bottom = JO_TV_HEIGHT - 1;
+/** @brief The system clipping area in the local coordinates of each window, packed as the positions of the commands (right
+ *  in the high half, bottom in the low half, see JO_VDP1_OUTSIDE()) for the pre-clipping of the sprites: a window with its
+ *  own local coordinates (a screen of its own) has JO_VDP1_NO_PRE_CLIP_AREA (see jo_vdp1_update_pre_clip_areas()) */
+static unsigned int                     __jo_vdp1_pre_clip_areas[JO_VDP1_WINDOW_COUNT];
+/** @brief Area of no position: JO_VDP1_OUTSIDE() always has a sign bit */
+# define JO_VDP1_NO_PRE_CLIP_AREA           (0xFFFFFFFFu)
+
+/** @brief Compute the packed areas of the windows for the pre-clipping of the sprites (__jo_vdp1_pre_clip_areas), after a
+ *  change of the system clipping area or of the local coordinates of a window */
+static void                             jo_vdp1_update_pre_clip_areas(void)
+{
+    register int                        i;
+
+    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+        __jo_vdp1_pre_clip_areas[i] = (__jo_vdp1_windows[i].origin_x | __jo_vdp1_windows[i].origin_y) ? JO_VDP1_NO_PRE_CLIP_AREA :
+                                      ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+}
 
 /* Depth added to the keys of the commands (see jo_3d_set_depth_bias()) */
 int                                     __jo_vdp1_depth_bias = 0;
@@ -141,6 +177,12 @@ int                                     __jo_vdp1_depth_bias = 0;
 #endif
 /** @brief Variable shared by the CPUs: read and written through its cache-through address */
 # define JO_VDP1_SHARED(VARIABLE)           (*(volatile __typeof__(VARIABLE) *)JO_CACHE_THROUGH(&(VARIABLE)))
+
+/** @brief Changes of a window in a frame after commands were drawn in it, at most (see __jo_vdp1_keep_window(): beyond, the
+ *  commands before a change take the window as it is at the end of the frame) */
+# define JO_VDP1_WINDOW_CHANGES             (8)
+/** @brief Headers of a frame: the windows, the windows before their changes */
+# define JO_VDP1_HEADER_SLOTS               (JO_VDP1_WINDOW_COUNT + JO_VDP1_WINDOW_CHANGES)
 
 /** @brief Commands of a frame: filled by the master CPU, sorted and copied into the VRAM at the end of the frame */
 typedef struct
@@ -155,6 +197,12 @@ typedef struct
     unsigned int                        tag;                    // Number of the frame (see __jo_vdp1_frame_tag())
     bool                                wireframe;              // The polygons drawn as their outline (see jo_3d_set_wireframe())
     bool                                windows_apart;          // The windows drawn one after the other (see jo_3d_set_windows_apart())
+    // The windows changed during the frame after commands (see __jo_vdp1_keep_window()): the commands before each change
+    // keep the window as it was (a header of its own, window JO_VDP1_WINDOW_COUNT + k)
+    unsigned int                        window_change_count;
+    unsigned int                        window_change_end[JO_VDP1_WINDOW_CHANGES];      // Commands before the change
+    unsigned short                      window_change_window[JO_VDP1_WINDOW_CHANGES];   // The window changed
+    jo_vdp1_window                      window_change_state[JO_VDP1_WINDOW_CHANGES];    // The window before the change
 }                                       jo_vdp1_frame;
 
 /** @brief The windows do not overlap: the commands of each window are drawn together (see jo_3d_set_windows_apart()) */
@@ -162,6 +210,17 @@ bool                                    __jo_vdp1_windows_apart = false;
 
 /** @brief The polygons and the distorted sprites of the next frames drawn as their outline (see jo_3d_set_wireframe()) */
 bool                                    __jo_vdp1_wireframe = false;
+#ifdef JO_TEST_VDP1_VBLANKS
+/** @brief Test (JO_TEST_VDP1_VBLANKS, read by the game): the VBLANKs by what they found: no table and the VDP1 drawing,
+ *  no table and the VDP1 idle (the CPUs are late), the DMA still copying the table, the table waiting for the VDP1, the
+ *  table taken (manual change) */
+unsigned int                            __jo_vdp1_test_vblanks[5];
+/** @brief Test (JO_TEST_VDP1_VBLANKS): what the last VBLANK found (the index in __jo_vdp1_test_vblanks) */
+int                                     __jo_vdp1_test_last_state = 0;
+#endif
+
+/** @brief The frame buffer is cleared at the start of each frame (see jo_3d_set_frame_clear()) */
+bool                                    __jo_vdp1_frame_clear = true;
 /** @brief Color of the outlines in wireframe mode (RGB) */
 # define JO_VDP1_WIREFRAME_COLOR            (0x8000 | (8 << 10) | (31 << 5) | 8)
 
@@ -196,7 +255,7 @@ static unsigned short                   __jo_vdp1_sort_b[JO_VDP1_MAX_COMMANDS] J
 /* Copy of the command tables into the VRAM: SCU DMA level (the SCU DMA can't read the low work RAM) */
 # define JO_VDP1_SCU_DMA_LEVEL              (0)
 /** @brief Commands added to the frames: the headers of the windows, the clear polygon and the end command */
-# define JO_VDP1_DMA_CLEAR_COMMAND          (JO_VDP1_HEADER_COMMANDS * JO_VDP1_WINDOW_COUNT)
+# define JO_VDP1_DMA_CLEAR_COMMAND          (JO_VDP1_HEADER_COMMANDS * JO_VDP1_HEADER_SLOTS)
 # define JO_VDP1_DMA_END_COMMAND            (JO_VDP1_DMA_CLEAR_COMMAND + 1)
 static jo_vdp1_command                  __jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND + 1] __attribute__((aligned(16))) JO_WORK_RAM_ENGINE_WORK_SECTION;
 /** @brief Indirect table of the SCU DMA: byte count, VRAM address, source address (one entry per command at most, see
@@ -219,6 +278,8 @@ static volatile unsigned int            __jo_vdp1_pending_table;
 static volatile unsigned int            __jo_vdp1_next_table;
 /* VBLANK of the last table change, VBLANK count (JO_VDP1_SHARED) */
 static volatile unsigned int            __jo_vdp1_flip_field;
+/** @brief The field the current frame of the game started at (see __jo_vdp1_frame_start(), JO_VDP1_PACED) */
+static volatile unsigned int            __jo_vdp1_frame_field;
 static volatile unsigned int            __jo_vdp1_vblank_fields;
 /* Frame numbers (see __jo_vdp1_frame_tag()): the frame built (master CPU), the table pending, the last table given to
 ** the VDP1, the frame displayed from the field __jo_vdp1_shown_field (and the next one in 1 cycle mode) (JO_VDP1_SHARED) */
@@ -255,6 +316,17 @@ static void                             jo_vdp1_write_jump(const unsigned int ta
     head->ctrl = JO_VDP1_CMD_SKIP_ASSIGN;
 }
 
+/** @brief The frame buffer registers of the screen mode: 16 bits per pixel (8 bits in hi-res), 1 cycle or manual change
+ *  mode, double density interlace, erase area */
+static void                             __jo_vdp1_set_registers(void)
+{
+    JO_VDP1_TVMR = JO_VDP1_HIRES ? JO_VDP1_TVMR_HIRES : 0;
+    JO_VDP1_FBCR = JO_VDP1_INTERLACE ? JO_VDP1_FBCR_DOUBLE_INTERLACE : (JO_VDP1_MANUAL_CHANGE ? JO_VDP1_FBCR_MANUAL : 0);
+    JO_VDP1_EWDR = 0;
+    JO_VDP1_EWLR = 0;
+    JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
+}
+
 void                                    __jo_vdp1_init(void)
 {
     register unsigned int               i;
@@ -286,7 +358,10 @@ void                                    __jo_vdp1_init(void)
     JO_VDP1_SHARED(__jo_vdp1_shown_field) = ~0u;
     JO_VDP1_SHARED(__jo_vdp1_next_shown_field) = ~0u;
     for (JO_ZERO(i); i < JO_VDP1_FRAME_BUFFERS; ++i)
+    {
         JO_ZERO(__jo_vdp1_frames[i].count);
+        JO_ZERO(__jo_vdp1_frames[i].window_change_count);
+    }
     __jo_vdp1_frame = &__jo_vdp1_frames[0];
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     JO_ZERO(__jo_vdp1_frames_sent);
@@ -297,10 +372,10 @@ void                                    __jo_vdp1_init(void)
     {
         __jo_vdp1_windows[i].left = 0;
         __jo_vdp1_windows[i].top = 0;
-        __jo_vdp1_windows[i].right = JO_TV_WIDTH - 1;
-        __jo_vdp1_windows[i].bottom = JO_TV_HEIGHT - 1;
-        __jo_vdp1_windows[i].center_x = JO_TV_WIDTH_2;
-        __jo_vdp1_windows[i].center_y = JO_TV_HEIGHT_2;
+        __jo_vdp1_windows[i].right = __jo_screen.width - 1;
+        __jo_vdp1_windows[i].bottom = __jo_screen.height - 1;
+        __jo_vdp1_windows[i].center_x = __jo_screen.width_2;
+        __jo_vdp1_windows[i].center_y = __jo_screen.height_2;
         __jo_vdp1_windows[i].zlimit = JO_VDP1_NO_Z_LIMIT;
         __jo_vdp1_windows[i].clip_mode = 0;
         __jo_vdp1_windows[i].origin_x = 0;
@@ -308,14 +383,31 @@ void                                    __jo_vdp1_init(void)
         __jo_vdp1_windows[i].screen = false;
     }
     __jo_vdp1_current_window = 0;
-    // 16 bits frame buffer (8 bits in hi-res), 1 cycle mode
-    JO_VDP1_TVMR = JO_VDP1_HIRES ? JO_VDP1_TVMR_HIRES : 0;
-    JO_VDP1_FBCR = JO_VDP1_INTERLACE ? JO_VDP1_FBCR_DOUBLE_INTERLACE : (JO_VDP1_MANUAL_CHANGE ? JO_VDP1_FBCR_MANUAL : 0);
-    // Frame buffer erase: transparent color on the whole screen
-    JO_VDP1_EWDR = 0;
-    JO_VDP1_EWLR = 0;
-    JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
+    jo_vdp1_update_pre_clip_areas();
+    __jo_vdp1_set_registers();
     JO_VDP1_PTMR = JO_VDP1_PTMR_AUTOMATIC_DRAW;
+}
+
+void                                    __jo_vdp1_set_screen_mode(void)
+{
+    int                                 i;
+
+    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+    {
+        __jo_vdp1_windows[i].left = 0;
+        __jo_vdp1_windows[i].top = 0;
+        __jo_vdp1_windows[i].right = __jo_screen.width - 1;
+        __jo_vdp1_windows[i].bottom = __jo_screen.height - 1;
+        __jo_vdp1_windows[i].center_x = __jo_screen.width_2;
+        __jo_vdp1_windows[i].center_y = __jo_screen.height_2;
+        __jo_vdp1_windows[i].origin_x = 0;
+        __jo_vdp1_windows[i].origin_y = 0;
+        __jo_vdp1_windows[i].screen = false;
+    }
+    __jo_vdp1_system_clip_right = __jo_screen.width - 1;
+    __jo_vdp1_system_clip_bottom = __jo_screen.height - 1;
+    jo_vdp1_update_pre_clip_areas();
+    __jo_vdp1_set_registers();
 }
 
 /** @brief Commands of the last frame sent (see jo_vdp1_command_count()) */
@@ -335,9 +427,32 @@ int                                     __jo_vdp1_frame_command_count(void)
     return ((int)*(volatile unsigned int *)JO_CACHE_THROUGH(&frame->count));
 }
 
+int                                     jo_vdp1_frame_command_count(void)
+{
+    return (__jo_vdp1_frame_command_count());
+}
+
 int                                     jo_vdp1_command_max(void)
 {
     return (JO_VDP1_MAX_COMMANDS - JO_VDP1_HEADER_COMMANDS * 2 - 1);
+}
+
+/** @brief Allocate a command for the current frame, its link and gouraud table not written (see __jo_vdp1_add_command(): the
+ *  sprites write all the words of their commands, the call and the 2 stores of 16 bits paid for the test of their
+ *  pre-clipping)
+ *  @param z Depth used to sort the commands (bigger = farther)
+ *  @return Command or JO_NULL if the table is full
+ */
+static  __jo_force_inline jo_vdp1_command *jo_vdp1_new_command(const jo_fixed z)
+{
+    jo_vdp1_frame                       *frame;
+
+    frame = __jo_vdp1_frame;
+    if (__builtin_expect(frame->count >= JO_VDP1_MAX_COMMANDS - JO_VDP1_HEADER_COMMANDS * 2 - 1, 0))
+        return (__jo_vdp1_add_command(z));
+    frame->keys[frame->count] = __jo_vdp1_sort_key(z);
+    frame->window[frame->count] = (unsigned short)__jo_vdp1_current_window;
+    return (&frame->commands[frame->count++]);
 }
 
 jo_vdp1_command                         *__jo_vdp1_add_command(const jo_fixed z)
@@ -413,7 +528,7 @@ static void                             jo_vdp1_make_header(jo_vdp1_command * co
 {
     const jo_vdp1_window                *w;
 
-    w = &frame->windows[window];
+    w = window < JO_VDP1_WINDOW_COUNT ? &frame->windows[window] : &frame->window_change_state[window - JO_VDP1_WINDOW_COUNT];
     jo_memset(c, 0, JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command));
     c[0].ctrl = JO_VDP1_CMD_SYSTEM_CLIP;
     c[0].xc = frame->system_clip_right;
@@ -435,13 +550,23 @@ static void                             jo_vdp1_make_header(jo_vdp1_command * co
  */
 static void                             jo_vdp1_make_clear(jo_vdp1_command * const c, const jo_vdp1_frame * const frame)
 {
+    int                                 ox;
+    int                                 oy;
+
+    // (sent after the header of the window 0: relative to its local coordinates, the top left corner of a clipped window)
+    ox = frame->windows[0].origin_x;
+    oy = frame->windows[0].origin_y;
     jo_memset(c, 0, sizeof(*c));
     c->ctrl = JO_VDP1_CMD_POLYGON;
     c->pmod = JO_VDP1_CLEAR_POLYGON_MODE;
-    c->xb = frame->system_clip_right;
-    c->xc = frame->system_clip_right;
-    c->yc = frame->system_clip_bottom;
-    c->yd = frame->system_clip_bottom;
+    c->xa = (short)-ox;
+    c->ya = (short)-oy;
+    c->xb = (short)(frame->system_clip_right - ox);
+    c->yb = (short)-oy;
+    c->xc = (short)(frame->system_clip_right - ox);
+    c->yc = (short)(frame->system_clip_bottom - oy);
+    c->xd = (short)-ox;
+    c->yd = (short)(frame->system_clip_bottom - oy);
 }
 
 /*
@@ -625,17 +750,17 @@ static unsigned short                   *jo_vdp1_radix_sort(const jo_vdp1_frame 
  */
 static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_frame * const frame, const unsigned short * const order)
 {
-    unsigned int                        first[JO_VDP1_WINDOW_COUNT];
+    unsigned int                        first[JO_VDP1_HEADER_SLOTS];
     unsigned int                        sum;
     register unsigned int               i;
     unsigned int                        n;
 
     n = frame->count;
-    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+    for (JO_ZERO(i); i < JO_VDP1_HEADER_SLOTS; ++i)
         JO_ZERO(first[i]);
     for (JO_ZERO(i); i < n; ++i)
         ++first[frame->window[i]];
-    for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_WINDOW_COUNT; ++i)
+    for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_HEADER_SLOTS; ++i)
     {
         n = first[i];
         first[i] = sum;
@@ -826,6 +951,35 @@ static  __jo_force_inline bool          jo_vdp1_dma_busy(void)
     return ((JO_SCU_DMA_STATUS & JO_SCU_DMA_STATUS_BUSY(JO_VDP1_SCU_DMA_LEVEL)) != 0);
 }
 
+/** @brief The first command that fits in the table with the headers of its window changes (the commands sorted far to
+ *  near: the farthest ones are dropped first)
+ *  @param frame Frame (the windows of its commands)
+ *  @param order Command indexes in the order of the sort
+ *  @param n Number of commands (at least one)
+ *  @param room Commands the table can take
+ *  @return Index in order of the first command to draw (0: all)
+ */
+static unsigned int                     jo_vdp1_first_fitting(const jo_vdp1_frame * const frame, const unsigned short * const order,
+                                                              unsigned int n, const unsigned int room)
+{
+    unsigned int                        cost;
+    unsigned short                      window;
+    unsigned short                      previous;
+
+    // From the nearest: each command, and the header of each run of commands of a window
+    previous = frame->window[order[n - 1]];
+    cost = JO_VDP1_HEADER_COMMANDS + 1;
+    while (--n > 0)
+    {
+        window = frame->window[order[n - 1]];
+        cost += window != previous ? JO_VDP1_HEADER_COMMANDS + 1 : 1;
+        if (cost > room)
+            return (n);
+        previous = window;
+    }
+    return (0);
+}
+
 /** @brief Sort the commands of a frame and copy them into the VDP1 VRAM: the table is displayed at the next VBLANK after the copy
  *  @param argument Frame (jo_vdp1_frame)
  *  @remarks Job of the slave CPU (see __jo_vdp1_end_frame()), or called by the master CPU
@@ -852,11 +1006,20 @@ static void                             jo_vdp1_send_frame(void *argument)
     unsigned short                      *order;
 
     frame = (const jo_vdp1_frame *)argument;
+    // (the commands of the slave CPU may still be copied by the DMA, see jo_3d_slave_copy_job())
     if (frame->wireframe)
+    {
+        jo_dma_wait();
         jo_vdp1_make_wireframe((jo_vdp1_frame *)argument);
+    }
     // The sort only uses the work RAM: it is done while the VDP1 is still drawing
     jo_profile_begin(JO_PROFILE_VDP1_SORT);
     n = frame->count;
+    // (the commands drawn before a change of their window: the window as it was, see __jo_vdp1_keep_window())
+    for (i = 0; i < frame->window_change_count; ++i)
+        for (j = 0; j < frame->window_change_end[i]; ++j)
+            if (frame->window[j] == frame->window_change_window[i])
+                ((jo_vdp1_frame *)frame)->window[j] = (unsigned short)(JO_VDP1_WINDOW_COUNT + i);
     order = jo_vdp1_radix_sort(frame);
     if (frame->windows_apart)
         order = jo_vdp1_group_windows(frame, order);
@@ -867,6 +1030,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     // the indirect table and the headers are used again)
     while (JO_VDP1_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
         ;
+
     // 1-cycle mode: the table we are about to fill may still be read by the VDP1 if the jump to the
     // other table was changed after the VDP1 started this field: wait for the end of
     // the current drawing (or for the next field).
@@ -887,22 +1051,34 @@ static void                             jo_vdp1_send_frame(void *argument)
     // Keep room for the end command
     limit = ((table == JO_VDP1_TABLE_A_OFFSET) ? JO_VDP1_TABLE_B_OFFSET : JO_VDP1_TEXTURE_DEF_BASE_ADDRESS) - sizeof(jo_vdp1_command);
     // Headers of the windows and end command
-    for (window = 0; window < JO_VDP1_WINDOW_COUNT; ++window)
+    for (window = 0; window < JO_VDP1_WINDOW_COUNT + (int)frame->window_change_count; ++window)
         jo_vdp1_make_header(&__jo_vdp1_dma_commands[window * JO_VDP1_HEADER_COMMANDS], frame, window);
     jo_memset(&__jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND], 0, sizeof(jo_vdp1_command));
     __jo_vdp1_dma_commands[JO_VDP1_DMA_END_COMMAND].ctrl = JO_VDP1_CMD_END;
     current_window = -1;
     skip = false;
     JO_ZERO(skip_key);
-    if (JO_VDP1_MANUAL_CHANGE)
+    if (JO_VDP1_MANUAL_CHANGE && __jo_vdp1_frame_clear)
     {
         // The frame buffer is not erased by the VDP1 (manual change mode): a polygon of the transparent color clears it
+        // (not when the program covers the whole screen at each frame, see jo_3d_set_frame_clear(): the polygon costs
+        // about 4 ms of VDP1 time)
         jo_vdp1_make_clear(&__jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND], frame);
         jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[0], offset, JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command));
         offset += JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command);
         current_window = 0;
         jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND], offset, sizeof(jo_vdp1_command));
         offset += sizeof(jo_vdp1_command);
+    }
+    // A window change costs JO_VDP1_HEADER_COMMANDS commands in the table, jo_vdp1_command_max() keeps room for 2: when
+    // the commands of the windows are mixed by depth (a room seen through a door, drawn in its clipped window, around
+    // the camera standing in the door), the table could overflow, and the nearest commands (the weapon, the HUD) would
+    // be the ones dropped. The farthest ones are dropped instead (counted only when the frame could overflow)
+    if (n > 0 && n * (JO_VDP1_HEADER_COMMANDS + 1) > (limit - offset) / sizeof(jo_vdp1_command))
+    {
+        j = jo_vdp1_first_fitting(frame, order, n, (limit - offset) / sizeof(jo_vdp1_command));
+        order += j;
+        n -= j;
     }
     // Far to near. Commands with the same depth are drawn in submission order
 #ifndef JO_VDP1_SORT_IN_C
@@ -1002,6 +1178,11 @@ static void                             jo_vdp1_send_frame(void *argument)
 #endif
 }
 
+void                                    __jo_vdp1_frame_start(void)
+{
+    JO_VDP1_SHARED(__jo_vdp1_frame_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+}
+
 void                                    __jo_vdp1_end_frame(void)
 {
     jo_vdp1_frame                       *frame;
@@ -1019,12 +1200,33 @@ void                                    __jo_vdp1_end_frame(void)
     frame->wireframe = __jo_vdp1_wireframe;
     frame->windows_apart = __jo_vdp1_windows_apart;
     __jo_vdp1_last_count = frame->count;
+    // The pace of the images (see JO_VDP1_PACED): the table is sent in the last field of the frame at the earliest, the
+    // VDP1 takes it at the VBLANK that starts the next frame (the master CPU waits for that VBLANK anyway)
+    // (at 60 frames per second there is no field to wait for)
+#if JO_FRAMERATE > 1
+    if (JO_VDP1_MANUAL_CHANGE && JO_VDP1_PACED)
+        while (JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
+            ;
+#endif
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_core_is_slave_running())
     {
         // The slave CPU sorts and copies the commands while the master CPU computes the next frame in the other buffer
         ++__jo_vdp1_frames_sent;
         __jo_core_add_slave_job(jo_vdp1_send_frame, frame);
+        // Manual change: the CPUs one frame ahead of the VDP1 at most. When the previous frame still waits for the VDP1
+        // (it draws the one before), the slave CPU waits for it in jo_vdp1_send_frame() before it copies this frame, and
+        // the jobs of the next frame (the 3D of the slave CPU) wait behind: the slave CPU lost 8 to 13 ms per frame, the
+        // master CPU drew alone meanwhile, and the CPUs stayed 2 frames ahead of the VDP1 (a split screen, the VDP1 at
+        // 27 to 30 ms per frame: the master CPU busy 33 ms in every frame). The master CPU waits here
+        // instead, until the VDP1 takes that frame: the next frame starts with the change of the frame buffers
+        if (JO_VDP1_MANUAL_CHANGE)
+        {
+            const unsigned int          tag = frame->tag;
+
+            while (JO_VDP1_SHARED(__jo_vdp1_pending_table) && JO_VDP1_SHARED(__jo_vdp1_pending_tag) != tag)
+                ;
+        }
         frame = (frame == &__jo_vdp1_frames[0]) ? &__jo_vdp1_frames[1] : &__jo_vdp1_frames[0];
         // The previous frame of this buffer must be in the VRAM (the slave CPU is usually done since a long time)
         while (__jo_vdp1_frames_sent - JO_VDP1_SHARED(__jo_vdp1_frames_done) > 1)
@@ -1033,6 +1235,7 @@ void                                    __jo_vdp1_end_frame(void)
         while (jo_vdp1_dma_busy())
             ;
         JO_ZERO(frame->count);
+        JO_ZERO(frame->window_change_count);
         __jo_vdp1_frame = frame;
         return;
     }
@@ -1042,6 +1245,7 @@ void                                    __jo_vdp1_end_frame(void)
     while (jo_vdp1_dma_busy())
         ;
     JO_ZERO(frame->count);
+    JO_ZERO(frame->window_change_count);
 }
 
 void                                    jo_vdp1_redraw_last_frame(void)
@@ -1057,6 +1261,9 @@ void                                    __jo_vdp1_vblank(void)
     unsigned int                        table;
 
     JO_VDP1_SHARED(__jo_vdp1_vblank_fields) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields) + 1;
+    // Double density interlace: the VDP1 draws the lines of the next field
+    if (JO_VDP1_INTERLACE)
+        JO_VDP1_FBCR = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_ODD) ? JO_VDP1_FBCR_DOUBLE_INTERLACE_EVEN : JO_VDP1_FBCR_DOUBLE_INTERLACE;
     // 1 cycle mode: the table given at the last VBLANK is displayed from this field
     if (JO_VDP1_SHARED(__jo_vdp1_next_shown_field) == JO_VDP1_SHARED(__jo_vdp1_vblank_fields))
     {
@@ -1065,6 +1272,17 @@ void                                    __jo_vdp1_vblank(void)
     }
     table = JO_VDP1_SHARED(__jo_vdp1_pending_table);
     // The SCU DMA still copies the table
+#ifdef JO_TEST_VDP1_VBLANKS
+    if (!table)
+        __jo_vdp1_test_last_state = (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0 ? 0 : 1;
+    else if (jo_vdp1_dma_busy())
+        __jo_vdp1_test_last_state = 2;
+    else if (JO_VDP1_MANUAL_CHANGE && drawing && (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0)
+        __jo_vdp1_test_last_state = 3;
+    else
+        __jo_vdp1_test_last_state = 4;
+    ++__jo_vdp1_test_vblanks[__jo_vdp1_test_last_state];
+#endif
     if (!table || jo_vdp1_dma_busy())
         return;
     if (JO_VDP1_MANUAL_CHANGE)
@@ -1124,12 +1342,14 @@ typedef unsigned int __attribute__((may_alias))  jo_vdp1_command_word;
  *  @param attr Attribute
  *  @param sprite_type Added to the type of the command if it is textured (JO_VDP1_CMD_xxx_SPRITE)
  *  @param polygon_type Added to the type of the command if it is not
+ *  @param mode Added to the draw mode (JO_VDP1_PRE_CLIPPING_DISABLE, see jo_vdp1_pre_clipping())
  *  @return true if textured
  *  @remarks The type is known before the command is written: it is not read back (the cache does not keep the lines
  *  written, a read of the command after it is written reads the work RAM)
  */
 static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command * const cmd, const jo_vdp1_sprite_attribute * const attr,
-                                                                const unsigned short sprite_type, const unsigned short polygon_type)
+                                                                const unsigned short sprite_type, const unsigned short polygon_type,
+                                                                const unsigned short mode)
 {
     jo_vdp1_command_word                *words;
     jo_texture_definition               *texture;
@@ -1157,14 +1377,96 @@ static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command 
             break;
     }
     words[0] = JO_VDP1_PACK(ctrl, 0);
-    words[1] = JO_VDP1_PACK(attr->draw_mode, attr->color);
-    words[7] = JO_VDP1_PACK(((attr->draw_mode & JO_VDP1_COLOR_CALC_MASK) == JO_VDP1_COLOR_CALC_GOURAUD) ? attr->gouraud_table : 0, 0);
+    words[1] = JO_VDP1_PACK(attr->draw_mode | mode, attr->color);
+    // (the gouraud bit: the modes 4, 6 and 7, gouraud with half luminance or half transparency)
+    words[7] = JO_VDP1_PACK((attr->draw_mode & JO_VDP1_COLOR_CALC_GOURAUD) ? attr->gouraud_table : 0, 0);
     return (textured);
 }
 
 bool                                    __jo_vdp1_set_attribute(jo_vdp1_command *cmd, const jo_vdp1_sprite_attribute *attr)
 {
-    return (jo_vdp1_write_attribute(cmd, attr, 0, 0));
+    return (jo_vdp1_write_attribute(cmd, attr, 0, 0, 0));
+}
+
+/** @brief Sign bits of a packed position (JO_VDP1_PACK(x, y)) out of a packed area (see __jo_vdp1_pre_clip_areas): x or y
+ *  negative, or over the right or the bottom (a borrow of y into x only comes with a y out of the area, found by its own
+ *  sign). The bits of several positions are or'ed, then tested by jo_vdp1_pre_clipping()
+ */
+# define JO_VDP1_OUTSIDE(AREA, P)           ((P) | ((AREA) - (P)))
+
+/** @brief The pre-clipping of a command disabled when it is inside of the system clipping area (see
+ *  JO_VDP1_PRE_CLIPPING_DISABLE: the VDP1 tests each line of a command against the clipping area, about 4 cycles per line)
+ *  @param draw_mode Draw mode of the command (clipped by the user clipping area: the pre-clipping is kept, the VDP1 skips
+ *  the lines out of the area)
+ *  @param outside The sign bits of the corners of the command (see JO_VDP1_OUTSIDE())
+ *  @return JO_VDP1_PRE_CLIPPING_DISABLE or 0
+ *  @remarks The image doesn't change: the pixels out of the clipping area are not drawn anyway
+ *  @remarks Packed positions and areas, no branch (the user clipping bit moved to a sign bit): the first test (the min and
+ *  max of the coordinates, the origin of the window added) cost 1.75 microseconds per sprite (200 sprites of the test ROM:
+ *  +11 % of CPU)
+ */
+static  __jo_force_inline unsigned short jo_vdp1_pre_clipping(const unsigned short draw_mode, const unsigned int outside)
+{
+    // (JO_VDP1_WINDOW_IN: bit 10, moved to the bit 15)
+    return ((unsigned short)((((outside | ((unsigned int)draw_mode << 5)) & 0x80008000u) == 0) << 11));
+}
+
+/** @brief Write the command of a rotated sprite (see jo_vdp1_draw_sprite(): out of its common path, the registers of this
+ *  one made the sprites without rotation slower)
+ *  @param cmd Command
+ *  @param attr Sprite attribute
+ *  @param cx Horizontal center (screen pixels, Q16.16)
+ *  @param cy Vertical center (screen pixels, Q16.16)
+ *  @param w Last pixel of the width (width - 1)
+ *  @param h Last pixel of the height
+ *  @param angle Rotation
+ */
+static __attribute__((noinline)) void   jo_vdp1_write_rotated_sprite(jo_vdp1_command * const cmd, const jo_vdp1_sprite_attribute * const attr,
+                                                                     const jo_fixed cx, const jo_fixed cy, const int w, const int h,
+                                                                     const jo_angle angle)
+{
+    jo_vdp1_command_word                *words;
+    jo_fixed                            s;
+    jo_fixed                            c;
+    jo_fixed                            lx0;
+    jo_fixed                            ly0;
+    jo_fixed                            lx1;
+    jo_fixed                            ly1;
+    jo_fixed                            ox;
+    jo_fixed                            oy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
+
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    s = jo_sin_angle(angle);
+    c = jo_cos_angle(angle);
+    // Rotation around the integer part of the center
+    ox = cx & ~JO_FIXED_DECIMAL_MASK;
+    oy = cy & ~JO_FIXED_DECIMAL_MASK;
+    lx0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(w));
+    ly0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(h));
+    lx1 = lx0 + JO_INT_TO_FIXED(w);
+    ly1 = ly0 + JO_INT_TO_FIXED(h);
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly0, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly0, c)));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly0, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly0, c)));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly1, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly1, c)));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly1, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly1, c)));
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
 }
 
 /*
@@ -1230,26 +1532,34 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
     int                                 x0;
     int                                 y0;
     bool                                textured;
-    jo_fixed                            s;
-    jo_fixed                            c;
-    jo_fixed                            lx0;
-    jo_fixed                            ly0;
-    jo_fixed                            lx1;
-    jo_fixed                            ly1;
-    jo_fixed                            ox;
-    jo_fixed                            oy;
+    bool                                normal;
+    unsigned int                        area;
+    unsigned int                        first;
+    unsigned int                        last;
+    unsigned short                      mode;
 
-    if ((cmd = __jo_vdp1_add_command(z)) == JO_NULL)
+    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
         return (false);
     words = JO_VDP1_COMMAND_WORDS(cmd);
     texture = &__jo_sprite_def[attr->texture_id];
-    if (sx < 0)
+    // (a negative scale is rare: out of the common path)
+    if (__builtin_expect(sx < 0, 0))
         sx = -sx;
-    if (sy < 0)
+    if (__builtin_expect(sy < 0, 0))
         sy = -sy;
-    // Size in pixels (rounded to the nearest pixel)
-    w = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->width), sx) + JO_FIXED_1_DIV_2);
-    h = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->height), sy) + JO_FIXED_1_DIV_2);
+    // Size in pixels (rounded to the nearest pixel). Without scale (the most common sprite): the size of the texture, the
+    // same without the 2 products (they paid for the test of the pre-clipping)
+    normal = sx == JO_FIXED_1 && sy == JO_FIXED_1;
+    if (normal)
+    {
+        w = texture->width;
+        h = texture->height;
+    }
+    else
+    {
+        w = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->width), sx) + JO_FIXED_1_DIV_2);
+        h = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->height), sy) + JO_FIXED_1_DIV_2);
+    }
     x0 = JO_FIXED_TO_INT(cx) - JO_DIV_BY_2(w);
     y0 = JO_FIXED_TO_INT(cy) - JO_DIV_BY_2(h);
     // Last pixel (inclusive coordinates)
@@ -1257,46 +1567,31 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
         --w;
     if (h > 0)
         --h;
-    if (angle == 0)
+    if (angle != 0)
     {
-        if (sx == JO_FIXED_1 && sy == JO_FIXED_1)
-            textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_NORMAL_SPRITE, JO_VDP1_CMD_POLYGON);
-        else
-            textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_SCALED_SPRITE, JO_VDP1_CMD_POLYGON);
-        if (textured && sx == JO_FIXED_1 && sy == JO_FIXED_1)
-            words[3] = JO_VDP1_PACK(x0, y0);
-        else if (textured)
-        {
-            words[3] = JO_VDP1_PACK(x0, y0);
-            words[5] = JO_VDP1_PACK(x0 + w, y0 + h);
-        }
-        else
-        {
-            words[3] = JO_VDP1_PACK(x0, y0);
-            words[4] = JO_VDP1_PACK(x0 + w, y0);
-            words[5] = JO_VDP1_PACK(x0 + w, y0 + h);
-            words[6] = JO_VDP1_PACK(x0, y0 + h);
-        }
+        jo_vdp1_write_rotated_sprite(cmd, attr, cx, cy, w, h, angle);
         return (true);
     }
-    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0);
-    s = jo_sin_angle(angle);
-    c = jo_cos_angle(angle);
-    // Rotation around the integer part of the center
-    ox = cx & ~JO_FIXED_DECIMAL_MASK;
-    oy = cy & ~JO_FIXED_DECIMAL_MASK;
-    lx0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(w));
-    ly0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(h));
-    lx1 = lx0 + JO_INT_TO_FIXED(w);
-    ly1 = ly0 + JO_INT_TO_FIXED(h);
-    words[3] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly0, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly0, c)));
-    words[4] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly0, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly0, c)));
-    words[5] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly1, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly1, c)));
-    words[6] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly1, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly1, c)));
+    // (the corners of the sprite packed: its first and last pixels)
+    first = JO_VDP1_PACK(x0, y0);
+    last = JO_VDP1_PACK(x0 + w, y0 + h);
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    mode = jo_vdp1_pre_clipping(attr->draw_mode, JO_VDP1_OUTSIDE(area, first) | JO_VDP1_OUTSIDE(area, last));
+    if (normal)
+        textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_NORMAL_SPRITE, JO_VDP1_CMD_POLYGON, mode);
+    else
+        textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_SCALED_SPRITE, JO_VDP1_CMD_POLYGON, mode);
+    words[3] = first;
+    if (textured && normal)
+        return (true);
+    if (textured)
+    {
+        words[5] = last;
+        return (true);
+    }
+    words[4] = JO_VDP1_PACK(x0 + w, y0);
+    words[5] = last;
+    words[6] = JO_VDP1_PACK(x0, y0 + h);
     return (true);
 }
 
@@ -1340,19 +1635,32 @@ bool                                    __jo_vdp1_draw_sprite_4p(const jo_pos2D_
     jo_vdp1_command_word                *words;
     jo_fixed                            cx;
     jo_fixed                            cy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
 
     if (!jo_vdp1_is_sprite_visible(z))
         return (false);
-    if ((cmd = __jo_vdp1_add_command(z)) == JO_NULL)
+    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
         return (false);
-    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0);
-    words = JO_VDP1_COMMAND_WORDS(cmd);
     cx = jo_vdp1_window_center_x();
     cy = jo_vdp1_window_center_y();
-    words[3] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
-    words[4] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
-    words[5] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
-    words[6] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
     return (true);
 }
 
@@ -1360,27 +1668,35 @@ bool                                    __jo_vdp1_write_sprite_4p(jo_vdp1_comman
                                                                   const jo_vdp1_sprite_attribute * const attr, const int window)
 {
     const jo_vdp1_window                *w;
+    jo_vdp1_command_word                *words;
     jo_fixed                            cx;
     jo_fixed                            cy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
 
     w = &__jo_vdp1_windows[window];
     if (z <= __jo_vdp1_near_clip() || z > w->zlimit)
         return (false);
     // (the same command as __jo_vdp1_draw_sprite_4p())
-    cmd->link = 0;
-    cmd->grda = 0;
-    if (__jo_vdp1_set_attribute(cmd, attr))
-        cmd->ctrl |= JO_VDP1_CMD_DISTORTED_SPRITE;
     cx = JO_MULT_BY_65536(w->center_x - w->origin_x);
     cy = JO_MULT_BY_65536(w->center_y - w->origin_y);
-    cmd->xa = JO_FIXED_TO_INT(cx + points[0].x);
-    cmd->ya = JO_FIXED_TO_INT(cy + points[0].y);
-    cmd->xb = JO_FIXED_TO_INT(cx + points[1].x);
-    cmd->yb = JO_FIXED_TO_INT(cy + points[1].y);
-    cmd->xc = JO_FIXED_TO_INT(cx + points[2].x);
-    cmd->yc = JO_FIXED_TO_INT(cy + points[2].y);
-    cmd->xd = JO_FIXED_TO_INT(cx + points[3].x);
-    cmd->yd = JO_FIXED_TO_INT(cy + points[3].y);
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    area = __jo_vdp1_pre_clip_areas[window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
     return (true);
 }
 
@@ -1420,6 +1736,29 @@ void                                    jo_sprite_set_system_clipping_area(const
 #endif
     __jo_vdp1_system_clip_right = width - 1;
     __jo_vdp1_system_clip_bottom = height - 1;
+    jo_vdp1_update_pre_clip_areas();
+}
+
+/** @brief Before a change of the current window: the commands drawn so far in the frame keep the window as it is (its
+ *  header is written once per frame from the window at the end of the frame: a window changed in the middle of a frame,
+ *  like the render to image demo that draws into a window out of the screen and then sets it to the whole screen, lost
+ *  its first state)
+ */
+static void                             __jo_vdp1_keep_window(void)
+{
+    jo_vdp1_frame                       *frame;
+    unsigned int                        k;
+
+    frame = __jo_vdp1_frame;
+    k = frame->window_change_count;
+    // (no command yet, or none since the last change of this window: nothing to keep)
+    if (frame->count == 0 || k >= JO_VDP1_WINDOW_CHANGES ||
+        (k > 0 && frame->window_change_end[k - 1] == frame->count && frame->window_change_window[k - 1] == __jo_vdp1_current_window))
+        return;
+    frame->window_change_end[k] = frame->count;
+    frame->window_change_window[k] = (unsigned short)__jo_vdp1_current_window;
+    frame->window_change_state[k] = __jo_vdp1_windows[__jo_vdp1_current_window];
+    frame->window_change_count = k + 1;
 }
 
 void                                    __jo_vdp1_set_window(const short left, const short top, const short right, const short bottom,
@@ -1428,6 +1767,9 @@ void                                    __jo_vdp1_set_window(const short left, c
     jo_vdp1_window                      *w;
 
     w = &__jo_vdp1_windows[__jo_vdp1_current_window];
+    // (the header of the window changes: the commands before keep the window as it was)
+    if (w->left != left || w->top != top || w->right != right || w->bottom != bottom)
+        __jo_vdp1_keep_window();
     w->left = left;
     w->top = top;
     w->right = right;
@@ -1439,6 +1781,12 @@ void                                    __jo_vdp1_set_window(const short left, c
     w->screen = w->clip_mode != 0 && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? left : 0;
     w->origin_y = w->screen ? top : 0;
+    jo_vdp1_update_pre_clip_areas();
+}
+
+void                                    jo_3d_set_depth_limit(const int z)
+{
+    __jo_vdp1_windows[__jo_vdp1_current_window].zlimit = z < 0 || z >= 0x7fff ? JO_VDP1_NO_Z_LIMIT : JO_INT_TO_FIXED((jo_fixed)z);
 }
 
 void                                    __jo_vdp1_set_window_clip(const bool clip)
@@ -1446,10 +1794,14 @@ void                                    __jo_vdp1_set_window_clip(const bool cli
     jo_vdp1_window                      *w;
 
     w = &__jo_vdp1_windows[__jo_vdp1_current_window];
+    // (the origin of the header changes with a screen of its own)
+    if ((clip && __jo_vdp1_windows_apart) != w->screen)
+        __jo_vdp1_keep_window();
     w->clip_mode = clip ? JO_VDP1_WINDOW_IN : 0;
     w->screen = clip && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? w->left : 0;
     w->origin_y = w->screen ? w->top : 0;
+    jo_vdp1_update_pre_clip_areas();
 }
 
 /*

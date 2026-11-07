@@ -71,87 +71,79 @@
     JO_MAX_FILE_IN_IMAGE_PACK = 32
     JO_DEBUG = 1
     JO_NTSC = 0
+    JO_SCREEN_WIDTH = 320                        (320, 352, 640 or 704; optional)
+    JO_SCREEN_HEIGHT = 240                       (224, 240, 256 in PAL; 448, 480, 512 in PAL: interlace; optional)
     SRCS=main.c
     include ../Compiler/COMMON/jo_engine_makefile
+
+  The smallest engine: JO_MINIMAL = 1
+
+    JO_MINIMAL = 1
+    SRCS=main.c
+    include ../Compiler/COMMON/jo_engine_makefile
+
+  Every module is off unless the makefile turns it on, even the 5 modules on by default: the file system (FS: on with
+  the TGA, AUDIO, VIDEO and LEVEL modules, they read files), jo_printf() (PRINTF), the RAM cartridge (RAM_CARD), the
+  slave CPU (DUAL_CPU) and jo_sprite_name2id() (SPRITE_HASHTABLE). What stays: jo_core_init() and the main loop, the
+  VDP1 (sprites added from images in the program, jo_sprite_draw_rectangle()...), the VDP2 (the back color, the NBG1
+  bitmap, the palettes), the inputs, jo_malloc(), the math, the lists, the time. Without jo_printf() an error of the
+  engine (JO_DEBUG = 1) shows a red screen, press START to go on. A module can still be chosen one by one:
+
+    JO_MINIMAL = 1
+    JO_COMPILE_WITH_PRINTF_MODULE = 1            (jo_printf() and the messages of the errors)
+    JO_DEBUG = 0                                 (no check, no error message: the smallest program)
+
+  The helpers that are always compiled (maps, sprite animations, physics, sprite fonts, images, palettes) cost no byte
+  in a program that does not call them: the link time optimization keeps only the functions used. Sizes of
+  Samples/demo - minimal (game.raw): 29052 bytes with the default engine, 20940 with JO_MINIMAL = 1, 17616 with
+  JO_MINIMAL = 1 and JO_DEBUG = 0
 */
 
 /*
 ** PARAMS
 */
 
-# if defined(JO_NTSC_VERSION)
-    # if defined(JO_480i)
-        /** @brief NTSC Screen width */
-        # define JO_TV_WIDTH						(704)
-        /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
-        # define JO_TV_WIDTH_2						(352)
-        /** @brief NTSC Screen width divided by 4 (math optimization purpose) */
-        # define JO_TV_WIDTH_4						(176)
-        /** @brief NTSC Screen height */
-        # define JO_TV_HEIGHT						(480)
-        /** @brief NTSC Screen height divided by 2 (math optimization purpose) */
-        # define JO_TV_HEIGHT_2						(240)
-        /** @brief NTSC Screen height divided by 4 (math optimization purpose) */
-        # define JO_TV_HEIGHT_4						(120)
-    #else
-        /** @brief NTSC Screen width */
-        # define JO_TV_WIDTH						(320)
-        /** @brief NTSC Screen width divided by 2 (math optimization purpose) */
-        # define JO_TV_WIDTH_2						(160)
-        /** @brief NTSC Screen width divided by 4 (math optimization purpose) */
-        # define JO_TV_WIDTH_4						(80)
-        /** @brief NTSC Screen height */
-        # define JO_TV_HEIGHT						(240)
-        /** @brief NTSC Screen height divided by 2 (math optimization purpose) */
-        # define JO_TV_HEIGHT_2						(120)
-        /** @brief NTSC Screen height divided by 4 (math optimization purpose) */
-        # define JO_TV_HEIGHT_4						(60)
-    #endif
-#else /* PAL Version */
-    # if defined(JO_480i)
-        /** @brief PAL Screen width */
-        # define JO_TV_WIDTH						(704)
-        /** @brief PAL Screen width divided by 2 (math optimization purpose) */
-        # define JO_TV_WIDTH_2						(352)
-        /** @brief PAL Screen width divided by 4 (math optimization purpose) */
-        # define JO_TV_WIDTH_4						(176)
-        /** @brief PAL Screen height */
-        # define JO_TV_HEIGHT						(256)
-        /** @brief PAL Screen height divided by 2 (math optimization purpose) */
-        # define JO_TV_HEIGHT_2						(128)
-        /** @brief PAL Screen height divided by 4 (math optimization purpose) */
-        # define JO_TV_HEIGHT_4						(64)
-    #else
-        /** @brief PAL Screen width */
-        # define JO_TV_WIDTH						(320)
-        /** @brief PAL Screen width divided by 2 (math optimization purpose) */
-        # define JO_TV_WIDTH_2						(160)
-        /** @brief PAL Screen width divided by 4 (math optimization purpose) */
-        # define JO_TV_WIDTH_4						(80)
-        /** @brief PAL Screen height */
-        # define JO_TV_HEIGHT						(256)
-        /** @brief PAL Screen height divided by 2 (math optimization purpose) */
-        # define JO_TV_HEIGHT_2						(128)
-        /** @brief PAL Screen height divided by 4 (math optimization purpose) */
-        # define JO_TV_HEIGHT_4						(64)
-    #endif
+/** @brief Width of the screen at the start (makefile: JO_SCREEN_WIDTH = 320, 352, 640 or 704; see
+ *  jo_core_set_screen_resolution() to change it while the game runs)
+ */
+#if defined(JO_SCREEN_WIDTH)
+    # define JO_TV_WIDTH                        (JO_SCREEN_WIDTH)
+#else
+    # define JO_TV_WIDTH                        (320)
+#endif
+/** @brief Height of the screen at the start (makefile: JO_SCREEN_HEIGHT = 224 or 240, 256 in PAL; 448, 480 or 512: double
+ *  density interlace)
+ */
+#if defined(JO_SCREEN_HEIGHT)
+    # define JO_TV_HEIGHT                       (JO_SCREEN_HEIGHT)
+#elif defined(JO_NTSC_VERSION)
+    # define JO_TV_HEIGHT                       (240)
+#else
+    # define JO_TV_HEIGHT                       (256)
+#endif
+/** @brief Screen width divided by 2 (math optimization purpose) */
+# define JO_TV_WIDTH_2                          (JO_TV_WIDTH / 2)
+/** @brief Screen width divided by 4 (math optimization purpose) */
+# define JO_TV_WIDTH_4                          (JO_TV_WIDTH / 4)
+/** @brief Screen height divided by 2 (math optimization purpose) */
+# define JO_TV_HEIGHT_2                         (JO_TV_HEIGHT / 2)
+/** @brief Screen height divided by 4 (math optimization purpose) */
+# define JO_TV_HEIGHT_4                         (JO_TV_HEIGHT / 4)
+
+#if JO_TV_WIDTH != 320 && JO_TV_WIDTH != 352 && JO_TV_WIDTH != 640 && JO_TV_WIDTH != 704
+# error "JO_SCREEN_WIDTH must be 320, 352, 640 or 704"
+#endif
+#if JO_TV_HEIGHT != 224 && JO_TV_HEIGHT != 240 && JO_TV_HEIGHT != 448 && JO_TV_HEIGHT != 480 && \
+    (defined(JO_NTSC_VERSION) || (JO_TV_HEIGHT != 256 && JO_TV_HEIGHT != 512))
+# error "JO_SCREEN_HEIGHT must be 224, 240, 448 or 480 (256 and 512 in PAL)"
 #endif
 
-# if defined (JO_480i)
-    /** @brief VDP2 Background bitmap size */
-    # define JO_VDP2_SIZE                       (0x0E) /* 1024x512 */
-    /** @brief VDP2 Background bitmap width */
-    # define JO_VDP2_WIDTH                      (1024)
-    /** @brief VDP2 Background bitmap height */
-    # define JO_VDP2_HEIGHT                     (512)
-#else
-    /** @brief VDP2 Background bitmap size */
-    # define JO_VDP2_SIZE                       (0x02) /* 512x256 */
-    /** @brief VDP2 Background bitmap width */
-    # define JO_VDP2_WIDTH                      (512)
-    /** @brief VDP2 Background bitmap height */
-    # define JO_VDP2_HEIGHT                     (256)
-#endif
+/** @brief VDP2 Background bitmap size */
+# define JO_VDP2_SIZE                           (0x02) /* 512x256 */
+/** @brief VDP2 Background bitmap width */
+# define JO_VDP2_WIDTH                          (512)
+/** @brief VDP2 Background bitmap height */
+# define JO_VDP2_HEIGHT                         (256)
 
 /** @brief Max character in available in jo_printf() */
 # define JO_PRINTF_BUF_SIZE				    (64)

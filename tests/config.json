@@ -1,0 +1,175 @@
+{
+ "rom": {
+  "sources": [
+   "main.c",
+   "jt.c",
+   "t_logic.c",
+   "t_more.c",
+   "t_bugs.c",
+   "t_stress.c",
+   "t_leaks.c",
+   "t_state.c",
+   "scenes.c",
+   "t_fuzz.c",
+   "t_glitch.c"
+  ],
+  "modules": {
+   "JO_COMPILE_WITH_VIDEO_MODULE": "0",
+   "JO_COMPILE_WITH_BACKUP_MODULE": "0",
+   "JO_COMPILE_WITH_TGA_MODULE": "1",
+   "JO_COMPILE_WITH_AUDIO_MODULE": "1",
+   "JO_COMPILE_WITH_3D_MODULE": "1",
+   "JO_COMPILE_WITH_PSEUDO_MODE7_MODULE": "1",
+   "JO_COMPILE_WITH_EFFECTS_MODULE": "1",
+   "JO_COMPILE_WITH_PROFILER_MODULE": "1",
+   "JO_DEBUG": "1",
+   "JO_COMPILE_WITH_LEVEL_MODULE": "1",
+   "JO_COMPILE_WITH_STORYBOARD_MODULE": "1"
+  },
+  "variants": {
+   "320x224": {},
+   "704x480": {
+    "JO_SCREEN_WIDTH": "704",
+    "JO_SCREEN_HEIGHT": "480"
+   },
+   "all_modules": {
+    "JO_COMPILE_WITH_3D_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_DRIVER_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_DSP_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_MODULE": "1",
+    "JO_COMPILE_WITH_BACKUP_MODULE": "1",
+    "JO_COMPILE_WITH_CONSOLE_SUPPORT": "1",
+    "JO_COMPILE_WITH_EFFECTS_MODULE": "1",
+    "JO_COMPILE_WITH_KEYBOARD_SUPPORT": "1",
+    "JO_COMPILE_WITH_LEVEL_MODULE": "1",
+    "JO_COMPILE_WITH_PSEUDO_MODE7_MODULE": "1",
+    "JO_COMPILE_WITH_SERIAL_MODULE": "1",
+    "JO_COMPILE_WITH_SOFTWARE_RENDERER_MODULE": "1",
+    "JO_COMPILE_WITH_STORYBOARD_MODULE": "1",
+    "JO_COMPILE_WITH_TGA_MODULE": "1",
+    "JO_COMPILE_WITH_VCD_CARD_MODULE": "1",
+    "JO_COMPILE_WITH_VIDEO_MODULE": "1"
+   },
+   "all_modules_release": {
+    "JO_COMPILE_WITH_3D_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_DRIVER_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_DSP_MODULE": "1",
+    "JO_COMPILE_WITH_AUDIO_MODULE": "1",
+    "JO_COMPILE_WITH_BACKUP_MODULE": "1",
+    "JO_COMPILE_WITH_CONSOLE_SUPPORT": "1",
+    "JO_COMPILE_WITH_EFFECTS_MODULE": "1",
+    "JO_COMPILE_WITH_KEYBOARD_SUPPORT": "1",
+    "JO_COMPILE_WITH_LEVEL_MODULE": "1",
+    "JO_COMPILE_WITH_PSEUDO_MODE7_MODULE": "1",
+    "JO_COMPILE_WITH_SERIAL_MODULE": "1",
+    "JO_COMPILE_WITH_SOFTWARE_RENDERER_MODULE": "1",
+    "JO_COMPILE_WITH_STORYBOARD_MODULE": "1",
+    "JO_COMPILE_WITH_TGA_MODULE": "1",
+    "JO_COMPILE_WITH_VCD_CARD_MODULE": "1",
+    "JO_COMPILE_WITH_VIDEO_MODULE": "1",
+    "JO_DEBUG": "0"
+   },
+   "release": {
+    "JO_DEBUG": "0"
+   },
+   "fuzz": {
+    "T_FUZZ_LONG": "1"
+   },
+   "fuzz_release": {
+    "T_FUZZ_LONG": "1",
+    "JO_DEBUG": "0"
+   }
+  },
+  "quick_variants": [
+   "320x224"
+  ],
+  "timeout_quick": 120,
+  "timeout_full": 600,
+  "build_only": [
+   "all_modules",
+   "all_modules_release"
+  ]
+ },
+ "samples": {
+  "dir": "Samples",
+  "skip": [],
+  "max_bin_size": {
+   "demo - minimal": 23552
+  },
+  "full_variants": {
+   "release": {
+    "JO_DEBUG": "0"
+   }
+  },
+  "boot": {
+   "frames": [
+    1000,
+    1600
+   ],
+   "skip": [],
+   "per_sample": {
+    "demo - display modes": {
+     "frames": [
+      900,
+      1080,
+      1260,
+      1440,
+      1620,
+      1800,
+      1980,
+      2160,
+      2340,
+      2520,
+      2700,
+      2880,
+      3060,
+      3240,
+      3420,
+      3600
+     ]
+    }
+   },
+   "max_shift_frames": 30
+  },
+  "checks": {
+   "demo - first person shooter": [
+    {
+     "name": "persons drawn on the walkway",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 6: the guard of the walkway vanished, the ones out of the view below took the VDP1 budget)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=6 -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
+    },
+    {
+     "name": "persons drawn in the laboratory",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 1: 2 scientists and 2 guards)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=1 -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
+    },
+{
+     "name": "persons drawn through the airlock",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 7: the guard of the walkway far away through the 2 open doors of the airlock, he vanished: the polygons of the cells found took the VDP1 budget of the persons)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=7 -DDEMO_BENCH_DOORS_OPEN -DDEMO_BENCH_HIDDEN -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
+    }
+   ]
+  }
+ },
+ "tolerances": {
+  "image_threshold": 6,
+  "image_max_pixels_percent": 0.05,
+  "perf_percent": 5.0,
+  "ram_percent": 5.0,
+  "size_percent": 2.0,
+  "audio_db": 3.0,
+  "audio_max_blocks_percent": 5.0
+ }
+}

@@ -88,7 +88,14 @@ typedef struct
     bool                        used;
     jo_entity                   *door;      // On a door: it moves with it (position: in the space of the panel)
     bool                        front;      // On a door: on the side of its normal
+    short                       cell;       // Its cell (see jo_cells_object_cell(): found once, the mark doesn't move), -1: none
 }                               impact;
+
+/** @brief The marks on the walls in one mesh (a quad each, in the world: their corners are set when they are made), drawn
+ *  cell by cell with the depth bias of the cell: one draw per cell instead of one per mark (a draw of a sprite cost about
+ *  85 microseconds: 2 ms per frame for 24 marks). The marks on the doors move with them: drawn one by one */
+static jo_3d_mesh               *impact_mesh = JO_NULL;
+static void                     impact_mesh_make(const unsigned short gouraud_table);
 
 static jo_3d_model              *model = JO_NULL;
 static const jo_weapon_def      *def = JO_NULL;
@@ -154,6 +161,7 @@ static jo_fixed                 last_ray_distance = 0;
 void                            weapon_load(void)
 {
     int                         k;
+    jo_3d_quad                  *quad;
 
     for (k = 0; k < jo_weapons_count() && k < MAX_WEAPONS; ++k)
     {
@@ -161,14 +169,24 @@ void                            weapon_load(void)
 
         d = jo_weapons_def(k);
         models[k] = d->model[0] != '\0' ? jo_3d_load_model(d->model) : JO_NULL;
+#ifdef TEST_WEAPON_MIPMAPS
+        if (models[k] != JO_NULL)
+        {
+            unsigned int        t;
+
+            for (t = 0; t < models[k]->texture_count; ++t)
+                jo_3d_set_texture_mipmaps(models[k]->textures[t]);
+        }
+#endif
         load_sound(d->sound_shot, &shot_sounds[k]);
         shot_sounds[k].volume = (unsigned char)JO_MIN(127, d->shot_volume);
     }
     def = jo_weapons_def(jo_weapons_current());
     model = models[jo_weapons_current()];
     tex_impact = jo_sprite_add_bin_4bits_lut(JO_ROOT_DIR, "IMPACT.BIN", JO_COLOR_Transparent);
-    // (the quad of the impacts with a neutral gouraud table: the light of the lamps on them, a tint, see impacts_draw())
-    if (tex_impact >= 0 && jo_3d_create_sprite_quad(tex_impact))
+    // (the quad of the impacts (the marks on the doors) and their mesh (the marks on the walls) with a neutral gouraud
+    // table: the light of the lamps on them, a tint, see impacts_draw())
+    if (tex_impact >= 0 && (quad = jo_3d_get_sprite_quad(tex_impact)) != JO_NULL)
     {
         static const jo_color   neutral[4] = {0xC210, 0xC210, 0xC210, 0xC210};
         unsigned short          table;
@@ -176,9 +194,10 @@ void                            weapon_load(void)
         table = jo_3d_add_gouraud_tables(neutral, 1);
         if (table != 0)
         {
-            __jo_sprite_quad[tex_impact]->data.attributes[0].draw_mode |= JO_VDP1_COLOR_CALC_GOURAUD;
-            __jo_sprite_quad[tex_impact]->data.attributes[0].gouraud_table = table;
+            quad->data.attributes[0].draw_mode |= JO_VDP1_COLOR_CALC_GOURAUD;
+            quad->data.attributes[0].gouraud_table = table;
         }
+        impact_mesh_make(table);
     }
     {
         char                    name[16];
@@ -287,6 +306,80 @@ static void                     play_impact(const jo_pos3D_fixed * const p, cons
     }
 }
 
+/** @brief The mesh of the marks on the walls (see impact_mesh): made once the texture is loaded */
+static void                     impact_mesh_make(const unsigned short gouraud_table)
+{
+    int                         k;
+
+    if (impact_mesh != JO_NULL || tex_impact < 0)
+        return;
+    impact_mesh = jo_3d_create_indexed_mesh(MAX_IMPACTS * 4, MAX_IMPACTS);
+    if (impact_mesh == JO_NULL)
+        return;
+    for (k = 0; k < MAX_IMPACTS; ++k)
+    {
+        impact_mesh->data.polygons[k].vertices[0] = (unsigned short)(k * 4);
+        impact_mesh->data.polygons[k].vertices[1] = (unsigned short)(k * 4 + 1);
+        impact_mesh->data.polygons[k].vertices[2] = (unsigned short)(k * 4 + 2);
+        impact_mesh->data.polygons[k].vertices[3] = (unsigned short)(k * 4 + 3);
+    }
+    jo_3d_set_mesh_texture(impact_mesh, tex_impact);
+    jo_3d_set_mesh_light(impact_mesh, false);
+    jo_3d_set_mesh_screen_doors(impact_mesh, false);
+    // (seen from both sides, like the sprite: a mark on a thin wall is seen from the other side too; the neutral gouraud
+    // table of the sprite: the tint of the light of the lamps)
+    for (k = 0; k < MAX_IMPACTS; ++k)
+    {
+        impact_mesh->data.attributes[k].plane = JO_3D_DUAL_PLANE;
+        if (gouraud_table != 0)
+        {
+            impact_mesh->data.attributes[k].draw_mode |= JO_VDP1_COLOR_CALC_GOURAUD;
+            impact_mesh->data.attributes[k].gouraud_table = gouraud_table;
+        }
+    }
+}
+
+/** @brief The quad of a mark on a wall in the mesh: the corners of the sprite (16 x 16, IMPACT_SIZE in the world) turned
+ *  by its yaw and its pitch, as the matrix of the sprite was (turned around Y, then around X) */
+static void                     impact_mesh_set(const int k)
+{
+    const impact                *m;
+    jo_fixed                    half;
+    jo_fixed                    sy;
+    jo_fixed                    cy;
+    jo_fixed                    sp;
+    jo_fixed                    cp;
+    jo_pos3D_fixed              *p;
+    int                         c;
+    jo_fixed                    x;
+    jo_fixed                    y;
+    jo_fixed                    yy;
+    jo_fixed                    zz;
+
+    if (impact_mesh == JO_NULL)
+        return;
+    m = &impacts[k];
+    half = IMPACT_SIZE / 2;
+    sy = jo_sin(m->yaw);
+    cy = jo_cos(m->yaw);
+    sp = jo_sin(m->pitch);
+    cp = jo_cos(m->pitch);
+    p = impact_mesh->data.points + k * 4;
+    // (the corners of the sprite: (-h, -h), (h, -h), (h, h), (-h, h) in its plane, z = 0)
+    for (c = 0; c < 4; ++c)
+    {
+        x = c == 1 || c == 2 ? half : -half;
+        y = c >= 2 ? half : -half;
+        // Around X by the pitch (jo_3d_rotate_matrix_x: y' = y cos - z sin, z' = y sin + z cos, z = 0)
+        yy = jo_fixed_mult(y, cp);
+        zz = jo_fixed_mult(y, sp);
+        // Around Y by the yaw (jo_3d_rotate_matrix_y: x' = x cos + z sin, z' = -x sin + z cos)
+        p[c].x = m->position.x + jo_fixed_mult(x, cy) + jo_fixed_mult(zz, sy);
+        p[c].y = m->position.y + yy;
+        p[c].z = m->position.z - jo_fixed_mult(x, sy) + jo_fixed_mult(zz, cy);
+    }
+}
+
 static void                     add_impact(const jo_pos3D_fixed * const p, const jo_pos3D_fixed * const normal, jo_entity * const door)
 {
     impacts[next_impact].door = door;
@@ -296,11 +389,13 @@ static void                     add_impact(const jo_pos3D_fixed * const p, const
         doors_to_local(door, p, &impacts[next_impact].position);
         impacts[next_impact].front = impacts[next_impact].position.z > 0;
         impacts[next_impact].pitch = 0;
+        impacts[next_impact].cell = -1;
         impacts[next_impact].used = true;
         next_impact = (next_impact + 1) % MAX_IMPACTS;
         return;
     }
     impacts[next_impact].position = *p;
+    impacts[next_impact].cell = (short)jo_cells_object_cell(p->x, p->y, p->z);
     // The mark lies on the surface hit: a sprite faces -Z, turned by the yaw it faces (-sin yaw, 0, -cos yaw)
     if (JO_ABS(normal->y) > JO_FIXED_1 / 2)
     {
@@ -312,6 +407,7 @@ static void                     add_impact(const jo_pos3D_fixed * const p, const
         impacts[next_impact].yaw = jo_atan2_degrees(-normal->x, -normal->z);
         impacts[next_impact].pitch = 0;
     }
+    impact_mesh_set(next_impact);
     impacts[next_impact].used = true;
     next_impact = (next_impact + 1) % MAX_IMPACTS;
 }
@@ -594,8 +690,8 @@ static void                     fire(void)
         guards_auto_aim(&eye, &dir);
     shoot_ray(&eye, &dir, def != JO_NULL ? def->damage : 25, JO_NULL);
     play_shot();
-    // (the guards near the agent hear the shot, the guards near the bullet too)
-    guards_hear_shot(&eye, &dir, last_ray_distance);
+    // (the guards near the agent hear the shot, the guards near the bullet too; a rifle without a silencer: the whole wing)
+    guards_hear_shot(&eye, &dir, last_ray_distance, def != JO_NULL && def->automatic);
     // Some shots: the flame at the muzzle and the bullet seen flying to what it hit
     // (an automatic rifle without a silencer: the flame at each shot)
     if (def != JO_NULL && (def->automatic || jo_random(FLASH_CHANCE) == 1))
@@ -856,6 +952,7 @@ static void                     tracer_draw(void)
     jo_3d_push_matrix();
     {
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - IMPACT_SORT_BIAS);
+        jo_3d_select_window(jo_cells_window_of(bias));
         jo_3d_translate_matrix_fixed(tracer_position.x, tracer_position.y, tracer_position.z);
         // (facing the camera)
         jo_3d_rotate_matrix_y(yaw);
@@ -864,6 +961,7 @@ static void                     tracer_draw(void)
         jo_3d_draw_sprite(tex_tracer);
     }
     jo_3d_pop_matrix();
+    jo_3d_select_window(JO_3D_NEAR_WINDOW);
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }
 
@@ -871,20 +969,65 @@ void                            impacts_draw(void)
 {
     int                         k;
     int                         bias;
+    jo_3d_polygon_range         ranges[MAX_IMPACTS];
+    int                         range_count;
+    int                         cell;
+    bool                        drawn[MAX_IMPACTS];
+    int                         j;
 
     tracer_draw();
     if (tex_impact < 0)
         return;
+    // The marks on the walls: one draw per cell seen (the marks of the cell, its depth bias)
+    if (impact_mesh != JO_NULL)
+    {
+        for (k = 0; k < MAX_IMPACTS; ++k)
+            drawn[k] = !impacts[k].used || impacts[k].door != JO_NULL;
+        for (k = 0; k < MAX_IMPACTS; ++k)
+        {
+            if (drawn[k])
+                continue;
+            cell = impacts[k].cell;
+            bias = jo_cells_depth_bias_of(cell);
+            range_count = 0;
+            for (j = k; j < MAX_IMPACTS; ++j)
+                if (!drawn[j] && impacts[j].cell == cell)
+                {
+                    drawn[j] = true;
+                    ranges[range_count].first = (unsigned short)j;
+                    ranges[range_count++].count = 1;
+                }
+            if (bias < 0)
+                continue;
+            // (sorted before the wall, see IMPACT_SORT_BIAS; the light of the lamps at the first mark of the cell: the red
+            // alarm is the same in the whole room)
+            {
+                int             r;
+                int             g;
+                int             b;
+
+                jo_3d_point_lights_sample(&impacts[k].position, &r, &g, &b);
+                jo_3d_set_tint(r, g, b);
+            }
+            jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - IMPACT_SORT_BIAS);
+            // (in a room seen through a door: the far window, clipped to the door)
+            jo_3d_select_window(jo_cells_window_of(bias));
+            jo_3d_mesh_draw_ranges(impact_mesh, impact_mesh->data.point_count, ranges, range_count);
+            jo_3d_select_window(JO_3D_NEAR_WINDOW);
+            jo_3d_set_tint(0, 0, 0);
+        }
+        jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
+    }
     for (k = 0; k < MAX_IMPACTS; ++k)
     {
-        if (!impacts[k].used)
+        if (!impacts[k].used || (impacts[k].door == JO_NULL && impact_mesh != JO_NULL))
             continue;
         // (on a door: the cell the door is drawn in (the cell of its hinge was the room behind it when it is closed: the
         // impacts were hidden), its position is in the space of the panel)
         if (impacts[k].door != JO_NULL)
             bias = doors_depth_bias(impacts[k].door);
         else
-            bias = jo_cells_depth_bias_at(impacts[k].position.x, impacts[k].position.y, impacts[k].position.z);
+            bias = jo_cells_depth_bias_of(impacts[k].cell);
         if (bias < 0)
             continue;
         jo_3d_push_matrix();
@@ -892,6 +1035,7 @@ void                            impacts_draw(void)
             // A small mark flat on the surface hit, sorted before the wall (the sort uses the nearest vertex of a polygon: the
             // nearest corner of a wall quad is up to a few dozen units nearer than the mark)
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - IMPACT_SORT_BIAS);
+            jo_3d_select_window(jo_cells_window_of(bias));
             if (impacts[k].door != JO_NULL)
             {
                 // On a door: where the panel is now, flat on it (the sprite faces -Z: the side of the shooter)
@@ -926,6 +1070,7 @@ void                            impacts_draw(void)
             jo_3d_set_tint(0, 0, 0);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }

@@ -105,6 +105,16 @@ int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, 
  */
 t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
 
+/** @brief Load a TGA image (15, 24 or 32 bits) and show it on the background (NBG1) at the top left of the screen
+ *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
+ *  @param filename Filename (upper case and shorter as possible like "BG.TGA")
+ *  @param transparent_color Transparent color. Use JO_COLOR_Transparent by default
+ *  @return true if the image is shown, false if it is not loaded (see jo_get_last_error())
+ *  @remarks jo_tga_loader() + jo_set_background_sprite() + jo_free_img(): the image is copied to the VRAM of the VDP2,
+ *  the memory of the work RAM is freed. For another position, load the image and call jo_set_background_sprite()
+ */
+bool                    jo_set_background_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
+
 /** @brief Load a 8 bits 255 colors max TGA image
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)

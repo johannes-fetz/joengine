@@ -25,15 +25,15 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/** @file console_builtins.h
+/** @file internal/console_builtins.h
  *  @author Johannes Fetz
  *
  *  @brief Jo Engine Internal Console commands
  *  @bug No known bugs.
  */
 
-#ifndef __JO_CONSOLE_BUILTINS_H__
-# define __JO_CONSOLE_BUILTINS_H__
+#ifndef __JO_INTERNAL_CONSOLE_BUILTINS_H__
+# define __JO_INTERNAL_CONSOLE_BUILTINS_H__
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
 #ifndef JO_COMPILE_NO_CONSOLE_BUILTINS
@@ -67,7 +67,7 @@ bool    __jo_console_builtins_command_handler(int argc, char **argv, int vertica
 #endif /* JO_COMPILE_NO_CONSOLE_BUILTINS */
 #endif /* !JO_COMPILE_WITH_CONSOLE_SUPPORT */
 
-#endif /* !__JO_CONSOLE_BUILTINS_H__ */
+#endif /* !__JO_INTERNAL_CONSOLE_BUILTINS_H__ */
 
 /*
 ** END OF FILE

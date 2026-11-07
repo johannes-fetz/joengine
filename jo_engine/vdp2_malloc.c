@@ -46,6 +46,7 @@
 #include "jo/vdp2.h"
 #include "jo/palette.h"
 #include "jo/vdp2_malloc.h"
+#include "internal/vdp2_malloc.h"
 
 typedef struct
 {
@@ -79,7 +80,15 @@ static unsigned char            *__jo_b0 = (unsigned char *)JO_VDP2_VRAM_B0;
 static jo_vdp2_memory_segment   __jo_b0_segments[6];
 // B1
 # define B1_SEGMENT_COUNT       (12)
-static unsigned char            *__jo_b1 = (unsigned char *)JO_VDP2_VRAM_B1;
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+/** @brief The font and the map of jo_printf() stay in the bank B1: the blocks start after the font and skip the map */
+# define JO_VDP2_B1_START               ((unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_CELL_OFFSET + JO_VDP2_PRINTF_CELL_SIZE))
+# define JO_VDP2_B1_HOLE_START          ((unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_MAP_OFFSET))
+# define JO_VDP2_B1_HOLE_END            (JO_VDP2_B1_HOLE_START + JO_VDP2_MAP_SIZE)
+#else
+# define JO_VDP2_B1_START               ((unsigned char *)JO_VDP2_VRAM_B1)
+#endif
+static unsigned char            *__jo_b1 = JO_VDP2_B1_START;
 static jo_vdp2_memory_segment   __jo_b1_segments[12];
 
 void                            jo_vdp2_malloc_init(void)
@@ -97,6 +106,32 @@ bool                            __jo_vdp2_a0_start_is_free(const unsigned int n)
     return (__jo_a0_segments[0].is_free && __jo_a0_segments[0].size >= n);
 }
 
+/** @brief After a free: the top of a bank goes down over the free blocks at its top (freed in any order: only the last
+ *  block went back before, the bank leaked)
+ *  @param segments Blocks of the bank
+ *  @param count Blocks count
+ *  @param top The end of the used part of the bank
+ */
+static void                     jo_vdp2_release_top(jo_vdp2_memory_segment * const segments, const unsigned int count, unsigned char **top)
+{
+    register unsigned int       i;
+    bool                        found;
+
+    do
+    {
+        found = false;
+        for (JO_ZERO(i); i < count; ++i)
+        {
+            if (segments[i].size != 0 && segments[i].is_free && segments[i].ptr + segments[i].size == *top)
+            {
+                *top = segments[i].ptr;
+                JO_ZERO(segments[i].size);
+                found = true;
+            }
+        }
+    } while (found);
+}
+
 inline void                     jo_vdp2_free(const void * const p)
 {
     register unsigned int       i;
@@ -108,11 +143,7 @@ inline void                     jo_vdp2_free(const void * const p)
         if (__jo_a0_segments[i].data == p && !__jo_a0_segments[i].is_free)
         {
             __jo_a0_segments[i].is_free = true;
-            if ((__jo_a0_segments[i].ptr + __jo_a0_segments[i].size) == __jo_a0)
-            {
-                __jo_a0 -= __jo_a0_segments[i].size;
-                JO_ZERO(__jo_a0_segments[i].size);
-            }
+            jo_vdp2_release_top(__jo_a0_segments, A0_SEGMENT_COUNT, &__jo_a0);
             return;
         }
     }
@@ -121,11 +152,7 @@ inline void                     jo_vdp2_free(const void * const p)
         if (__jo_b0_segments[i].data == p && !__jo_b0_segments[i].is_free)
         {
             __jo_b0_segments[i].is_free = true;
-            if ((__jo_b0_segments[i].ptr + __jo_b0_segments[i].size) == __jo_b0)
-            {
-                __jo_b0 -= __jo_b0_segments[i].size;
-               JO_ZERO(__jo_b0_segments[i].size);
-            }
+            jo_vdp2_release_top(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0);
             return;
         }
     }
@@ -134,11 +161,7 @@ inline void                     jo_vdp2_free(const void * const p)
         if (__jo_b1_segments[i].data == p && !__jo_b1_segments[i].is_free)
         {
             __jo_b1_segments[i].is_free = true;
-            if ((__jo_b1_segments[i].ptr + __jo_b1_segments[i].size) == __jo_b1)
-            {
-                __jo_b1 -= __jo_b1_segments[i].size;
-                JO_ZERO(__jo_b1_segments[i].size);
-            }
+            jo_vdp2_release_top(__jo_b1_segments, B1_SEGMENT_COUNT, &__jo_b1);
             return;
         }
     }
@@ -171,6 +194,15 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
     void                        *ptr;
     unsigned char               *start;
 
+    // (a size bigger than the whole VRAM must not wrap the tests of the ends of the banks: start + n)
+    if (n > 0x80000 && usage != JO_VDP2_RAM_BACK_COLOR && usage != JO_VDP2_RAM_RTABLE && usage != JO_VDP2_RAM_KTABLE &&
+        usage != JO_VDP2_RAM_COLOR)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of VDP2 memory");
+#endif
+        return (JO_NULL);
+    }
     switch (usage)
     {
         case JO_VDP2_RAM_BACK_COLOR:
@@ -179,6 +211,7 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
             return ((void*)__jo_rbg0_r_table);
         case JO_VDP2_RAM_KTABLE:
             return ((void*)__jo_rbg0_k_table);
+        case JO_VDP2_RAM_USER:
         case JO_VDP2_RAM_MAP_NBG0:
         case JO_VDP2_RAM_MAP_NBG2:
         case JO_VDP2_RAM_MAP_NBG3:
@@ -193,6 +226,10 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
                     // an aligned map belongs to the block: freed with it)
                     start = jo_vdp2_block_start(__jo_b1, usage);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+                    if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
+                        start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
+#endif
                     if (start + n > (unsigned char *)(JO_VDP2_VRAM + 0x80000))
                         break;
                     __jo_b1_segments[i].ptr = __jo_b1;
@@ -203,6 +240,11 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     return (start);
                 }
                 start = jo_vdp2_block_start(__jo_b1_segments[i].ptr, usage);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+                // (a free block over the map of jo_printf(): after it, as a new block)
+                if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
+                    start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
+#endif
                 if (__jo_b1_segments[i].is_free && start + n <= __jo_b1_segments[i].ptr + __jo_b1_segments[i].size)
                 {
                     __jo_b1_segments[i].data = start;

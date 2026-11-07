@@ -55,8 +55,9 @@ typedef void                                (*jo_fs_async_read_callback)(char *c
 
 /** @brief Change the current directory (equivalent of Unix cd command)
  *  @param sub_dir Sub directory name (use JO_PARENT_DIR for parent directory)
+ *  @return true if the directory is the current one, false if not found or not read (the current directory is kept)
  */
-void                                        jo_fs_cd(const char *const sub_dir);
+bool                                        jo_fs_cd(const char *const sub_dir);
 
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
@@ -68,7 +69,7 @@ char*                                       jo_fs_read_file_in_dir(const char *c
 
 /** @brief Read a file on the CD and put the contents to "buf"
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
- *  @param buf Output buffer
+ *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @param len return the file length
  *  @return The stream
  */
@@ -97,7 +98,7 @@ static  __jo_force_inline char*             jo_fs_read_file(const char *const fi
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param callback Callback called when the file is loaded
  *  @param optional_token User value to identify the file
- *  @param buf Output buffer
+ *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @return true if succeed
  */
 bool                                        jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf);
@@ -146,90 +147,10 @@ int                                         jo_fs_read_next_bytes(jo_file * cons
  */
 bool                                        jo_fs_seek_forward(jo_file * const file, unsigned int nbytes);
 
-/*
-** Internal usage
-*/
-
-/** @brief Get the identifier of a file in the current directory (Internal usage)
- *  @param filename Filename (upper case, like "A.TXT")
- *  @return File identifier or -1 if the file doesn't exist
- */
-int                                         __jo_fs_get_file_id(const char * const filename);
-
-/** @brief Open a file (Internal usage)
- *  @param file_id File identifier (see __jo_fs_get_file_id())
- *  @return File handle or JO_NULL if the identifier is invalid or if too many files are opened
- *  @remarks JO_MAX_FS_BACKGROUND_JOBS files can be opened at the same time
- */
-void                                        *__jo_fs_open(const int file_id);
-
-/** @brief Close a file opened with __jo_fs_open() (Internal usage)
- *  @param handle File handle (JO_NULL is ignored)
- */
-void                                        __jo_fs_close(void *handle);
-
-/** @brief Get the size of a file in bytes (Internal usage)
- *  @param handle File handle
- *  @return File size in bytes
- */
-int                                         __jo_fs_get_file_size(void *handle);
-
-/** @brief Get the size of a file in sectors (Internal usage)
- *  @param handle File handle
- *  @return File size in sectors (2048 bytes)
- */
-int                                         __jo_fs_get_sector_count(void *handle);
-
-/** @brief Set the current position of a file (Internal usage)
- *  @param handle File handle
- *  @param sector Sector index from the beginning of the file
- *  @return false if the position is outside of the file
- */
-bool                                        __jo_fs_seek_sector(void *handle, const int sector);
-
-/** @brief Read sectors from the current position of a file (Internal usage)
- *  @param handle File handle
- *  @param sector_count Number of sectors to read
- *  @param buf Output buffer
- *  @param buf_size Size of the output buffer (bytes after it are not written)
- *  @return Number of bytes stored in buf, 0 at the end of the file, or -1 if the read failed
- *  @remarks The current position moves forward even if buf is too small
- */
-int                                         __jo_fs_read_sectors(void *handle, int sector_count, void *buf, const int buf_size);
-
-/** @brief Play CD audio tracks (Internal usage)
- *  @param from_track First track (the first audio track is usually 2)
- *  @param to_track Last track (played until its end)
- *  @param play_mode 0x00: no repeat, 0x01~0x0e: maximum repeats, 0x0f: endless repeat
- *  @remarks Any data read in progress is cancelled
- */
-void                                        __jo_cd_play_tracks(const int from_track, const int to_track, const unsigned char play_mode);
-
-/** @brief Play CD audio from a sector (Internal usage)
- *  @param fad First sector (frame address)
- *  @param from_track First track (played from its start if fad is not before the end of to_track)
- *  @param to_track Last track (played until its end)
- *  @param play_mode 0x00: no repeat, 0x01~0x0e: maximum repeats, 0x0f: endless repeat
- *  @remarks Used to resume the CD audio after a pause. Any data read in progress is cancelled
- */
-void                                        __jo_cd_play_from_fad(const unsigned int fad, const int from_track, const int to_track,
-                                                                  const unsigned char play_mode);
-
 /** @brief Drive status: the drive is paused */
 # define JO_CD_DRIVE_PAUSE                          (0x01)
 /** @brief Drive status: the drive is playing (audio or data) */
 # define JO_CD_DRIVE_PLAY                           (0x03)
-
-/** @brief Get the CD drive status (Internal usage)
- *  @param fad Current sector (frame address) of the pickup (output, can be JO_NULL)
- *  @return Drive status (JO_CD_DRIVE_PAUSE, JO_CD_DRIVE_PLAY, etc) or -1 if the CD block doesn't answer
- */
-int                                         __jo_cd_get_status(unsigned int *fad);
-
-/** @brief Pause the CD drive (Internal usage)
- *  @remarks Stops the CD audio, the pickup stays at the current position
- */
-void                                        __jo_cd_pause(void);
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 

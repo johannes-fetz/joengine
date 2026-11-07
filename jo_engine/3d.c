@@ -47,6 +47,11 @@
 #include "jo/profile.h"
 #include "jo/dsp.h"
 #include "dsp_xform.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/sprites.h"
+#include "internal/3d.h"
+#include "internal/profile.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
@@ -214,6 +219,8 @@ static  __jo_force_inline void              jo_3d_set_vertex(jo_3d_vertex * cons
 */
 static jo_3d_matrix                         __jo_3d_matrix_stack[JO_3D_MATRIX_STACK_DEPTH];
 static int                                  __jo_3d_matrix_level = 0;
+/** @brief jo_3d_push_matrix() calls refused (the stack is full): their jo_3d_pop_matrix() don't pop */
+static int                                  __jo_3d_matrix_overflow = 0;
 /* Light direction in view space */
 static jo_pos3D_fixed                       __jo_3d_light_direction;
 
@@ -254,10 +261,14 @@ typedef struct
     unsigned short                          gouraud_offset;     // Added to the gouraud tables of the object: its tinted copy (see jo_3d_set_tint())
     int                                     environment;        // The environment map of the object (see jo_3d_set_mesh_environment()), -1: none
     unsigned short                          sliver_color;       // The polygon is drawn as a polygon of this color (see jo_3d_emit_sliver()), 0: none
+    const jo_pos3D_fixed                    *points;            // Points of the current object (model space) and their count: the
+    unsigned int                            point_count;        // exact view space positions of its vertices (see jo_3d_vertex_view())
 }                                           jo_3d_cpu_context;
 
 /** @brief Levels of tiles of a texture (2 x 2, 4 x 4) */
 # define JO_3D_TILE_LEVELS                  (2)
+/** @brief Levels of tiles of a texture with its finer tiles (8 x 8, 16 x 16 in one sprite, see jo_3d_set_texture_subdivision_fine()) */
+# define JO_3D_TILE_FINE_LEVELS             (4)
 /** @brief Commands of the frame over which the polygons are not cut for the perspective any more (see
  *  jo_3d_subdivision_level()) */
 # define JO_3D_SUBDIVISION_BUDGET           (jo_vdp1_command_max() * 3 / 5)
@@ -267,11 +278,13 @@ typedef struct
 /** @brief Tiles of a texture for the subdivision of the polygons near the camera (see jo_3d_set_texture_subdivision()) */
 typedef struct
 {
-    unsigned char                           levels;     // 0: none, 1: 2 x 2 tiles, 2: and 4 x 4 tiles; JO_3D_TILES_NEAR_ONLY
+    unsigned char                           levels;     // 0: none, 1: 2 x 2 tiles, 2: and 4 x 4 tiles, 4: and the finer tiles
+                                                        // (JO_3D_TILE_FINE_LEVELS); JO_3D_TILES_NEAR_ONLY
     unsigned char                           error;      // Distortion over which a polygon is drawn in parts (pixels), 0:
                                                         // JO_3D_SUBDIVISION_ERROR (see jo_3d_set_texture_subdivision_error())
-    unsigned short                          sprite[JO_3D_TILE_LEVELS]; // The 2 x 2 tiles, the 4 x 4 tiles: a sprite per level, its tiles
-                                                        // one under the other (a sprite per tile would use too many sprites)
+    unsigned short                          sprite[JO_3D_TILE_LEVELS + 1]; // The 2 x 2 tiles, the 4 x 4 tiles: a sprite per level, its
+                                                        // tiles one under the other (a sprite per tile would use too many sprites);
+                                                        // the 8 x 8 then the 16 x 16 tiles in one sprite (see jo_3d_tile_level())
     jo_fixed                                depth;      // Only the polygons whose nearest vertex is nearer than this are drawn in
                                                         // parts, 0: all (see jo_3d_set_texture_subdivision_depth())
 }                                           jo_3d_texture_tiles;
@@ -280,7 +293,9 @@ typedef struct
  *  are drawn in parts (see jo_3d_set_texture_subdivision_near_only()) */
 # define JO_3D_TILES_NEAR_ONLY              (0x80)
 /** @brief Levels of tiles of a texture (without the flag) */
-# define JO_3D_TILE_LEVEL_COUNT(T)          ((T)->levels & 3)
+# define JO_3D_TILE_LEVEL_COUNT(T)          ((T)->levels & 7)
+/** @brief The last sprite of the tiles of a texture (the finer levels share one) */
+# define JO_3D_TILE_LAST_SPRITE(T)          ((T)->sprite[JO_MIN(JO_3D_TILE_LEVEL_COUNT(T), JO_3D_TILE_LEVELS + 1) - 1])
 
 /* (read by the assembly polygon loop: kept with their names by the link time optimization) */
 jo_3d_texture_tiles                         __jo_3d_tiles[JO_MAX_SPRITE] __attribute__((used, externally_visible));
@@ -319,10 +334,11 @@ typedef struct
     jo_fixed                                ky;
     jo_fixed                                margin_x;
     jo_fixed                                margin_y;
+    int                                     height_2;               // (the height changes alone: 224 to 240 lines)
 }                                           jo_3d_screen_planes;
 
-static jo_3d_screen_planes                  __jo_3d_screen_planes = {0, 0, 0, 0, 0};
-static jo_3d_screen_planes                  __jo_3d_slave_screen_planes = {0, 0, 0, 0, 0};
+static jo_3d_screen_planes                  __jo_3d_screen_planes = {0, 0, 0, 0, 0, 0};
+static jo_3d_screen_planes                  __jo_3d_slave_screen_planes = {0, 0, 0, 0, 0, 0};
 
 /** @brief Smaller copies of a texture (see jo_3d_set_texture_mipmaps()) */
 typedef struct
@@ -423,13 +439,46 @@ typedef struct
 
 static jo_3d_tint_cache                     __jo_3d_tints[JO_3D_TINT_MESHES];
 static int                                  __jo_3d_tint = 0;
+static int                                  __jo_3d_slave_tint = 0;
 static unsigned int                         __jo_3d_tint_clock = 0;
+/** @brief The frame of the tints (see jo_3d_tint_offset()): a copy used in this frame is not written again in it (the
+ *  slave CPU draws with the copies the master CPU prepared, see jo_3d_slave_set_tint()) */
+static unsigned int                         __jo_3d_tint_frame_first_clock = 0;
+/** @brief Difference of tint (gouraud units, each component) under which a copy is used for another tint (the characters of
+ *  a room have nearly the same tint: fewer copies written) */
+# define JO_3D_TINT_NEAR                    (3)
+
+/** @brief A tint packed (see jo_3d_set_tint()) */
+static  __jo_force_inline int               jo_3d_pack_tint(const int r, const int g, const int b)
+{
+    // (steps of 2 gouraud units: fewer copies)
+    return (((JO_MIN(JO_MAX(r, -31), 31) >> 1) & 0x1f) | (((JO_MIN(JO_MAX(g, -31), 31) >> 1) & 0x1f) << 5) |
+            (((JO_MIN(JO_MAX(b, -31), 31) >> 1) & 0x1f) << 10));
+}
 
 void                                        jo_3d_set_tint(const int r, const int g, const int b)
 {
-    // (steps of 2 gouraud units: fewer copies)
-    __jo_3d_tint = ((JO_MIN(JO_MAX(r, -31), 31) >> 1) & 0x1f) | (((JO_MIN(JO_MAX(g, -31), 31) >> 1) & 0x1f) << 5) |
-                   (((JO_MIN(JO_MAX(b, -31), 31) >> 1) & 0x1f) << 10);
+    __jo_3d_tint = jo_3d_pack_tint(r, g, b);
+}
+
+unsigned short                              jo_3d_get_tint(void)
+{
+    return ((unsigned short)__jo_3d_tint);
+}
+
+void                                        jo_3d_set_packed_tint(const unsigned short tint)
+{
+    __jo_3d_tint = tint;
+}
+
+void                                        jo_3d_slave_set_tint(const unsigned short tint)
+{
+    __jo_3d_slave_tint = tint;
+}
+
+static void                                 __jo_3d_tint_new_frame(void)
+{
+    __jo_3d_tint_frame_first_clock = __jo_3d_tint_clock + 1;
 }
 
 /** @brief A component of a packed tint (signed, gouraud units) */
@@ -445,7 +494,7 @@ static  __jo_force_inline int               jo_3d_tint_component(const int tint,
  *  @remarks Not inlined: its tables on the stack only while a copy is written (not in the frame of jo_3d_draw_polygons(), the
  *           short stack of the slave CPU)
  */
-static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_cache * const c, const int variant, const int tint)
+static __attribute__((noinline)) bool       jo_3d_write_tint(const jo_3d_tint_cache * const c, const int variant, const int tint)
 {
     jo_color                                *colors;
     const jo_color                          *in;
@@ -462,7 +511,7 @@ static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_ca
 
     colors = (jo_color *)jo_malloc(c->count * 4 * sizeof(jo_color));
     if (colors == JO_NULL)
-        return;
+        return (false);
     tr = jo_3d_tint_component(tint, 0);
     tg = jo_3d_tint_component(tint, 5);
     tb = jo_3d_tint_component(tint, 10);
@@ -481,9 +530,71 @@ static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_ca
     }
     jo_dma_copy(colors, (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(c->table[variant])), c->count * 4 * sizeof(jo_color));
     jo_free(colors);
+    return (true);
 }
 
-/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the current tint (0: no tint, or no copy) */
+/** @brief Difference of 2 packed tints: the biggest of their components (gouraud units) */
+static  __jo_force_inline int               jo_3d_tint_distance(const int a, const int b)
+{
+    int                                     d;
+    int                                     e;
+
+    d = JO_ABS(jo_3d_tint_component(a, 0) - jo_3d_tint_component(b, 0));
+    e = JO_ABS(jo_3d_tint_component(a, 5) - jo_3d_tint_component(b, 5));
+    d = JO_MAX(d, e);
+    e = JO_ABS(jo_3d_tint_component(a, 10) - jo_3d_tint_component(b, 10));
+    return (JO_MAX(d, e));
+}
+
+/** @brief The copy of the tables of a mesh nearest to a tint (see jo_3d_tint_offset())
+ *  @return The copy, -1: none near enough (JO_3D_TINT_NEAR)
+ */
+static  __jo_force_inline int               jo_3d_tint_nearest(const jo_3d_tint_cache * const c, const int tint)
+{
+    int                                     v;
+    int                                     best;
+    int                                     distance;
+    int                                     d;
+
+    best = -1;
+    distance = JO_3D_TINT_NEAR + 1;
+    for (JO_ZERO(v); v < JO_3D_TINT_VARIANTS; ++v)
+    {
+        if (c->tint[v] < 0)
+            continue;
+        d = jo_3d_tint_distance(c->tint[v], tint);
+        if (d < distance)
+        {
+            distance = d;
+            best = v;
+        }
+    }
+    return (best);
+}
+
+/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the tint of the slave CPU (0: no tint, or no
+ *  copy): the copies prepared by the master CPU (see jo_3d_slave_set_tint()), read only, the nearest one */
+static unsigned short                       jo_3d_slave_tint_offset(const jo_3d_polygon_data * const pdata)
+{
+    const jo_3d_tint_cache                  *c;
+    int                                     k;
+    int                                     v;
+
+    if (__jo_3d_slave_tint == 0)
+        return (0);
+    for (k = 0, c = __jo_3d_tints; k < JO_3D_TINT_MESHES; ++k, ++c)
+        if (c->key == pdata)
+        {
+            v = jo_3d_tint_nearest(c, __jo_3d_slave_tint);
+            return (v < 0 ? 0 : (unsigned short)(c->table[v] - c->first));
+        }
+    return (0);
+}
+
+/** @brief The offset to the tinted copy of the gouraud tables of a mesh for the current tint (0: no tint, or no copy)
+ *  @remarks A copy used in this frame (see __jo_3d_tint_new_frame()) is not written again: the slave CPU draws with it
+ *  (jo_3d_slave_tint_offset()). The copies written in this frame are all used: the nearest one (JO_3D_TINT_NEAR), or none
+ */
 static unsigned short                       jo_3d_tint_offset(const jo_3d_polygon_data * const pdata)
 {
     jo_3d_tint_cache                        *c;
@@ -556,7 +667,7 @@ static unsigned short                       jo_3d_tint_offset(const jo_3d_polygo
         c->key = pdata;
     }
     ++__jo_3d_tint_clock;
-    oldest = 0;
+    oldest = -1;
     for (JO_ZERO(v); v < JO_3D_TINT_VARIANTS; ++v)
     {
         if (c->tint[v] == __jo_3d_tint)
@@ -564,14 +675,34 @@ static unsigned short                       jo_3d_tint_offset(const jo_3d_polygo
             c->used[v] = __jo_3d_tint_clock;
             return ((unsigned short)(c->table[v] - c->first));
         }
-        if (c->used[v] < c->used[oldest])
+        // (a copy used in this frame is kept)
+        if (c->tint[v] >= 0 && c->used[v] >= __jo_3d_tint_frame_first_clock)
+            continue;
+        if (oldest < 0 || c->used[v] < c->used[oldest])
             oldest = v;
     }
+    if (oldest < 0)
+    {
+        // (all the copies are used in this frame: the nearest one)
+        v = jo_3d_tint_nearest(c, __jo_3d_tint);
+        if (v < 0)
+            return (0);
+        c->used[v] = __jo_3d_tint_clock;
+        return ((unsigned short)(c->table[v] - c->first));
+    }
     // A new tint: the copy used the longest time ago
-    jo_3d_write_tint(c, oldest, __jo_3d_tint);
+    // (out of memory: the copy is not written, not marked as this tint)
+    if (!jo_3d_write_tint(c, oldest, __jo_3d_tint))
+        return (0);
     c->tint[oldest] = __jo_3d_tint;
     c->used[oldest] = __jo_3d_tint_clock;
     return ((unsigned short)(c->table[oldest] - c->first));
+}
+
+void                                        jo_3d_prepare_tint(const jo_3d_mesh * const mesh)
+{
+    if (mesh != JO_NULL)
+        jo_3d_tint_offset(&mesh->data);
 }
 
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
@@ -582,13 +713,14 @@ void                                        __jo_3d_forget_sprites_from(const in
     // them too)
     for (JO_ZERO(i); i < JO_MAX_SPRITE; ++i)
     {
-        if (__jo_3d_tiles[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_tiles[i].sprite[0] >= sprite_id))
+        // (the sprites of the last level are the last ones: one of them freed, the tiles are lost)
+        if (__jo_3d_tiles[i].levels != 0 && (i >= sprite_id || (int)JO_3D_TILE_LAST_SPRITE(&__jo_3d_tiles[i]) >= sprite_id))
         {
             __jo_3d_tiles[i].levels = 0;
             __jo_3d_tiles[i].error = 0;
             __jo_3d_tiles[i].depth = 0;
         }
-        if (__jo_3d_mipmaps[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_mipmaps[i].first >= sprite_id))
+        if (__jo_3d_mipmaps[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_mipmaps[i].first + __jo_3d_mipmaps[i].levels - 1 >= sprite_id))
             __jo_3d_mipmaps[i].levels = 0;
         jo_3d_update_texture_flags(i);
     }
@@ -610,15 +742,36 @@ void                                        __jo_3d_forget_sprites_from(const in
 void                                        __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata)
 {
     int                                     i;
+    int                                     sprite;
 
-    // (the copies stay in the VRAM: a new mesh in the cache gets new copies)
+    // (the copies are given back when they are the last sprite: else they stay in the VRAM, a new mesh in the cache gets
+    // new copies)
     for (JO_ZERO(i); i < JO_3D_TINT_MESHES; ++i)
         if (__jo_3d_tints[i].key == pdata)
         {
+            sprite = __jo_3d_tints[i].first_sprite;
             if (__jo_3d_tints[i].colors != JO_NULL)
                 jo_free(__jo_3d_tints[i].colors);
             jo_memset(&__jo_3d_tints[i], 0, sizeof(__jo_3d_tints[i]));
+            if (sprite > 0 && sprite == jo_get_last_sprite_id())
+                jo_sprite_free_from(sprite);
         }
+}
+
+void                                        __jo_3d_forget_environment(const jo_3d_polygon_data * const pdata)
+{
+    int                                     k;
+    int                                     sprite;
+
+    k = jo_3d_environment_of(pdata);
+    if (k < 0)
+        return;
+    sprite = __jo_3d_environments[k].first_sprite;
+    __jo_3d_environments[k].key = JO_NULL;
+    jo_3d_count_environments();
+    // (its tiles given back when they are the last sprite)
+    if (sprite > 0 && sprite == jo_get_last_sprite_id())
+        jo_sprite_free_from(sprite);
 }
 
 /* Gouraud tables of the clipped polygons: first table of the set of the frame (see JO_3D_CLIP_GOURAUD_SETS) */
@@ -626,6 +779,10 @@ static unsigned int                         __jo_3d_clip_table_base = 0;
 
 /* Clipping: the polygons are clipped when they go further than this distance outside of the screen (see jo_3d_set_guard_band()) */
 int                                         __jo_3d_guard_band = JO_3D_DEFAULT_GUARD_BAND;
+#ifdef JO_TEST_SPAN
+/* Test (JO_TEST_SPAN, read by the game): the vertices transformed by the master CPU, its polygons, the points of their meshes */
+unsigned int                                __jo_3d_test_span[3];
+#endif
 
 /* Statistics of the current frame */
 unsigned short                              __jo_3d_polygon_count = 0;
@@ -645,16 +802,20 @@ static bool                                 __jo_3d_slave_copy_started = false;
 static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, JO_3D_MAX_VERTICES, __jo_3d_view, JO_NULL, 0, -1, &__jo_vdp1_depth_bias, 0, 0,
                                                               JO_3D_CLIP_GOURAUD_TABLES,
                                                               &__jo_3d_polygon_count, &__jo_3d_vertice_count, &__jo_3d_displayed_polygon_count, false,
-                                                              false, 0, JO_NULL, 0, -1, &__jo_3d_guard_band, &__jo_3d_light_direction, 0, 0, 0, -1, 0};
+                                                              false, 0, JO_NULL, 0, -1, &__jo_3d_guard_band, &__jo_3d_light_direction, 0, 0, 0, -1, 0,
+                                                              JO_NULL, 0};
 
 /** @brief Reset the statistics of the frame (Internal usage) */
 void                                        __jo_3d_end_frame(void)
 {
+    __jo_3d_tint_new_frame();
     JO_ZERO(__jo_3d_polygon_count);
     JO_ZERO(__jo_3d_vertice_count);
     JO_ZERO(__jo_3d_displayed_polygon_count);
     JO_ZERO(__jo_3d_master.clip_table_count);
     *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[0]) = 0;
+    // (the tables of the slave CPU too: a frame without jo_3d_slave_begin() lost them)
+    *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[1]) = 0;
     __jo_3d_clip_table_base += JO_3D_CLIP_GOURAUD_TABLES;
     if (__jo_3d_clip_table_base >= JO_3D_CLIP_GOURAUD_TABLES * JO_3D_CLIP_GOURAUD_SETS)
         JO_ZERO(__jo_3d_clip_table_base);
@@ -670,7 +831,9 @@ void                                        __jo_3d_end_frame(void)
  */
 static  __jo_force_inline long long         jo_3d_squared_length(const jo_pos3D_fixed * const v)
 {
-    return (((long long)v->x * v->x + (long long)v->y * v->y + (long long)v->z * v->z) >> 16);
+    // (the sum unsigned: 3 squares of components over 26755.0 overflowed the signed 64 bits)
+    return ((long long)(((unsigned long long)((long long)v->x * v->x) + (unsigned long long)((long long)v->y * v->y) +
+                         (unsigned long long)((long long)v->z * v->z)) >> 16));
 }
 
 /** @brief Component of a normalized vector: x * inverse / 2^shift, rounded toward zero like a division
@@ -700,8 +863,20 @@ static void                                 jo_3d_normalize(jo_pos3D_fixed *v)
     jo_fixed                                inverse;
 
     len2 = jo_3d_squared_length(v);
-    if (len2 <= 0)
+    if (len2 < JO_FIXED_1)
+    {
+        // A vector shorter than 1.0: its squared length has less than 16 bits, the square root was up to 41 % off (the right
+        // axis of a camera that looks almost straight down stretched the picture). 16 times longer, the same direction (x 256
+        // could jump over the range [1.0, 181.0) and loop with the >> 8 below)
+        if ((v->x != 0 || v->y != 0 || v->z != 0) && JO_ABS(v->x) < 0x10000 && JO_ABS(v->y) < 0x10000 && JO_ABS(v->z) < 0x10000)
+        {
+            v->x <<= 4;
+            v->y <<= 4;
+            v->z <<= 4;
+            jo_3d_normalize(v);
+        }
         return;
+    }
     if (len2 > JO_FIXED_MAX)
     {
         v->x >>= 8;
@@ -778,13 +953,13 @@ void                                        jo_3d_push_matrix(void)
 {
 #ifdef JO_DEBUG
     if (__jo_3d_matrix_level >= JO_3D_MATRIX_STACK_DEPTH - 1)
-    {
         jo_core_error("Too many jo_3d_push_matrix()");
-        return;
-    }
 #endif
     if (__jo_3d_matrix_level >= JO_3D_MATRIX_STACK_DEPTH - 1)
+    {
+        ++__jo_3d_matrix_overflow;
         return;
+    }
     jo_3d_copy_matrix(__jo_3d_matrix_stack[__jo_3d_matrix_level + 1], (const jo_fixed (*)[3])__jo_3d_matrix_stack[__jo_3d_matrix_level]);
     ++__jo_3d_matrix_level;
 }
@@ -792,12 +967,18 @@ void                                        jo_3d_push_matrix(void)
 void                                        jo_3d_pop_matrix(void)
 {
 #ifdef JO_DEBUG
-    if (__jo_3d_matrix_level <= 0)
+    if (__jo_3d_matrix_level <= 0 && __jo_3d_matrix_overflow == 0)
     {
         jo_core_error("Too many jo_3d_pop_matrix()");
         return;
     }
 #endif
+    // (the pop of a refused push: the level stays, the stack stays balanced)
+    if (__jo_3d_matrix_overflow > 0)
+    {
+        --__jo_3d_matrix_overflow;
+        return;
+    }
     if (__jo_3d_matrix_level <= 0)
         return;
     --__jo_3d_matrix_level;
@@ -963,6 +1144,8 @@ static void                                 jo_3d_multiply_current_matrix(jo_3d_
 void                                        jo_3d_reflect_matrix(const jo_pos3D_fixed * const normal, const jo_fixed distance)
 {
     jo_3d_matrix                            r;
+    jo_fixed                                columns[3][3];
+    jo_fixed                                offset[3];
     const jo_fixed                          *n;
     int                                     i;
     int                                     j;
@@ -973,9 +1156,17 @@ void                                        jo_3d_reflect_matrix(const jo_pos3D_
     {
         for (j = 0; j < 3; ++j)
             r[i][j] = (i == j ? JO_FIXED_1 : 0) - 2 * jo_fixed_mult(n[i], n[j]);
-        r[3][i] = 2 * jo_fixed_mult(distance, n[i]);
+        r[3][i] = jo_fixed_mult(distance, n[i]);
     }
+    // (the translation d n added twice in the view space: 2 d n overflowed for a plane at 16384 units or more from the
+    // origin, the reflection of a mirror of a big level was at a wrong place. The camera is near the plane: its
+    // translation added first, each half fits)
+    jo_3d_get_columns(JO_3D_CURRENT_MATRIX, columns);
+    jo_3d_transform_vector(columns, r[3], offset);
     jo_3d_multiply_current_matrix(r);
+    JO_3D_CURRENT_MATRIX[3][0] += offset[0];
+    JO_3D_CURRENT_MATRIX[3][1] += offset[1];
+    JO_3D_CURRENT_MATRIX[3][2] += offset[2];
 }
 
 void                                        jo_3d_set_mirror(const bool mirror)
@@ -1071,19 +1262,28 @@ void                                        __jo_3d_look_at(const jo_fixed * con
 ** Projection & light
 */
 
+/** @brief The angle of view (see __jo_3d_set_screen_mode()) */
+static jo_angle                             __jo_3d_perspective_angle = JO_DEG_TO_ANGLE(JO_3D_DEFAULT_PERSPECTIVE_ANGLE);
+
 void                                        __jo_3d_set_perspective(const jo_angle angle)
 {
     jo_fixed                                s;
     jo_fixed                                c;
 
+    __jo_3d_perspective_angle = angle;
     s = jo_sin_angle((jo_angle)(angle >> 1));
     c = jo_cos_angle((jo_angle)(angle >> 1));
     if (s <= 0)
         s = 1;
     // Distance between the eye and the screen: (screen width / 2) / tan(angle / 2)
     // (the divider of the CPU instead of a 64 bits division: the same quotient, (width / 2) x c < 2^31)
-    __jo_vdp1_projection_distance = jo_fixed_div(JO_TV_WIDTH_2 * c, s);
+    __jo_vdp1_projection_distance = jo_fixed_div(__jo_screen.width_2 * c, s);
     __jo_vdp1_update_near_clip();
+}
+
+void                                        __jo_3d_set_screen_mode(void)
+{
+    __jo_3d_set_perspective(__jo_3d_perspective_angle);
 }
 
 void                                        __jo_3d_light(const jo_pos3D_fixed * const light)
@@ -1125,7 +1325,12 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
     long long                               d01;
     long long                               d02;
     long long                               d12;
+    long long                               tolerance;
+    long long                               c[3][3];
+    long long                               biggest;
     jo_fixed                                scale;
+    int                                     i;
+    int                                     j;
 
     m = matrix;
     context->ready = true;
@@ -1136,12 +1341,47 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
     d01 = ((long long)m[0][0] * m[1][0] + (long long)m[0][1] * m[1][1] + (long long)m[0][2] * m[1][2]) >> 16;
     d02 = ((long long)m[0][0] * m[2][0] + (long long)m[0][1] * m[2][1] + (long long)m[0][2] * m[2][2]) >> 16;
     d12 = ((long long)m[1][0] * m[2][0] + (long long)m[1][1] * m[2][1] + (long long)m[1][2] * m[2][2]) >> 16;
+    // (relative to the scale: 1/256 of |row 0|², the absolute tolerance of a scale of 1. A small flattened model (0.06,
+    // 0.03, 0.06) passed as uniform, its normals were lit as the ones of a sphere)
+    tolerance = JO_MAX(s0 >> 8, 1);
     context->uniform_scale = s0 > 0 && s0 <= JO_FIXED_MAX &&
-                             JO_ABS(s1 - s0) <= JO_3D_UNIFORM_SCALE_TOLERANCE && JO_ABS(s2 - s0) <= JO_3D_UNIFORM_SCALE_TOLERANCE &&
-                             JO_ABS(d01) <= JO_3D_UNIFORM_SCALE_TOLERANCE && JO_ABS(d02) <= JO_3D_UNIFORM_SCALE_TOLERANCE &&
-                             JO_ABS(d12) <= JO_3D_UNIFORM_SCALE_TOLERANCE;
+                             JO_ABS(s1 - s0) <= tolerance && JO_ABS(s2 - s0) <= tolerance &&
+                             JO_ABS(d01) <= tolerance && JO_ABS(d02) <= tolerance && JO_ABS(d12) <= tolerance;
     if (!context->uniform_scale)
+    {
+        // A scale that is not uniform: a normal is transformed by the inverse of the transposed matrix, not by the matrix
+        // (a slope of a model flattened 4 times was lit 12 levels off). The cofactors (rows 1 x 2, 2 x 0, 0 x 1): the same
+        // directions, the length doesn't matter (normalized after), the sign of the determinant kept
+        // (the products kept whole (Q32): shifted >> 16, the cofactors of a small model scaled by (0.003, 0.002, 0.003) were
+        // all 0, its polygons were not lit; below 0.06 their directions were rounded)
+        for (JO_ZERO(i); i < 3; ++i)
+        {
+            const jo_fixed *a = m[(i + 1) % 3];
+            const jo_fixed *b = m[(i + 2) % 3];
+
+            c[i][0] = (long long)a[1] * b[2] - (long long)a[2] * b[1];
+            c[i][1] = (long long)a[2] * b[0] - (long long)a[0] * b[2];
+            c[i][2] = (long long)a[0] * b[1] - (long long)a[1] * b[0];
+        }
+        // (in 32 bits: halved while too big, the directions don't change)
+        for (biggest = 0, i = 0; i < 3; ++i)
+            for (JO_ZERO(j); j < 3; ++j)
+                biggest = JO_MAX(biggest, JO_ABS(c[i][j]));
+        for (; biggest >= (1 << 24); biggest >>= 1)
+            for (JO_ZERO(i); i < 3; ++i)
+                for (JO_ZERO(j); j < 3; ++j)
+                    c[i][j] >>= 1;
+        // (after: the products of the 64 bits cofactors overflowed)
+        if ((c[0][0] * m[0][0] + c[0][1] * m[0][1] + c[0][2] * m[0][2]) < 0)
+            for (JO_ZERO(i); i < 3; ++i)
+                for (JO_ZERO(j); j < 3; ++j)
+                    c[i][j] = -c[i][j];
+        // (the columns: n' = n.x c[0] + n.y c[1] + n.z c[2], like the rows of the matrix with jo_3d_transform_vector())
+        for (JO_ZERO(i); i < 3; ++i)
+            for (JO_ZERO(j); j < 3; ++j)
+                context->columns[j][i] = (jo_fixed)c[i][j];
         return;
+    }
     scale = jo_fixed_sqrt((jo_fixed)s0);
     if (scale == 0)
     {
@@ -1223,6 +1463,17 @@ static const unsigned char                  jo_3d_light_clamp[JO_3D_RGB_COMPONEN
     31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31
 };
 
+/** @brief Shades of the palette lighting (see jo_3d_set_palette_light()): 0 = off */
+static int                                  __jo_3d_palette_light_levels = 0;
+/** @brief Color codes between 2 shades of a color (see jo_3d_set_palette_light()) */
+static int                                  __jo_3d_palette_light_stride = 0;
+
+void                                        jo_3d_set_palette_light(const int levels, const int stride)
+{
+    __jo_3d_palette_light_levels = levels > 0 && levels <= JO_3D_LIGHT_MAX_LEVEL + 1 ? levels : 0;
+    __jo_3d_palette_light_stride = stride;
+}
+
 /** @brief Apply the lighting to a VDP1 command
  *  @param cmd VDP1 command
  *  @param context Lighting context of the object
@@ -1237,6 +1488,7 @@ static  __jo_force_inline void              jo_3d_apply_light(jo_vdp1_command *c
     jo_fixed                                d;
     int                                     level;
     int                                     color;
+    int                                     mode;
 
     if (!context->ready)
         jo_3d_prepare_light(context, context->matrix);
@@ -1256,13 +1508,31 @@ static  __jo_force_inline void              jo_3d_apply_light(jo_vdp1_command *c
     level = JO_3D_LIGHT_NEUTRAL_LEVEL;
     if (d)
         level += (-JO_MULT_BY_16(d) + (d > 0 ? 1 : -1)) >> 16;
+    if (__jo_3d_palette_light_levels && (attribute->sort & JO_3D_USE_TEXTURE ?
+        (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_BANK : !(attribute->color & JO_COLOR_SATURN_MSB)))
+    {
+        cmd->colr = (unsigned short)(attribute->color + ((level * __jo_3d_palette_light_levels) >> 5) * __jo_3d_palette_light_stride);
+        return;
+    }
     if (attribute->sort & JO_3D_USE_TEXTURE)
     {
-        // Gouraud shading with the same brightness for the 4 vertices
-        cmd->pmod = (cmd->pmod & ~JO_VDP1_COLOR_CALC_MASK) | JO_VDP1_COLOR_CALC_GOURAUD;
+        // Gouraud shading with the same brightness for the 4 vertices (RGB frame buffer only)
+        if (__jo_screen.hires)
+            return;
+        // Gouraud with half transparency (7) or half luminance (6) kept, the shadow (1) is not lit (1 + gouraud is
+        // prohibited)
+        mode = cmd->pmod & JO_VDP1_COLOR_CALC_MASK;
+        if (mode == 1)
+            return;
+        // (the half transparency or luminance of a gouraud polygon too: 7 and 6 became 4)
+        mode &= 3;
+        cmd->pmod = (cmd->pmod & ~JO_VDP1_COLOR_CALC_MASK) | JO_VDP1_COLOR_CALC_GOURAUD | (mode == 2 || mode == 3 ? mode : 0);
         cmd->grda = JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + level;
         return;
     }
+    // A palette color without the palette lighting (jo_3d_set_palette_light()): not lit (its index is not a RGB color)
+    if (!(attribute->color & JO_COLOR_SATURN_MSB))
+        return;
     // Untextured polygon: change the color itself (each component + level - 16, between 0 and 31)
     clamp = jo_3d_light_clamp + level;
     color = attribute->color;
@@ -1280,7 +1550,8 @@ static  __jo_force_inline bool              jo_3d_is_lit(const jo_3d_polygon_att
 {
     return ((attribute->sort & JO_3D_USE_LIGHT) && !(attribute->sort & JO_3D_USE_PALETTE) &&
             ((attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_RGB ||
-             (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_LOOKUP));
+             (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_LOOKUP ||
+             (__jo_3d_palette_light_levels && (attribute->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_BANK)));
 }
 
 /** @brief Outcode of a vertex: position against the screen, the guard band and the near plane
@@ -1914,6 +2185,56 @@ static __jo_force_inline jo_fixed           jo_3d_unproject(const int d, const j
     return ((jo_fixed)((((long long)d * z) * inverse_pd) >> 16));
 }
 
+/** @brief View space position of a vertex of the current object (a polygon clipped or drawn in parts): kept for the vertices
+ *  behind the near plane or very far outside of the screen (JO_3D_CODE_VIEW), the others transformed again from the points
+ *  of the object (taken back from their rounded screen positions, the error was half a pixel x the depth / the projection
+ *  distance: 1.5 units for a corner 500 units away, 12 pixels where the polygon is cut by the near plane; the line of the
+ *  cut of a big floor 2 to 5 pixels short, a wedge of background under it, tests/harness/glitch.py), else from the screen
+ *  @param ctx CPU context
+ *  @param v Vertex
+ *  @param w Window (projection center)
+ *  @param inverse_pd 1 / projection distance
+ *  @param out View space position (x, y, z)
+ */
+static void                                 jo_3d_vertex_view(const jo_3d_cpu_context * const ctx, const jo_3d_vertex * const v,
+                                                              const jo_vdp1_window * const w, const jo_fixed inverse_pd, jo_fixed out[3])
+{
+    const jo_3d_view_position               *position;
+    const jo_3d_part                        *part;
+    jo_fixed                                (*m)[3];
+    jo_pos3D_fixed                          p;
+    unsigned int                            index;
+    int                                     i;
+
+    out[2] = JO_3D_VERTEX_Z(v);
+    if (v->zc & JO_3D_CODE_VIEW)
+    {
+        position = JO_3D_VIEW_POSITION(ctx, v);
+        out[0] = position->x;
+        out[1] = position->y;
+        return;
+    }
+    // (a vertex of the object: its index in the array of the CPU; the matrix of its part (the bones of a skeleton))
+    index = (unsigned int)((const char *)v - (const char *)ctx->vertices) / sizeof(jo_3d_vertex);
+    if (ctx->points != JO_NULL && v >= ctx->vertices && index < ctx->point_count)
+    {
+        m = ctx->matrix;
+        if (ctx->parts != JO_NULL)
+            for (JO_ZERO(i), part = ctx->parts; i < ctx->part_count; ++i, ++part)
+                if (index - part->first < part->count)
+                {
+                    m = part->matrix;
+                    break;
+                }
+        jo_3d_transform_point_by((const jo_fixed (*)[3])m, &ctx->points[index], &p);
+        out[0] = p.x;
+        out[1] = p.y;
+        return;
+    }
+    out[0] = jo_3d_unproject(JO_3D_VERTEX_X(v) - JO_3D_WINDOW_CX(w), out[2], inverse_pd);
+    out[1] = jo_3d_unproject(JO_3D_VERTEX_Y(v) - JO_3D_WINDOW_CY(w), out[2], inverse_pd);
+}
+
 /** @brief Clip a polygon against one plane (Sutherland-Hodgman)
  *  @param in Input polygon
  *  @param n Input vertex count
@@ -1940,32 +2261,35 @@ static int                                  jo_3d_clip_plane(const jo_3d_clip_ve
     int                                     next;
     jo_fixed                                k;
 
-    // Signed distance to the plane (positive inside): the plane chosen once, not for each vertex
+    // Signed distance to the plane (positive inside): the plane chosen once, not for each vertex. Divided by 8: the
+    // distances and their differences of 2 vertices far from the camera (more than 16384 units, on both sides)
+    // overflowed, the point of the edge on the plane was wrong (spikes on a sky box or a huge ground). The signs and
+    // the ratios don't change
     switch (plane)
     {
         case 0:
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].z - near_z;
+                d[i] = (in[i].z >> 3) - (near_z >> 3);
             break;
         case 1:
             k = context->planes[0];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].x + jo_fixed_mult(in[i].z, k);
+                d[i] = (in[i].x >> 3) + (jo_fixed_mult(in[i].z, k) >> 3);
             break;
         case 2:
             k = context->planes[1];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = jo_fixed_mult(in[i].z, k) - in[i].x;
+                d[i] = (jo_fixed_mult(in[i].z, k) >> 3) - (in[i].x >> 3);
             break;
         case 3:
             k = context->planes[2];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].y + jo_fixed_mult(in[i].z, k);
+                d[i] = (in[i].y >> 3) + (jo_fixed_mult(in[i].z, k) >> 3);
             break;
         default:
             k = context->planes[3];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = jo_fixed_mult(in[i].z, k) - in[i].y;
+                d[i] = (jo_fixed_mult(in[i].z, k) >> 3) - (in[i].y >> 3);
             break;
     }
     JO_ZERO(outside);
@@ -2002,9 +2326,10 @@ static int                                  jo_3d_clip_plane(const jo_3d_clip_ve
             db = dt;
         }
         t = jo_fixed_div(da, da - db);
-        out[count].x = a->x + jo_fixed_mult(b->x - a->x, t);
-        out[count].y = a->y + jo_fixed_mult(b->y - a->y, t);
-        out[count].z = plane == 0 ? near_z : a->z + jo_fixed_mult(b->z - a->z, t);
+        // (the differences of 2 far vertices halved: they overflowed too)
+        out[count].x = a->x + (jo_fixed_mult((b->x >> 1) - (a->x >> 1), t) << 1);
+        out[count].y = a->y + (jo_fixed_mult((b->y >> 1) - (a->y >> 1), t) << 1);
+        out[count].z = plane == 0 ? near_z : a->z + (jo_fixed_mult((b->z >> 1) - (a->z >> 1), t) << 1);
         out[count].u = a->u + jo_fixed_mult(b->u - a->u, t);
         out[count].v = a->v + jo_fixed_mult(b->v - a->v, t);
         ++count;
@@ -2031,7 +2356,7 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
                                                                const jo_vdp1_window * const w, const int right, const int bottom,
                                                                jo_3d_clip_context * const context, jo_3d_clip_vertex out[JO_3D_CLIP_MAX_VERTICES])
 {
-    const jo_3d_view_position               *position;
+    jo_fixed                                exact[3];
     register int                            i;
     int                                     n;
     int                                     count;
@@ -2073,18 +2398,12 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
             out[i].y = view[i][1];
             out[i].z = view[i][2];
         }
-        else if (in[i]->zc & JO_3D_CODE_VIEW)
-        {
-            position = JO_3D_VIEW_POSITION(ctx, in[i]);
-            out[i].x = position->x;
-            out[i].y = position->y;
-            out[i].z = JO_3D_VERTEX_Z(in[i]);
-        }
         else
         {
-            out[i].z = JO_3D_VERTEX_Z(in[i]);
-            out[i].x = jo_3d_unproject(JO_3D_VERTEX_X(in[i]) - JO_3D_WINDOW_CX(w), out[i].z, context->inverse_pd);
-            out[i].y = jo_3d_unproject(JO_3D_VERTEX_Y(in[i]) - JO_3D_WINDOW_CY(w), out[i].z, context->inverse_pd);
+            jo_3d_vertex_view(ctx, in[i], w, context->inverse_pd, exact);
+            out[i].x = exact[0];
+            out[i].y = exact[1];
+            out[i].z = exact[2];
         }
         out[i].u = u[i];
         out[i].v = v[i];
@@ -2415,6 +2734,21 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     ++*ctx->displayed_polygon_count;
     function = a->direction & JO_VDP1_DIRECTION_FUNCTION_MASK;
     pmod = a->draw_mode | ctx->clip_mode;
+    // (the pre-clipping disabled for a polygon inside of the screen, see jo_3d_pre_clipping(): a window without clipping,
+    // the system clipping area. The sign bits of the packed positions (x, y) and of the packed distances to the right and
+    // bottom sides: a borrow of y into x only comes with a y out of the area, found by its own sign. The test of the 8
+    // coordinates cost 1 microsecond per polygon to the environment map demo, all its polygons in the C code)
+    if (ctx->clip_mode == 0)
+    {
+        const unsigned int                  area = ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+        const unsigned int                  p0 = (unsigned int)v0->xy;
+        const unsigned int                  p1 = (unsigned int)v1->xy;
+        const unsigned int                  p2 = (unsigned int)v2->xy;
+        const unsigned int                  p3 = (unsigned int)v3->xy;
+
+        if (((p0 | p1 | p2 | p3 | (area - p0) | (area - p1) | (area - p2) | (area - p3)) & 0x80008000u) == 0)
+            pmod |= JO_VDP1_PRE_CLIPPING_DISABLE;
+    }
     // Gouraud shading alone or with half luminance / half transparency (modes 4, 6 and 7)
     grda = (pmod & JO_VDP1_COLOR_CALC_GOURAUD) ? (a->gouraud_table != 0 ? (unsigned short)(a->gouraud_table + ctx->gouraud_offset) : 0) : 0;
     // An untextured polygon: its vertices rotated by one when the VDP1 draws it with fewer lines (0: not rotated, 1: B C D A)
@@ -2627,6 +2961,24 @@ static void                                 jo_3d_orient_clipped_polygon(jo_3d_c
         clipped[i] = turned[i];
 }
 
+/** @brief Place of a point of a clipped triangle in the quad A B C C drawn by the VDP1, along its line (for its gouraud colors,
+ *  see jo_3d_emit_clipped_polygon()). The clipping interpolates the (u, v) of the corners A (0, 0), B (1, 0) and C (1, 1)
+ *  along the edges: u = b + c and v = c for the point b B + c C + (1 - b - c) A. The VDP1 draws the lines of the quad from
+ *  the edge A-D (A-C) to the edge B-C: the point is at b / (1 - c) of its line
+ *  @param u Position of the point given by the clipping
+ *  @param v Position of the point given by the clipping (from the edge A-B to C)
+ *  @return Position along the line of the VDP1 (0: the edge A-C, 1: the edge B-C)
+ */
+static  __jo_force_inline jo_fixed          jo_3d_triangle_u(const jo_fixed u, const jo_fixed v)
+{
+    // (C itself: its color, see jo_3d_gouraud_color())
+    if (v >= JO_FIXED_1)
+        return (JO_FIXED_1);
+    if (u <= v)
+        return (0);
+    return (jo_fixed_div(u - v, JO_FIXED_1 - v));
+}
+
 /** @brief Draw a polygon that crosses the near plane or goes far outside of the screen: it is clipped, then drawn in parts of 4 vertices
  *  @param view View space positions of the vertices (JO_NULL: vertices of the CPU)
  *  @param corner_colors Gouraud colors of the 4 vertices, JO_NULL: the gouraud table of the polygon
@@ -2693,6 +3045,12 @@ static bool                                 jo_3d_emit_clipped_polygon(jo_3d_cpu
         if (table[0] == table[1] && table[0] == table[2] && table[0] == table[3])
             for (JO_ZERO(i); i < n; ++i)
                 colors[i] = table[0];
+        else if (corner_colors == JO_NULL && v[3] == v[2])
+            // (a triangle: the VDP1 draws it as A B C C, the colors of a point are the ones of its place in that quad, see
+            // jo_3d_triangle_u(); the bilinear colors of (u, v) put some of the color of B on the edge A-C, a seam with the
+            // triangle next to it)
+            for (JO_ZERO(i); i < n; ++i)
+                colors[i] = jo_3d_gouraud_color(table, jo_3d_triangle_u(clipped[i].u, clipped[i].v), clipped[i].v);
         else
             for (JO_ZERO(i); i < n; ++i)
                 colors[i] = jo_3d_gouraud_color(table, clipped[i].u, clipped[i].v);
@@ -2816,11 +3174,25 @@ static unsigned int                         __jo_3d_slave_command_count;
 
 /** @brief VDP1 commands of the frame made by both CPUs so far (the master CPU: its table, the slave CPU: its commands not
  *  added yet, see jo_3d_slave_end()), read without the cache: the budget of the subdivisions is shared by the 2 CPUs (each
- *  one counting only its own commands, they overflowed the table together) */
-static  __jo_force_inline int               jo_3d_frame_command_total(void)
+ *  one counting only its own commands, they overflowed the table together)
+ *  @param ctx The CPU that draws
+ *  @param used Its commands so far (see jo_3d_draw_polygons(): the master CPU, the ones of the current object, added to the
+ *  frame at its end; the slave CPU, the ones of its job, the current object too)
+ *  @remarks With the commands of the current object: a big mesh near the camera (a room, a ground) was cut in parts without
+ *  limit, its commands not counted until its end; the table overflowed, the polygons after were not drawn
+ */
+static  __jo_force_inline int               jo_3d_frame_command_total(const jo_3d_cpu_context * const ctx, const unsigned int used)
 {
-    return (__jo_vdp1_frame_command_count() + (int)*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_slave_command_count));
+    return (__jo_vdp1_frame_command_count() + (int)used +
+            (ctx->slave ? 0 : (int)*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_slave_command_count)));
 }
+
+#ifdef JO_TEST_PATH_COUNTS
+volatile unsigned int                       __jo_3d_sub_reason = 0;
+# define JO_SUB_REASON(R)                   (__jo_3d_sub_reason = (R))
+#else
+# define JO_SUB_REASON(R)
+#endif
 
 /** @brief Check if a textured polygon must be drawn in parts, without the budget of the VDP1 commands (see
  *  jo_3d_subdivision_level()), not a polygon that crosses the near plane: the VDP1 maps the texture without perspective, the error
@@ -2845,10 +3217,12 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
     int                                     y[4];
     int                                     k;
 
-    // A polygon of a model cut in small quads when it was made that goes very far outside of the screen (beyond the guard
-    // band): in parts too, the parts outside are not drawn and the parts cut by the edges of the screen are small (cut as one
-    // polygon, each part of the fan got the whole texture: the texture broke along the cuts)
-    if ((any & JO_3D_CODE_GUARD) && (tiles->levels & JO_3D_TILES_NEAR_ONLY))
+    // A polygon that goes very far outside of the screen (beyond the guard band): in parts too, the parts outside are not
+    // drawn and the parts cut by the edges of the screen are small (cut as one polygon, each part of the fan got the whole
+    // texture: the texture broke along the cuts). All the textures with tiles, not only JO_3D_TILES_NEAR_ONLY: a big wall
+    // facing the camera 25 units away (no perspective to correct) was cut by the edges of the screen and got its whole
+    // texture on the screen (tests/harness/glitch.py, the room)
+    if (any & JO_3D_CODE_GUARD)
         return (JO_3D_TILE_LEVEL_COUNT(tiles) >= 2 ? 4 : 2);
     // Size on the screen (the vertices are projected)
     // (each position read once)
@@ -2873,23 +3247,36 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
                 (a->draw_mode & JO_VDP1_COLOR_CALC_HALF_TRANSPARENT) != JO_VDP1_COLOR_CALC_HALF_TRANSPARENT ? 2 : 4);
     // (the models cut in small quads when they were made: their quads are not cut, see jo_3d_set_texture_subdivision_near_only())
     if (tiles->levels & JO_3D_TILES_NEAR_ONLY)
+    {
+        JO_SUB_REASON(1);
         return (0);
+    }
     size = JO_MAX(xmax - xmin, ymax - ymin);
     // (the distortion allowed: the one of the texture, else the default)
     limit = tiles->error != 0 ? tiles->error : JO_3D_SUBDIVISION_ERROR;
     if (size < JO_MULT_BY_4(limit))
+    {
+        JO_SUB_REASON(2);
         return (0);
+    }
     zmin = JO_MIN(JO_MIN(JO_3D_VERTEX_Z(v[0]), JO_3D_VERTEX_Z(v[1])), JO_MIN(JO_3D_VERTEX_Z(v[2]), JO_3D_VERTEX_Z(v[3])));
     // (the ground: only next to the camera, where its texture slides the most; farther, the parts cost CPU time for little)
     if (tiles->depth != 0 && zmin > tiles->depth)
+    {
+        JO_SUB_REASON(3);
         return (0);
+    }
     zmax = JO_MAX(JO_MAX(JO_3D_VERTEX_Z(v[0]), JO_3D_VERTEX_Z(v[1])), JO_MAX(JO_3D_VERTEX_Z(v[2]), JO_3D_VERTEX_Z(v[3])));
     if (zmax - zmin < JO_DIV_BY_8(zmin))
+    {
+        JO_SUB_REASON(4);
         return (0);
+    }
     // (the ratio is less than 1: no overflow)
     error = JO_DIV_BY_4(jo_fixed2int(jo_fixed_mult(jo_int2fixed(JO_MIN(size, 16000)), jo_fixed_div(JO_DIV_BY_2(zmax - zmin), JO_DIV_BY_2(zmax) + JO_DIV_BY_2(zmin)))));
     if (error > JO_MULT_BY_4(limit) && JO_3D_TILE_LEVEL_COUNT(tiles) >= 2)
         return (4);
+    JO_SUB_REASON(error > limit ? 0 : 5);
     return (error > limit ? 2 : 0);
 }
 
@@ -2900,23 +3287,30 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
  *  (the commands after the last one were not drawn: polygons missing). Read only for a polygon to cut (3 reads of the
  *  counts of the 2 CPUs through their cache-through addresses for each polygon)
  */
-static  __jo_force_inline int               jo_3d_subdivision_level(jo_3d_vertex * const v[4], const unsigned int any,
+static  __jo_force_inline int               jo_3d_subdivision_level(const jo_3d_cpu_context * const ctx, const unsigned int used,
+                                                                    jo_3d_vertex * const v[4], const unsigned int any,
                                                                     const jo_3d_polygon_attribute * const a)
 {
     const jo_3d_texture_tiles               *tiles;
     int                                     level;
 
     if (!(a->sort & JO_3D_USE_TEXTURE))
+    {
+        JO_SUB_REASON(6);
         return (0);
+    }
     tiles = &__jo_3d_tiles[a->texture_id];
     if (tiles->levels == 0)
+    {
+        JO_SUB_REASON(7);
         return (0);
+    }
     // (the parts that cross the near plane are drawn in smaller parts, see jo_3d_emit_tile(); the frame nearly full: 2 x 2
     // parts, they still get their part of the texture)
     if (any & (JO_3D_CODE_NEAR | JO_3D_CODE_VIEW))
-        return (JO_3D_TILE_LEVEL_COUNT(tiles) >= 2 && jo_3d_frame_command_total() <= JO_3D_SUBDIVISION_BUDGET ? 4 : 2);
+        return (JO_3D_TILE_LEVEL_COUNT(tiles) >= 2 && jo_3d_frame_command_total(ctx, used) <= JO_3D_SUBDIVISION_BUDGET ? 4 : 2);
     level = jo_3d_subdivision_level_unbudgeted(v, any, a, tiles);
-    return (level != 0 && jo_3d_frame_command_total() > JO_3D_SUBDIVISION_BUDGET ? 0 : level);
+    return (level != 0 && jo_3d_frame_command_total(ctx, used) > JO_3D_SUBDIVISION_BUDGET ? 0 : level);
 }
 
 /** @brief Common data of the parts of a subdivided polygon (see jo_3d_emit_subdivided_polygon()) */
@@ -2934,8 +3328,9 @@ typedef struct
     bool                                    triangle;           // The polygon is a triangle (its last 2 vertices are the same)
     bool                                    flip_x;             // The tiles are read from the right (mirrored or flipped)
     bool                                    flip_y;             // The tiles are read from the bottom (flipped)
-    unsigned int                            tile_words[2];      // Texture words of the command of the first tile of each level
-    unsigned int                            tile_step[2];       // (address and size, see jo_3d_emit_tile_part()), and from a tile to the next
+    unsigned int                            tile_words[JO_3D_TILE_FINE_LEVELS]; // Texture words of the command of the first tile of each
+    unsigned int                            tile_step[JO_3D_TILE_FINE_LEVELS];  // level (address and size, see jo_3d_emit_tile_part()),
+                                                                // and from a tile to the next
     jo_vdp1_command                         *commands;
     unsigned short                          *keys;
     unsigned int                            reserved;
@@ -2946,14 +3341,18 @@ typedef struct
 
 /** @brief Largest distance to the center of the screen of the vertices of a tile drawn by jo_3d_emit_near_tile() (pixels): the
  *  VDP1 spends time on the pixels outside of the screen */
-# define JO_3D_NEAR_TILE_LIMIT              (JO_TV_WIDTH)
+# define JO_3D_NEAR_TILE_LIMIT              (__jo_screen.width)
 /** @brief A point of the clipping plane of jo_3d_emit_near_tile() nearer than this to the screen (pixels) is seen */
 # define JO_3D_NEAR_TILE_MARGIN             (8)
-/** @brief Largest distance to the center of the screen of a corner of a tile placed by jo_3d_extrapolate_near_tile() (pixels) */
-# define JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT (1024)
+/** @brief Largest distance to the center of the screen of a corner of a tile placed by jo_3d_extrapolate_near_tile() (pixels):
+ *  the guard band (the VDP1 draws the whole tile, its pixels out of the screen too. With 1024, a tile of a big wall 6 units
+ *  from the camera had a corner 700 pixels under the screen: the VDP1 was still drawing it at the end of the frame, the
+ *  nearest parts drawn after it were lost, holes in the wall (tests/harness/glitch.py, the room, a save state of Mednafen))
+ */
+# define JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT (JO_3D_MAX_GUARD_BAND)
 /** @brief Largest distance to the center of the screen of a corner of a tile used to place the other corners by
  *  jo_3d_extrapolate_near_tile() (pixels) */
-# define JO_3D_NEAR_TILE_ANCHOR_LIMIT       (JO_TV_WIDTH)
+# define JO_3D_NEAR_TILE_ANCHOR_LIMIT       (__jo_screen.width)
 /** @brief Smallest part of an edge of a tile in front of the clipping plane for jo_3d_extrapolate_near_tile() (1 / 4: the
  *  edge is drawn 4 times longer than its part on the screen at most) */
 # define JO_3D_NEAR_TILE_MIN_PART           (JO_FIXED_1 / 4)
@@ -2984,8 +3383,9 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
     jo_fixed                                ex;
     jo_fixed                                ey;
     jo_fixed                                ez;
-    int                                     sx[4];
-    int                                     sy[4];
+    jo_fixed                                sx[4];      // (Q16: the corners placed from the exact positions, rounded at the end;
+    jo_fixed                                sy[4];      // rounded first, the error grew by 1 / t: the edges 3 to 4 pixels away)
+    jo_fixed                                fixed_limit;
     int                                     count[4];
     int                                     seen;
     int                                     i;
@@ -2997,6 +3397,8 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
     int                                     limit;
 
     clip_z = s->near_z;
+    // (the screen positions are Q16: below 2^15 pixels)
+    fixed_limit = jo_int2fixed(JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT);
     // The anchors: the corners in front of the near plane near the screen, else farther
     for (limit = JO_3D_NEAR_TILE_ANCHOR_LIMIT; ; limit = JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
     {
@@ -3010,16 +3412,13 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
             if (in[i].z > clip_z)
             {
                 k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
-                sx[i] = jo_fixed_mult_to_int(in[i].x, k);
-                sy[i] = jo_fixed_mult_to_int(in[i].y, k);
-                anchor[i] = JO_ABS(sx[i]) <= limit && JO_ABS(sy[i]) <= limit;
-                if (anchor[i])
-                    ++seen;
-                else
-                {
-                    sx[i] = 0;
-                    sy[i] = 0;
-                }
+                // (far from the screen: x * k overflows a jo_fixed, the corner is no anchor)
+                if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) > limit || JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) > limit)
+                    continue;
+                sx[i] = jo_fixed_mult(in[i].x, k);
+                sy[i] = jo_fixed_mult(in[i].y, k);
+                anchor[i] = true;
+                ++seen;
             }
         }
         if (seen > 0 || limit == JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
@@ -3036,13 +3435,30 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
     {
         if (anchor[i])
             continue;
+        // (a little behind the near plane, near the screen: where it is on the screen too. Placed along its edges from 2
+        // anchors (the middle of 2 places, each one right along one edge only), its edges were not the ones of the tiles
+        // next to it, which place it from one anchor: a pinhole between them where the ground is cut by the near plane,
+        // tests/harness/glitch.py; it is the same corner for all of them this way)
+        if (in[i].z <= clip_z && in[i].z > JO_DIV_BY_2(clip_z))
+        {
+            k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
+            if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) <= JO_3D_NEAR_TILE_ANCHOR_LIMIT &&
+                JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) <= JO_3D_NEAR_TILE_ANCHOR_LIMIT)
+            {
+                sx[i] = jo_fixed_mult(in[i].x, k);
+                sy[i] = jo_fixed_mult(in[i].y, k);
+                count[i] = 1;
+                continue;
+            }
+        }
         if (in[i].z > clip_z)
         {
             k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
-            sx[i] = jo_fixed_mult_to_int(in[i].x, k);
-            sy[i] = jo_fixed_mult_to_int(in[i].y, k);
-            if (JO_ABS(sx[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT || JO_ABS(sy[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
+            if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT ||
+                JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
                 return (false);
+            sx[i] = jo_fixed_mult(in[i].x, k);
+            sy[i] = jo_fixed_mult(in[i].y, k);
             count[i] = 1;
             continue;
         }
@@ -3063,20 +3479,20 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
                 switch (j)
                 {
                     case 0:
-                        fa = (long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 1:
-                        fa = -(long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 2:
-                        fa = (long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 3:
-                        fa = -(long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     default:
                         fa = clip_z - in[n].z;
@@ -3106,8 +3522,9 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
             ey = in[n].y + jo_fixed_mult(dy, t);
             ez = in[n].z + jo_fixed_mult(dz, t);
             k = jo_fixed_div(__jo_vdp1_projection_distance, ez);
-            sx[i] += sx[n] + jo_fixed2int(jo_fixed_div(jo_int2fixed(jo_fixed_mult_to_int(ex, k) - sx[n]), t));
-            sy[i] += sy[n] + jo_fixed2int(jo_fixed_div(jo_int2fixed(jo_fixed_mult_to_int(ey, k) - sy[n]), t));
+            // (the point P is near the screen (the margin): P - the anchor is below 2^11 pixels, / t (>= 1 / 4) below 2^13)
+            sx[i] += sx[n] + jo_fixed_div(jo_fixed_mult(ex, k) - sx[n], t);
+            sy[i] += sy[n] + jo_fixed_div(jo_fixed_mult(ey, k) - sy[n], t);
             ++count[i];
         }
         if (count[i] == 2)
@@ -3126,9 +3543,16 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
             }
     for (JO_ZERO(i); i < 4; ++i)
     {
-        if (JO_ABS(sx[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT || JO_ABS(sy[i]) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
+        if (JO_ABS(sx[i]) > fixed_limit || JO_ABS(sy[i]) > fixed_limit)
             return (false);
-        jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + sx[i], JO_3D_WINDOW_CY(s->w) + sy[i], JO_MAX(in[i].z, s->near_z), 0);
+        // (an anchor: rounded down as the projected points (see jo_3d_project_points()), the vertex of the parts next to it;
+        // the others to the nearest pixel)
+        if (anchor[i])
+            jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + jo_fixed2int(sx[i]), JO_3D_WINDOW_CY(s->w) + jo_fixed2int(sy[i]),
+                             JO_MAX(in[i].z, s->near_z), 0);
+        else
+            jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + jo_fixed2int(sx[i] + JO_FIXED_1_DIV_2),
+                             JO_3D_WINDOW_CY(s->w) + jo_fixed2int(sy[i] + JO_FIXED_1_DIV_2), JO_MAX(in[i].z, s->near_z), 0);
     }
     return (true);
 }
@@ -3139,6 +3563,43 @@ static  __jo_force_inline int               jo_3d_tile_line_bytes(const jo_textu
 {
     return (__jo_sprite_pic[texture - __jo_sprite_def].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS ?
             JO_DIV_BY_2(texture->width) : JO_MULT_BY_2(texture->width));
+}
+
+/** @brief Tiles per side of a level (no shift by a variable amount: the SH-2 has no barrel shifter) */
+static  __jo_force_inline int               jo_3d_tiles_per_side(const int level)
+{
+    return (level == 0 ? 2 : (level == 1 ? 4 : (level == 2 ? 8 : 16)));
+}
+
+/** @brief The sprite of the tiles of a level: its tiles one under the other; the finer levels (see
+ *  jo_3d_set_texture_subdivision_fine()) in one sprite, the 8 x 8 tiles then the 16 x 16 tiles (half as high: the first one is
+ *  the tile 128 of the sprite at their height)
+ *  @param tiles The tiles of the texture
+ *  @param level Level (0: 2 x 2 tiles, 1: 4 x 4, 2: 8 x 8, 3: 16 x 16)
+ *  @param th Output: the lines of a tile
+ *  @param first Output: the index of the first tile of the level in the sprite (tiles of th lines)
+ *  @return The sprite
+ */
+static const jo_texture_definition          *jo_3d_tile_level(const jo_3d_texture_tiles * const tiles, const int level, int * const th,
+                                                              int * const first)
+{
+    const jo_texture_definition             *texture;
+
+    texture = &__jo_sprite_def[tiles->sprite[JO_MIN(level, JO_3D_TILE_LEVELS)]];
+    *first = 0;
+    // (the sprite: n x n tiles of th lines; the finer one 64 tiles of th8 lines and 256 of th8 / 2: 192 x th8)
+    if (level == 0)
+        *th = texture->height >> 2;
+    else if (level == 1)
+        *th = texture->height >> 4;
+    else if (level == 2)
+        *th = texture->height / 192;
+    else
+    {
+        *th = texture->height / 384;
+        *first = 128;
+    }
+    return (texture);
 }
 /** @brief A part of a subdivided polygon 1 pixel bigger on the screen on the edges of the polygon only: each of these edges
  *  moves 1 pixel away from the middle of the part (along X or Y: the main direction of its normal). The edges between 2
@@ -3213,6 +3674,144 @@ static void                                 jo_3d_grow_borders(jo_3d_vertex * co
     out[2].zc = in[2]->zc;
     out[3].xy = (int)(((unsigned int)((x[3] + dx[3]) & 0xffff) << 16) | (unsigned int)((y[3] + dy[3]) & 0xffff));
     out[3].zc = in[3]->zc;
+}
+
+/** @brief The ends of the lines of a part of a subdivided polygon (its edges A-D and B-C: the VDP1 draws the lines from
+ *  one to the other) pulled in to this distance (pixels) outside of the screen when one of them is farther out and the
+ *  other on the screen (see jo_3d_pull_in_part()). Test: -DJO_3D_PULL_IN_LIMIT=9999 for no pull */
+# ifndef JO_3D_PULL_IN_LIMIT
+#  define JO_3D_PULL_IN_LIMIT               (64)
+# endif
+
+/** @brief Move a corner of a part along an edge to a line of the screen (see jo_3d_pull_in_part())
+ *  @param out The corner out of the screen (moved)
+ *  @param in The other end of the edge
+ *  @param along The axis of the move (0: X, the line is x = at, 1: Y)
+ *  @param at The line
+ */
+static void                                 jo_3d_pull_in_corner(jo_3d_vertex * const out, const jo_3d_vertex * const in, const int along,
+                                                                 const int at)
+{
+    int                                     ox;
+    int                                     oy;
+    int                                     ix;
+    int                                     iy;
+    int                                     d;
+    jo_fixed                                t;
+
+    ox = JO_3D_VERTEX_X(out);
+    oy = JO_3D_VERTEX_Y(out);
+    ix = JO_3D_VERTEX_X(in);
+    iy = JO_3D_VERTEX_Y(in);
+    d = along == 0 ? ix - ox : iy - oy;
+    if (d == 0)
+        return;
+    // (the part of the edge from the corner out to the line, Q16: the corners are at most 2 x the guard band apart)
+    t = jo_fixed_div(jo_int2fixed(at - (along == 0 ? ox : oy)), jo_int2fixed(d));
+    if (t <= 0 || t >= JO_FIXED_1)
+        return;
+    jo_3d_set_vertex(out, ox + jo_fixed2int(jo_fixed_mult(jo_int2fixed(ix - ox), t)), oy + jo_fixed2int(jo_fixed_mult(jo_int2fixed(iy - oy), t)),
+                     out->zc & ~JO_3D_CODE_MASK, 0);
+}
+
+/** @brief Pull in the ends of the lines of a big part of a subdivided polygon that go far out of the screen: when the
+ *  edge A-D (or B-C) is beyond a side of the screen by more than JO_3D_PULL_IN_LIMIT and the edge B-C (or A-D) is not,
+ *  its 2 corners are moved along the edges A-B and D-C (or B-A and C-D) to that distance from the side. The VDP1
+ *  draws the lines from A-D to B-C and spends its time on their pixels out of the screen (a wall next to the camera seen
+ *  at a grazing angle: 2 parts of 16 x 16 texels with lines of 480 pixels for 73 on the screen, 25 ms of the frame);
+ *  the texture is stretched over the lines kept (the texels of the part out of the screen are drawn on the screen too:
+ *  the part is near the camera at a grazing angle, its texels are already stretched)
+ *  @param corners The 4 corners projected (A: top left, B: top right, C: bottom right, D: bottom left), moved
+ *  @param right Right of the screen (pixels)
+ *  @param bottom Bottom of the screen
+ */
+static void                                 jo_3d_pull_in_part(jo_3d_vertex * const corners[4], const int right, const int bottom)
+{
+    int                                     x[4];
+    int                                     y[4];
+    int                                     k;
+    int                                     side;
+    int                                     at;
+    int                                     along;
+    bool                                    out[4];
+
+    for (JO_ZERO(k); k < 4; ++k)
+    {
+        x[k] = JO_3D_VERTEX_X(corners[k]);
+        y[k] = JO_3D_VERTEX_Y(corners[k]);
+    }
+    for (side = 0; side < 4; ++side)
+    {
+        switch (side)
+        {
+            case 0:
+                along = 0;
+                at = -JO_3D_PULL_IN_LIMIT;
+                for (JO_ZERO(k); k < 4; ++k)
+                    out[k] = x[k] < at;
+                break;
+            case 1:
+                along = 0;
+                at = right + JO_3D_PULL_IN_LIMIT;
+                for (JO_ZERO(k); k < 4; ++k)
+                    out[k] = x[k] > at;
+                break;
+            case 2:
+                along = 1;
+                at = -JO_3D_PULL_IN_LIMIT;
+                for (JO_ZERO(k); k < 4; ++k)
+                    out[k] = y[k] < at;
+                break;
+            default:
+                along = 1;
+                at = bottom + JO_3D_PULL_IN_LIMIT;
+                for (JO_ZERO(k); k < 4; ++k)
+                    out[k] = y[k] > at;
+                break;
+        }
+        // (A-D out, B-C in: A along A-B, D along D-C; B-C out, A-D in: B along B-A, C along C-D)
+        if (out[0] && out[3] && !out[1] && !out[2])
+        {
+            jo_3d_pull_in_corner(corners[0], corners[1], along, at);
+            jo_3d_pull_in_corner(corners[3], corners[2], along, at);
+        }
+        else if (out[1] && out[2] && !out[0] && !out[3])
+        {
+            jo_3d_pull_in_corner(corners[1], corners[0], along, at);
+            jo_3d_pull_in_corner(corners[2], corners[3], along, at);
+        }
+        else
+            continue;
+        for (JO_ZERO(k); k < 4; ++k)
+        {
+            x[k] = JO_3D_VERTEX_X(corners[k]);
+            y[k] = JO_3D_VERTEX_Y(corners[k]);
+        }
+    }
+}
+
+/** @brief Check if jo_3d_pull_in_part() would pull in the ends of the lines of a part (an edge A-D or B-C beyond a side of the
+ *  screen by more than JO_3D_PULL_IN_LIMIT, the other one not)
+ *  @param corners The 4 corners projected (A: top left, B: top right, C: bottom right, D: bottom left)
+ *  @param right Right of the screen (pixels)
+ *  @param bottom Bottom of the screen
+ */
+static bool                                 jo_3d_part_is_pulled_in(jo_3d_vertex * const corners[4], const int right, const int bottom)
+{
+    unsigned int                            out[4];
+    int                                     k;
+    int                                     x;
+    int                                     y;
+
+    // (bit 0: left, 1: right, 2: top, 3: bottom)
+    for (JO_ZERO(k); k < 4; ++k)
+    {
+        x = JO_3D_VERTEX_X(corners[k]);
+        y = JO_3D_VERTEX_Y(corners[k]);
+        out[k] = (x < -JO_3D_PULL_IN_LIMIT ? 1u : 0u) | (x > right + JO_3D_PULL_IN_LIMIT ? 2u : 0u) |
+                 (y < -JO_3D_PULL_IN_LIMIT ? 4u : 0u) | (y > bottom + JO_3D_PULL_IN_LIMIT ? 8u : 0u);
+    }
+    return (((out[0] & out[3]) & ~(out[1] | out[2])) != 0 || ((out[1] & out[2]) & ~(out[0] | out[3])) != 0);
 }
 
 /** @brief Check if a part of a subdivided polygon is big on the screen (see JO_3D_CROP_EXTENT) */
@@ -3430,7 +4029,10 @@ static bool                                 jo_3d_crop_part(const jo_3d_subdivis
     // The range along the lines of the tile that may be on the screen
     if (!jo_3d_part_visible_range(s, corners, range))
     {
-        // (out of the screen: nothing to draw)
+        // (out of the screen: nothing to draw. The words of the tile set by the caller forgotten, as after a piece drawn:
+        // the tile of a part that crosses the near plane (see jo_3d_emit_near_tile()) stayed, the next textured polygons of
+        // the CPU were drawn with it, the next objects by the slow C loop)
+        s->ctx->texture_words = 0;
         *result = true;
         return (true);
     }
@@ -3490,6 +4092,191 @@ static bool                                 jo_3d_all_inside(const jo_3d_vertex 
     return (true);
 }
 
+/** @brief Pixels a point of the part of a tile seen may be outside of the quad drawn for it (see jo_3d_quad_covers()) */
+# define JO_3D_NEAR_TILE_COVER_TOLERANCE    (2)
+
+/** @brief Clip a polygon of the screen by the edges of the screen (Sutherland-Hodgman: left, right, top, bottom)
+ *  @param x Vertices (screen positions, 12 entries, modified)
+ *  @param y Vertices
+ *  @param n Vertex count
+ *  @param right Right of the screen
+ *  @param bottom Bottom of the screen
+ *  @param cx Work space (12 entries)
+ *  @param cy Work space
+ *  @param out_x Output: the vertices of the clipped polygon (x or cx)
+ *  @param out_y Output: (y or cy)
+ *  @return The vertex count of the clipped polygon (less than 3: nothing on the screen)
+ */
+static int                                  jo_3d_clip_to_screen(int x[12], int y[12], int n, const int right, const int bottom,
+                                                                 int cx[12], int cy[12], int **out_x, int **out_y)
+{
+    int                                     *sx;
+    int                                     *sy;
+    int                                     *dx;
+    int                                     *dy;
+    int                                     *tmp;
+    int                                     m;
+    int                                     i;
+    int                                     j;
+    int                                     plane;
+    long long                               da;
+    long long                               db;
+
+    sx = x;
+    sy = y;
+    dx = cx;
+    dy = cy;
+    for (JO_ZERO(plane); plane < 4 && n >= 3; ++plane)
+    {
+        JO_ZERO(m);
+        for (JO_ZERO(i); i < n && m < 11; ++i)
+        {
+            j = i + 1 < n ? i + 1 : 0;
+            switch (plane)
+            {
+                case 0:
+                    da = sx[i];
+                    db = sx[j];
+                    break;
+                case 1:
+                    da = right - sx[i];
+                    db = right - sx[j];
+                    break;
+                case 2:
+                    da = sy[i];
+                    db = sy[j];
+                    break;
+                default:
+                    da = bottom - sy[i];
+                    db = bottom - sy[j];
+                    break;
+            }
+            if (da >= 0)
+            {
+                dx[m] = sx[i];
+                dy[m++] = sy[i];
+            }
+            if ((da >= 0) != (db >= 0))
+            {
+                dx[m] = sx[i] + (int)((long long)(sx[j] - sx[i]) * da / (da - db));
+                dy[m++] = sy[i] + (int)((long long)(sy[j] - sy[i]) * da / (da - db));
+            }
+        }
+        n = m;
+        tmp = sx;
+        sx = dx;
+        dx = tmp;
+        tmp = sy;
+        sy = dy;
+        dy = tmp;
+    }
+    *out_x = sx;
+    *out_y = sy;
+    return (n);
+}
+
+/** @brief Check that a quad drawn for a tile through the near plane covers the part of the tile that is seen: a polygon
+ *  of the screen clipped by the edges of the screen, each of its vertices inside of the quad
+ *  @param x Vertices of the polygon (screen positions, 12 entries: the clipping uses them; modified)
+ *  @param y Vertices of the polygon
+ *  @param n Vertex count (3 to 5)
+ *  @param right Right of the screen
+ *  @param bottom Bottom of the screen
+ *  @param quad The quad (screen positions)
+ *  @return true if the part seen is inside of the quad (a convex quad, either winding)
+ *  @remarks Only for the tiles through the near plane (a few per frame)
+ */
+static bool                                 jo_3d_quad_covers(int x[12], int y[12], int n, const int right, const int bottom,
+                                                              const jo_3d_vertex * const quad[4])
+{
+    int                                     cx[12];
+    int                                     cy[12];
+    int                                     *sx;
+    int                                     *sy;
+    int                                     i;
+    int                                     j;
+    int                                     ex;
+    int                                     ey;
+    long long                               c;
+    long long                               area;
+
+    n = jo_3d_clip_to_screen(x, y, n, right, bottom, cx, cy, &sx, &sy);
+    // Nothing seen
+    if (n < 3)
+        return (true);
+    // Inside of the 4 edges of the quad (its winding: clockwise or mirrored)
+    area = (long long)(JO_3D_VERTEX_X(quad[2]) - JO_3D_VERTEX_X(quad[0])) * (JO_3D_VERTEX_Y(quad[3]) - JO_3D_VERTEX_Y(quad[1])) -
+           (long long)(JO_3D_VERTEX_X(quad[3]) - JO_3D_VERTEX_X(quad[1])) * (JO_3D_VERTEX_Y(quad[2]) - JO_3D_VERTEX_Y(quad[0]));
+    if (area == 0)
+        return (false);
+    for (JO_ZERO(j); j < 4; ++j)
+    {
+        ex = JO_3D_VERTEX_X(quad[(j + 1) & 3]) - JO_3D_VERTEX_X(quad[j]);
+        ey = JO_3D_VERTEX_Y(quad[(j + 1) & 3]) - JO_3D_VERTEX_Y(quad[j]);
+        for (JO_ZERO(i); i < n; ++i)
+        {
+            c = (long long)ex * (sy[i] - JO_3D_VERTEX_Y(quad[j])) - (long long)ey * (sx[i] - JO_3D_VERTEX_X(quad[j]));
+            if (area < 0)
+                c = -c;
+            if (c < -(long long)JO_3D_NEAR_TILE_COVER_TOLERANCE * JO_MAX(JO_ABS(ex), JO_ABS(ey)))
+                return (false);
+        }
+    }
+    return (true);
+}
+
+/** @brief Check that the quad placed by jo_3d_extrapolate_near_tile() covers the part of the tile that is seen: the tile
+ *  clipped by the near plane and by the edges of the screen. The corners behind the plane are placed from one or two
+ *  anchors along the edges, which is right only along these edges: a corner opposite to the only anchor (a parallelogram)
+ *  or between two anchors is approximate. A part of a wall 6 units from the camera was left uncovered (the background seen
+ *  through the wall) and its tile drawn beside it (tests/harness/glitch.py, the room)
+ *  @param s Subdivided polygon
+ *  @param in The 4 corners (view space)
+ *  @param screen The quad placed (screen positions)
+ *  @return true if every vertex of the part seen is inside the quad
+ */
+static bool                                 jo_3d_near_tile_covers(const jo_3d_subdivision * const s, const jo_3d_clip_vertex in[4],
+                                                                   const jo_3d_vertex screen[4])
+{
+    const jo_3d_vertex                      *quad[4];
+    int                                     x[12];
+    int                                     y[12];
+    int                                     n;
+    int                                     i;
+    jo_fixed                                k;
+    jo_fixed                                t;
+    jo_fixed                                px;
+    jo_fixed                                py;
+    const jo_3d_clip_vertex                 *a;
+    const jo_3d_clip_vertex                 *b;
+
+    // The tile clipped by the near plane, projected
+    JO_ZERO(n);
+    for (JO_ZERO(i); i < 4; ++i)
+    {
+        a = &in[i];
+        b = &in[(i + 1) & 3];
+        if (a->z >= s->near_z)
+        {
+            k = jo_fixed_div(__jo_vdp1_projection_distance, a->z);
+            x[n] = JO_3D_WINDOW_CX(s->w) + jo_fixed_mult_to_int(a->x, k);
+            y[n++] = JO_3D_WINDOW_CY(s->w) + jo_fixed_mult_to_int(a->y, k);
+        }
+        if ((a->z >= s->near_z) != (b->z >= s->near_z))
+        {
+            t = jo_fixed_div(s->near_z - a->z, b->z - a->z);
+            px = a->x + jo_fixed_mult(b->x - a->x, t);
+            py = a->y + jo_fixed_mult(b->y - a->y, t);
+            k = jo_fixed_div(__jo_vdp1_projection_distance, s->near_z);
+            x[n] = JO_3D_WINDOW_CX(s->w) + jo_fixed_mult_to_int(px, k);
+            y[n++] = JO_3D_WINDOW_CY(s->w) + jo_fixed_mult_to_int(py, k);
+        }
+    }
+    for (JO_ZERO(i); i < 4; ++i)
+        quad[i] = &screen[i];
+    return (jo_3d_quad_covers(x, y, n, s->right, s->bottom, quad));
+}
+
 /** @brief Draw a tile that crosses the near plane as one quad, clipped by a plane parallel to the near plane only. A clipped
  *  polygon drawn in parts maps the whole tile on each part: the texture would turn near the camera. Each corner of the tile
  *  goes to the vertex of the clipped polygon nearest to it (in the tile), the lines of the tile that are cut are not drawn
@@ -3534,8 +4321,12 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
     int                                     pass;
     jo_fixed                                clip_z;
     jo_fixed                                needed_z;
+    long long                               needed;
     bool                                    flip;
     bool                                    result;
+    int                                     near_x[12];
+    int                                     near_y[12];
+    int                                     near_n;
 
     for (JO_ZERO(i); i < 4; ++i)
     {
@@ -3545,22 +4336,26 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
         in[i].u = corner_u[i];
         in[i].v = corner_v[i];
     }
-    // The whole tile, its corners behind the plane placed along its edges
-    if (jo_3d_extrapolate_near_tile(s, in, screen))
+    // The whole tile, its corners behind the plane placed along its edges (when the quad covers what is seen of the tile)
+    if (jo_3d_extrapolate_near_tile(s, in, screen) && jo_3d_near_tile_covers(s, in, screen))
     {
         // (out of the screen: the corners placed along the edges of a part of the road under the camera were all under
         // the bottom of the screen, the VDP1 spent its time on the pixels out of the screen)
         if (jo_3d_all_outside(screen, 4, s->right, s->bottom))
             return (1);
-        // (big and partly out of the screen: cut where it leaves the screen, see JO_3D_CROP_EXTENT)
+        // (big and partly out of the screen: the ends of its lines pulled in (see jo_3d_pull_in_part()), cut where it
+        // leaves the screen, see JO_3D_CROP_EXTENT)
         {
             jo_3d_vertex                    *corners[4];
 
             for (JO_ZERO(i); i < 4; ++i)
                 corners[i] = &screen[i];
-            if (jo_3d_part_is_big(corners) && !jo_3d_all_inside(screen, 4, s->right, s->bottom) &&
-                jo_3d_crop_part(s, corners, colors, texture, tile * th, th, 0, &result))
-                return (result ? 1 : 0);
+            if (jo_3d_part_is_big(corners) && !jo_3d_all_inside(screen, 4, s->right, s->bottom))
+            {
+                jo_3d_pull_in_part(corners, s->right, s->bottom);
+                if (jo_3d_crop_part(s, corners, colors, texture, tile * th, th, 0, &result))
+                    return (result ? 1 : 0);
+            }
         }
         s->ctx->texture_words = ((unsigned int)(texture->adr + JO_DIV_BY_8(tile * th * jo_3d_tile_line_bytes(texture))) << 16) |
                                 ((unsigned int)JO_DIV_BY_8(texture->width) << 8) | (unsigned int)th;
@@ -3570,6 +4365,7 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
         return (result ? 1 : 0);
     }
     clip_z = s->near_z;
+    JO_ZERO(near_n);
     for (JO_ZERO(pass); ; ++pass)
     {
         // The clipping plane
@@ -3607,8 +4403,8 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
             y = jo_fixed_mult_to_int(out[i].y, k);
             // (the plane moved away: a point of the plane on the screen means that the part of the tile removed is seen,
             // the edges of the screen clip it instead)
-            if (pass > 0 && out[i].z == clip_z && JO_ABS(x) <= JO_TV_WIDTH_2 + JO_3D_NEAR_TILE_MARGIN &&
-                JO_ABS(y) <= JO_TV_HEIGHT_2 + JO_3D_NEAR_TILE_MARGIN)
+            if (pass > 0 && out[i].z == clip_z && JO_ABS(x) <= __jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN &&
+                JO_ABS(y) <= __jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN)
             {
                 if (i + 1 < n)
                     (void)jo_fixed_div_result();
@@ -3623,17 +4419,45 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
                         (void)jo_fixed_div_result();
                     return (-1);
                 }
-                needed_z = JO_MAX(needed_z, jo_fixed_mult(JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)), __jo_vdp1_projection_distance) /
-                                            JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
+                // (64 bits: the product overflowed above 205 world units to the side with the default view, the tile was
+                // drawn with a vertex far outside of the screen)
+                needed = ((long long)JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)) * __jo_vdp1_projection_distance) >> 16;
+                if (needed > 0x7FFF0000)
+                    needed = 0x7FFF0000;
+                needed_z = JO_MAX(needed_z, (jo_fixed)needed / JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
             }
             jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + x, JO_3D_WINDOW_CY(s->w) + y, out[i].z, 0);
+            // (the tile clipped by the near plane itself: what must be covered when the plane is moved, see below)
+            if (pass == 0)
+            {
+                near_x[i] = JO_3D_WINDOW_CX(s->w) + x;
+                near_y[i] = JO_3D_WINDOW_CY(s->w) + y;
+            }
         }
+        if (pass == 0)
+            near_n = n;
         if (needed_z == 0)
             break;
         clip_z = needed_z;
     }
+    // (the plane moved away: the part of the tile removed (between the near plane and the plane) may be seen even when no
+    // point of the plane is on the screen: the floor 10 units under the camera, its edge across the bottom of the screen,
+    // a wedge of background; a wall next to the camera, the screen inside of the part removed, the background seen through
+    // the wall (tests/harness/glitch.py). Nothing drawn: the part clipped by the near plane must not be on the screen)
     if (jo_3d_all_outside(screen, n, s->right, s->bottom))
+    {
+        if (pass > 0)
+        {
+            int                             cx[12];
+            int                             cy[12];
+            int                             *px;
+            int                             *py;
+
+            if (jo_3d_clip_to_screen(near_x, near_y, near_n, s->right, s->bottom, cx, cy, &px, &py) >= 3)
+                return (-1);
+        }
         return (1);
+    }
     // The lines of the tile that are seen (in the texture: the vertical flip)
     flip = (s->a->direction & 0x20) != 0;
     vmin = out[0].v;
@@ -3703,6 +4527,33 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
     }
     if (d != n)
         return (-1);
+    // (the quad must cover what is seen of the tile clipped by the near plane: a part cut at a corner by the near plane has
+    // 5 vertices, the one left out was on the screen (the floor 10 units under the camera: a wedge of background between the
+    // floor and the bottom of the screen); the plane moved away removes a part that may be seen, see above.
+    // tests/harness/glitch.py)
+    if (n > 4 || pass > 0)
+    {
+        int                                 px[12];
+        int                                 py[12];
+        const jo_3d_vertex                  *quad[4];
+
+        if (pass > 0)
+            for (JO_ZERO(i); i < near_n; ++i)
+            {
+                px[i] = near_x[i];
+                py[i] = near_y[i];
+            }
+        else
+            for (JO_ZERO(i); i < n; ++i)
+            {
+                px[i] = JO_3D_VERTEX_X(&screen[i]);
+                py[i] = JO_3D_VERTEX_Y(&screen[i]);
+            }
+        for (JO_ZERO(j); j < 4; ++j)
+            quad[j] = &screen[idx[j]];
+        if (!jo_3d_quad_covers(px, py, pass > 0 ? near_n : n, s->right, s->bottom, quad))
+            return (-1);
+    }
     // (big and partly out of the screen: cut where it leaves the screen, see JO_3D_CROP_EXTENT)
     {
         jo_3d_vertex                        quad[4];
@@ -3730,7 +4581,7 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
  *  @param view View space positions of the 4 corners (A: top left, B: top right, C: bottom right, D: bottom left)
  *  @param corners The 4 corners projected
  *  @param colors Gouraud colors of the 4 corners, JO_NULL: none
- *  @param level Level of the tiles (0: 2 x 2 tiles, 1: 4 x 4 tiles)
+ *  @param level Level of the tiles (0: 2 x 2 tiles, 1: 4 x 4 tiles, 2 and 3: the finer tiles, see jo_3d_tile_level())
  *  @param ti Column of the tile (in the polygon)
  *  @param tj Line of the tile
  *  @param parent_edges Edges of the part on the edges of the part it was cut from (bit k: from the corner k to k + 1), 0: none
@@ -3748,6 +4599,8 @@ static  __jo_force_inline bool              jo_3d_emit_tile_part(const jo_3d_sub
 {
     const jo_texture_definition             *texture;
     jo_3d_vertex                            grown[4];
+    jo_3d_vertex                            pulled[4];
+    jo_3d_vertex                            *pc[4];
     unsigned int                            borders;
     bool                                    result;
     int                                     n;
@@ -3758,16 +4611,15 @@ static  __jo_force_inline bool              jo_3d_emit_tile_part(const jo_3d_sub
 
     // Tile of the part: the back face of a dual plane polygon is mirrored (see jo_3d_emit_polygon()), the flips
     // (horizontal: 0x10, vertical: 0x20, see JO_VDP1_DIRECTION_FLIP_MASK)
-    n = level ? 4 : 2;  // (2 << level: level is 0 or 1, no shift by a variable amount)
+    n = jo_3d_tiles_per_side(level);
     tx = s->flip_x ? n - 1 - ti : ti;
     ty = s->flip_y ? n - 1 - tj : tj;
     // The last level crosses the near plane or goes far outside of the screen: one quad (see jo_3d_emit_near_tile())
     if ((any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) && !s->triangle)
     {
         // (the tiles of the level are one under the other in a sprite)
-        texture = &__jo_sprite_def[s->tiles->sprite[level]];
-        th = level ? texture->height >> 4 : texture->height >> 2;   // (/ (n * n))
-        k = jo_3d_emit_near_tile(s, view, colors, texture, ty * n + tx, th);
+        texture = jo_3d_tile_level(s->tiles, level, &th, &k);
+        k = jo_3d_emit_near_tile(s, view, colors, texture, k + ty * n + tx, th);
         if (k >= 0)
             return (k != 0);
     }
@@ -3784,19 +4636,28 @@ static  __jo_force_inline bool              jo_3d_emit_tile_part(const jo_3d_sub
             JO_ZERO(borders);
         // A big part partly out of the screen: cut along the lines of its tile where it leaves the screen (see
         // JO_3D_CROP_EXTENT)
+        for (k = 0; k < 4; ++k)
+            pc[k] = corners[k];
         if ((any & JO_3D_CODE_SCREEN) && !s->triangle && jo_3d_part_is_big(corners))
         {
-            texture = &__jo_sprite_def[s->tiles->sprite[level]];
-            th = level ? texture->height >> 4 : texture->height >> 2;
-            if (jo_3d_crop_part(s, corners, colors, texture, (ty * n + tx) * th, th, borders, &result))
+            // (the ends of its lines far out of the screen pulled in: its own copies of the corners, the parts next to
+            // it keep theirs, see jo_3d_pull_in_part())
+            for (k = 0; k < 4; ++k)
+            {
+                pulled[k] = *corners[k];
+                pc[k] = &pulled[k];
+            }
+            jo_3d_pull_in_part(pc, s->right, s->bottom);
+            texture = jo_3d_tile_level(s->tiles, level, &th, &k);
+            if (jo_3d_crop_part(s, pc, colors, texture, (k + ty * n + tx) * th, th, borders, &result))
                 return (result);
         }
         if (borders == 0)
-            result = jo_3d_emit_polygon_call(s->ctx, corners[0], corners[1], corners[2], corners[3], colors, s->p, s->a, s->commands,
+            result = jo_3d_emit_polygon_call(s->ctx, pc[0], pc[1], pc[2], pc[3], colors, s->p, s->a, s->commands,
                                         s->keys, s->reserved, s->used, s->light);
         else
         {
-            jo_3d_grow_borders(corners, grown, borders);
+            jo_3d_grow_borders(pc, grown, borders);
             result = jo_3d_emit_polygon_call(s->ctx, &grown[0], &grown[1], &grown[2], &grown[3], colors, s->p, s->a, s->commands,
                                         s->keys, s->reserved, s->used, s->light);
         }
@@ -3806,6 +4667,45 @@ static  __jo_force_inline bool              jo_3d_emit_tile_part(const jo_3d_sub
                                             s->commands, s->keys, s->reserved, s->used, s->light, s->context);
     s->ctx->texture_words = 0;
     return (result);
+}
+
+/** @brief Check if a part of the last level of the usual tiles is cut into the finer tiles (see jo_3d_emit_tile()): big and its
+ *  lines pulled in with its texture (see jo_3d_pull_in_part(): the texture squeezed by up to a tile, 8 texels of a 4 x 4
+ *  tile, a wall 25 units in front of the camera, tests/harness/glitch.py), or distorted by the perspective as a polygon cut
+ *  in parts (see jo_3d_subdivision_level_unbudgeted(): a part of 8 x 8 texels of a magnified texture is still big); not
+ *  when the frame is nearly full (see JO_3D_SUBDIVISION_BUDGET)
+ */
+static bool                                 jo_3d_fine_part(const jo_3d_subdivision * const s, jo_3d_vertex * const corners[4],
+                                                            const unsigned int any)
+{
+    int                                     x[4];
+    int                                     y[4];
+    int                                     size;
+    int                                     limit;
+    jo_fixed                                zmin;
+    jo_fixed                                zmax;
+    int                                     k;
+
+    // (the budget last: 3 reads without the cache)
+    if ((any & JO_3D_CODE_SCREEN) && jo_3d_part_is_big(corners) && jo_3d_part_is_pulled_in(corners, s->right, s->bottom))
+        return (jo_3d_frame_command_total(s->ctx, *s->used) <= JO_3D_SUBDIVISION_BUDGET);
+    for (JO_ZERO(k); k < 4; ++k)
+    {
+        x[k] = JO_3D_VERTEX_X(corners[k]);
+        y[k] = JO_3D_VERTEX_Y(corners[k]);
+    }
+    size = JO_MAX(JO_MAX(JO_MAX(x[0], x[1]), JO_MAX(x[2], x[3])) - JO_MIN(JO_MIN(x[0], x[1]), JO_MIN(x[2], x[3])),
+                  JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) - JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])));
+    limit = s->tiles->error != 0 ? s->tiles->error : JO_3D_SUBDIVISION_ERROR;
+    if (size < JO_MULT_BY_4(limit))
+        return (false);
+    zmin = JO_MIN(JO_MIN(JO_3D_VERTEX_Z(corners[0]), JO_3D_VERTEX_Z(corners[1])), JO_MIN(JO_3D_VERTEX_Z(corners[2]), JO_3D_VERTEX_Z(corners[3])));
+    zmax = JO_MAX(JO_MAX(JO_3D_VERTEX_Z(corners[0]), JO_3D_VERTEX_Z(corners[1])), JO_MAX(JO_3D_VERTEX_Z(corners[2]), JO_3D_VERTEX_Z(corners[3])));
+    // (the ratio is less than 1: no overflow)
+    if (JO_DIV_BY_4(jo_fixed2int(jo_fixed_mult(jo_int2fixed(JO_MIN(size, 16000)),
+                                               jo_fixed_div(JO_DIV_BY_2(zmax - zmin), JO_DIV_BY_2(zmax) + JO_DIV_BY_2(zmin))))) <= limit)
+        return (false);
+    return (jo_3d_frame_command_total(s->ctx, *s->used) <= JO_3D_SUBDIVISION_BUDGET);
 }
 
 static bool                                 jo_3d_emit_tile(const jo_3d_subdivision * const s, const jo_fixed view[4][3],
@@ -3829,8 +4729,12 @@ static bool                                 jo_3d_emit_tile(const jo_3d_subdivis
         return (true);
     any = (unsigned int)(corners[0]->zc | corners[1]->zc | corners[2]->zc | corners[3]->zc) & JO_3D_CODE_MASK;
     // (a part that crosses the near plane or goes far outside of the screen: smaller parts, the last level is drawn
-    // as one quad whose texture is approximate, see jo_3d_emit_near_tile(): the error stays small)
-    if ((any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) && level + 1 < JO_3D_TILE_LEVEL_COUNT(s->tiles))
+    // as one quad whose texture is approximate, see jo_3d_emit_near_tile(): the error stays small. The finer tiles (see
+    // jo_3d_set_texture_subdivision_fine()): also a big part whose lines would be pulled in with its texture or distorted
+    // by the perspective, see jo_3d_fine_part())
+    if (level + 1 < JO_3D_TILE_LEVEL_COUNT(s->tiles) &&
+        ((any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) ||
+         (level + 1 >= JO_3D_TILE_LEVELS && jo_3d_fine_part(s, corners, any))))
     {
         // The 3 x 3 points of the 4 smaller parts (the middles of the edges and of the part)
         for (JO_ZERO(k); k < 3; ++k)
@@ -3992,13 +4896,13 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     jo_3d_vertex                            *corners[4];
     const jo_3d_vertex                      *corner_first;
     const jo_3d_vertex                      *corner_last;
-    const jo_3d_view_position               *position;
     int                                     first;
     int                                     last;
     bool                                    gouraud;
     bool                                    flat;
     bool                                    mirrored;
     bool                                    result;
+    bool                                    fine;
     unsigned int                            any;
     const jo_texture_definition             *texture;
     int                                     th;
@@ -4017,20 +4921,7 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
         context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CY(w)), __jo_vdp1_projection_distance);
     }
     for (JO_ZERO(k); k < 4; ++k)
-    {
-        view[k][2] = JO_3D_VERTEX_Z(v[k]);
-        if (v[k]->zc & JO_3D_CODE_VIEW)
-        {
-            position = JO_3D_VIEW_POSITION(ctx, v[k]);
-            view[k][0] = position->x;
-            view[k][1] = position->y;
-        }
-        else
-        {
-            view[k][0] = jo_3d_unproject(JO_3D_VERTEX_X(v[k]) - JO_3D_WINDOW_CX(w), view[k][2], context->inverse_pd);
-            view[k][1] = jo_3d_unproject(JO_3D_VERTEX_Y(v[k]) - JO_3D_WINDOW_CY(w), view[k][2], context->inverse_pd);
-        }
-    }
+        jo_3d_vertex_view(ctx, v[k], w, context->inverse_pd, view[k]);
     // Outside of the view: the 4 vertices beyond the same side of the pyramid of the view (behind the camera too: the
     // planes go through the camera). A polygon that crosses the near plane under the camera (the ground) is not drawn in
     // parts for nothing (each part costs about 25 microseconds)
@@ -4058,8 +4949,16 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     // Facing: the normal (cross product of the diagonals) toward the camera (front faces are clockwise on the screen)
     for (JO_ZERO(k); k < 3; ++k)
     {
-        d1[k] = (view[2][k] - view[0][k]) >> 4;
-        d2[k] = (view[3][k] - view[1][k]) >> 4;
+        // (shifted before the difference: 2 corners far on both sides of the camera overflowed)
+        d1[k] = (view[2][k] >> 4) - (view[0][k] >> 4);
+        d2[k] = (view[3][k] >> 4) - (view[1][k] >> 4);
+    }
+    // (a big polygon: its diagonals smaller, the product overflowed 64 bits above about 1300 world units for the size and
+    // the distance. A small polygon keeps all the bits: a back face of a few units was seen as a front face)
+    for (JO_ZERO(k); k < 3 && (JO_ABS(d1[0]) | JO_ABS(d1[1]) | JO_ABS(d1[2]) | JO_ABS(d2[0]) | JO_ABS(d2[1]) | JO_ABS(d2[2])) >= (1 << 18); ++k)
+    {
+        d1[0] >>= 4; d1[1] >>= 4; d1[2] >>= 4;
+        d2[0] >>= 4; d2[1] >>= 4; d2[2] >>= 4;
     }
     facing = (long long)((long long)d1[1] * d2[2] - (long long)d1[2] * d2[1]) * (view[0][0] >> 8) +
              (long long)((long long)d1[2] * d2[0] - (long long)d1[0] * d2[2]) * (view[0][1] >> 8) +
@@ -4146,14 +5045,16 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     s.flip_y = (a->direction & 0x20) != 0;
     // The tiles of a level are one under the other in a sprite (RGB: 2 bytes per pixel, 16 colors: 2 pixels per byte), their
     // sizes are multiples of 8 bytes (see jo_3d_set_texture_subdivision()): tile k at the address of the sprite + k x the size
-    // of a tile / 8 (JO_3D_TILE_LEVELS levels at most; the parts of n == 2 that cross the near plane are cut again: level 1)
+    // of a tile / 8 (JO_3D_TILE_FINE_LEVELS levels at most; the parts of n == 2 that cross the near plane are cut again: level 1,
+    // and the finer levels for the parts that cross it, see jo_3d_tile_level())
     for (JO_ZERO(k); k < JO_3D_TILE_LEVEL_COUNT(s.tiles); ++k)
     {
-        texture = &__jo_sprite_def[s.tiles->sprite[k]];
-        th = k ? texture->height >> 4 : texture->height >> 2;   // (/ (parts per side)^2)
-        s.tile_words[k] = ((unsigned int)texture->adr << 16) | ((unsigned int)JO_DIV_BY_8(texture->width) << 8) | (unsigned int)th;
+        texture = jo_3d_tile_level(s.tiles, k, &th, &i);
         s.tile_step[k] = (unsigned int)JO_DIV_BY_8(th * jo_3d_tile_line_bytes(texture)) << 16;
+        s.tile_words[k] = (((unsigned int)texture->adr << 16) | ((unsigned int)JO_DIV_BY_8(texture->width) << 8) | (unsigned int)th) +
+                          (unsigned int)i * s.tile_step[k];
     }
+    fine = JO_3D_TILE_LEVEL_COUNT(s.tiles) > JO_3D_TILE_LEVELS;
     s.commands = commands;
     s.keys = keys;
     s.reserved = reserved;
@@ -4186,8 +5087,9 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
                 part_colors[2] = colors[j + 1][i + 1];
                 part_colors[3] = colors[j + 1][i];
             }
-            // (most parts: drawn here, no call of the recursive jo_3d_emit_tile())
-            if (!(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)))
+            // (most parts: drawn here, no call of the recursive jo_3d_emit_tile(); the finer tiles: the parts cut again too,
+            // see jo_3d_fine_part())
+            if (!(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) && (!fine || n != 4 || !jo_3d_fine_part(&s, corners, any)))
             {
                 result = jo_3d_emit_tile_part(&s, (const jo_fixed (*)[3])corner_view, corners, gouraud ? part_colors : JO_NULL, n == 4 ? 1 : 0,
                                               i, j, 0, any);
@@ -4318,6 +5220,96 @@ static bool                                 jo_3d_make_texture_subdivision(const
     return (tiles->levels != 0);
 }
 
+bool                                        jo_3d_set_texture_subdivision_fine(const int sprite_id)
+{
+    jo_3d_texture_tiles                     *tiles;
+    const jo_texture_definition             *texture;
+    const unsigned char                     *pixels;
+    unsigned char                           *data;
+    jo_img                                  img;
+    bool                                    four_bits;
+    int                                     fw;
+    int                                     th8;
+    int                                     height;
+    int                                     level;
+    int                                     n;
+    int                                     tw;
+    int                                     th;
+    int                                     row;
+    int                                     col;
+    int                                     c;
+    int                                     i;
+    int                                     j;
+    int                                     x;
+    int                                     y;
+    int                                     id;
+
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || !jo_3d_make_texture_subdivision(sprite_id))
+        return (false);
+    // (the tiles made here: the polygon loop must know it, see jo_3d_set_texture_subdivision())
+    jo_3d_update_texture_flags(sprite_id);
+    tiles = &__jo_3d_tiles[sprite_id];
+    if (JO_3D_TILE_LEVEL_COUNT(tiles) != JO_3D_TILE_LEVELS)
+        return (JO_3D_TILE_LEVEL_COUNT(tiles) == JO_3D_TILE_FINE_LEVELS);
+    texture = &__jo_sprite_def[sprite_id];
+    four_bits = __jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS;
+    // The width of the tiles in the sprite: the one of the 8 x 8 tiles, 8 pixels at least (16 for 16 colors: a line of 8
+    // bytes, the unit of the addresses of the VDP1, see jo_3d_emit_near_tile()); a narrower tile has each texel repeated
+    // (the VDP1 spreads the width of the tile over the line: the same place on the screen)
+    fw = JO_MAX(texture->width / 8, four_bits ? 16 : 8);
+    if (JO_MOD_POW2(texture->width, 16) != 0 || JO_MOD_POW2(texture->height, 16) != 0 || fw % (texture->width / 8) != 0 ||
+        fw % (texture->width / 16) != 0)
+        return (false);
+    th8 = texture->height / 8;
+    height = 64 * th8 + 256 * (th8 / 2);
+    data = (unsigned char *)jo_malloc(four_bits ? fw * height / 2 : fw * height * (int)sizeof(jo_color));
+    if (data == JO_NULL)
+        return (false);
+    pixels = (const unsigned char *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
+    // The 8 x 8 tiles then the 16 x 16 tiles, each one under the other: tile (i, j) of a level from the line
+    // first + (j * n + i) * th
+    for (row = 0, level = 2; level < JO_3D_TILE_FINE_LEVELS; ++level)
+    {
+        n = jo_3d_tiles_per_side(level);
+        tw = texture->width / n;
+        th = texture->height / n;
+        for (JO_ZERO(j); j < n; ++j)
+            for (JO_ZERO(i); i < n; ++i)
+                for (JO_ZERO(y); y < th; ++y, ++row)
+                    for (JO_ZERO(x); x < fw; ++x)
+                    {
+                        col = i * tw + x / (fw / tw);
+                        if (four_bits)
+                        {
+                            // (the first pixel of a byte in its high 4 bits)
+                            c = pixels[((j * th + y) * texture->width + col) >> 1];
+                            c = (col & 1) ? (c & 0xF) : (c >> 4);
+                            if (x & 1)
+                                data[(row * fw + x) >> 1] |= (unsigned char)c;
+                            else
+                                data[(row * fw + x) >> 1] = (unsigned char)(c << 4);
+                        }
+                        else
+                            ((jo_color *)data)[row * fw + x] = ((const jo_color *)pixels)[(j * th + y) * texture->width + col];
+                    }
+    }
+    if (four_bits)
+        id = __jo_sprite_add_4bits(data, fw, height, __jo_sprite_lut[sprite_id]);
+    else
+    {
+        img.width = fw;
+        img.height = height;
+        img.data = (jo_color *)data;
+        id = jo_sprite_add(&img);
+    }
+    jo_free(data);
+    if (id < 0)
+        return (false);
+    tiles->sprite[JO_3D_TILE_LEVELS] = (unsigned short)id;
+    tiles->levels = (unsigned char)((tiles->levels & JO_3D_TILES_NEAR_ONLY) | JO_3D_TILE_FINE_LEVELS);
+    return (true);
+}
+
 bool                                        jo_3d_set_texture_subdivision(const int sprite_id)
 {
     bool                                    result;
@@ -4393,7 +5385,21 @@ typedef struct
     jo_fixed                                *previous_z;    // 40: depth of the previous polygon of the CPU (JO_3D_SORT_PREVIOUS)
     const jo_3d_polygon                     *end;           // 44: end of the polygons of the range
     jo_3d_draw_state                        *state;         // 48: state of the slow path
+    unsigned int                            gouraud_offset; // 52: offset to the tinted copy of the gouraud tables (a tint, 0: none)
+    unsigned int                            no_subdivision; // 56: the budget of the subdivisions of the frame is spent (see
+                                                            // JO_3D_SUBDIVISION_BUDGET): the polygons are not cut, fast path
+    unsigned int                            pre_clipping;   // 60: JO_VDP1_PRE_CLIPPING_DISABLE for the polygons inside of the
+                                                            // screen (no JO_3D_CODE_SCREEN), 0: never (see jo_3d_pre_clipping())
+    short                                   window_left;    // 64: the rectangle of a clipped window (clip_mode != 0) in the
+    short                                   window_right;   // 66: local coordinates of the window: a polygon out of it is
+    short                                   window_top;     // 68: not drawn (see jo_3d_is_outside_window())
+    short                                   window_bottom;  // 70
 }                                           jo_3d_polygon_loop;
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, gouraud_offset) == 52, "__jo_3d_polygon_loop: offset of gouraud_offset");
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, no_subdivision) == 56, "__jo_3d_polygon_loop: offset of no_subdivision");
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, window_left) == 64 && __builtin_offsetof(jo_3d_polygon_loop, window_bottom) == 70,
+               "__jo_3d_polygon_loop: offset of the window");
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, pre_clipping) == 60, "__jo_3d_polygon_loop: offset of pre_clipping");
 
 /** @brief Check if a polygon (its 4 vertices projected) is outside of the rectangle of a window
  *  @param v The 4 vertices
@@ -4418,6 +5424,21 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
             JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom - w->origin_y);
 }
 
+/** @brief The polygons of a window drawn with the pre-clipping of the VDP1 disabled when they are inside of the screen (their 4
+ *  vertices: the VDP1 tests each line against the clipping area before it draws it, about 4 cycles per line for nothing;
+ *  measured in Mednafen: 7 % of the drawing time of the fighters demo)
+ *  @param w Window
+ *  @return JO_VDP1_PRE_CLIPPING_DISABLE, or 0: a clipped window that is not a screen of its own (the pre-clipping of the
+ *  VDP1 skips the lines of a polygon out of its rectangle: kept)
+ *  @remarks The image doesn't change: the pixels out of the clipping area are not drawn anyway
+ *  @remarks The assembly loop (the outcodes of the vertices, against the screen of the window); the C code tests the screen
+ *  positions against the system clipping area, in the windows without clipping (see jo_3d_emit_polygon())
+ */
+static  __jo_force_inline unsigned int      jo_3d_pre_clipping(const jo_vdp1_window * const w)
+{
+    return (w->clip_mode != 0 && !w->screen ? 0 : JO_VDP1_PRE_CLIPPING_DISABLE);
+}
+
 #ifdef JO_TEST_PATH_COUNTS
 /** @brief Test (JO_TEST_PATH_COUNTS, read by the game and printed with the profile): the polygons through the general path,
  *  by CPU (0: master, 4: slave) and reason (0: none, drawn as one polygon by the C code, 1: drawn in parts, 2: clipped,
@@ -4425,6 +5446,7 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
  *  All the textured polygons with tiles beyond their subdivision depth were in [.][0] (the assembly loop sent them to the
  *  slow path by mistake): 260 per frame, about 3 ms on each CPU */
 volatile unsigned int                       __jo_3d_path_counts[8][4];
+volatile unsigned int                       __jo_3d_path_reasons[8];
 #endif
 
 #ifndef JO_TEST_NO_SLIVER
@@ -4572,9 +5594,12 @@ static bool                                 jo_3d_draw_polygon_general(const jo_
     if (k->clip_mode != 0 && !(any & (JO_3D_CODE_NEAR | JO_3D_CODE_VIEW)) && jo_3d_is_outside_window(v, s->w))
         return (true);
     // Near the camera: drawn in parts (see jo_3d_set_texture_subdivision())
-    level = jo_3d_subdivision_level(v, any, a);
+    level = jo_3d_subdivision_level(ctx, *k->used, v, any, a);
 #ifdef JO_TEST_PATH_COUNTS
     ++__jo_3d_path_counts[ctx->slave ? 4 : 0][level > 0 ? 1 : ((any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) ? 2 : 0)];
+    // (the polygons drawn as one by the general path, by the test of jo_3d_subdivision_level() that said no, master CPU)
+    if (!ctx->slave && level == 0 && !(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)))
+        ++__jo_3d_path_reasons[__jo_3d_sub_reason & 7];
 #endif
     if (level > 0)
     {
@@ -4744,6 +5769,12 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     if (JO_MOD_POW2(tw, 8) != 0 || tw == 0 || th == 0 || th * tiles * tiles > 0xffff)
         return (false);
     k = jo_3d_environment_of(&mesh->data);
+    // (set again: the tiles of the last map given back when they are the last sprite, else they were lost)
+    if (k >= 0 && __jo_3d_environments[k].first_sprite > 0 && __jo_3d_environments[k].first_sprite == jo_get_last_sprite_id())
+    {
+        jo_sprite_free_from(__jo_3d_environments[k].first_sprite);
+        k = -1;
+    }
     if (k < 0)
         for (JO_ZERO(k); k < JO_3D_ENVIRONMENT_MESHES && __jo_3d_environments[k].key != JO_NULL; ++k)
             ;
@@ -4994,7 +6025,7 @@ __asm__(
 "    mov.l r13, @-r15\n"
 "    mov.l r14, @-r15\n"
 "    sts.l pr, @-r15\n"
-"    add #-16, r15\n"                    /* 0: zmin, 4 and 8: JO3DMIDDLE, 12: end code flag */
+"    add #-16, r15\n"                    /* 0: zmin, 4 and 8: JO3DMIDDLE, 12: draw mode bits (pre-clipping, end code) */
 "    mov r4, r14\n"
 "    mov r5, r8\n"
 "    mov r6, r9\n"
@@ -5065,6 +6096,7 @@ __asm__(
 "    or r13, r0\n"
 "    tst #48, r0\n"
 "    bf 8f\n"
+"    mov.l r0, @(12, r15)\n"             /* (the outcodes of the 4 vertices: the pre-clipping, see the label 2 below) */
      /* --- facing: cross product of the diagonals of the screen positions. Inside of the guard band (no JO_3D_CODE_GUARD),
         the differences of the coordinates fit in 16 bits: products of the low halves (muls.w), the coordinates are
         subtracted in the words without sign extension (the low half of a difference only depends on the low halves) */
@@ -5361,15 +6393,27 @@ __asm__(
 "    mov.l r0, @(20, r13)\n"
 "    mov.l @r7, r0\n"
 "    mov.l r0, @(24, r13)\n"
-"    mov.w @(4, r9), r0\n"              /* gouraud table with the gouraud shading */
+"    mov.w @(4, r9), r0\n"              /* gouraud table with the gouraud shading (a tint: the offset to the tinted copy) */
 "    tst #4, r0\n"
 "    bt 1f\n"
 "    mov.w @(8, r9), r0\n"
+"    tst r0, r0\n"
+"    bt 2f\n"
+"    mov.l @(52, r14), r1\n"
+"    add r1, r0\n"
 "    bra 2f\n"
 "    shll16 r0\n"
 "1:  mov #0, r0\n"
 "2:  mov.l r0, @(28, r13)\n"
-"    mov #0, r0\n"
+     /* (the draw mode bits of the polygon in the word 12 of the stack: the pre-clipping disabled when its 4 vertices are
+        inside of the screen (no JO_3D_CODE_SCREEN in their outcodes, see jo_3d_pre_clipping()), the end code flag added
+        to them below) */
+"    mov.l @(12, r15), r0\n"
+"    mov.l @(60, r14), r1\n"
+"    tst #15, r0\n"
+"    movt r0\n"
+"    neg r0, r0\n"
+"    and r1, r0\n"
 "    mov.l r0, @(12, r15)\n"
 "    mov r12, r0\n"
 "    tst #4, r0\n"
@@ -5393,7 +6437,8 @@ __asm__(
 "    mov.b @(r0, r2), r0\n"
 "    tst r0, r0\n"
 "    bt 1f\n"
-"    mov #-128, r0\n"
+"    mov.l @(12, r15), r0\n"
+"    or #128, r0\n"
 "    mov.l r0, @(12, r15)\n"
 "1:  mov.l 27f, r2\n"                   /* the flags of the texture: smaller copies (JO_3D_TEXTURE_HAS_MIPMAPS) */
 "    mov r1, r0\n"
@@ -5486,7 +6531,6 @@ __asm__(
 "    mov.l @(32, r14), r0\n"
 "    or r0, r11\n"
 "    mov.l @(12, r15), r0\n"
-"    extu.b r0, r0\n"
 "    or r0, r11\n"
 "    shll16 r11\n"
 "    mov.w @(6, r9), r0\n"
@@ -5569,8 +6613,38 @@ __asm__(
         rounded down). About 1 polygon out of 3 sent to the slow path in a level, then drawn as one polygon */
 "50: mov.l @(32, r14), r0\n"
 "    tst r0, r0\n"
-"    bt 56f\n"                         /* 54 is beyond the range of bf: same code as the assembler would make */
-"    bra 54f\n"
+"    bt 56f\n"
+     /* a clipped window (a room seen through a door): out of its rectangle, not drawn (see jo_3d_is_outside_window());
+      * inside, tested like the polygons of the other windows (they all went to the slow path, which drew most of them as
+      * one polygon) */
+"    mov.l @r4, r0\n"
+"    swap.w r0, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 1\n"
+"    JO3DRANGE r6, 1\n"
+"    JO3DRANGE r7, 1\n"                /* r2: xmin, r3: xmax */
+"    mov r14, r1\n"
+"    add #64, r1\n"
+"    mov.w @r1+, r0\n"                 /* the left of the window */
+"    cmp/gt r3, r0\n"
+"    bt 60f\n"
+"    mov.w @r1+, r0\n"                 /* its right */
+"    cmp/gt r0, r2\n"
+"    bt 60f\n"
+"    mov.l @r4, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 0\n"
+"    JO3DRANGE r6, 0\n"
+"    JO3DRANGE r7, 0\n"                /* r2: ymin, r3: ymax */
+"    mov.w @r1+, r0\n"                 /* its top */
+"    cmp/gt r3, r0\n"
+"    bt 60f\n"
+"    mov.w @r1+, r0\n"                 /* its bottom */
+"    cmp/gt r0, r2\n"
+"    bf 56f\n"
+"60: bra 9b\n"                         /* (out of the window: the next polygon) */
 "    nop\n"
 "56:\n"
 "    mov.l @(4, r4), r0\n"
@@ -5593,6 +6667,13 @@ __asm__(
 "    bra 54f\n"
 "    nop\n"
 "57:\n"
+     /* (the budget of the subdivisions of the frame spent: drawn as one, the fast path, see jo_3d_subdivision_level()) */
+"    mov.l @(56, r14), r0\n"
+"    tst r0, r0\n"
+"    bt 60f\n"                           /* (55 is out of reach of a conditional branch) */
+"    bra 55f\n"
+"    nop\n"
+"60:\n"
 "    mov.w @(2, r9), r0\n"               /* the tiles of the texture (sprite x 12) */
 "    extu.w r0, r1\n"
 "    mov r1, r0\n"
@@ -5605,7 +6686,9 @@ __asm__(
 "    mov.b @r1, r0\n"
 "    tst #128, r0\n"
 "    bt 58f\n"
-     /* (tiles of a model cut when it was made: never drawn in parts on the screen, in parts when mostly out of it) */
+     /* (tiles of a model cut when it was made: never drawn in parts on the screen, in parts when mostly out of it: a vertex
+      * out of the screen and its box on the screen of 2048 pixels or more (see jo_3d_is_mostly_out_of_screen(); smaller,
+      * the C code drew it as one polygon: the bars of a railing along the view, partly out of the screen)) */
 "    mov.l @(4, r4), r0\n"
 "    mov.l @(4, r5), r2\n"
 "    or r2, r0\n"
@@ -5614,8 +6697,33 @@ __asm__(
 "    mov.l @(4, r7), r2\n"
 "    or r2, r0\n"
 "    tst #79, r0\n"
-"    bt 55f\n"
-"    bra 54f\n"
+"    bf 61f\n"
+"    bra 55f\n"
+"    nop\n"
+"61:\n"
+"    mov.l @r4, r0\n"
+"    swap.w r0, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 1\n"
+"    JO3DRANGE r6, 1\n"
+"    JO3DRANGE r7, 1\n"
+"    sub r2, r3\n"
+"    mov r3, r1\n"                      /* the width of the box */
+"    mov.l @r4, r0\n"
+"    exts.w r0, r2\n"
+"    mov r2, r3\n"
+"    JO3DRANGE r5, 0\n"
+"    JO3DRANGE r6, 0\n"
+"    JO3DRANGE r7, 0\n"
+"    sub r2, r3\n"                      /* its height */
+"    mulu.w r1, r3\n"
+"    mov #8, r1\n"
+"    shll8 r1\n"                        /* 2048 */
+"    sts macl, r0\n"
+"    cmp/hs r1, r0\n"
+"    bt 54f\n"
+"    bra 55f\n"
 "    nop\n"
 "58:\n"
 "    mov.b @(1, r1), r0\n"               /* the distortion allowed (0: JO_3D_SUBDIVISION_ERROR) */
@@ -5703,6 +6811,7 @@ __asm__(
  *  @param used Number of commands used (updated)
  *  @return false if the command table is full
  */
+
 static bool                                 jo_3d_draw_polygons(jo_3d_cpu_context * const ctx, const jo_3d_polygon_data * const pdata,
                                                                 const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count,
@@ -5762,6 +6871,9 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
         polygon_count += range[i].count;
     *ctx->vertice_count += count;
     *ctx->polygon_count += polygon_count;
+    // (the exact view space positions of the vertices of the polygons clipped or drawn in parts, see jo_3d_vertex_view())
+    ctx->points = pdata->points;
+    ctx->point_count = count;
     light.ready = false;
     light.matrix = ctx->matrix;
     light.direction = ctx->light_direction;
@@ -5809,6 +6921,14 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
                 hi = JO_MAX(hi, v);
             }
         hi = JO_MIN(hi, count - 1);
+#ifdef JO_TEST_SPAN
+        if (!ctx->slave)
+        {
+            __jo_3d_test_span[0] += lo <= hi ? hi - lo + 1 : 0;
+            __jo_3d_test_span[1] += polygon_count;
+            __jo_3d_test_span[2] += count;
+        }
+#endif
         if (lo <= hi)
         {
             base = ctx->vertices;
@@ -5821,7 +6941,17 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
         }
     }
     else if (ctx->parts == JO_NULL)
+    {
+#ifdef JO_TEST_SPAN
+        if (!ctx->slave)
+        {
+            __jo_3d_test_span[0] += count;
+            __jo_3d_test_span[1] += polygon_count;
+            __jo_3d_test_span[2] += count;
+        }
+#endif
         jo_3d_transform_vertices(ctx, pdata->points, count, near_z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom);
+    }
     else
         // Each part with its matrix (the bones of a skeleton): its vertices at their place in the buffer, their view space
         // positions too (the parallel array: moved with the vertices, the positions of the vertices of a part behind the
@@ -5854,12 +6984,26 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     loop.displayed = ctx->displayed_polygon_count;
     loop.previous_z = &ctx->previous_polygon_z;
     loop.state = &state;
-    // (a tint: the tinted copy of the gouraud tables of the object, see jo_3d_set_tint(); the C loop adds the offset)
-    ctx->gouraud_offset = ctx->slave ? 0 : jo_3d_tint_offset(pdata);
+    // (a tint: the tinted copy of the gouraud tables of the object, see jo_3d_set_tint(); both loops add the offset. The
+    // tinted objects went through the C loop: the characters of a lit room, 19 microseconds per polygon instead of 5)
+    ctx->gouraud_offset = ctx->slave ? jo_3d_slave_tint_offset(pdata) : jo_3d_tint_offset(pdata);
+    loop.gouraud_offset = ctx->gouraud_offset;
+    // (the budget of the subdivisions spent (a room with many polygons near the camera, characters): the polygons that may
+    // need parts for the perspective stay in the assembly loop, drawn as one (the C code of the slow path found that for
+    // each one of them, see jo_3d_subdivision_level()))
+    loop.no_subdivision = jo_3d_frame_command_total(ctx, *used) > JO_3D_SUBDIVISION_BUDGET ? 1 : 0;
+    // (a clipped window (a room seen through a door): the assembly loop drops the polygons out of its rectangle itself.
+    // All the polygons of such a window whose depths are spread went through the slow path, drawn as one polygon by the
+    // C code: 24 per frame from the walkway over a big room, 33 in a laboratory seen through its door; the master CPU
+    // went from 25.5 to 23.8 ms and the slave CPU from 21.7 to 20.1 ms per frame in front of that door)
+    loop.window_left = (short)(w->left - w->origin_x);
+    loop.window_right = (short)(w->right - w->origin_x);
+    loop.window_top = (short)(w->top - w->origin_y);
+    loop.window_bottom = (short)(w->bottom - w->origin_y);
+    loop.pre_clipping = jo_3d_pre_clipping(w);
     // (an environment map: the tile of each polygon is chosen by the C loop)
     ctx->environment = jo_3d_environment_of(pdata);
-    fast = !ctx->mirror && ctx->front_shift < 0 && ctx->forced_key < 0 && ctx->texture_words == 0 && ctx->gouraud_offset == 0 &&
-           ctx->environment < 0;
+    fast = !ctx->mirror && ctx->front_shift < 0 && ctx->forced_key < 0 && ctx->texture_words == 0 && ctx->environment < 0;
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
     if (__jo_profile_pixels)
         fast = false;
@@ -5934,7 +7078,9 @@ static jo_color                             jo_3d_average_pixels(const jo_color 
     return ((jo_color)(JO_COLOR_SATURN_MSB | ((r * 0x5556) >> 16) | (((g * 0x5556) >> 16) << 5) | (((bl * 0x5556) >> 16) << 10)));
 }
 
-/** @brief The color of the table nearest to a color (1 to 15: the color 0 is transparent) */
+/** @brief The color of the table nearest to a color (1 to 15: the color 0 is transparent)
+ *  @remarks Only the RGB colors of the table (their bit 15 set): the entries not used by the texture are 0 (see
+ *  jo_sprite_add_image_4bits_lut()), the nearest one to a dark average was taken, a transparent pixel in the copy */
 static int                                  jo_3d_nearest_lut_color(const jo_color * const lut, const jo_color c)
 {
     int                                     best;
@@ -5949,6 +7095,8 @@ static int                                  jo_3d_nearest_lut_color(const jo_col
     best_distance = 0x7fffffff;
     for (k = 1; k < 16; ++k)
     {
+        if (!(lut[k] & JO_COLOR_SATURN_MSB))
+            continue;
         dr = (int)(c & 0x1f) - (int)(lut[k] & 0x1f);
         dg = (int)((c >> 5) & 0x1f) - (int)((lut[k] >> 5) & 0x1f);
         db = (int)((c >> 10) & 0x1f) - (int)((lut[k] >> 10) & 0x1f);
@@ -6192,6 +7340,7 @@ bool                                        __jo_3d_draw_parts(const jo_3d_polyg
     return (result);
 }
 
+
 bool                                        __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count)
 {
@@ -6236,6 +7385,17 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_foot(jo_fixed 
     return (true);
 }
 
+/** @brief A product of the projection of a standing sprite, bounded (a foot near the camera but far to the side gave a
+ *  product over 32767 that wrapped: the test of the screen passed, a sprite was drawn at a wrong place)
+ */
+static  __jo_force_inline jo_fixed          jo_3d_standing_sprite_mult(const jo_fixed a, const jo_fixed b)
+{
+    long long                               r;
+
+    r = ((long long)a * b) >> 16;
+    return ((jo_fixed)(r > 0x3FFFFFFF ? 0x3FFFFFFF : r < -0x3FFFFFFF ? -0x3FFFFFFF : r));
+}
+
 /** @brief Corners of a standing sprite on the screen (see jo_3d_draw_standing_sprite())
  *  @param v Position of the foot in the view space
  *  @param k The projection distance / its depth (see jo_3d_standing_sprite_foot())
@@ -6256,17 +7416,17 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_points(const j
     jo_fixed                                s;
 
     // Projection of the foot, size on the screen
-    h = jo_fixed_mult(height, k);
-    w = jo_fixed_mult(width, k) >> 1;
-    sx = jo_fixed_mult(v->x, k);
-    sy = jo_fixed_mult(v->y, k);
+    h = jo_3d_standing_sprite_mult(height, k);
+    w = jo_3d_standing_sprite_mult(width, k) >> 1;
+    sx = jo_3d_standing_sprite_mult(v->x, k);
+    sy = jo_3d_standing_sprite_mult(v->y, k);
     // Outside of the screen
-    if (sx + w < -jo_int2fixed(JO_TV_WIDTH_2) || sx - w > jo_int2fixed(JO_TV_WIDTH_2) ||
-        sy < -jo_int2fixed(JO_TV_HEIGHT_2) || sy - h > jo_int2fixed(JO_TV_HEIGHT_2))
+    if (sx + w < -jo_int2fixed(__jo_screen.width_2) || sx - w > jo_int2fixed(__jo_screen.width_2) ||
+        sy < -jo_int2fixed(__jo_screen.height_2) || sy - h > jo_int2fixed(__jo_screen.height_2))
         return (false);
     // The camera is in the sprite: a huge sprite would hide the whole view (and cost a lot of VDP1 time): not drawn.
     // (a plant near the camera stays: it disappeared when the player came close to it)
-    if (h > jo_int2fixed(JO_TV_HEIGHT * 2) || w > jo_int2fixed(JO_TV_WIDTH))
+    if (h > jo_int2fixed(__jo_screen.height * 2) || w > jo_int2fixed(__jo_screen.width))
         return (false);
     s = jo_fixed_mult(sway, k);
     // A: top left, B: top right, C: bottom right, D: bottom left (the sway moves the top)
@@ -6316,7 +7476,8 @@ static jo_3d_cpu_context                    __jo_3d_slave = {__jo_3d_slave_verti
                                                              &__jo_3d_slave_depth_bias, 0, 0, JO_3D_CLIP_GOURAUD_TABLES,
                                                              &__jo_3d_slave_polygon_count, &__jo_3d_slave_vertice_count,
                                                              &__jo_3d_slave_displayed_polygon_count, true, false, 0, JO_NULL, 0, -1,
-                                                             &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1, 0};
+                                                             &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1, 0,
+                                                             JO_NULL, 0};
 
 /** @brief A job of the slave CPU: the end of the copy of its commands by its DMA controller (the next job draws in the
  *  same table) */
@@ -6344,6 +7505,7 @@ void                                        jo_3d_slave_begin(void)
     __jo_3d_slave_sprite_attributes = __jo_sprite_attributes;
     __jo_3d_slave.previous_polygon_z = 0;
     __jo_3d_slave.forced_key = -1;
+    __jo_3d_slave_tint = 0;
     // The last gouraud tables of the set of this frame (the first job of the frame; the next ones take the tables after)
     if (!__jo_3d_slave_tables_taken)
     {
@@ -6356,6 +7518,16 @@ void                                        jo_3d_slave_begin(void)
     JO_ZERO(__jo_3d_slave_polygon_count);
     JO_ZERO(__jo_3d_slave_vertice_count);
     JO_ZERO(__jo_3d_slave_displayed_polygon_count);
+}
+
+jo_fixed                                    (*__jo_3d_slave_current_matrix(void))[3]
+{
+    return (__jo_3d_slave.matrix);
+}
+
+void                                        jo_3d_slave_select_window(const int window)
+{
+    __jo_3d_slave_window = window;
 }
 
 void                                        jo_3d_slave_set_depth_bias(const int bias)
@@ -6447,7 +7619,7 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
     int                                     h;
     int                                     key;
 
-    if (sprite_id < 0 || __jo_3d_slave_command_count >= JO_3D_SLAVE_MAX_COMMANDS)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || __jo_3d_slave_command_count >= JO_3D_SLAVE_MAX_COMMANDS)
         return (false);
     if (!jo_3d_standing_sprite_foot(__jo_3d_slave.matrix, foot, &v, &k) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
@@ -6460,6 +7632,23 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
     key = JO_FIXED_TO_INT(v.z) + __jo_3d_slave_depth_bias;
     __jo_3d_slave_keys[__jo_3d_slave_command_count++] = key < 0 ? 0 : (key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)key);
     return (true);
+}
+
+bool                                        __jo_3d_slave_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
+                                                                     const int part_count)
+{
+    unsigned int                            used;
+    bool                                    result;
+
+    __jo_3d_slave.parts = parts;
+    __jo_3d_slave.part_count = part_count;
+    used = __jo_3d_slave_command_count;
+    result = jo_3d_draw_polygons(&__jo_3d_slave, pdata, pdata->point_count, JO_NULL, 0, __jo_3d_slave_window,
+                                 __jo_3d_slave_commands, __jo_3d_slave_keys, JO_3D_SLAVE_MAX_COMMANDS, &used);
+    __jo_3d_slave_command_count = used;
+    __jo_3d_slave.parts = JO_NULL;
+    __jo_3d_slave.part_count = 0;
+    return (result);
 }
 
 int                                         jo_3d_slave_get_current_command_count(void)
@@ -6518,6 +7707,15 @@ void                                        jo_3d_slave_end(void)
     unsigned int                            reserved;
     jo_3d_slave_copy                        *c;
 
+    // (the counts of the slave CPU even without command: all its polygons hidden)
+    __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
+    __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
+    __jo_3d_displayed_polygon_count += __jo_3d_slave_displayed_polygon_count;
+    __jo_3d_slave_last_command_count = __jo_3d_slave_command_count;
+    // (added once: a second jo_3d_slave_end() adds nothing)
+    JO_ZERO(__jo_3d_slave_polygon_count);
+    JO_ZERO(__jo_3d_slave_vertice_count);
+    JO_ZERO(__jo_3d_slave_displayed_polygon_count);
     if (__jo_3d_slave_command_count == 0)
         return;
     // (not the commands kept for what is drawn after, see jo_3d_slave_set_kept_commands())
@@ -6536,10 +7734,6 @@ void                                        jo_3d_slave_end(void)
         __jo_core_add_slave_job(jo_3d_slave_copy_job, c);
         __jo_3d_slave_copy_started = true;
     }
-    __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
-    __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
-    __jo_3d_displayed_polygon_count += __jo_3d_slave_displayed_polygon_count;
-    __jo_3d_slave_last_command_count = __jo_3d_slave_command_count;
     JO_ZERO(__jo_3d_slave_command_count);
 }
 
@@ -6565,6 +7759,7 @@ void                                        jo_3d_init(void)
     register int		                    i;
 
     __jo_3d_matrix_level = 0;
+    __jo_3d_matrix_overflow = 0;
     jo_3d_set_identity(JO_3D_CURRENT_MATRIX);
     __jo_3d_set_perspective(JO_DEG_TO_ANGLE(JO_3D_DEFAULT_PERSPECTIVE_ANGLE));
     __jo_3d_light_direction.x = JO_FIXED_0;
@@ -6806,6 +8001,10 @@ void                        jo_3d_free_mesh(const jo_3d_mesh * const mesh)
         return ;
     }
 #endif
+    // (the caches of the tints and of the environment maps: a new mesh at the same address got the copies of the freed
+    // one, 16 meshes freed and the tints did not work anymore)
+    __jo_3d_forget_tint(&mesh->data);
+    __jo_3d_forget_environment(&mesh->data);
     jo_free(mesh->data.points);
     jo_free(mesh->data.polygons);
     jo_free(mesh->data.attributes);
@@ -6988,15 +8187,20 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
     mesh->data.attributes[index].texture_id = sprite_id;
     if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
     {
+        // (without the end codes, as the sprites: the color 255 is a color of the palette, see below)
         mesh->data.attributes[index].color = (unsigned short)__jo_sprite_attributes.color_table_index;
-        mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_256_BANK | JO_VDP1_NO_GOURAUD) | JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
+        mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_256_BANK | JO_VDP1_NO_GOURAUD | JO_VDP1_END_CODE_DISABLE) |
+                                                 JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
         JO_ADD_FLAG(mesh->data.attributes[index].sort, JO_3D_USE_PALETTE);
     }
     else if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
     {
-        // 16 colors and their color lookup table: RGB colors (gouraud, half transparency, light like an RGB texture)
+        // 16 colors and their color lookup table: RGB colors (gouraud, half transparency, light like an RGB texture). Without
+        // the end codes, as the sprites (see jo_sprite_add_end_codes(): RGB only): the color 15 of the table is a color (the
+        // JOM files use 15 colors), with the end codes 2 of them stopped the line, the rest of the line was not drawn
         mesh->data.attributes[index].color = __jo_sprite_lut[sprite_id];
-        mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_16_LOOKUP | JO_VDP1_NO_GOURAUD) | JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
+        mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_16_LOOKUP | JO_VDP1_NO_GOURAUD | JO_VDP1_END_CODE_DISABLE) |
+                                                 JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
     }
     else
     {
@@ -7114,6 +8318,11 @@ bool                jo_3d_create_sprite_quad(const int sprite_id)
     int             img_height;
     jo_vertice      *vertices;
 
+    // (created already: kept, a second quad lost the first one)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
+        return (false);
+    if (__jo_sprite_quad[sprite_id] != JO_NULL)
+        return (true);
     if ((__jo_sprite_quad[sprite_id] = (jo_3d_quad *)jo_malloc_with_behaviour(sizeof(*__jo_sprite_quad[sprite_id]), JO_FAST_ALLOCATION)) == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -7183,7 +8392,8 @@ int                                         jo_3d_mesh_get_bounding_sphere(const
     center->x = jo_int2fixed((lo[0] + hi[0]) / 2);
     center->y = jo_int2fixed((lo[1] + hi[1]) / 2);
     center->z = jo_int2fixed((lo[2] + hi[2]) / 2);
-    return (jo_sqrt(JO_SQUARE(hi[0] - lo[0]) + JO_SQUARE(hi[1] - lo[1]) + JO_SQUARE(hi[2] - lo[2])) / 2 + 2);
+    // (the half sizes: 3 x 32767^2 fits in 32 bits, the whole sizes overflowed for the meshes bigger than about 37000)
+    return (jo_sqrt((unsigned int)(JO_SQUARE((hi[0] - lo[0] + 1) / 2) + JO_SQUARE((hi[1] - lo[1] + 1) / 2) + JO_SQUARE((hi[2] - lo[2] + 1) / 2))) + 2);
 }
 
 /** @brief The box of a ray segment (whole units, a margin of 1)
@@ -7195,17 +8405,19 @@ int                                         jo_3d_mesh_get_bounding_sphere(const
 static  __jo_force_inline void              jo_3d_ray_segment_box(const jo_pos3D_fixed * const o, const jo_pos3D_fixed * const d,
                                                                   const jo_fixed length, int * const box)
 {
-    jo_fixed                                e[3];
+    int                                     e[3];
 
-    e[0] = o->x + jo_fixed_mult(d->x, length);
-    e[1] = o->y + jo_fixed_mult(d->y, length);
-    e[2] = o->z + jo_fixed_mult(d->z, length);
-    box[0] = jo_fixed2int(JO_MIN(o->x, e[0])) - 1;
-    box[1] = jo_fixed2int(JO_MIN(o->y, e[1])) - 1;
-    box[2] = jo_fixed2int(JO_MIN(o->z, e[2])) - 1;
-    box[3] = jo_fixed2int(JO_MAX(o->x, e[0])) + 1;
-    box[4] = jo_fixed2int(JO_MAX(o->y, e[1])) + 1;
-    box[5] = jo_fixed2int(JO_MAX(o->z, e[2])) + 1;
+    // (the end in whole units, 64 bits: a long ray (the length of a ray without limit, JO_FIXED_MAX) went over 32767 units
+    // and wrapped, the box was on the other side of the origin and the polygons in front of it were not hit. Once per hit)
+    e[0] = (int)((((long long)o->x << 16) + (long long)d->x * length) >> 32);
+    e[1] = (int)((((long long)o->y << 16) + (long long)d->y * length) >> 32);
+    e[2] = (int)((((long long)o->z << 16) + (long long)d->z * length) >> 32);
+    box[0] = JO_MIN(jo_fixed2int(o->x), e[0]) - 1;
+    box[1] = JO_MIN(jo_fixed2int(o->y), e[1]) - 1;
+    box[2] = JO_MIN(jo_fixed2int(o->z), e[2]) - 1;
+    box[3] = JO_MAX(jo_fixed2int(o->x), e[0]) + 1;
+    box[4] = JO_MAX(jo_fixed2int(o->y), e[1]) + 1;
+    box[5] = JO_MAX(jo_fixed2int(o->z), e[2]) + 1;
 }
 
 /** @brief Polygons per group of the planes for the rays (a box for each group, see jo_3d_mesh_create_ray_planes()), a
@@ -7593,10 +8805,10 @@ void                                        jo_3d_set_view_rect(const jo_3d_rect
         return;
     __jo_3d_view_rect_value = *rect;
     __jo_3d_view_rect.empty = rect->left > rect->right || rect->top > rect->bottom;
-    edges[0] = rect->left - JO_TV_WIDTH_2;
-    edges[1] = rect->right + 1 - JO_TV_WIDTH_2;
-    edges[2] = rect->top - JO_TV_HEIGHT_2;
-    edges[3] = rect->bottom + 1 - JO_TV_HEIGHT_2;
+    edges[0] = rect->left - __jo_screen.width_2;
+    edges[1] = rect->right + 1 - __jo_screen.width_2;
+    edges[2] = rect->top - __jo_screen.height_2;
+    edges[3] = rect->bottom + 1 - __jo_screen.height_2;
     for (k = 0; k < 4; ++k)
     {
         __jo_3d_view_rect.k[k] = jo_fixed_div(jo_int2fixed(edges[k]), __jo_vdp1_projection_distance);
@@ -7636,11 +8848,12 @@ static bool                                 jo_3d_is_sphere_visible_in(const jo_
     if (center->z + radius < JO_FIXED_8 || center->z - radius > max_distance)
         return (false);
     // Side planes |x| = kx * z: the distance to a plane is (|x| - kx * z) / sqrt(1 + kx * kx), and sqrt(1 + a) <= 1 + a / 2
-    if (s->projection_distance != __jo_vdp1_projection_distance)
+    if (s->projection_distance != __jo_vdp1_projection_distance || s->height_2 != __jo_screen.height_2)
     {
         s->projection_distance = __jo_vdp1_projection_distance;
-        s->kx = jo_fixed_div(jo_int2fixed(JO_TV_WIDTH_2), s->projection_distance);
-        s->ky = jo_fixed_div(jo_int2fixed(JO_TV_HEIGHT_2), s->projection_distance);
+        s->height_2 = __jo_screen.height_2;
+        s->kx = jo_fixed_div(jo_int2fixed(__jo_screen.width_2), s->projection_distance);
+        s->ky = jo_fixed_div(jo_int2fixed(__jo_screen.height_2), s->projection_distance);
         s->margin_x = JO_FIXED_1 + jo_fixed_mult(s->kx, s->kx) / 2;
         s->margin_y = JO_FIXED_1 + jo_fixed_mult(s->ky, s->ky) / 2;
     }
@@ -7681,6 +8894,9 @@ bool                                        jo_3d_draw_standing_sprite(const int
     int                                     w;
     int                                     h;
 
+    // (as the slave CPU version: jo_3d_mipmap() reads the tables of the sprite)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
+        return (false);
     if (!jo_3d_standing_sprite_foot(JO_3D_CURRENT_MATRIX, foot, &v, &k) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
         return (false);
@@ -7732,6 +8948,32 @@ void                                        __jo_3d_gouraud_pool_freed(const int
         __jo_3d_gouraud_pool_sprite = -1;
 }
 
+void                                        jo_3d_free_gouraud_tables(const unsigned short adr, const unsigned int count)
+{
+    unsigned int                            lines;
+    unsigned int                            base;
+    int                                     id;
+
+    if (adr == 0 || count == 0)
+        return;
+    lines = (count + 1) / 2;
+    // In the shared sprite: the last set given back (the sets of a level freed in the reverse order of their loading)
+    if (__jo_3d_gouraud_pool_sprite >= 0 && lines <= JO_3D_GOURAUD_POOL_LINES / 4)
+    {
+        base = __jo_sprite_def[__jo_3d_gouraud_pool_sprite].adr;
+        if (adr >= base && adr < base + JO_3D_GOURAUD_POOL_LINES * 2)
+        {
+            if (adr + lines * 2 == base + __jo_3d_gouraud_pool_used * 2)
+                __jo_3d_gouraud_pool_used -= lines;
+            return;
+        }
+    }
+    // Its own sprite: given back when it is the last one
+    id = jo_get_last_sprite_id();
+    if (id > 0 && id != __jo_3d_gouraud_pool_sprite && __jo_sprite_def[id].adr == adr)
+        jo_sprite_free_from(id);
+}
+
 unsigned short                              jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count)
 {
     jo_img                                  img;
@@ -7758,16 +9000,19 @@ unsigned short                              jo_3d_add_gouraud_tables(const jo_co
         return (adr);
     }
     zero = JO_NULL;
-    if (tables == JO_NULL)
+    // (no tables, or an odd count: a copy with a full last line, the sprite reads 8 colors per line, 4 after the tables)
+    if (tables == JO_NULL || (count & 1))
     {
         zero = (jo_color *)jo_malloc(((count + 1) / 2) * 8 * sizeof(jo_color));
         if (zero == JO_NULL)
             return (0);
         jo_memset(zero, 0, ((count + 1) / 2) * 8 * sizeof(jo_color));
+        if (tables != JO_NULL)
+            jo_memcpy(zero, tables, count * 4 * sizeof(jo_color));
     }
     img.width = 8;
     img.height = lines;
-    img.data = tables != JO_NULL ? (jo_color *)tables : zero;
+    img.data = zero != JO_NULL ? zero : (jo_color *)tables;
     id = jo_sprite_add(&img);
     if (zero != JO_NULL)
         jo_free(zero);

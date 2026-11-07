@@ -117,7 +117,15 @@ jo_animation                                *jo_storyboard_create_animation(jo_s
   */
 static  __jo_force_inline void              jo_storyboard_destroy_animation(jo_storyboard * const storyboard, const jo_animation * const animation)
 {
-    jo_list_remove_first_value(&storyboard->animations, (jo_list_data)(void *)animation);
+    jo_node                                 *node;
+
+    // (the animation is freed too: it was allocated by jo_storyboard_create_animation(), only its node was removed)
+    for (node = storyboard->animations.first; node != JO_NULL; node = node->next)
+        if (node->data.ptr == (const void *)animation)
+        {
+            jo_list_free_and_remove(&storyboard->animations, node);
+            return;
+        }
 }
 
 /*
@@ -176,8 +184,11 @@ static  __jo_force_inline void      jo_storyboard_toggle(jo_storyboard * const s
   */
 static  __jo_force_inline void              jo_storyboard_add_object(jo_storyboard *const storyboard, const void * const object)
 {
-    jo_storyboard_object_cache              *tmp = (jo_storyboard_object_cache *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    jo_storyboard_object_cache              *tmp;
 
+    if (storyboard == JO_NULL)
+        return ;
+    tmp = (jo_storyboard_object_cache *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
     if (tmp == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -274,6 +285,8 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_rotation_a
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
+    if (animation == JO_NULL)
+        return (JO_NULL);
     animation->rotation_speed = speed;
     return animation;
 }
@@ -289,6 +302,8 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_translatio
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
+    if (animation == JO_NULL)
+        return (JO_NULL);
     animation->direction = angle;
     animation->translation_speed_x = speed;
     animation->translation_speed_y = speed;
@@ -318,6 +333,8 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_circle_ani
 {
     jo_animation                                *animation = jo_storyboard_create_animation(storyboard, 0, duration);
 
+    if (animation == JO_NULL)
+        return (JO_NULL);
     animation->sin_radius = radius;
     animation->cos_radius = radius;
     animation->translation_speed_x = speed;
@@ -330,7 +347,7 @@ static  __jo_force_inline jo_animation          *jo_storyboard_create_circle_ani
 */
 
 /** @brief Create a rotation animation storyboard for a specific object
-  * @param object Pointer to an object (jo_pos2D, jo_pos3D, jo_2d_object_attributes or jo_3d_object_attributes)
+  * @param object Pointer to an object with a rotation (jo_2d_object_attributes or jo_3d_object_attributes: rz is written)
   * @param speed Rotation speed
   * @param duration Duration of animation (you can pass JO_STORYBOARD_INFINITE_DURATION for infinite)
   * @remarks If speed = 1 and duration = 90, the object will make a smooth clockwise rotation of 90°

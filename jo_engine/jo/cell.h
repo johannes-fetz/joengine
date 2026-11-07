@@ -86,7 +86,9 @@ typedef struct
  */
 int                                 jo_cells_load(jo_level * const level);
 
-/** @brief Free the cells (and their models) */
+/** @brief Free the cells (and their models)
+ *  @remarks After jo_cells_add_point_light_meshes(): jo_3d_point_lights_clear() too (the lights held the meshes freed)
+ */
 void                                jo_cells_free(void);
 
 /** @brief Number of cells */
@@ -163,7 +165,7 @@ int                                 jo_cells_prepare(const jo_pos3D_fixed * cons
 
 /** @brief Draw the cells found by jo_cells_prepare()
  *  @param slave true: on the slave CPU (between jo_3d_slave_begin() and jo_3d_slave_end(), see jo_3d_slave_mesh_draw()),
- *  false: on the master CPU
+ *  false: on the master CPU (without JO_COMPILE_WITH_DUAL_CPU_MODULE: always on the master CPU)
  *  @remarks The depth bias of jo_cells_prepare() is used, plus 2048 for each portal between a cell and the cell of the
  *  camera (its walls hide the cells behind them)
  */
@@ -185,6 +187,47 @@ void                                jo_cells_draw_prepared_part(const bool slave
  *  @remarks A polygon sorted with the previous one (JO_3D_SORT_PREVIOUS: a decal) stays in the part of the previous one
  */
 void                                jo_cells_draw_prepared_share(const bool slave, const int part, const int share);
+
+/** @brief Share of the polygons of the cells drawn by the master CPU at the start (0 to 1024, see jo_cells_draw_prepared_on_both_cpus()) */
+# define JO_CELLS_DEFAULT_SHARE              (400)
+/** @brief Highest share of the master CPU by default (all the cells: the slave CPU may draw the entities) */
+# define JO_CELLS_DEFAULT_MAX_SHARE          (1024)
+
+/** @brief Polygons of the cells found by jo_cells_prepare() (the polygons of the chunks seen of the meshes seen: the share
+ *  of each CPU is cut in them, see jo_cells_draw_prepared_share())
+ *  @return Polygons
+ */
+int                                 jo_cells_prepared_polygon_count(void);
+
+/** @brief Draw the cells found by jo_cells_prepare() on the 2 CPUs: the slave CPU draws its part (a job, see
+ *  jo_core_exec_on_slave()) while the master CPU draws the other part. The share of each CPU: half of the polygons of the
+ *  frame to each one (the cells and what else the slave CPU draws), plus a correction that follows the load of the last
+ *  frames (see jo_cells_balance_share())
+ *  @param slave_before What the slave CPU draws before its part of the cells (in its job: the entities,
+ *         jo_entities_draw_slave()), JO_NULL: nothing
+ *  @param slave_polygons Polygons of what slave_before draws (see jo_entities_polygon_count()), 0: none
+ *  @remarks Call it between jo_3d_slave_begin() and jo_3d_slave_end(), then jo_cells_balance_share() after
+ *  jo_core_wait_for_slave(). The master CPU draws the first part: its commands come first in the table, 2 polygons at the same
+ *  depth are drawn in the same order as with one CPU
+ *  @remarks Without JO_COMPILE_WITH_DUAL_CPU_MODULE: the master CPU draws all the cells (and slave_before first)
+ */
+void                                jo_cells_draw_prepared_on_both_cpus(void (* const slave_before)(void), const int slave_polygons);
+
+/** @brief Balance the share of the CPUs for the next frame (see jo_cells_draw_prepared_on_both_cpus()): more polygons
+ *  to the slave CPU when it waited in the last frame, fewer when the master CPU waited for it (or when its command table
+ *  is nearly full: its last polygons would be lost)
+ *  @remarks Call it after jo_core_wait_for_slave(), once per frame
+ */
+void                                jo_cells_balance_share(void);
+
+/** @brief Limits of the share of the master CPU (see jo_cells_draw_prepared_on_both_cpus())
+ *  @param min Lowest share of the master CPU (0 to 1024, 0: the slave CPU can draw all the cells)
+ *  @param max Highest share (0 to 1024, JO_CELLS_DEFAULT_MAX_SHARE by default)
+ */
+void                                jo_cells_set_share_limits(const int min, const int max);
+
+/** @brief Share of the polygons of the cells drawn by the master CPU in the next frame (0 to 1024) */
+int                                 jo_cells_get_share(void);
 
 /** @brief Draw the mirror seen by the camera (in the cell of the camera or in a cell seen through a door), when
  *  jo_cells_prepare() found one (a portal MIRROR): its cell is
@@ -271,6 +314,31 @@ int                                 jo_cells_depth_bias_at(const jo_fixed x, con
  *           move can keep it
  */
 int                                 jo_cells_object_cell(const jo_fixed x, const jo_fixed y, const jo_fixed z);
+
+/** @brief The cells seen through the portals are drawn in the far window (JO_3D_FAR_WINDOW), clipped by the VDP1 to the
+ *  union of the rectangles of the portals on the screen (default: on). A room seen through a door was drawn whole: the
+ *  VDP1 spent its time on the walls around the door (up to 50 ms in a frame). Not in a frame with a mirror (it draws in
+ *  the far window). The objects of these cells go in the far window too: jo_cells_window_of()
+ *  @param enabled false: everything in the near window
+ */
+void                                jo_cells_set_portal_clipping(const bool enabled);
+
+/** @brief A polygon of the cell of the camera that covers the whole screen (the camera near a wall, facing it, or a
+ *  bench against it) hides everything behind it: the polygons behind it are not drawn (the depth limit of the near window,
+ *  see jo_3d_set_depth_limit(), set by jo_cells_prepare() in a frame where the cell of the camera is seen alone: nothing
+ *  seen through a door). Default: on. Against a wall, the VDP1 drew the whole room behind it (up to 50 ms). A polygon with
+ *  holes in its texture is taken as opaque: nothing is seen through the holes
+ *  @param enabled false: no depth limit
+ */
+void                                jo_cells_set_occluders(const bool enabled);
+
+/** @brief The window of an object drawn with a depth bias of the cells (see jo_cells_depth_bias_at(),
+ *  jo_cells_set_portal_clipping()): select it with jo_3d_select_window() (jo_3d_slave_select_window() on the slave CPU)
+ *  before the object is drawn, and the near window after
+ *  @param bias Depth bias of the object (without the bias of the program)
+ *  @return JO_3D_NEAR_WINDOW or JO_3D_FAR_WINDOW
+ */
+int                                 jo_cells_window_of(const int bias);
 
 /** @brief Depth bias of an object in a cell (see jo_cells_depth_bias_at())
  *  @param cell Cell of the object (jo_cells_object_cell()), -1: outside of the cells

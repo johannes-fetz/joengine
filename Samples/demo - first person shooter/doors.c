@@ -505,6 +505,10 @@ static void                     door_update(jo_entity * const entity, const int 
             // (it closes after a while, not while someone is near it)
             if (someone_near(entity))
                 d->wait = DOOR_OPEN_TIME;
+#ifdef DEMO_BENCH_DOORS_OPEN
+            // (the benchmark: kept open, see doors_bench_open())
+            d->wait = DOOR_OPEN_TIME;
+#endif
             d->wait -= elapsed;
             if (d->wait <= 0)
                 door_start_closing(entity, d);
@@ -603,6 +607,18 @@ static bool                     door_action(jo_entity * const entity, const int 
     return (true);
 }
 
+#ifdef DEMO_BENCH_DOORS_OPEN
+void                            doors_bench_open(void)
+{
+    jo_entity                   *e;
+    int                         k;
+
+    for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+        if (e->cls == &door_class && e->state == DOOR_CLOSED)
+            door_action(e, JO_LEVEL_ACTION_TRIGGER, 0, JO_NULL);
+}
+#endif
+
 int                             doors_depth_bias(const jo_entity * const entity)
 {
     const door_data             *d;
@@ -651,6 +667,8 @@ static void                     door_draw(jo_entity * const entity)
     jo_3d_push_matrix();
     {
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        // (in a room seen through a door: the far window, clipped to the door, see jo_cells_window_of())
+        jo_3d_select_window(jo_cells_window_of(bias));
         if (d->hinge)
         {
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
@@ -666,11 +684,46 @@ static void                     door_draw(jo_entity * const entity)
         }
         jo_3d_mesh_draw(entity->mesh);
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_pop_matrix();
 }
 
-static const jo_entity_class    door_class = {"door", sizeof(door_data), door_spawn, door_update, door_action, JO_NULL, door_draw};
+/** @brief Draw a door on the slave CPU (see door_draw(): the distance of the view prepared by the master CPU) */
+static void                     door_draw_slave(jo_entity * const entity)
+{
+    door_data                   *d;
+    int                         bias;
+
+    d = (door_data *)entity->data;
+    if (entity->mesh == JO_NULL || entity->view_distance < 0)
+        return;
+    bias = doors_depth_bias(entity);
+    if (bias < 0 || !jo_3d_slave_push_matrix())
+        return;
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+    jo_3d_slave_select_window(jo_cells_window_of(bias));
+    if (d->hinge)
+    {
+        jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+        jo_3d_slave_rotate_matrix(0, door_angle(entity), 0);
+    }
+    else
+    {
+        jo_pos3D_fixed          offset;
+
+        door_slide_offset(entity, &offset);
+        jo_3d_slave_translate_matrix_fixed(entity->position.x + offset.x, entity->position.y + offset.y, entity->position.z + offset.z);
+        jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+    }
+    jo_3d_slave_mesh_draw(entity->mesh);
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+    jo_3d_slave_pop_matrix();
+}
+
+static const jo_entity_class    door_class = {"door", sizeof(door_data), door_spawn, door_update, door_action, JO_NULL, door_draw,
+                                               door_draw_slave, JO_NULL};
 
 /*
 ** The class billboard: a sprite standing on the feet of the entity, turned toward the agent around the vertical axis (the
@@ -758,6 +811,7 @@ void                            billboards_draw(void)
             // (sorted nearer than its center: a sprite stands a few units in front of a wall, the parts of the wall cut near
             // the camera have their centers about as near as it: the wall was drawn over it)
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias - BILLBOARD_SORT_BIAS);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y - jo_int2fixed(d->half_height), entity->position.z);
             jo_3d_rotate_matrix_y(yaw);
             // (the quad of a 3D sprite has the size of the sprite: the matrix scales it)
@@ -765,13 +819,14 @@ void                            billboards_draw(void)
             jo_3d_draw_sprite(d->sprite);
         }
         jo_3d_pop_matrix();
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
     }
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
     billboard_seen_count = 0;
 }
 
 static const jo_entity_class    billboard_class = {"billboard", sizeof(billboard_data), billboard_spawn, JO_NULL, JO_NULL, JO_NULL,
-                                                   billboard_draw};
+                                                   billboard_draw, JO_NULL, JO_NULL};
 
 
 /*
@@ -809,8 +864,9 @@ static int                      next_shard = 0;
 static jo_3d_mesh               *shard_mesh = JO_NULL;
 static jo_sound                 glass_sound;
 static bool                     glass_sound_loaded = false;
-/** @brief The window that moves and draws the shards of all the windows */
-static jo_entity                *first_glass = JO_NULL;
+/** @brief The window that moves and draws the shards of all the windows (and of the glassware, see glass_burst()): the
+ *  one broken last (it is near the agent: awake, its cell seen) */
+static const jo_entity          *shard_owner = JO_NULL;
 
 static void                     glass_spawn(jo_entity * const entity)
 {
@@ -821,8 +877,6 @@ static void                     glass_spawn(jo_entity * const entity)
     g->broken = false;
     g->width = jo_entity_get_int(entity, "width", 200);
     g->height = jo_entity_get_int(entity, "height", 100);
-    if (first_glass == JO_NULL)
-        first_glass = entity;
     if (shard_mesh == JO_NULL)
     {
         shard_mesh = jo_entity_load_model("SHARD.JOM");
@@ -831,6 +885,51 @@ static void                     glass_spawn(jo_entity * const entity)
     }
     if (!glass_sound_loaded)
         glass_sound_loaded = load_sound("GLASS.WAV", &glass_sound);
+}
+
+/** @brief Pieces of glass flying from a point (something made of glass broken: a flask, a screen), spread around it (units),
+ *  away from the shot (dir, the horizontal direction), the sound (see glass_break() for the panes of the windows)
+ */
+void                            glass_burst(const jo_pos3D_fixed * const center, const jo_pos3D_fixed * const dir, const int count, const int spread,
+                                            const jo_entity * const owner)
+{
+    glass_shard                 *s;
+    int                         k;
+    int                         floor;
+
+    if (shard_mesh == JO_NULL)
+    {
+        shard_mesh = jo_entity_load_model("SHARD.JOM");
+        for (k = 0; k < GLASS_SHARDS; ++k)
+            shards[k].age = -1;
+    }
+    if (!glass_sound_loaded)
+        glass_sound_loaded = load_sound("GLASS.WAV", &glass_sound);
+    shard_owner = owner;
+    for (k = 0; k < count && k < GLASS_SHARDS; ++k)
+    {
+        s = &shards[next_shard];
+        next_shard = (next_shard + 1) % GLASS_SHARDS;
+        s->position.x = center->x + jo_int2fixed(jo_random(2 * spread + 1) - 1 - spread);
+        s->position.y = center->y - jo_int2fixed(jo_random(spread + 1) - 1);
+        s->position.z = center->z + jo_int2fixed(jo_random(2 * spread + 1) - 1 - spread);
+        // (with the shot, spread, up a little more than the panes: they jump off the table)
+        s->speed.x = jo_fixed_mult(dir->x, jo_int2fixed(GLASS_SHARD_SPEED / 2)) + jo_int2fixed(jo_random(80) - 40);
+        s->speed.y = -jo_int2fixed(40 + jo_random(60));
+        s->speed.z = jo_fixed_mult(dir->z, jo_int2fixed(GLASS_SHARD_SPEED / 2)) + jo_int2fixed(jo_random(80) - 40);
+        s->yaw = (short)jo_random(360);
+        s->pitch = (short)jo_random(360);
+        s->spin = (short)(jo_random(720) - 360);
+        s->floor = jo_cells_floor(s->position.x + s->speed.x / 4, s->position.y, s->position.z + s->speed.z / 4, 0x7fff, &floor) ?
+                   jo_int2fixed(floor) - JO_FIXED_1 : center->y + jo_int2fixed(100);
+        s->age = 0;
+    }
+    if (glass_sound_loaded)
+    {
+        sound_from(&glass_sound, center->x, center->z, GLASS_SOUND_VOLUME, GLASS_SOUND_RANGE);
+        jo_audio_stop_channel(CHANNEL_IMPACT_FIRST + 1);
+        jo_audio_play_sound_on_channel(&glass_sound, CHANNEL_IMPACT_FIRST + 1);
+    }
 }
 
 /** @brief The pane breaks: its pieces fly away from the shot (dir), the sound */
@@ -847,6 +946,7 @@ static void                     glass_break(jo_entity * const entity, const jo_p
 
     g = (glass_data *)entity->data;
     g->broken = true;
+    shard_owner = entity;
     ax = jo_cos(entity->yaw);
     az = -jo_sin(entity->yaw);
     for (k = 0; k < GLASS_SHARDS / 2; ++k)
@@ -878,13 +978,14 @@ static void                     glass_break(jo_entity * const entity, const jo_p
     }
 }
 
-static void                     glass_update(jo_entity * const entity, const int elapsed)
+/** @brief The pieces of glass of the windows and of the glassware: moved and drawn by the thing broken last (see
+ *  glass_update(), props.c) */
+void                            glass_shards_update(const jo_entity * const entity, const int elapsed)
 {
     glass_shard                 *s;
     int                         k;
 
-    // (the shards of all the windows: by the first window)
-    if (entity != first_glass)
+    if (entity != shard_owner)
         return;
     for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
     {
@@ -913,11 +1014,14 @@ static void                     glass_update(jo_entity * const entity, const int
     }
 }
 
+static void                     glass_update(jo_entity * const entity, const int elapsed)
+{
+    glass_shards_update(entity, elapsed);
+}
+
 static void                     glass_draw(jo_entity * const entity)
 {
-    glass_shard                 *s;
     int                         bias;
-    int                         k;
     int                         side;
 
     if (!((glass_data *)entity->data)->broken && entity->mesh != JO_NULL && jo_entity_view_distance(entity) >= 0)
@@ -935,13 +1039,34 @@ static void                     glass_draw(jo_entity * const entity)
         {
             jo_3d_push_matrix();
             jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_select_window(jo_cells_window_of(bias));
             jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
             jo_3d_rotate_matrix_y(entity->yaw);
             jo_3d_mesh_draw(entity->mesh);
             jo_3d_pop_matrix();
+            jo_3d_select_window(JO_3D_NEAR_WINDOW);
         }
     }
-    if (shard_mesh == JO_NULL || entity != first_glass)
+    glass_shards_draw(entity);
+}
+
+/** @brief Draw the pieces of glass (see glass_shards_update()) */
+void                            glass_shards_draw(const jo_entity * const entity)
+{
+    glass_shard                 *s;
+    int                         bias;
+    int                         k;
+
+#ifdef TEST_SHARDS
+    {
+        int n = 0, m = 0;
+        for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
+            if (s->age >= 0) { ++n; if (jo_cells_depth_bias_at(s->position.x, s->position.y - JO_FIXED_1, s->position.z) >= 0) ++m; }
+        jo_printf(0, 2, "shards %d drawn %d owner %d mesh %d y %d fl %d", n, m, entity == shard_owner, shard_mesh != JO_NULL,
+                  jo_fixed2int(shards[0].position.y), jo_fixed2int(shards[0].floor));
+    }
+#endif
+    if (shard_mesh == JO_NULL || entity != shard_owner)
         return;
     for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
     {
@@ -949,16 +1074,71 @@ static void                     glass_draw(jo_entity * const entity)
             continue;
         jo_3d_push_matrix();
         jo_3d_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        jo_3d_select_window(jo_cells_window_of(bias));
         jo_3d_translate_matrix_fixed(s->position.x, s->position.y, s->position.z);
         jo_3d_rotate_matrix_y(s->yaw);
         jo_3d_rotate_matrix_x(s->pitch);
         jo_3d_mesh_draw(shard_mesh);
         jo_3d_pop_matrix();
     }
+    jo_3d_select_window(JO_3D_NEAR_WINDOW);
     jo_3d_set_depth_bias(WORLD_DEPTH_BIAS);
 }
 
-static const jo_entity_class    glass_class = {"glass", sizeof(glass_data), glass_spawn, glass_update, JO_NULL, JO_NULL, glass_draw};
+void                            glass_shards_draw_slave(const jo_entity * const entity)
+{
+    glass_shard                 *s;
+    int                         bias;
+    int                         k;
+
+    if (shard_mesh == JO_NULL || entity != shard_owner)
+        return;
+    for (k = 0, s = shards; k < GLASS_SHARDS; ++k, ++s)
+    {
+        if (s->age < 0 || (bias = jo_cells_depth_bias_at(s->position.x, s->position.y - JO_FIXED_1, s->position.z)) < 0 ||
+            !jo_3d_slave_push_matrix())
+            continue;
+        jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+        jo_3d_slave_select_window(jo_cells_window_of(bias));
+        jo_3d_slave_translate_matrix_fixed(s->position.x, s->position.y, s->position.z);
+        jo_3d_slave_rotate_matrix(s->pitch, s->yaw, 0);
+        jo_3d_slave_mesh_draw(shard_mesh);
+        jo_3d_slave_pop_matrix();
+    }
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+    jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS);
+}
+
+/** @brief Draw a pane on the slave CPU (see glass_draw(): the distance of the view prepared by the master CPU) */
+static void                     glass_draw_slave(jo_entity * const entity)
+{
+    int                         bias;
+    int                         side;
+
+    if (!((glass_data *)entity->data)->broken && entity->mesh != JO_NULL && entity->view_distance >= 0)
+    {
+        side = jo_fixed_mult(player_x - entity->position.x, jo_sin(entity->yaw)) + jo_fixed_mult(player_z - entity->position.z, jo_cos(entity->yaw)) >= 0 ? 8 : -8;
+        bias = jo_cells_depth_bias_at(entity->position.x + jo_sin(entity->yaw) * side, entity->position.y - jo_int2fixed(20),
+                                      entity->position.z + jo_cos(entity->yaw) * side);
+        if (bias < 0)
+            bias = jo_cells_depth_bias_at(entity->position.x - jo_sin(entity->yaw) * side, entity->position.y - jo_int2fixed(20),
+                                          entity->position.z - jo_cos(entity->yaw) * side);
+        if (bias >= 0 && jo_3d_slave_push_matrix())
+        {
+            jo_3d_slave_set_depth_bias(WORLD_DEPTH_BIAS + bias);
+            jo_3d_slave_select_window(jo_cells_window_of(bias));
+            jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+            jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+            jo_3d_slave_mesh_draw(entity->mesh);
+            jo_3d_slave_pop_matrix();
+            jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+        }
+    }
+    glass_shards_draw_slave(entity);
+}
+
+static const jo_entity_class    glass_class = {"glass", sizeof(glass_data), glass_spawn, glass_update, JO_NULL, JO_NULL, glass_draw,
+                                                glass_draw_slave, JO_NULL};
 
 jo_fixed                        doors_glass_ray_hit(const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir, const jo_fixed max_t,
                                                     jo_pos3D_fixed * const normal, jo_entity ** const glass)
@@ -1208,7 +1388,7 @@ void                            doors_lights_update(const int elapsed)
     jo_3d_point_lights_update();
 }
 
-static const jo_entity_class    lamp_class = {"lamp", 0, lamp_spawn, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
+static const jo_entity_class    lamp_class = {"lamp", 0, lamp_spawn, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
 
 /** @brief The walls hide the glows of the lamps behind them */
 static bool                     lamp_ray_hit(const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir, const jo_fixed max_t)

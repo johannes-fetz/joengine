@@ -1,0 +1,46 @@
+# Materials of tubes
+
+newmtl m0
+Kd 1 1 1
+map_Kd frame.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+
+newmtl m1
+Kd 1 1 1
+map_Kd tubeg.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+jo_screen_doors 1
+
+newmtl m2
+Kd 1 1 1
+map_Kd tuber.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+jo_screen_doors 1
+
+newmtl m3
+Kd 1 1 1
+map_Kd tubee.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+jo_screen_doors 1
+
+newmtl m4
+Kd 1 1 1
+map_Kd tubeb.png
+jo_lut 1
+jo_gouraud 1
+jo_subdivision 2
+jo_mipmaps 0
+jo_screen_doors 1
+

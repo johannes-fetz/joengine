@@ -11,13 +11,13 @@ JO_COMPILE_WITH_DUAL_CPU_MODULE = 1
 JO_COMPILE_WITH_AUDIO_DRIVER_MODULE = 1
 JO_COMPILE_WITH_AUDIO_DSP_MODULE = 1
 JO_FRAMERATE = 2
-JO_MAX_SPRITE = 340
+JO_MAX_SPRITE = 400
 JO_DEBUG = 0
 # Game information written in the IP.BIN (title, version, etc)
 JO_GAME_TITLE = JO ENGINE FPS DEMO
 JO_GAME_VERSION = V1.000
 JO_NTSC = 1
-SRCS=main.c player.c weapon.c doors.c hud.c guards.c
+SRCS=main.c player.c weapon.c doors.c hud.c guards.c props.c
 JO_ENGINE_SRC_DIR=../../jo_engine
 COMPILER_DIR=../../Compiler
 include $(COMPILER_DIR)/COMMON/jo_engine_makefile

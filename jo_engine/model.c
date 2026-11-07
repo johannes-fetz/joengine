@@ -50,6 +50,8 @@
 #include "jo/tga.h"
 #include "jo/3d.h"
 #include "jo/model.h"
+#include "internal/3d.h"
+#include "internal/model.h"
 
 /** @brief Size of the header of a JOM file */
 # define JO_3D_MODEL_HEADER_SIZE                (24)
@@ -76,6 +78,67 @@ static void                                 jo_3d_model_free(jo_3d_model * const
 static  __jo_force_inline bool              jo_3d_model_is_tag(const unsigned char * const p, const char * const tag)
 {
     return (p[0] == (unsigned char)tag[0] && p[1] == (unsigned char)tag[1] && p[2] == (unsigned char)tag[2] && p[3] == (unsigned char)tag[3]);
+}
+
+/** @brief A chunk not aligned or after the end of the data (a size of 0xFFFFFFF8 wrapped the pointer, the walk didn't move) */
+# define JO_3D_MODEL_WRONG_CHUNK(CHUNK, P, END)     (((CHUNK) & 3) || (CHUNK) > (unsigned int)((END) - (P)) - 8)
+
+/** @brief The count of the elements of a chunk fits in it
+ *  @param p The chunk (tag, size, count, elements)
+ *  @param chunk Size of the chunk (after its tag and its size)
+ *  @param count Count of the elements
+ *  @return false if the elements would be read after the chunk
+ */
+static bool                                 jo_3d_model_count_fits(const unsigned char * const p, const unsigned int chunk, const unsigned int count)
+{
+    unsigned int                            element;
+
+    if (jo_3d_model_is_tag(p, "PNTS") || jo_3d_model_is_tag(p, "NTAB") || jo_3d_model_is_tag(p, "VCOL"))
+        element = sizeof(jo_pos3D_fixed);
+    else if (jo_3d_model_is_tag(p, "QUAD"))
+        element = sizeof(jo_3d_polygon);
+    else if (jo_3d_model_is_tag(p, "QMAT") || jo_3d_model_is_tag(p, "CNRM"))
+        element = sizeof(unsigned short);
+    else if (jo_3d_model_is_tag(p, "MATL"))
+        element = sizeof(jo_3d_material);
+    else if (jo_3d_model_is_tag(p, "TEXT"))
+        element = 16;
+    else if (jo_3d_model_is_tag(p, "GRUP"))
+        element = sizeof(jo_3d_model_group);
+    else if (jo_3d_model_is_tag(p, "BONE"))
+        element = sizeof(jo_3d_bone);
+    else if (jo_3d_model_is_tag(p, "ANIM"))
+        element = sizeof(jo_3d_animation);
+    else
+        return (true);
+    return (chunk >= 4 && count <= (chunk - 4) / element);
+}
+
+/** @brief The keys of the animations of a model are in their chunk, at least 1 key and a time between 2 keys
+ *  @param model Model (its bones and its animations loaded)
+ *  @param size Size of the chunk of the animations (from its count)
+ *  @return false if an animation is wrong
+ */
+static bool                                 jo_3d_model_animations_fit(const jo_3d_model * const model, const unsigned int size)
+{
+    const jo_3d_animation                   *a;
+    unsigned int                            key_size;
+    register unsigned int                   i;
+
+    key_size = (12 + model->bone_count * 6 + 3) & ~3;
+    for (JO_ZERO(i); i < model->animation_count; ++i)
+    {
+        a = &model->animations[i];
+        // (the keys aligned on 4 bytes: their root is read as 32 bits values, an odd offset was an address error of the CPU)
+        if (a->key_count == 0 || a->key_ticks == 0 || (a->offset & 3) || a->offset > size || a->key_count > (size - a->offset) / key_size)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("Wrong animation %d", (int)i);
+#endif
+            return (false);
+        }
+    }
+    return (true);
 }
 
 /** @brief Data of a chunk: in the file data kept by the model, or a copy
@@ -242,6 +305,9 @@ static  __jo_force_inline unsigned int      jo_3d_model_texture_size(const unsig
     unsigned int                            pixels;
 
     pixels = (unsigned int)*(const unsigned short *)(entry + 16) * *(const unsigned short *)(entry + 18);
+    // (a damaged size must not wrap: the callers then refuse a size bigger than their data)
+    if (pixels > 0x7FFFFFF0u)
+        return (0xFFFFFFFCu);
     if (*(const unsigned short *)(entry + 20) == JO_3D_MODEL_TEXTURE_16_COLORS)
         return ((16 * 2 + pixels / 2 + 3) & ~3);
     return ((pixels * 2 + 3) & ~3);
@@ -429,6 +495,7 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
         // A table per polygon (the tables of a room lit by the point lights, see __jo_3d_load_model_for_lights())
         base = jo_3d_add_gouraud_tables((const jo_color *)gouraud, n);
         model->gouraud_tables = base;
+        model->gouraud_table_count = base != 0 ? (unsigned short)n : 0;
         for (JO_ZERO(k); k < n; ++k)
             if (attributes[k].gouraud_table != 0)
                 attributes[k].gouraud_table = base != 0 ? (unsigned short)(base + k) : 0;
@@ -468,6 +535,7 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
         // (the first polygon of each table: its own table)
         base = jo_3d_add_gouraud_tables((const jo_color *)gouraud, n);
         model->gouraud_tables = base;
+        model->gouraud_table_count = base != 0 ? (unsigned short)n : 0;
         for (JO_ZERO(k); k < n; ++k)
             if (attributes[k].gouraud_table != 0)
                 attributes[k].gouraud_table = base != 0 ? (unsigned short)(base + attributes[k].gouraud_table - 1) : 0;
@@ -498,6 +566,7 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     if (compact != __jo_3d_model_gouraud_compact)
         jo_free(compact);
     model->gouraud_tables = base;
+    model->gouraud_table_count = base != 0 ? (unsigned short)count : 0;
     for (JO_ZERO(k); k < n; ++k)
     {
         if (!(attributes[k].draw_mode & JO_VDP1_COLOR_CALC_GOURAUD))
@@ -693,9 +762,35 @@ int                                         jo_3d_model_animation_duration(const
     return ((a->flags & JO_3D_ANIMATION_LOOP ? a->key_count : a->key_count - 1) * a->key_ticks);
 }
 
+/** @brief The key of a time of an animation and the fraction to the next key
+ *  @param time Time (0 or more)
+ *  @param ticks Time between 2 keys (1 to 65535)
+ *  @param frac The fraction (0 to 255)
+ *  @return The key
+ */
+static  __jo_force_inline int               jo_3d_model_key_of(const int time, const int ticks, int * const frac)
+{
+    int                                     key;
+
+    // (one division: (time x 256) / ticks = key x 256 + frac, 0 <= frac < 256. Positive: a logical shift, not the routine of
+    // the library of the compiler)
+    if (time < 0x800000)
+    {
+        *frac = jo_int_div(time << 8, ticks);
+        key = (int)((unsigned int)*frac >> 8);
+        *frac &= 0xFF;
+        return (key);
+    }
+    // (from 2^23 ticks, time x 256 overflows: the key, then the fraction of the rest, under 2^24)
+    key = jo_int_div(time, ticks);
+    *frac = jo_int_div((time - key * ticks) << 8, ticks);
+    return (key);
+}
+
 void                                        jo_3d_model_get_pose(const jo_3d_model * const model, const int animation, int time,
                                                                  jo_3d_pose * const pose)
 {
+    unsigned int                            total;
     const jo_3d_animation                   *a;
     const unsigned char                     *k0;
     const unsigned char                     *k1;
@@ -714,31 +809,34 @@ void                                        jo_3d_model_get_pose(const jo_3d_mod
         return;
     }
     a = &model->animations[animation];
+    // (no key or no time between 2 keys: no pose, see jo_3d_model_animations_fit())
+    if (a->key_count == 0 || a->key_ticks == 0)
+    {
+        jo_memset(pose, 0, sizeof(*pose));
+        return;
+    }
     // A key: the root (3 fixed), the angles of the bones (3 x s16 each), aligned on 4 bytes
     key_size = (12 + model->bone_count * 6 + 3) & ~3;
     if (time < 0)
         time = 0;
     if (a->flags & JO_3D_ANIMATION_LOOP)
     {
-        // (the divisions by the division unit of the CPU, see jo_int_div(): several poses per character and per frame)
-        time -= jo_int_div(time, a->key_count * a->key_ticks) * (a->key_count * a->key_ticks);
-        // (one division: (time x 256) / ticks = key x 256 + frac, 0 <= frac < 256. Positive: a logical shift, not the
-        // routine of the library of the compiler)
-        frac = jo_int_div(time << 8, a->key_ticks);
-        key = (int)((unsigned int)frac >> 8);
-        frac &= 0xFF;
+        // (the divisions by the division unit of the CPU, see jo_int_div(): several poses per character and per frame. The
+        // duration unsigned: 65535 keys of 65535 ticks overflow an int; from 2^31, any time is under it)
+        total = (unsigned int)a->key_count * a->key_ticks;
+        if (total <= 0x7FFFFFFFu)
+            time -= jo_int_div(time, (int)total) * (int)total;
+        key = jo_3d_model_key_of(time, a->key_ticks, &frac);
         next = key + 1 < a->key_count ? key + 1 : 0;
     }
-    else if (time >= (a->key_count - 1) * a->key_ticks)
+    else if ((unsigned int)time >= (unsigned int)(a->key_count - 1) * a->key_ticks)
     {
         key = next = a->key_count - 1;
         frac = 0;
     }
     else
     {
-        frac = jo_int_div(time << 8, a->key_ticks);
-        key = (int)((unsigned int)frac >> 8);
-        frac &= 0xFF;
+        key = jo_3d_model_key_of(time, a->key_ticks, &frac);
         next = key + 1;
     }
     k0 = model->animation_data + a->offset + key * key_size;
@@ -779,6 +877,7 @@ typedef struct
     jo_3d_matrix_rows                       matrices[JO_3D_MAX_BONES];
     jo_3d_part                              parts[JO_3D_MAX_BONES];
     int                                     part_count;
+    unsigned int                            hidden_bones;   // (one per CPU: the slave CPU replaced the mask of the master)
 }                                           jo_3d_model_pose_matrices;
 
 /** @brief The bones not drawn by jo_3d_model_draw_pose() (bits, see jo_3d_model_set_hidden_bones()) */
@@ -809,7 +908,7 @@ static void                                 jo_3d_model_pose_bone(const jo_3d_mo
 
     b = &model->bones[bone];
     // (the mask first: usually 0. The shift by a variable count is a routine of the library of the compiler)
-    hidden = __jo_3d_hidden_bones != 0 && b->group != JO_3D_BONE_NO_GROUP && bone < 32 && (__jo_3d_hidden_bones & (1u << bone));
+    hidden = m->hidden_bones != 0 && b->group != JO_3D_BONE_NO_GROUP && bone < 32 && (m->hidden_bones & (1u << bone));
     // (a bone with its points, not hidden: its matrix is the one of its part)
     matrix = b->group != JO_3D_BONE_NO_GROUP && !hidden ? m->matrices[bone] : local;
     __jo_3d_bone_matrix(matrix, parent, &b->pivot, pose != JO_NULL ? pose->angles[bone] : no_angles);
@@ -833,6 +932,47 @@ static void                                 jo_3d_model_pose_bone(const jo_3d_mo
         jo_3d_model_pose_bone(model, child, pose, callback, param, m, (const jo_fixed (*)[3])matrix);
 }
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+/** @brief The matrices of the bones of the pose drawn by the slave CPU (not on its stack: it is small) */
+static jo_3d_model_pose_matrices            __jo_3d_slave_pose_matrices;
+#endif
+
+void                                        jo_3d_slave_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
+                                                                        const jo_3d_bone_callback callback, void * const param,
+                                                                        const unsigned int hidden_bones)
+{
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    jo_3d_model_pose_matrices               *m;
+    register unsigned int                   k;
+#else
+    unsigned int                            hidden;
+#endif
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    // (the bones hidden: in the matrices of the slave CPU, the mask of the master CPU is not changed while it draws)
+    m = &__jo_3d_slave_pose_matrices;
+    m->part_count = 0;
+    m->hidden_bones = hidden_bones;
+    if (jo_3d_slave_push_matrix())
+    {
+        if (pose != JO_NULL && (pose->root.x | pose->root.y | pose->root.z) != 0)
+            jo_3d_slave_translate_matrix_fixed(pose->root.x, pose->root.y, pose->root.z);
+        for (JO_ZERO(k); k < model->bone_count; ++k)
+            if (model->bones[k].parent < 0)
+                jo_3d_model_pose_bone(model, (int)k, pose, callback, param, m, (const jo_fixed (*)[3])__jo_3d_slave_current_matrix());
+        jo_3d_slave_pop_matrix();
+    }
+    if (m->part_count > 0)
+        __jo_3d_slave_draw_parts(&model->mesh->data, m->parts, m->part_count);
+#else
+    // (without the dual CPU module: drawn by the master CPU, like a job of jo_core_exec_on_slave())
+    hidden = __jo_3d_hidden_bones;
+    __jo_3d_hidden_bones = hidden_bones;
+    jo_3d_model_draw_pose(model, pose, callback, param);
+    __jo_3d_hidden_bones = hidden;
+#endif
+}
+
 void                                        jo_3d_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
                                                                   const jo_3d_bone_callback callback, void * const param)
 {
@@ -842,6 +982,7 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
     // The matrices of the bones, then one draw: the points of each bone are transformed by its matrix (a draw per bone
     // would cost about 0.1 ms each)
     m.part_count = 0;
+    m.hidden_bones = __jo_3d_hidden_bones;
     jo_3d_push_matrix();
     {
         if (pose != JO_NULL && (pose->root.x | pose->root.y | pose->root.z) != 0)
@@ -853,6 +994,71 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
     jo_3d_pop_matrix();
     if (m.part_count > 0)
         __jo_3d_draw_parts(&model->mesh->data, m.parts, m.part_count);
+}
+
+/** @brief An address in the high work RAM (cached or not) */
+static  __jo_force_inline bool              jo_3d_model_is_fast_memory(const void * const p)
+{
+    return (((unsigned int)p & 0x0FF00000) == 0x06000000);
+}
+
+bool                                        jo_3d_model_use_fast_memory(jo_3d_model * const model)
+{
+    jo_3d_polygon_data                      *pdata;
+    jo_3d_polygon_attribute                 *attributes;
+    unsigned char                           *block;
+    unsigned int                            points;
+    unsigned int                            polygons;
+    unsigned int                            bones;
+    unsigned int                            groups;
+
+    if (model == JO_NULL || model->mesh == JO_NULL)
+        return (false);
+    pdata = &model->mesh->data;
+    // (already in the high work RAM: nothing to do. Only the data of a file loaded by jo_3d_load_model(): the other models
+    // own their arrays, the ones of jo_3d_create_model_in_place() belong to the caller)
+    if (model->fast_block != JO_NULL || (jo_3d_model_is_fast_memory(pdata->points) && jo_3d_model_is_fast_memory(pdata->polygons)))
+        return (true);
+    if (model->file == JO_NULL || model->single_block || model->file_not_owned)
+        return (false);
+    // One block: the points, the polygons, the bones, the groups (sizes multiple of 4)
+    points = pdata->point_count * sizeof(jo_pos3D_fixed);
+    polygons = pdata->polygon_count * sizeof(jo_3d_polygon);
+    bones = model->bones != JO_NULL ? model->bone_count * sizeof(jo_3d_bone) : 0;
+    groups = model->groups != JO_NULL ? model->group_count * sizeof(jo_3d_model_group) : 0;
+    groups = (groups + 3) & ~3u;
+    block = (unsigned char *)jo_malloc(points + polygons + bones + groups);
+    if (block == JO_NULL)
+        return (false);
+    attributes = (jo_3d_polygon_attribute *)jo_malloc(pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
+    // (not in the high work RAM: the slower memory is kept as it is)
+    if (!jo_3d_model_is_fast_memory(block) || attributes == JO_NULL || !jo_3d_model_is_fast_memory(attributes))
+    {
+        if (attributes != JO_NULL)
+            jo_free(attributes);
+        jo_free(block);
+        return (false);
+    }
+    jo_memcpy(block, pdata->points, points);
+    pdata->points = (jo_pos3D_fixed *)block;
+    jo_memcpy(block + points, pdata->polygons, polygons);
+    pdata->polygons = (jo_3d_polygon *)(block + points);
+    if (bones > 0)
+    {
+        jo_memcpy(block + points + polygons, model->bones, bones);
+        model->bones = (jo_3d_bone *)(block + points + polygons);
+    }
+    if (groups > 0)
+    {
+        jo_memcpy(block + points + polygons + bones, model->groups, model->group_count * sizeof(jo_3d_model_group));
+        model->groups = (jo_3d_model_group *)(block + points + polygons + bones);
+    }
+    // (the attributes: their own block, freed with the model as before (see jo_3d_model_free()))
+    jo_memcpy(attributes, pdata->attributes, pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
+    jo_free(pdata->attributes);
+    pdata->attributes = attributes;
+    model->fast_block = block;
+    return (true);
 }
 
 /*
@@ -870,6 +1076,27 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
  *  @param storage One memory block for the model, its mesh, the attributes and the texture ids (see
  *         jo_3d_create_model_in_place()), JO_NULL: a block each
  */
+/** @brief Check if a chunk of a model was seen before (each chunk once in a JOM file)
+ *  @param p The chunk
+ *  @param seen The chunks seen (bits, updated)
+ *  @return true if it was seen (a wrong file)
+ */
+static bool                                 jo_3d_model_chunk_seen(const unsigned char * const p, unsigned int * const seen)
+{
+    static const char                       tags[] = "PNTSQUADQMATMATLTIMGTEXTNTABCNRMVCOLGOURGRUPBONEANIM";
+    unsigned int                            k;
+
+    for (JO_ZERO(k); k < sizeof(tags) / 4; ++k)
+        if (jo_3d_model_is_tag(p, &tags[k * 4]))
+        {
+            if (*seen & (1u << k))
+                return (true);
+            *seen |= 1u << k;
+            return (false);
+        }
+    return (false);
+}
+
 static jo_3d_model                          *jo_3d_create_model(const unsigned char * const data, const unsigned int size, void * const file,
                                                                 unsigned char * const storage)
 {
@@ -884,8 +1111,18 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     unsigned int                            chunk;
     unsigned int                            count;
     unsigned int                            storage_polygons;
+    unsigned int                            storage_textures;
+    unsigned int                            qmat_count;
+    unsigned int                            gouraud_size;
+    unsigned int                            anim_size;
+    unsigned int                            seen;
+    bool                                    wrong;
     register unsigned int                   k;
 
+    wrong = false;
+    JO_ZERO(qmat_count);
+    JO_ZERO(gouraud_size);
+    JO_ZERO(anim_size);
     if (data == JO_NULL || size < JO_3D_MODEL_HEADER_SIZE || !jo_3d_model_is_tag(data, "JOM1") ||
         (data[4] << 8 | data[5]) > JO_3D_MODEL_VERSION)
     {
@@ -894,14 +1131,20 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
 #endif
         return (JO_NULL);
     }
-    // (the polygons of the block: the texture ids are after their attributes)
+    // (the polygons of the block: the texture ids are after their attributes. The texture ids the block holds: the count
+    // of the last "TEXT" chunk, as jo_3d_create_model_in_place() counted them)
     JO_ZERO(storage_polygons);
+    JO_ZERO(storage_textures);
     if (storage != JO_NULL)
         for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
         {
             chunk = *(const unsigned int *)(p + 4);
+            if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, data + size))
+                break;
             if (jo_3d_model_is_tag(p, "QUAD"))
                 storage_polygons = *(const unsigned int *)(p + 8);
+            else if (jo_3d_model_is_tag(p, "TEXT"))
+                storage_textures = *(const unsigned int *)(p + 8);
         }
     model = storage != JO_NULL ? (jo_3d_model *)storage : (jo_3d_model *)jo_malloc(sizeof(*model));
     if (model == JO_NULL)
@@ -919,13 +1162,27 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     gouraud = JO_NULL;
     JO_ZERO(point_count);
     JO_ZERO(polygon_count);
+    JO_ZERO(seen);
     end = data + size;
     for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 8 <= end && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
     {
         chunk = *(const unsigned int *)(p + 4);
-        if (p + 8 + chunk > end)
+        if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, end))
             break;
         count = chunk >= 4 ? *(const unsigned int *)(p + 8) : 0;
+        // (the elements of a chunk in the chunk: a wrong count read after it)
+        if (!jo_3d_model_count_fits(p, chunk, count))
+        {
+            wrong = true;
+            break;
+        }
+        // (a chunk twice: the first copy was lost, and in one block (jo_3d_create_model_in_place()) a second "TEXT" bigger
+        // than the last one was written after the block)
+        if (jo_3d_model_chunk_seen(p, &seen))
+        {
+            wrong = true;
+            break;
+        }
         if (jo_3d_model_is_tag(p, "PNTS"))
         {
             point_count = count;
@@ -937,7 +1194,10 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             polygons = p + 12;
         }
         else if (jo_3d_model_is_tag(p, "QMAT"))
+        {
+            qmat_count = count;
             model->polygon_materials = (unsigned short *)jo_3d_model_copy(model, p + 12, count * sizeof(unsigned short));
+        }
         else if (jo_3d_model_is_tag(p, "MATL"))
         {
             model->material_count = count;
@@ -947,7 +1207,9 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         {
             const unsigned char             *entry;
 
-            for (JO_ZERO(k), entry = p + 12; k < count && entry + 24 <= p + 8 + chunk; ++k)
+            // (the pixels of each texture in the chunk too: a wrong size read them after the data of the file)
+            for (JO_ZERO(k), entry = p + 12; k < count && entry + 24 <= p + 8 + chunk &&
+                 jo_3d_model_texture_size(entry) <= (unsigned int)(p + 8 + chunk - (entry + 24)); ++k)
             {
                 jo_3d_model_add_embedded_texture(entry, (const jo_color *)(entry + 24));
                 entry += 24 + jo_3d_model_texture_size(entry);
@@ -955,6 +1217,13 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         }
         else if (jo_3d_model_is_tag(p, "TEXT"))
         {
+            // (in one block: more ids than the block holds is a wrong file. A first "TEXT" bigger than a second one wrote
+            // its ids after the block, before the second one was found)
+            if (storage != JO_NULL && count > storage_textures)
+            {
+                wrong = true;
+                break;
+            }
             model->texture_count = count;
             model->textures = storage != JO_NULL ? (int *)(storage + JO_3D_MODEL_BLOCK_TEXTURES(storage_polygons)) :
                               (int *)jo_malloc((count > 0 ? count : 1) * sizeof(int));
@@ -978,7 +1247,10 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         else if (jo_3d_model_is_tag(p, "VCOL"))
             model->vertex_colors = (jo_pos3D_fixed *)jo_3d_model_copy(model, p + 12, count * sizeof(jo_pos3D_fixed));
         else if (jo_3d_model_is_tag(p, "GOUR"))
+        {
             gouraud = (const unsigned short *)(p + 12);
+            gouraud_size = chunk >= 4 ? chunk - 4 : 0;
+        }
         else if (jo_3d_model_is_tag(p, "GRUP"))
         {
             model->group_count = count;
@@ -993,6 +1265,7 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         {
             // (the keys are after the headers: the whole chunk is kept)
             model->animation_data = (const unsigned char *)jo_3d_model_copy(model, p + 8, chunk);
+            anim_size = chunk;
             if (model->animation_data != JO_NULL)
             {
                 model->animation_count = count;
@@ -1001,10 +1274,25 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             }
         }
     }
-    if (points == JO_NULL || polygons == JO_NULL)
+    // The vertices of the polygons are points of the model, a material and 4 gouraud colors per polygon, the keys of the
+    // animations in their chunk
+    for (JO_ZERO(k); !wrong && polygons != JO_NULL && k < polygon_count; ++k)
+    {
+        const jo_3d_polygon                 *polygon;
+
+        polygon = (const jo_3d_polygon *)polygons + k;
+        if (polygon->vertices[0] >= point_count || polygon->vertices[1] >= point_count ||
+            polygon->vertices[2] >= point_count || polygon->vertices[3] >= point_count)
+            wrong = true;
+    }
+    if ((qmat_count != 0 && qmat_count < polygon_count) || (gouraud != JO_NULL && gouraud_size < polygon_count * 4 * sizeof(unsigned short)))
+        wrong = true;
+    if (!wrong && !jo_3d_model_animations_fit(model, anim_size))
+        JO_ZERO(model->animation_count);
+    if (wrong || points == JO_NULL || polygons == JO_NULL)
     {
 #ifdef JO_DEBUG
-        jo_core_error("JOM file without points or polygons");
+        jo_core_error(wrong ? "Wrong JOM file" : "JOM file without points or polygons");
 #endif
         jo_3d_model_free(model, false);
         return (JO_NULL);
@@ -1077,6 +1365,8 @@ jo_3d_model                                 *jo_3d_create_model_in_place(const u
     for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
     {
         chunk = *(const unsigned int *)(p + 4);
+        if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, data + size))
+            break;
         if (jo_3d_model_is_tag(p, "QUAD"))
             polygon_count = *(const unsigned int *)(p + 8);
         else if (jo_3d_model_is_tag(p, "TEXT"))
@@ -1104,6 +1394,14 @@ static void                                 jo_3d_model_free(jo_3d_model * const
 {
     if (model == JO_NULL)
         return;
+    // (the copies of its tints and its environment map, then its gouraud tables: the VRAM of the VDP1 given back when
+    // they are the last sprites, a level loaded and freed again and again used it up)
+    if (model->mesh != JO_NULL)
+    {
+        __jo_3d_forget_tint(&model->mesh->data);
+        __jo_3d_forget_environment(&model->mesh->data);
+    }
+    jo_3d_free_gouraud_tables(model->gouraud_tables, model->gouraud_table_count);
     if (model->single_block)
     {
         // The model, its mesh, the attributes, the texture ids: one block (see jo_3d_create_model_in_place())
@@ -1116,7 +1414,9 @@ static void                                 jo_3d_model_free(jo_3d_model * const
     }
     if (model->file != JO_NULL)
     {
-        // The data are in the file (see jo_3d_load_model())
+        // The data are in the file (see jo_3d_load_model()), or their copies in the high work RAM
+        if (model->fast_block != JO_NULL)
+            jo_free(model->fast_block);
         if (model->mesh != JO_NULL)
         {
             if (model->mesh->data.attributes != JO_NULL)

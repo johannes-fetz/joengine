@@ -152,6 +152,10 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
             gfx->vram = nbg1_bitmap;
             gfx->vram_size.width = JO_VDP2_WIDTH;
             gfx->vram_size.height = JO_VDP2_HEIGHT;
+            // (in the bitmap: a renderer of 704 pixels or 480 lines wrote after the buffer and after the bitmap)
+            gfx->clipping_size.width = JO_MIN(width, JO_VDP2_WIDTH);
+            gfx->clipping_size.height = JO_MIN(height, JO_VDP2_HEIGHT);
+            height = gfx->clipping_size.height;
             break;
         default:
             jo_software_renderer_free(gfx);
@@ -373,6 +377,11 @@ static __jo_force_inline bool               jo_is_triangle_degenerated(const jo_
     return ((p0->x == p1->x && p0->x == p2->x) || (p0->y == p1->y && p0->y == p2->y));
 }
 
+/** @brief Smallest depth (w) of a vertex drawn (no clipping on the near plane) */
+#define JO_SR_NEAR_W                        (JO_FIXED_1 / 16)
+/** @brief Largest coordinate of a vertex on the surface (pixels, fixed point): 4 times the largest surface */
+#define JO_SR_GUARD_BAND                    (jo_int2fixed(2048))
+
 static __jo_force_inline bool               jo_is_triangle_offscreen(const jo_vector4_fixed * const p0,
                                                                      const jo_vector4_fixed * const p1,
                                                                      const jo_vector4_fixed * const p2)
@@ -425,14 +434,17 @@ static __jo_force_inline void               jo_transform_to_surface_coord(const 
     width = jo_int2fixed(gfx->clipping_size.width);
     height = jo_int2fixed(gfx->clipping_size.height);
 
-    p0->x = jo_fixed_div(jo_fixed_mult(p0->x, width), jo_fixed_mult(JO_FIXED_2, p0->w)) + jo_fixed_div(width, JO_FIXED_2);
-    p0->y = jo_fixed_div(jo_fixed_mult(p0->y, height), jo_fixed_mult(JO_FIXED_2, p0->w)) + jo_fixed_div(height, JO_FIXED_2);
+    // (x / w first, from -1 to 1 on the screen: x * width overflowed for |x| > 102 with a width of 320)
+    width = JO_DIV_BY_2(width);
+    height = JO_DIV_BY_2(height);
+    p0->x = jo_fixed_mult(jo_fixed_div(p0->x, p0->w), width) + width;
+    p0->y = jo_fixed_mult(jo_fixed_div(p0->y, p0->w), height) + height;
 
-    p1->x = jo_fixed_div(jo_fixed_mult(p1->x, width), jo_fixed_mult(JO_FIXED_2, p1->w)) + jo_fixed_div(width, JO_FIXED_2);
-    p1->y = jo_fixed_div(jo_fixed_mult(p1->y, height), jo_fixed_mult(JO_FIXED_2, p1->w)) + jo_fixed_div(height, JO_FIXED_2);
+    p1->x = jo_fixed_mult(jo_fixed_div(p1->x, p1->w), width) + width;
+    p1->y = jo_fixed_mult(jo_fixed_div(p1->y, p1->w), height) + height;
 
-    p2->x = jo_fixed_div(jo_fixed_mult(p2->x, width), jo_fixed_mult(JO_FIXED_2, p2->w)) + jo_fixed_div(width, JO_FIXED_2);
-    p2->y = jo_fixed_div(jo_fixed_mult(p2->y, height), jo_fixed_mult(JO_FIXED_2, p2->w)) + jo_fixed_div(height, JO_FIXED_2);
+    p2->x = jo_fixed_mult(jo_fixed_div(p2->x, p2->w), width) + width;
+    p2->y = jo_fixed_mult(jo_fixed_div(p2->y, p2->w), height) + height;
 }
 
 static __jo_force_inline void               jo_swap_vertex(jo_software_renderer_vertex * const a, jo_software_renderer_vertex * const b)
@@ -553,7 +565,8 @@ static __jo_force_inline void               __jo_software_renderer_draw_regular_
     jo_fixed                                invV1Z;
 
     v3 = triangle->v2;
-    v3.pos.x = triangle->v0.pos.x + jo_fixed_div(jo_fixed_mult((triangle->v1.pos.x - triangle->v0.pos.x), (triangle->v2.pos.y - triangle->v0.pos.y)), (triangle->v1.pos.y - triangle->v0.pos.y));
+    // (the ratio first, from 0 to 1: the product of 2 distances on the screen overflowed above 32767, a big triangle was torn)
+    v3.pos.x = triangle->v0.pos.x + jo_fixed_mult((triangle->v1.pos.x - triangle->v0.pos.x), jo_fixed_div((triangle->v2.pos.y - triangle->v0.pos.y), (triangle->v1.pos.y - triangle->v0.pos.y)));
     JO_ZERO(v3.pos.z);
     jo_vector4_fixed_sub(&triangle->v1.pos, &triangle->v0.pos, &diff);
     jo_vector4_fixed_sub(&v3.pos, &triangle->v0.pos, &diff2);
@@ -612,9 +625,17 @@ void                                        jo_software_renderer_draw_triangle(c
 
     if (jo_is_triangle_offscreen(&result.v0.pos, &result.v1.pos, &result.v2.pos))
         return ;
+    // (no clipping on the near plane: a vertex at the camera or behind it was divided by 0 or mirrored, the scanlines of
+    // huge coordinates froze the game for frames. Not drawn)
+    if (result.v0.pos.w < JO_SR_NEAR_W || result.v1.pos.w < JO_SR_NEAR_W || result.v2.pos.w < JO_SR_NEAR_W)
+        return ;
     if (gfx->face_culling_mode != JO_SR_NO_FACE_CULLING && jo_is_triangle_face_culled(gfx->face_culling_mode, &result.v0.pos, &result.v1.pos, &result.v2.pos))
         return ;
     jo_transform_to_surface_coord(gfx, &result.v0.pos, &result.v1.pos, &result.v2.pos);
+    // (far outside of the surface: the same freeze)
+    if (JO_ABS(result.v0.pos.x) > JO_SR_GUARD_BAND || JO_ABS(result.v1.pos.x) > JO_SR_GUARD_BAND || JO_ABS(result.v2.pos.x) > JO_SR_GUARD_BAND ||
+        JO_ABS(result.v0.pos.y) > JO_SR_GUARD_BAND || JO_ABS(result.v1.pos.y) > JO_SR_GUARD_BAND || JO_ABS(result.v2.pos.y) > JO_SR_GUARD_BAND)
+        return ;
 
     if (result.v2.pos.y > result.v1.pos.y)
         jo_swap_vertex(&result.v1, &result.v2);

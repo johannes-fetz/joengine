@@ -127,11 +127,18 @@ extern jo_profile_cpu               __jo_profile_cpu[2];
  */
 static  __jo_force_inline unsigned int  jo_profile_ticks(void)
 {
+    unsigned int                    sr;
     unsigned int                    high;
+    unsigned int                    low;
 
-    // The high byte must be read first (the low byte is latched)
+    // The high byte must be read first (the low byte is latched in the only temporary register of the timer: interrupts
+    // masked, the sampling handler and the VBLANK read the timer)
+    __asm__ volatile ("stc sr, %0" : "=r" (sr) : : "memory");
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr | 0xF0) : "memory");
     high = *(volatile unsigned char *)0xFFFFFE12;
-    return ((high << 8) | *(volatile unsigned char *)0xFFFFFE13);
+    low = *(volatile unsigned char *)0xFFFFFE13;
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
+    return ((high << 8) | low);
 }
 
 /** @brief Measures of the current CPU (Internal usage)
@@ -198,12 +205,17 @@ static  __jo_force_inline void      jo_profile_count(const jo_profile_slot slot,
  */
 bool                                jo_profile_get(const jo_profile_slot slot, unsigned int *average, unsigned int *maximum);
 
+/** @brief Ticks of the last drawing of the VDP1 (from the frame buffer change to the end of the drawing, see
+ *  jo_profile_ticks(); JO_PROFILE_VDP1_DRAW sums the drawings as they end: read between 2 frames, the sum of a frame
+ *  held 0 or 2 drawings, a frame of 20 ms looked like a frame of 42 ms)
+ *  @return Ticks (0: none yet)
+ */
+unsigned int                        jo_profile_vdp1_last(void);
+
 /** @brief Count the pixels drawn by the VDP1 for the 3D polygons (JO_PROFILE_3D_PIXELS)
  *  @param enabled true to count them (about 2 microseconds more per polygon), false by default
  */
 void                                jo_profile_count_pixels(const bool enabled);
-/** @brief The pixels of the polygons are counted (see jo_profile_count_pixels()) */
-extern bool                         __jo_profile_pixels;
 
 /** @brief Give a name to a measure of the program (shown by jo_profile_print())
  *  @param slot Measure (JO_PROFILE_USER(N))
@@ -243,18 +255,6 @@ void                                        jo_profile_sampling_stop(void);
  */
 void                                jo_profile_sampling_start(unsigned int *master_histogram, unsigned int *slave_histogram);
 
-/** @brief A job of the slave CPU starts (Internal usage, called by the slave CPU): its maximums are reset if the master CPU
- *  asked for it (see __jo_profile_end_frame()) */
-void                                __jo_profile_slave_job(void);
-
-/** @brief Initialize the profiler (Internal usage, called by jo_core_init()) */
-void                                __jo_profile_init(void);
-
-/** @brief End of a frame (Internal usage, called by jo_core_run()) */
-void                                __jo_profile_end_frame(void);
-
-/** @brief The VDP1 starts drawing a new command table (Internal usage, called during the VBLANK) */
-void                                __jo_profile_vdp1_start(void);
 
 #else
 
@@ -265,7 +265,6 @@ void                                __jo_profile_vdp1_start(void);
 # define jo_profile_print(X, Y)                 do {} while (0)
 # define jo_profile_count_pixels(ENABLED)       do {} while (0)
 # define jo_profile_sampling_start(M, S)        do {} while (0)
-# define __jo_profile_slave_job()               do {} while (0)
 
 #endif /* !JO_COMPILE_WITH_PROFILER_SUPPORT */
 

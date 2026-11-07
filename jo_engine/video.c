@@ -43,6 +43,9 @@
 #include "jo/image.h"
 #include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
+#include "internal/sega_saturn.h"
+#include "internal/fs.h"
+#include "internal/sprites.h"
 
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 
@@ -591,6 +594,9 @@ static void                     jo_video_decode_frame(const unsigned char *p, co
             jo_memcpy(v1, v1 - 2 * 256 * 4, 2 * JO_VIDEO_CODEBOOK_BYTES);
         strip_size = jo_video_be16(p + 2);
         strip_height = jo_video_be16(p + 8) - jo_video_be16(p + 4);
+        // (a damaged file: a strip out of the frame wrote before or after the decode buffer)
+        if (strip_height <= 0 || y + strip_height > (int)m->header.height)
+            break;
         strip_end = p + strip_size;
         if (strip_end > end)
             strip_end = end;
@@ -757,6 +763,7 @@ static void                     jo_video_task(void)
 void                            jo_video_stop(void)
 {
     jo_video_movie              *m;
+    jo_video_onstop_callback    onstop;
 
     m = &__jo_video_movie;
     m->playing = false;
@@ -794,8 +801,11 @@ void                            jo_video_stop(void)
         // The sprites must be created again by jo_video_open_file()
         __jo_video_sprite_id = -1;
         __jo_video_back_sprite_id = -1;
-        m->onstop();
+        // (forgotten before the call: a callback that opens the next movie stopped it again and called itself without end,
+        // and the callback given to jo_video_play() for the next movie was cleared after)
+        onstop = m->onstop;
         m->onstop = JO_NULL;
+        onstop();
     }
 }
 
@@ -914,6 +924,23 @@ bool					        jo_video_open_file(const char *const filename)
     m->img.width = m->header.width;
     m->img.height = m->header.height;
     m->img.data = m->decode_buffer;
+    // (the sprites of the last movie, another size: a sprite is replaced by one of the same size only)
+    if (__jo_video_sprite_id >= 0 && __jo_video_back_sprite_id >= 0 &&
+        (jo_sprite_get_width(__jo_video_sprite_id) != m->img.width || jo_sprite_get_height(__jo_video_sprite_id) != m->img.height))
+    {
+        // (freed if they are the last sprites, else the sprites added after them would be freed too)
+        if (JO_MAX(__jo_video_sprite_id, __jo_video_back_sprite_id) != jo_get_last_sprite_id())
+        {
+#ifdef JO_DEBUG
+            jo_core_error("Movie of another size: free the sprites added after the last movie first");
+#endif
+            jo_video_stop();
+            return (false);
+        }
+        jo_sprite_free_from(JO_MIN(__jo_video_sprite_id, __jo_video_back_sprite_id));
+        __jo_video_sprite_id = -1;
+        __jo_video_back_sprite_id = -1;
+    }
     // 2 sprites: one is displayed while the next frame is copied in the other one
     if (__jo_video_sprite_id < 0)
         __jo_video_sprite_id = jo_sprite_add(&m->img);
@@ -943,6 +970,12 @@ bool                            jo_video_pause(void)
         return (false);
     }
     __jo_video_movie.paused = !__jo_video_movie.paused;
+    // (the sound chip looped the ring during the pause, then played out of sync: started again with the next sound queued)
+    if (__jo_video_movie.paused)
+    {
+        jo_video_stop_audio();
+        __jo_video_movie.pcm_write = 0;
+    }
     return (true);
 }
 
@@ -958,8 +991,10 @@ bool                            jo_video_play(const jo_video_onstop_callback ons
     if (__jo_video_movie.event_id < 0)
     {
         __jo_video_movie.event_id = jo_core_add_callback(jo_video_callback);
-        if (__jo_video_movie.event_id < 0)
+        // (0 when it fails, not a negative id: the movie never played and jo_video_stop() removed the callback 0)
+        if (__jo_video_movie.event_id == 0)
         {
+            __jo_video_movie.event_id = -1;
 #ifdef JO_DEBUG
             jo_core_error("Fail to create video callback");
 #endif

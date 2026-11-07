@@ -59,7 +59,7 @@ static inline void         draw_ship(void)
     /* Instead of loading the same animation when we move the ship to the right, we just flip the sprite horizontally */
     if (ship.move == SHIP_MOVE_RIGHT)
         jo_sprite_enable_horizontal_flip();
-    /* We reverse the animation when the ship doesn't move horizontally (see line 74) */
+    /* We reverse the animation when the ship doesn't move horizontally (see my_gamepad()) */
     jo_sprite_draw3D(ship.reverse_animation ? jo_get_anim_sprite_reverse(ship.anim_id) : jo_get_anim_sprite(ship.anim_id), ship.x, ship.y, 500);
     if (ship.move == SHIP_MOVE_RIGHT)
         jo_sprite_disable_horizontal_flip();

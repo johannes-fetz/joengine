@@ -105,9 +105,6 @@ void                                jo_vehicle_drive(jo_entity * const entity, c
 void                                jo_vehicle_to_world(const jo_entity * const entity, const jo_pos3D_fixed * const local,
                                                         jo_pos3D_fixed * const world);
 
-/** @brief The class vehicle (Internal usage: registered by jo_entities_load()) */
-extern const jo_entity_class        __jo_vehicle_class;
-
 /** @brief Get the vehicle data of an entity
  *  @param entity Entity
  *  @return Its data, JO_NULL if it is not a vehicle

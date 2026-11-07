@@ -64,6 +64,8 @@
 #include "jo/vehicle.h"
 #include "jo/cell.h"
 #include "jo/light.h"
+#include "jo/time.h"
+#include "internal/vehicle.h"
 
 /** @brief Events and actions sent at once in a row at most (then they wait for the next update: no endless loop) */
 #define JO_ENTITY_MAX_DEPTH                 (8)
@@ -74,18 +76,29 @@ typedef struct
     short                           target;         // -1: free
     short                           source;         // -1: the game
     unsigned short                  action;
-    short                           time;           // Milliseconds left
+    unsigned short                  update;         // The update that queued it (see __jo_entity_update_count)
+    int                             time;           // Milliseconds left
     int                             param;
 }                                   __jo_entity_pending;
 
+/** @brief A model loaded (its name is copied: the program can give a name built in a buffer of the stack) */
 typedef struct
 {
-    const char                      *filename;
+    char                            filename[32];
     jo_3d_model                     *model;
 }                                   __jo_entity_model;
 
 static const jo_entity_class        *__jo_entity_classes[JO_ENTITY_MAX_CLASSES];
 static int                          __jo_entity_class_count = 0;
+/** @brief The classes drawn by both CPUs at the same time (see jo_entity_class_set_parallel_draw()) */
+static const jo_entity_class        *__jo_entity_parallel_classes[JO_ENTITY_MAX_CLASSES];
+static int                          __jo_entity_parallel_class_count = 0;
+/** @brief The classes of the entities drawn by a draw_slave callback in this frame (see jo_entities_prepare_draw()): the
+ *  master CPU waits for the slave CPU before it draws an entity of one of them, not before the others (a door of the master
+ *  CPU waited for all the characters of the slave CPU), more than JO_ENTITY_SLAVE_CLASSES: before all of them */
+#define JO_ENTITY_SLAVE_CLASSES             (8)
+static const jo_entity_class        *__jo_entity_slave_classes[JO_ENTITY_SLAVE_CLASSES];
+static int                          __jo_entity_slave_class_count = 0;
 /** @brief The entities of the level: allocated with their count (a static array of JO_ENTITY_MAX cost its whole size to
  *  every program, a big level no longer fitted in the work RAM) */
 static jo_entity                    *__jo_entities = JO_NULL;
@@ -118,9 +131,13 @@ static __jo_entity_pending          __jo_entity_pendings[JO_ENTITY_MAX_PENDING];
 static __jo_entity_model            __jo_entity_models[JO_ENTITY_MAX_MODELS];
 static int                          __jo_entity_model_count = 0;
 static int                          __jo_entity_depth = 0;
+/** @brief Number of jo_entities_update(): an action queued during an update waits for the next one (its delay counts from it) */
+static unsigned short               __jo_entity_update_count = 0;
 static jo_pos3D_fixed               __jo_entity_player;
 static jo_entity_area_damage_callback __jo_entity_area_damage = JO_NULL;
 static void                         __jo_entity_register_engine_classes(void);
+static bool                         __jo_entity_engine_classes = false;
+static void                         __jo_entities_forget_draw(void);
 
 /*
 ** Classes, strings, properties
@@ -144,6 +161,21 @@ void                                jo_entity_register_class(const jo_entity_cla
         return;
     }
     __jo_entity_classes[__jo_entity_class_count++] = cls;
+}
+
+void                                jo_entity_class_set_parallel_draw(const jo_entity_class * const cls, const bool parallel)
+{
+    int                             k;
+
+    for (k = 0; k < __jo_entity_parallel_class_count; ++k)
+        if (__jo_entity_parallel_classes[k] == cls)
+        {
+            if (!parallel)
+                __jo_entity_parallel_classes[k] = __jo_entity_parallel_classes[--__jo_entity_parallel_class_count];
+            return;
+        }
+    if (parallel && cls != JO_NULL && __jo_entity_parallel_class_count < JO_ENTITY_MAX_CLASSES)
+        __jo_entity_parallel_classes[__jo_entity_parallel_class_count++] = cls;
 }
 
 static const jo_entity_class        *__jo_entity_find_class(const char * const name)
@@ -219,15 +251,15 @@ jo_3d_model                         *jo_entity_get_model(const char * const file
     for (k = 0; k < __jo_entity_model_count; ++k)
         if (jo_strcmp(__jo_entity_models[k].filename, filename) == 0)
             return (__jo_entity_models[k].model);
-    if (__jo_entity_model_count >= JO_ENTITY_MAX_MODELS)
+    if (__jo_entity_model_count >= JO_ENTITY_MAX_MODELS || jo_strlen(filename) >= (int)sizeof(__jo_entity_models[0].filename))
     {
 #ifdef JO_DEBUG
-        jo_core_error("Too many entity models (max=%d)", JO_ENTITY_MAX_MODELS);
+        jo_core_error("Too many entity models (max=%d) or name too long: %s", JO_ENTITY_MAX_MODELS, filename);
 #endif
         return (JO_NULL);
     }
     model = jo_3d_load_model(filename);
-    __jo_entity_models[__jo_entity_model_count].filename = filename;
+    jo_memcpy(__jo_entity_models[__jo_entity_model_count].filename, filename, jo_strlen(filename) + 1);
     __jo_entity_models[__jo_entity_model_count].model = model;
     ++__jo_entity_model_count;
     return (model);
@@ -256,6 +288,7 @@ void                                jo_entity_set_mesh(jo_entity * const entity,
     cx = JO_ABS(jo_fixed2int(center.x));
     cz = JO_ABS(jo_fixed2int(center.z));
     entity->mesh_radius += cx > cz ? cx + cz / 2 : cz + cx / 2;
+    entity->center_dy = center.y;
     entity->center.x = entity->position.x;
     entity->center.y = entity->position.y + center.y;
     entity->center.z = entity->position.z;
@@ -280,7 +313,8 @@ void                                jo_entities_free(void)
         jo_free(__jo_entities_memory);
     __jo_entities_memory = JO_NULL;
     __jo_entities = JO_NULL;
-    for (k = 0; k < __jo_entity_model_count; ++k)
+    // (in the reverse order of their loading: the VRAM of their gouraud tables is given back, see jo_3d_free_gouraud_tables())
+    for (k = __jo_entity_model_count - 1; k >= 0; --k)
         if (__jo_entity_models[k].model != JO_NULL)
             jo_3d_free_model(__jo_entity_models[k].model);
     __jo_entity_model_count = 0;
@@ -298,6 +332,7 @@ void                                jo_entities_free(void)
     __jo_entity_strings_size = 0;
     for (k = 0; k < JO_ENTITY_MAX_PENDING; ++k)
         __jo_entity_pendings[k].target = -1;
+    __jo_entities_forget_draw();
     // (the sprites of the explosions are loaded again with the next level: the program can free their VRAM with the
     // textures of the models, see jo_3d_model_free_textures_from())
     __jo_entities_free_looks();
@@ -327,8 +362,12 @@ int                                 jo_entities_load(jo_level * const level)
     jo_entity                       *e;
 
     jo_entities_free();
-    if (__jo_entity_class_count == 0 || __jo_entity_find_class("entity") == JO_NULL)
+    // (once: a class of the game registered before with the name of a class of the engine replaces it)
+    if (!__jo_entity_engine_classes)
+    {
         __jo_entity_register_engine_classes();
+        __jo_entity_engine_classes = true;
+    }
     // What the entities need after the level is freed: the strings, the properties, the links
     strs = jo_level_find_section(level, JO_LEVEL_SECTION_STRS);
     if (strs != JO_NULL)
@@ -368,6 +407,8 @@ int                                 jo_entities_load(jo_level * const level)
     {
         e = &__jo_entities[k];
         jo_memset(e, 0, sizeof(*e));
+        // (not seen before its first jo_entities_prepare_draw(): woken by the distance only, see jo_entities_set_wake())
+        e->view_distance = -1;
         e->name = __jo_entity_string(er->name);
         e->cls = __jo_entity_find_class(__jo_entity_string(er->cls));
         if (e->cls == JO_NULL)
@@ -457,7 +498,8 @@ static void                         __jo_entity_queue(const int target, const in
             p->target = (short)target;
             p->source = (short)source;
             p->action = (unsigned short)action;
-            p->time = (short)JO_MIN(delay, 32767);
+            p->update = __jo_entity_update_count;
+            p->time = delay;
             p->param = param;
             return;
         }
@@ -556,7 +598,7 @@ void                                jo_entities_damage_area(const jo_pos3D_fixed
     int                             d;
     jo_entity                       *e;
 
-    for (k = 0, e = __jo_entities; k < __jo_entity_count; ++k, ++e)
+    for (k = 0, e = __jo_entities; radius > 0 && k < __jo_entity_count; ++k, ++e)
     {
         if (e == source || e->health <= 0 || (e->flags & (JO_ENTITY_FLAG_DEAD | JO_ENTITY_FLAG_DISABLED)))
             continue;
@@ -578,6 +620,16 @@ void                                jo_entities_damage_area(const jo_pos3D_fixed
 ** Update, drawing
 */
 
+/** @brief Wake rule of the entities (see jo_entities_set_wake()) */
+static int                          __jo_entity_wake_distance = JO_ENTITY_WAKE_DISTANCE;
+static bool                         __jo_entity_wake_when_seen = false;
+
+void                                jo_entities_set_wake(const int distance, const bool when_seen)
+{
+    __jo_entity_wake_distance = JO_MAX(distance, 0);
+    __jo_entity_wake_when_seen = when_seen;
+}
+
 void                                jo_entities_update(const jo_pos3D_fixed * const player, const int elapsed)
 {
     int                             k;
@@ -587,14 +639,23 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
     jo_entity                       *e;
 
     __jo_entity_player = *player;
+    ++__jo_entity_update_count;
     // (the flags set directly since the last update)
     __jo_entities_list_solids();
     // The delayed actions (the ones added now wait for the next update)
     for (k = 0, p = __jo_entity_pendings; k < JO_ENTITY_MAX_PENDING; ++k, ++p)
     {
-        if (p->target < 0)
+        // (an action queued by an action of this loop in a slot after it: its delay counted from the next update, the
+        // same as the ones queued by the classes. Its time went down at once, a delay shorter than the update was none)
+        if (p->target < 0 || p->update == __jo_entity_update_count)
             continue;
-        p->time -= (short)elapsed;
+        // (a slot never used: the table starts at 0, before the first jo_entities_free())
+        if (p->target >= __jo_entity_count || p->source >= __jo_entity_count)
+        {
+            p->target = -1;
+            continue;
+        }
+        p->time -= elapsed;
         if (p->time > 0)
             continue;
         e = &__jo_entities[p->target];
@@ -606,9 +667,13 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
     {
         if (e->cls->update == JO_NULL || (e->flags & JO_ENTITY_FLAG_DISABLED))
             continue;
-        dx = JO_ABS(jo_fixed2int(e->position.x - player->x));
-        dz = JO_ABS(jo_fixed2int(e->position.z - player->z));
-        if (e->timer > 0 || (dx < JO_ENTITY_WAKE_DISTANCE && dz < JO_ENTITY_WAKE_DISTANCE))
+        // (from the edge of its cylinder: a trigger zone wider than a short wake distance missed the player who went in it
+        // near its edge, and his exit)
+        dx = JO_ABS(jo_fixed2int(e->position.x - player->x)) - e->radius;
+        dz = JO_ABS(jo_fixed2int(e->position.z - player->z)) - e->radius;
+        // (seen: drawn in the last frame, see jo_entities_prepare_draw())
+        if (e->timer > 0 || (__jo_entity_wake_distance > 0 && dx < __jo_entity_wake_distance && dz < __jo_entity_wake_distance) ||
+                (__jo_entity_wake_when_seen && e->view_distance >= 0))
             e->cls->update(e, elapsed);
     }
 }
@@ -630,6 +695,7 @@ int                                 jo_entity_view_distance(const jo_entity * co
     int                             dx;
     int                             dz;
     int                             distance;
+    jo_pos3D_fixed                  center;
     jo_pos3D_fixed                  v;
 
     if (entity->mesh == JO_NULL)
@@ -647,9 +713,13 @@ int                                 jo_entity_view_distance(const jo_entity * co
     }
     if (distance > entity->draw_distance)
         return (-1);
-    jo_3d_transform_point(&entity->center, &v);
+    // (the center follows the entity: a walking enemy was tested at its spawn point)
+    center.x = entity->position.x;
+    center.y = entity->position.y + entity->center_dy;
+    center.z = entity->position.z;
+    jo_3d_transform_point(&center, &v);
     if (!jo_3d_is_sphere_visible(&v, jo_int2fixed(entity->mesh_radius),
-                                 jo_int2fixed(entity->draw_distance * __jo_entity_lod_scale + entity->mesh_radius)))
+                                 jo_int2fixed(JO_MIN(entity->draw_distance * __jo_entity_lod_scale + entity->mesh_radius, 32767))))
         return (-1);
     return (distance);
 }
@@ -691,24 +761,146 @@ static int                          __jo_entity_depth_bias(jo_entity * const e)
     return (bias);
 }
 
-int                                 jo_entities_draw(void)
+/** @brief An entity drawn in the frame (see jo_entities_prepare_draw()) */
+typedef struct
+{
+    short                           entity;         // Index
+    short                           bias;           // Depth bias of its cell (see jo_cells_depth_bias_at())
+}                                   __jo_entity_drawn;
+
+/** @brief The entities drawn in the frame (see jo_entities_prepare_draw()): the ones of the master CPU, then the ones of the
+ *  slave CPU from the end of the table (first the ones with a draw_slave callback, see jo_entities_draw_slave()) */
+static __jo_entity_drawn            __jo_entity_draw_list[JO_ENTITY_MAX];
+static int                          __jo_entity_master_count = 0;
+static int                          __jo_entity_slave_count = 0;
+static int                          __jo_entity_slave_callbacks = 0;    // Of the slave CPU: with a draw_slave callback (first)
+static int                          __jo_entity_draw_base_bias = 0;
+static bool                         __jo_entity_draw_prepared = false;
+
+/** @brief The entities freed: the list of jo_entities_prepare_draw() is no longer valid */
+static void                         __jo_entities_forget_draw(void)
+{
+    __jo_entity_draw_prepared = false;
+    __jo_entity_master_count = 0;
+    __jo_entity_slave_count = 0;
+    __jo_entity_slave_callbacks = 0;
+}
+/** @brief The entities with a draw_slave callback are drawn (written by the slave CPU, read without the cache) */
+static volatile int                 __jo_entity_slave_done = 0;
+static int                          __jo_entity_slave_wait = 0;
+
+int                                 jo_entities_test_counts(const int which)
+{
+    return (which == 0 ? __jo_entity_master_count : which == 1 ? __jo_entity_slave_count : __jo_entity_slave_callbacks);
+}
+
+static int                          __jo_entity_slave_polygons = 0;
+static int                          __jo_entity_master_polygons = 0;
+
+int                                 jo_entities_polygon_count(const bool slave)
+{
+    return (slave ? __jo_entity_slave_polygons : __jo_entity_master_polygons);
+}
+
+int                                 jo_entities_slave_wait_time(void)
+{
+    return (__jo_entity_slave_wait);
+}
+
+/** @brief The light of the lamps on an entity: at its middle (a door: its side toward the player; at its middle, in the
+ *  doorway, the light of the room behind it was on the closed door) */
+static void                         __jo_entity_light(const jo_entity * const e, int * const r, int * const g, int * const b)
+{
+    jo_pos3D_fixed                  middle;
+    int                             dx;
+    int                             dz;
+    int                             d;
+
+    middle = e->position;
+    middle.y -= jo_int2fixed(e->height / 2);
+    if (e->flags & JO_ENTITY_FLAG_DOORWAY)
+    {
+        dx = jo_fixed2int(__jo_entity_player.x - middle.x);
+        dz = jo_fixed2int(__jo_entity_player.z - middle.z);
+        d = JO_MAX(JO_ABS(dx), JO_ABS(dz));
+        if (d > 0)
+        {
+            middle.x += jo_int2fixed(dx * __JO_ENTITY_DOOR_LIGHT_SIDE / d);
+            middle.z += jo_int2fixed(dz * __JO_ENTITY_DOOR_LIGHT_SIDE / d);
+        }
+    }
+    jo_3d_point_lights_sample(&middle, r, g, b);
+}
+
+/** @brief The model of an entity at a distance (the far one farther) */
+static  __jo_force_inline jo_3d_mesh *__jo_entity_mesh_at(const jo_entity * const e, const int distance)
+{
+    return (e->far_mesh != JO_NULL && distance > e->far_distance ? e->far_mesh : e->mesh);
+}
+
+/** @brief The class of the actors of the engine (see __jo_entity_draws_in_parallel()) */
+static const jo_entity_class        __jo_entity_class_actor;
+
+/** @brief An entity drawn by its class on the master CPU while the slave CPU draws the entities of its class: no wait (see
+ *  jo_entity_class_set_parallel_draw()) */
+static bool                         __jo_entity_draws_in_parallel(const jo_entity * const e)
 {
     int                             k;
-    int                             count;
+
+    // (an actor of the engine: jo_actor_draw() and jo_actor_draw_slave() write nothing shared (a shadow mesh per CPU), but a
+    // bone callback of the game may)
+    if (e->cls == &__jo_entity_class_actor)
+        return (e->data != JO_NULL && ((const jo_actor *)e->data)->bone_callback == JO_NULL);
+    for (k = 0; k < __jo_entity_parallel_class_count; ++k)
+        if (__jo_entity_parallel_classes[k] == e->cls)
+            return (true);
+    return (false);
+}
+
+/** @brief The slave CPU draws entities of the class of an entity in this frame (with its draw_slave callback): the master
+ *  CPU waits for them before it draws this one (see jo_entities_draw()) */
+static bool                         __jo_entity_class_on_slave(const jo_entity * const e)
+{
+    int                             k;
+
+    if (__jo_entity_slave_class_count > JO_ENTITY_SLAVE_CLASSES)
+        return (true);
+    for (k = 0; k < __jo_entity_slave_class_count; ++k)
+        if (__jo_entity_slave_classes[k] == e->cls)
+            return (true);
+    return (false);
+}
+
+void                                jo_entities_prepare_draw(const int slave_share)
+{
+    int                             k;
     int                             distance;
     int                             bias;
-    int                             base_bias;
-    jo_3d_mesh                      *mesh;
-    jo_entity                       *e;
-    jo_pos3D_fixed                  middle;
     int                             r;
     int                             g;
     int                             b;
+    int                             cost;
+    int                             master_cost;
+    int                             slave_cost;
+    int                             c;
+    bool                            slave;
+    jo_entity                       *e;
+    const jo_3d_mesh                *mesh;
+    __jo_entity_drawn               *master;
+    __jo_entity_drawn               *last;
+    __jo_entity_drawn               *callbacks;
 
-    count = 0;
-    base_bias = jo_3d_get_depth_bias();
+    // The share: the costs of the 2 CPUs weighted by their shares (the polygons of the model drawn)
+    master_cost = 1;
+    slave_cost = 1;
+    master = __jo_entity_draw_list;
+    last = __jo_entity_draw_list + JO_ENTITY_MAX;
+    __jo_entity_draw_base_bias = jo_3d_get_depth_bias();
+    __jo_entity_slave_callbacks = 0;
+    __jo_entity_slave_class_count = 0;
     for (k = 0, e = __jo_entities; k < __jo_entity_count; ++k, ++e)
     {
+        e->view_distance = -1;
         if (e->flags & (JO_ENTITY_FLAG_DISABLED | JO_ENTITY_FLAG_HIDDEN))
             continue;
         // (an entity drawn by the engine: too far or not seen, nothing else to do: the cell and the lights cost more)
@@ -719,53 +911,214 @@ int                                 jo_entities_draw(void)
         bias = __jo_entity_depth_bias(e);
         if (bias < 0)
             continue;
-        if (bias != 0)
-            jo_3d_set_depth_bias(base_bias + bias);
-        // The light of the lamps on it (a red alarm, a flash...): at its middle
-        middle = e->position;
-        middle.y -= jo_int2fixed(e->height / 2);
-        if (e->flags & JO_ENTITY_FLAG_DOORWAY)
-        {
-            int                     dx;
-            int                     dz;
-            int                     d;
-
-            // (a door: its side toward the player; at its middle, in the doorway, the light of the room behind it
-            // was on the closed door)
-            dx = jo_fixed2int(__jo_entity_player.x - middle.x);
-            dz = jo_fixed2int(__jo_entity_player.z - middle.z);
-            d = JO_MAX(JO_ABS(dx), JO_ABS(dz));
-            if (d > 0)
-            {
-                middle.x += jo_int2fixed(dx * __JO_ENTITY_DOOR_LIGHT_SIDE / d);
-                middle.z += jo_int2fixed(dz * __JO_ENTITY_DOOR_LIGHT_SIDE / d);
-            }
-        }
-        jo_3d_point_lights_sample(&middle, &r, &g, &b);
-        jo_3d_set_tint(r, g, b);
+        // (a class that draws it: drawn even without a model or out of the view, the class decides (a sprite, the pieces
+        // of a broken thing); the distance for its slave CPU draw, and its share)
         if (e->cls->draw != JO_NULL)
         {
-            e->cls->draw(e);
-            ++count;
+            distance = jo_entity_view_distance(e);
+            // (drawn by its class without a model: seen, at a distance unknown)
+            if (distance < 0)
+                JO_ZERO(distance);
         }
-        else
-        {
-            mesh = e->far_mesh != JO_NULL && distance > e->far_distance ? e->far_mesh : e->mesh;
-            jo_3d_push_matrix();
-            {
-                jo_3d_translate_matrix_fixed(e->position.x, e->position.y, e->position.z);
-                if (e->yaw != 0)
-                    jo_3d_rotate_matrix_y(e->yaw);
-                jo_3d_mesh_draw(mesh);
-            }
-            jo_3d_pop_matrix();
-            ++count;
-        }
+        e->view_distance = (short)JO_MIN(distance, 32767);
+        // The tint: the light of the lamps on it, changed by the class
+        __jo_entity_light(e, &r, &g, &b);
+        if (e->cls->tint != JO_NULL)
+            e->cls->tint(e, &r, &g, &b);
+        jo_3d_set_tint(r, g, b);
+        e->tint = jo_3d_get_tint();
         jo_3d_set_tint(0, 0, 0);
-        if (bias != 0)
-            jo_3d_set_depth_bias(base_bias);
+        // The CPU: the one with the smaller cost for its share (an entity with a draw callback without draw_slave callback:
+        // the master CPU)
+        mesh = distance >= 0 ? __jo_entity_mesh_at(e, distance) : JO_NULL;
+        cost = mesh != JO_NULL ? (int)mesh->data.polygon_count + 8 : 8;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+        slave = slave_share > 0 && (e->cls->draw == JO_NULL || e->cls->draw_slave != JO_NULL) &&
+                slave_cost * (1024 - slave_share) < master_cost * slave_share;
+#else
+        // (without the dual CPU module: all on the master CPU)
+        JO_UNUSED_ARG(slave_share);
+        slave = false;
+#endif
+        if (slave && master < last)
+        {
+            slave_cost += cost;
+            --last;
+            // (the ones with a callback first: from the end of the table, the others before them. The ones of a class drawn in
+            // parallel with the others: the master CPU doesn't wait for them, the others are drawn first (the master CPU
+            // waits for them only))
+            if (e->cls->draw_slave != JO_NULL && !__jo_entity_draws_in_parallel(e))
+            {
+                callbacks = __jo_entity_draw_list + JO_ENTITY_MAX - 1 - __jo_entity_slave_callbacks;
+                *last = *callbacks;
+                callbacks->entity = (short)k;
+                callbacks->bias = (short)bias;
+                ++__jo_entity_slave_callbacks;
+                // (its class: the master CPU waits for the slave CPU before it draws an entity of this class)
+                for (c = 0; c < __jo_entity_slave_class_count && c <= JO_ENTITY_SLAVE_CLASSES; ++c)
+                    if (c == JO_ENTITY_SLAVE_CLASSES || __jo_entity_slave_classes[c] == e->cls)
+                        break;
+                if (c == __jo_entity_slave_class_count)
+                {
+                    if (c < JO_ENTITY_SLAVE_CLASSES)
+                        __jo_entity_slave_classes[c] = e->cls;
+                    ++__jo_entity_slave_class_count;
+                }
+            }
+            else
+            {
+                last->entity = (short)k;
+                last->bias = (short)bias;
+            }
+            // (its tinted tables: the slave CPU doesn't write them)
+            if (e->tint != 0 && mesh != JO_NULL)
+            {
+                jo_3d_set_packed_tint(e->tint);
+                jo_3d_prepare_tint(mesh);
+                jo_3d_set_tint(0, 0, 0);
+            }
+        }
+        else if (master < last)
+        {
+            master_cost += cost;
+            master->entity = (short)k;
+            master->bias = (short)bias;
+            ++master;
+        }
     }
+    __jo_entity_master_count = (int)(master - __jo_entity_draw_list);
+    __jo_entity_slave_count = (int)(__jo_entity_draw_list + JO_ENTITY_MAX - last);
+    __jo_entity_master_polygons = master_cost - 1;
+    __jo_entity_slave_polygons = slave_cost - 1;
+    __jo_entity_slave_done = 0;
+    __jo_entity_draw_prepared = true;
+}
+
+/** @brief Draw an entity of the list on the master CPU */
+static void                         __jo_entity_draw(const __jo_entity_drawn * const d)
+{
+    jo_entity                       *e;
+
+    e = &__jo_entities[d->entity];
+    if (d->bias != 0)
+    {
+        jo_3d_set_depth_bias(__jo_entity_draw_base_bias + d->bias);
+        // (in a cell seen through a portal: the far window, clipped to the portals, see jo_cells_window_of())
+        jo_3d_select_window(jo_cells_window_of(d->bias));
+    }
+    jo_3d_set_packed_tint(e->tint);
+    if (e->cls->draw != JO_NULL)
+        e->cls->draw(e);
+    else
+    {
+        jo_3d_push_matrix();
+        {
+            jo_3d_translate_matrix_fixed(e->position.x, e->position.y, e->position.z);
+            if (e->yaw != 0)
+                jo_3d_rotate_matrix_y(e->yaw);
+            jo_3d_mesh_draw(__jo_entity_mesh_at(e, e->view_distance));
+        }
+        jo_3d_pop_matrix();
+    }
+    jo_3d_set_tint(0, 0, 0);
+    if (d->bias != 0)
+    {
+        jo_3d_set_depth_bias(__jo_entity_draw_base_bias);
+        jo_3d_select_window(JO_3D_NEAR_WINDOW);
+    }
+}
+
+int                                 jo_entities_draw(void)
+{
+    int                             k;
+    int                             count;
+    int                             pass;
+    bool                            waited;
+    unsigned int                    start;
+    const __jo_entity_drawn         *d;
+
+    if (!__jo_entity_draw_prepared)
+        jo_entities_prepare_draw(0);
+    __jo_entity_draw_prepared = false;
+    count = 0;
+    waited = false;
+    start = 0;
+    __jo_entity_slave_wait = 0;
+    // The models first (and the entities of the classes drawn in parallel by both CPUs), then the entities drawn by their
+    // class: after the ones of the slave CPU (the callbacks of a class share its data)
+    for (pass = 0; pass < 2; ++pass)
+        for (k = 0, d = __jo_entity_draw_list; k < __jo_entity_master_count; ++k, ++d)
+        {
+            if ((__jo_entities[d->entity].cls->draw != JO_NULL && !__jo_entity_draws_in_parallel(&__jo_entities[d->entity])) !=
+                (pass == 1))
+                continue;
+            if (pass == 1 && !waited && __jo_entity_class_on_slave(&__jo_entities[d->entity]))
+            {
+                waited = true;
+                if (__jo_entity_slave_callbacks > 0)
+                {
+                    unsigned int    spins;
+
+                    // (the job of the slave CPU draws them: jo_entities_draw_slave(). Not called: after a while, without
+                    // them, the game goes on)
+                    start = jo_time_get_frc();
+                    for (spins = 0; !*(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) && spins < 4000000; ++spins)
+                        ;
+#ifdef JO_DEBUG
+                    if (spins >= 4000000)
+                        jo_core_error("jo_entities_draw_slave() not called by the slave CPU");
+#endif
+                    // (microseconds per tick of the timer: clock / 32, see jo_time_init())
+                    __jo_entity_slave_wait = (int)(((jo_time_get_frc() - start) & 0xFFFF) * 1000) /
+                                             ((JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704) ? 895 : 839);
+                }
+            }
+            __jo_entity_draw(d);
+            ++count;
+        }
     return (count);
+}
+
+int                                 jo_entities_draw_slave(void)
+{
+#ifndef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    // (without the dual CPU module: the master CPU draws all the entities, see jo_entities_prepare_draw())
+    return (0);
+#else
+    int                             k;
+    int                             count;
+    jo_entity                       *e;
+    const __jo_entity_drawn         *d;
+
+    count = 0;
+    // (from the end of the table: the ones with a draw_slave callback first)
+    for (k = 0, d = __jo_entity_draw_list + JO_ENTITY_MAX - 1; k < __jo_entity_slave_count; ++k, --d)
+    {
+        if (k == __jo_entity_slave_callbacks)
+            *(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) = 1;
+        e = &__jo_entities[d->entity];
+        jo_3d_slave_set_depth_bias(__jo_entity_draw_base_bias + d->bias);
+        jo_3d_slave_select_window(jo_cells_window_of(d->bias));
+        jo_3d_slave_set_tint(e->tint);
+        if (e->cls->draw_slave != JO_NULL)
+            e->cls->draw_slave(e);
+        else if (jo_3d_slave_push_matrix())
+        {
+            jo_3d_slave_translate_matrix_fixed(e->position.x, e->position.y, e->position.z);
+            if (e->yaw != 0)
+                jo_3d_slave_rotate_matrix(0, e->yaw, 0);
+            jo_3d_slave_mesh_draw(__jo_entity_mesh_at(e, e->view_distance));
+            jo_3d_slave_pop_matrix();
+        }
+        ++count;
+    }
+    if (__jo_entity_slave_count <= __jo_entity_slave_callbacks)
+        *(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) = 1;
+    jo_3d_slave_set_tint(0);
+    jo_3d_slave_set_depth_bias(__jo_entity_draw_base_bias);
+    jo_3d_slave_select_window(JO_3D_NEAR_WINDOW);
+    return (count);
+#endif
 }
 
 /*
@@ -923,7 +1276,10 @@ jo_entity                           *jo_entities_ray_hit(const jo_pos3D_fixed * 
             continue;
         px = jo_fixed2int(e->position.x - origin->x);
         pz = jo_fixed2int(e->position.z - origin->z);
-        if (JO_ABS(px) > range + e->radius || JO_ABS(pz) > range + e->radius)
+        // (a turned box: in the square of half side box_x + box_z around its center, see __jo_entity_blocks(). Its radius
+        // was used: a long box with a small radius was missed by a short ray toward its end, a bullet stopped by the wall behind)
+        b = e->box_z > 0 ? e->box_x + e->box_z + 1 : e->radius;
+        if (JO_ABS(px) > range + b || JO_ABS(pz) > range + b)
             continue;
         if (e->box_z > 0)
         {
@@ -942,8 +1298,9 @@ jo_entity                           *jo_entities_ray_hit(const jo_pos3D_fixed * 
         }
         b = px * (dir->x >> 1) + pz * (dir->z >> 1);
         c = px * px + pz * pz - e->radius * e->radius;
-        // Away from the ray, or the origin in the cylinder
-        if (b <= 0 || c <= 0)
+        // Away from the ray, or the origin in the cylinder (a cylinder without radius: nothing to hit, its normal was divided
+        // by 0 when a ray went through its axis)
+        if (b <= 0 || c <= 0 || e->radius <= 0)
             continue;
         // (b is b / 2 in Q16: no overflow up to 30000 world units)
         disc = (long long)b * b * 4 - (long long)a * ((long long)c << 16);
@@ -1452,10 +1809,13 @@ void                                jo_actor_spawn(jo_entity * const entity)
     a->far_model = jo_entity_get_model(jo_entity_get_string(entity, "far_model", ""));
     if (a->model != JO_NULL && a->model->bone_count == 0)
         a->model = JO_NULL;
-    if (a->far_model != JO_NULL && a->far_model->bone_count != a->model->bone_count)
+    // (no far model without a model with a skeleton: its bones and its animations are those of the model)
+    if (a->far_model != JO_NULL && (a->model == JO_NULL || a->far_model->bone_count != a->model->bone_count ||
+                                    a->far_model->animation_count != a->model->animation_count))
         a->far_model = JO_NULL;
     a->animation = -1;
     a->previous = -1;
+    a->shadow_radius = JO_MAX(0, jo_entity_get_int(entity, "shadow", 0));
     jo_actor_play(entity, jo_entity_get_string(entity, "animation", "idle"), 0);
     // (the time of the animation: a crowd doesn't move together)
     a->time = (int)(entity - __jo_entities) * 337;
@@ -1537,6 +1897,77 @@ static void                         __jo_actor_bone(const int bone, void * const
     ((jo_actor *)entity->data)->bone_callback(entity, bone, matrix);
 }
 
+void                                jo_actor_set_shadow(jo_entity * const entity, const int radius)
+{
+    if (entity != JO_NULL && entity->data != JO_NULL)
+        ((jo_actor *)entity->data)->shadow_radius = JO_MAX(0, radius);
+}
+
+/** @brief The shadow of an actor: an octagon on the ground in 3 quads, darkened by the VDP1 (color calculation "shadow"),
+ *  sorted on its center (the ground under it is sorted on its farthest corner: behind the shadow). One mesh for each CPU
+ *  (the slave CPU draws while the master CPU prepares the next frame) */
+typedef struct
+{
+    jo_pos3D_fixed                  points[8];
+    jo_3d_polygon                   polygons[3];
+    jo_3d_polygon_attribute         attributes[3];
+    jo_3d_mesh                      mesh;
+}                                   __jo_actor_shadow;
+
+static __jo_actor_shadow            __jo_actor_shadows[2];
+
+/** @brief The octagon of the shadow (cos and sin of k x 45 degrees, Q16), its quads */
+static const jo_fixed               __jo_actor_shadow_cos[8] = {65536, 46341, 0, -46341, -65536, -46341, 0, 46341};
+static const unsigned short         __jo_actor_shadow_quads[3][4] = {{0, 1, 2, 3}, {0, 3, 4, 7}, {7, 4, 5, 6}};
+
+/** @brief The shadow mesh of a CPU under an actor (world space), JO_NULL: none */
+static jo_3d_mesh                   *__jo_actor_shadow_mesh(const jo_entity * const entity, const int cpu)
+{
+    const jo_actor                  *a;
+    __jo_actor_shadow               *sh;
+    jo_fixed                        r;
+    int                             k;
+
+    a = (const jo_actor *)entity->data;
+    if (a->shadow_radius <= 0)
+        return (JO_NULL);
+    sh = &__jo_actor_shadows[cpu];
+    if (sh->mesh.data.points == JO_NULL)
+    {
+        for (k = 0; k < 3; ++k)
+        {
+            sh->polygons[k].normal.x = 0;
+            sh->polygons[k].normal.y = -JO_FIXED_1;
+            sh->polygons[k].normal.z = 0;
+            sh->polygons[k].vertices[0] = __jo_actor_shadow_quads[k][0];
+            sh->polygons[k].vertices[1] = __jo_actor_shadow_quads[k][1];
+            sh->polygons[k].vertices[2] = __jo_actor_shadow_quads[k][2];
+            sh->polygons[k].vertices[3] = __jo_actor_shadow_quads[k][3];
+            sh->attributes[k].plane = JO_3D_DUAL_PLANE;
+            sh->attributes[k].sort = JO_3D_SORT_CENTER | JO_VDP1_DIRECTION_OPTIONS(JO_VDP1_POLYGON);
+            sh->attributes[k].texture_id = JO_3D_NO_TEXTURE;
+            sh->attributes[k].draw_mode = JO_VDP1_COLOR_MODE_RGB | JO_VDP1_COLOR_CALC_SHADOW |
+                                          JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_POLYGON);
+            sh->attributes[k].color = JO_COLOR_Black;
+            sh->attributes[k].gouraud_table = JO_VDP1_NO_GOURAUD;
+            sh->attributes[k].direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_POLYGON);
+        }
+        sh->mesh.data.point_count = 8;
+        sh->mesh.data.polygons = sh->polygons;
+        sh->mesh.data.polygon_count = 3;
+        sh->mesh.data.attributes = sh->attributes;
+        sh->mesh.data.points = sh->points;
+    }
+    r = jo_int2fixed(a->shadow_radius);
+    for (k = 0; k < 8; ++k)
+    {
+        sh->points[k].x = entity->position.x + jo_fixed_mult(r, __jo_actor_shadow_cos[k]);
+        sh->points[k].y = entity->position.y;
+        sh->points[k].z = entity->position.z + jo_fixed_mult(r, __jo_actor_shadow_cos[(k + 6) & 7]);
+    }
+    return (&sh->mesh);
+}
+
 void                                jo_actor_draw(jo_entity * const entity)
 {
     jo_actor                        *a;
@@ -1568,18 +1999,85 @@ void                                jo_actor_draw(jo_entity * const entity)
         jo_3d_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity);
     }
     jo_3d_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 0);
+        if (shadow != JO_NULL)
+            jo_3d_mesh_draw(shadow);
+    }
 }
 
-static const jo_entity_class        __jo_entity_class_entity = {"entity", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
-static const jo_entity_class        __jo_entity_class_relay = {"relay", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
-static const jo_entity_class        __jo_entity_class_trigger = {"trigger", 0, JO_NULL, __jo_trigger_update, JO_NULL, JO_NULL, JO_NULL};
-static const jo_entity_class        __jo_entity_class_spawn = {"spawn", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
+void                                jo_actor_draw_slave(jo_entity * const entity, const int far_distance, const unsigned int hidden_bones)
+{
+    jo_actor                        *a;
+    jo_3d_model                     *model;
+    jo_3d_pose                      pose;
+    jo_3d_pose                      previous;
+
+    a = (jo_actor *)entity->data;
+    if (a == JO_NULL || a->model == JO_NULL || entity->view_distance < 0)
+        return;
+    model = a->far_model != JO_NULL && entity->view_distance > (far_distance < 0 ? entity->far_distance : far_distance) ? a->far_model : a->model;
+    jo_3d_model_get_pose(model, a->animation, a->time * JO_3D_ANIMATION_TICKS_PER_SECOND / 1000, &pose);
+    if (a->blend > 0 && a->blend_duration > 0)
+    {
+        jo_3d_model_get_pose(model, a->previous, a->previous_time * JO_3D_ANIMATION_TICKS_PER_SECOND / 1000, &previous);
+        jo_3d_pose_blend(model, &previous, &pose, 256 - jo_int_div(a->blend << 8, a->blend_duration));
+        pose = previous;
+    }
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    if (!jo_3d_slave_push_matrix())
+        return;
+    jo_3d_slave_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+    if (entity->yaw != 0)
+        jo_3d_slave_rotate_matrix(0, entity->yaw, 0);
+    jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
+    jo_3d_slave_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 1);
+        if (shadow != JO_NULL)
+            jo_3d_slave_mesh_draw(shadow);
+    }
+#else
+    // (without the dual CPU module: drawn by the master CPU)
+    jo_3d_push_matrix();
+    {
+        jo_3d_translate_matrix_fixed(entity->position.x, entity->position.y, entity->position.z);
+        if (entity->yaw != 0)
+            jo_3d_rotate_matrix_y(entity->yaw);
+        jo_3d_slave_model_draw_pose(model, &pose, a->bone_callback != JO_NULL ? __jo_actor_bone : JO_NULL, entity, hidden_bones);
+    }
+    jo_3d_pop_matrix();
+    {
+        jo_3d_mesh                  *shadow;
+
+        shadow = __jo_actor_shadow_mesh(entity, 0);
+        if (shadow != JO_NULL)
+            jo_3d_mesh_draw(shadow);
+    }
+#endif
+}
+
+static const jo_entity_class        __jo_entity_class_entity = {"entity", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
+static const jo_entity_class        __jo_entity_class_relay = {"relay", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
+static const jo_entity_class        __jo_entity_class_trigger = {"trigger", 0, JO_NULL, __jo_trigger_update, JO_NULL, JO_NULL, JO_NULL,
+                                                                 JO_NULL, JO_NULL};
+static const jo_entity_class        __jo_entity_class_spawn = {"spawn", 0, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
 static const jo_entity_class        __jo_entity_class_zone_link = {"zone_link", 0, JO_NULL, __jo_zone_link_update, __jo_zone_link_action,
-                                                                   JO_NULL, JO_NULL};
+                                                                   JO_NULL, JO_NULL, JO_NULL, JO_NULL};
 static const jo_entity_class        __jo_entity_class_explosive = {"explosive", 0, __jo_explosive_spawn, __jo_explosive_update,
-                                                                   JO_NULL, __jo_explosive_death, JO_NULL};
+                                                                   JO_NULL, __jo_explosive_death, JO_NULL, JO_NULL, JO_NULL};
+/** @brief An actor: drawn by both CPUs (jo_actor_draw_slave() on the slave CPU) */
+static void                         __jo_actor_draw_slave(jo_entity * const entity)
+{
+    jo_actor_draw_slave(entity, -1, 0);
+}
+
 static const jo_entity_class        __jo_entity_class_actor = {"actor", sizeof(jo_actor), jo_actor_spawn, jo_actor_update, JO_NULL,
-                                                               JO_NULL, jo_actor_draw};
+                                                               JO_NULL, jo_actor_draw, __jo_actor_draw_slave, JO_NULL};
 
 static void                         __jo_entity_register_engine_classes(void)
 {

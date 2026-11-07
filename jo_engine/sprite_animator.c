@@ -72,13 +72,14 @@ static void			__jo_internal_frame_animator(void)
 
 int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const unsigned short frame_count, const unsigned char frame_rate)
 {
-#ifdef JO_DEBUG
-    if (at >= __jo_sprite_anim_id)
+    // (the last animation created is __jo_sprite_anim_id; checked in all the builds: an index out of the table)
+    if (at < 0 || at > __jo_sprite_anim_id)
     {
-        jo_core_error("at (%d) is too high (max=%d)", (int)at, (int)__jo_sprite_anim_id);
+#ifdef JO_DEBUG
+        jo_core_error("at (%d) is out of range (max=%d)", (int)at, (int)__jo_sprite_anim_id);
+#endif
         return (-1);
     }
-#endif
     __jo_sprite_anim_tab[at].action = JO_SPRITE_ANIM_STOP;
     JO_ZERO(__jo_sprite_anim_tab[at].frame_skip);
     JO_ZERO(__jo_sprite_anim_tab[at].cur_frame);
@@ -101,15 +102,23 @@ int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const
 
 int			jo_create_sprite_anim(const unsigned short sprite_id, const unsigned short frame_count, const unsigned char frame_rate)
 {
+    int         at;
+
+    // (a removed animation before the last one: its place is used again, else the table was full after many creations and
+    // removals in any order)
+    for (at = 0; at < __jo_sprite_anim_id; ++at)
+        if (__jo_sprite_anim_tab[at].frame_count == 0)
+            return (jo_replace_sprite_anim(at, sprite_id, frame_count, frame_rate));
     ++__jo_sprite_anim_id;
-#ifdef JO_DEBUG
+    // (checked in all the builds: the table has JO_MAX_SPRITE_ANIM animations)
     if (__jo_sprite_anim_id >= JO_MAX_SPRITE_ANIM)
     {
         --__jo_sprite_anim_id;
+#ifdef JO_DEBUG
         jo_core_error("Too many animation");
+#endif
         return (-1);
     }
-#endif
     __jo_sprite_anim_tab[__jo_sprite_anim_id].action = JO_SPRITE_ANIM_STOP;
     JO_ZERO(__jo_sprite_anim_tab[__jo_sprite_anim_id].frame_skip);
     JO_ZERO(__jo_sprite_anim_tab[__jo_sprite_anim_id].cur_frame);
@@ -137,6 +146,8 @@ void jo_remove_sprite_anim(const int anim_id)
         return;
 
     jo_memset(&__jo_sprite_anim_tab[anim_id], 0, sizeof(jo_sprite_anim));
+    // (0 is JO_SPRITE_ANIM_START: the removed animation was still animated)
+    __jo_sprite_anim_tab[anim_id].action = JO_SPRITE_ANIM_STOP;
 
     if (anim_id == __jo_sprite_anim_id)
     {

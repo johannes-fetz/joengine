@@ -40,6 +40,8 @@
 #include "jo/malloc.h"
 #include "jo/fs.h"
 #include "jo/math.h"
+#include "internal/sega_saturn.h"
+#include "internal/fs.h"
 
 #ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
 
@@ -124,6 +126,9 @@ typedef struct
     bool                            active;
     bool                            stereo;
     bool                            tone;       // A tone (jo_audio_play_tone()): its second slot is the FM modulator
+    bool                            loop;
+    unsigned int                    rate;       // Sample rate played (see jo_audio_set_channel_sample_rate())
+    const jo_sound                  *sound;     // The sound played (see jo_audio_stop_sound())
 }                                   jo_audio_channel;
 
 static jo_audio_cache_entry         __jo_audio_cache[JO_AUDIO_CACHE_ENTRIES];
@@ -132,6 +137,8 @@ static unsigned int                 __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_ST
 /** @brief The resident sounds (jo_audio_make_resident()) fill the sound RAM from its end down to there: the sounds
  *  copied when they play stay before */
 static unsigned int                 __jo_audio_resident_start = JO_AUDIO_PCM_AREA_END;
+/** @brief The samples of the music streamed from the CD (0: not reserved yet, see jo_audio_play_music()) */
+static unsigned int                 __jo_audio_music_sound_ram = 0;
 static jo_audio_channel             __jo_audio_channels[JO_SOUND_MAX_CHANNEL];
 /** @brief The direct level and pan of the slots 0 and 1 (their mixer register also sends the outputs of the DSP: the
  *  reverberation, see __jo_audio_effect_mix) */
@@ -307,6 +314,8 @@ void		        jo_audio_set_cd_volume(const unsigned char level)
 
 /** @brief The register 0x400 of the SCSP: the sound RAM of 4 Mbits and the master volume
  *  @param volume Master volume (0 to 15)
+ *  @remarks Written by bytes: Yabause 0.9.15 takes the memory size of a write of the high byte only (with a write of the
+ *  whole register, the sounds above 256 KB stayed silent); not read back (it reads 0 there)
  */
 static void                         jo_audio_set_memory_and_volume(const unsigned int volume)
 {
@@ -316,6 +325,7 @@ static void                         jo_audio_set_memory_and_volume(const unsigne
 
 void		        jo_audio_set_volume(const unsigned char vol)
 {
+    // 0-127 volume to 0-15 master volume
     jo_audio_set_memory_and_volume(vol >> 3);
 }
 
@@ -371,7 +381,8 @@ void		                    jo_audio_init(void)
     // (the driver is loaded at the end: the SH-2 programs the SCSP alone until then)
     __jo_audio_driver_running = false;
 #endif
-    // 4 Mbits sound RAM, 16 bits DAC, master volume max
+    // 4 Mbits sound RAM (the bit was missing: the SCSP of Yabause and Kronos addressed 256 KB, the sounds above were
+    // silent), 16 bits DAC, master volume max
     jo_audio_set_memory_and_volume(JO_SCSP_MASTER_VOLUME_MAX);
     // The DSP of the SCSP stopped: the BIOS leaves the program of the echo of its startup sound running, its ring buffer
     // (16 to 128 KB of the sound RAM) written all the time: it wrote over the sounds there (noise, glitches). Its program
@@ -395,6 +406,7 @@ void		                    jo_audio_init(void)
     JO_ZERO(__jo_audio_cache_next);
     __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
     __jo_audio_resident_start = JO_AUDIO_PCM_AREA_END;
+    JO_ZERO(__jo_audio_music_sound_ram);
     JO_ZERO(__jo_audio_direct_mix[0]);
     JO_ZERO(__jo_audio_direct_mix[1]);
     JO_ZERO(__jo_audio_effect_mix[0]);
@@ -460,7 +472,8 @@ static unsigned int                 jo_audio_place_pcm(const unsigned int size)
         if (!moved && offset + size <= JO_AUDIO_PCM_AREA_END)
             return (offset);
     }
-    return (__jo_audio_alloc_next + size > JO_AUDIO_PCM_AREA_END ? JO_AUDIO_PCM_AREA_START : __jo_audio_alloc_next);
+    // (before the resident sounds and the music, like the places tried above: the copy overwrote them)
+    return (__jo_audio_alloc_next + size > __jo_audio_resident_start ? JO_AUDIO_PCM_AREA_START : __jo_audio_alloc_next);
 }
 
 static unsigned int                 jo_audio_upload_pcm(const void *data, unsigned int size)
@@ -649,6 +662,7 @@ static void                         jo_audio_channel_on(const unsigned int chann
     unsigned int                    samples;
     unsigned int                    rate;
     unsigned int                    bytes_per_channel;
+    unsigned int                    length;
     unsigned short                  pitch;
     bool                            bits8;
     bool                            stereo;
@@ -661,8 +675,16 @@ static void                         jo_audio_channel_on(const unsigned int chann
     rate = sound->sample_rate ? sound->sample_rate : JO_SCSP_BASE_SAMPLING_RATE;
     pitch = __jo_scsp_pitch(rate);
     offset = sound->resident != 0 ? sound->resident - 1 : jo_audio_upload_pcm(sound->data, sound->data_length);
+    // (the bytes copied: less than the sound when the resident sounds take the sound RAM, the rest played the next data)
+    length = sound->data_length;
+    if (sound->resident == 0 && length > __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START)
+    {
+        length = __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START;
+        // (a stereo sound cut: its right channel was not copied, the left one only)
+        stereo = false;
+    }
     // Stereo data: left channel samples, then right channel samples
-    bytes_per_channel = stereo ? JO_DIV_BY_2(sound->data_length) : sound->data_length;
+    bytes_per_channel = stereo ? JO_DIV_BY_2(length) : length;
     samples = bits8 ? bytes_per_channel : JO_DIV_BY_2(bytes_per_channel);
     if (samples > JO_AUDIO_MAX_SAMPLES)
         samples = JO_AUDIO_MAX_SAMPLES;
@@ -681,8 +703,11 @@ static void                         jo_audio_channel_on(const unsigned int chann
     __jo_audio_channels[channel].active = true;
     __jo_audio_channels[channel].stereo = stereo;
     __jo_audio_channels[channel].tone = false;
+    __jo_audio_channels[channel].sound = sound;
     __jo_audio_channels[channel].offset = offset;
     __jo_audio_channels[channel].size = JO_AUDIO_ALIGN(sound->data_length);
+    __jo_audio_channels[channel].loop = loop;
+    __jo_audio_channels[channel].rate = rate;
     // A loop plays until the channel is stopped
     __jo_audio_channels[channel].end_vblank = __jo_core_vblank_count +
                                               (loop ? JO_AUDIO_LOOP_VBLANKS : ((samples * jo_core_get_refresh_rate()) / rate) + 1);
@@ -700,6 +725,21 @@ static void                         jo_audio_channel_off(const unsigned int chan
     jo_audio_driver_flush();
 #endif
     __jo_audio_channels[channel].active = false;
+}
+
+/** @brief Stop the channels that play a sound copied in an area of the sound RAM taken now by a resident sound or by the
+ *  music (the copy is overwritten: a loop, the engine of a vehicle, played the new data, a strident noise)
+ *  @param start Start of the area (offset in sound RAM)
+ *  @param end End of the area (excluded)
+ */
+static void                         jo_audio_stop_channels_in(const unsigned int start, const unsigned int end)
+{
+    register unsigned int           c;
+
+    for (JO_ZERO(c); c < JO_SOUND_MAX_CHANNEL; ++c)
+        if (jo_audio_channel_status(c) && __jo_audio_channels[c].offset < end &&
+            __jo_audio_channels[c].offset + __jo_audio_channels[c].size > start)
+            jo_audio_channel_off(c);
 }
 
 bool                jo_audio_is_channel_playing(const unsigned char channel)
@@ -740,7 +780,8 @@ void	            jo_audio_play_sound_on_channel(jo_sound * const sound, const un
         return;
     }
 #endif
-    if (jo_audio_channel_status(channel))
+    // (checked in all the builds: the slot of a channel after the last one is the common registers of the SCSP)
+    if (channel >= JO_SOUND_MAX_CHANNEL || jo_audio_channel_status(channel))
         return ;
     sound->current_playing_channel = channel;
     jo_audio_channel_on(channel, sound, false);
@@ -755,7 +796,7 @@ void	            jo_audio_play_sound_loop_on_channel(jo_sound * const sound, con
         return;
     }
 #endif
-    if (jo_audio_channel_status(channel))
+    if (channel >= JO_SOUND_MAX_CHANNEL || jo_audio_channel_status(channel))
         return ;
     sound->current_playing_channel = channel;
     jo_audio_channel_on(channel, sound, true);
@@ -767,10 +808,22 @@ void	            jo_audio_set_channel_sample_rate(const unsigned char channel, c
 
     if (channel >= JO_SOUND_MAX_CHANNEL || !jo_audio_channel_status(channel))
         return;
+    jo_audio_channel                *c;
+    int                             left;
+
     pitch = __jo_scsp_pitch(sample_rate);
     jo_audio_slot_write(jo_audio_channel_slot(channel), JO_SCSP_SLOT_PITCH, pitch);
-    if (__jo_audio_channels[channel].stereo)
+    c = &__jo_audio_channels[channel];
+    if (c->stereo)
         jo_audio_slot_write(jo_audio_channel_slot(channel) + 1, JO_SCSP_SLOT_PITCH, pitch);
+    // (the end of a sound played once: at another rate, the channel was free while its sound played, a new sound
+    // overwrote it, or busy after it)
+    if (c->tone || c->loop || c->rate == 0 || sample_rate == 0)
+        return;
+    left = (int)(c->end_vblank - __jo_core_vblank_count);
+    if (left > 0)
+        c->end_vblank = __jo_core_vblank_count + (unsigned int)left * c->rate / sample_rate + 1;
+    c->rate = sample_rate;
 }
 
 void	            jo_audio_set_channel_volume(const unsigned char channel, const unsigned char volume)
@@ -1037,6 +1090,7 @@ void                                jo_audio_play_tone(const jo_audio_tone * con
     __jo_audio_channels[channel].active = true;
     __jo_audio_channels[channel].stereo = false;
     __jo_audio_channels[channel].tone = fm;
+    __jo_audio_channels[channel].sound = JO_NULL;
     // (no sound in the sound RAM to keep)
     __jo_audio_channels[channel].offset = JO_AUDIO_PCM_AREA_END;
     JO_ZERO(__jo_audio_channels[channel].size);
@@ -1134,6 +1188,7 @@ bool                jo_audio_make_resident(jo_sound *sound)
             __jo_audio_cache[i].data = JO_NULL;
     if (__jo_audio_alloc_next > start)
         __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
+    jo_audio_stop_channels_in(start, __jo_audio_resident_start);
     __jo_audio_resident_start = start;
     jo_dma_copy(sound->data, (void *)(JO_SOUND_RAM + start), size);
     jo_audio_forget_pcm(sound->data);
@@ -1145,7 +1200,7 @@ bool                jo_audio_make_resident(jo_sound *sound)
 
 void                jo_audio_free_resident(void)
 {
-    __jo_audio_resident_start = JO_AUDIO_PCM_AREA_END;
+    __jo_audio_resident_start = __jo_audio_music_sound_ram != 0 ? __jo_audio_music_sound_ram : JO_AUDIO_PCM_AREA_END;
 }
 
 void	            jo_audio_stop_sound(const jo_sound * const sound)
@@ -1162,7 +1217,9 @@ void	            jo_audio_stop_sound(const jo_sound * const sound)
         return;
     }
 #endif
-    if (!jo_audio_channel_status(sound->current_playing_channel))
+    // (only if the channel still plays this sound: another sound may play on it now)
+    if (sound->current_playing_channel >= JO_SOUND_MAX_CHANNEL || !jo_audio_channel_status(sound->current_playing_channel) ||
+        __jo_audio_channels[sound->current_playing_channel].sound != sound)
         return ;
     jo_audio_channel_off(sound->current_playing_channel);
 }
@@ -1191,6 +1248,8 @@ static void         __jo_audio_load_pcm_async_callback(char *contents, int lengt
     sound->data_length = length;
     sound->data = contents;
     sound->volume = JO_MAX_AUDIO_VOLUME;
+    // (a new sound: not the resident copy of the sound loaded before in this structure, see jo_audio_load_pcm())
+    JO_ZERO(sound->resident);
 }
 
 bool                jo_audio_load_pcm_async(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
@@ -1269,7 +1328,7 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         jo_free(file);
         return (false);
     }
-    for (p = file + 12; p + 8 <= end; p += 8 + ((jo_audio_wav_value(p + 4, 4) + 1) & ~1U))
+    for (p = file + 12; end - p >= 8; p += 8 + ((size + 1) & ~1U))
     {
         size = jo_audio_wav_value(p + 4, 4);
         if (p[0] == 'f' && p[1] == 'm' && p[2] == 't' && p + 24 <= end && jo_audio_wav_value(p + 8, 2) == 1)
@@ -1281,10 +1340,14 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         else if (p[0] == 'd' && p[1] == 'a' && p[2] == 't' && p[3] == 'a')
         {
             data = p + 8;
-            if (data + size > end)
+            // (compared as sizes: a size of 0xFFFFFFFF, written by the encoders of streams, wrapped the pointer around)
+            if (size > (unsigned int)(end - data))
                 size = (unsigned int)(end - data);
             break;
         }
+        // (a chunk after the end of the file: the end, the next chunk would be out of the file or before it)
+        if (size > (unsigned int)(end - p) - 8)
+            break;
     }
     if (data == JO_NULL || (bits != 8 && bits != 16) || (channels != 1 && channels != 2) || rate == 0)
     {
@@ -1344,6 +1407,604 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
     JO_ZERO(sound->pan);
     JO_ZERO(sound->resident);
     return (true);
+}
+
+/*
+** Music streamed from the CD
+*/
+
+/** @brief The slots of the music (free between the slots of the CD audio and the slots of the channels 8 and more) */
+# define JO_AUDIO_MUSIC_LEFT_SLOT           (18)
+# define JO_AUDIO_MUSIC_RIGHT_SLOT          (19)
+/** @brief The samples in sound RAM: a loop of 4 blocks of 4096 samples (16 bits) per side, the SCSP tells the block it plays */
+# define JO_AUDIO_MUSIC_BLOCK_SAMPLES       (4096)
+# define JO_AUDIO_MUSIC_RING_SAMPLES        (4 * JO_AUDIO_MUSIC_BLOCK_SAMPLES)
+# define JO_AUDIO_MUSIC_RING_MASK           (JO_AUDIO_MUSIC_RING_SAMPLES - 1)
+# define JO_AUDIO_MUSIC_AHEAD               (3 * JO_AUDIO_MUSIC_BLOCK_SAMPLES)
+/** @brief The sound RAM taken by the music (left then right samples) */
+# define JO_AUDIO_MUSIC_SOUND_RAM_SIZE      (2 * JO_AUDIO_MUSIC_RING_SAMPLES * 2)
+/** @brief Bytes of the file read in advance in work RAM (a power of 2) */
+#ifndef JO_AUDIO_MUSIC_BUFFER_SIZE
+# define JO_AUDIO_MUSIC_BUFFER_SIZE         (65536)
+#endif
+_Static_assert(JO_AUDIO_MUSIC_BUFFER_SIZE >= 16384 && (JO_AUDIO_MUSIC_BUFFER_SIZE & (JO_AUDIO_MUSIC_BUFFER_SIZE - 1)) == 0,
+               "JO_AUDIO_MUSIC_BUFFER_SIZE: a power of 2, 16384 or more");
+# define JO_AUDIO_MUSIC_BUFFER_MASK         (JO_AUDIO_MUSIC_BUFFER_SIZE - 1)
+# define JO_AUDIO_MUSIC_SECTOR_SIZE         (2048)
+/** @brief Biggest block of an IMA ADPCM file */
+# define JO_AUDIO_MUSIC_MAX_BLOCK           (4096)
+/** @brief Tries of the reads done while a file is loaded (the buffer of the music below a quarter) */
+# define JO_AUDIO_MUSIC_URGENT_TIMEOUT      (0x200000)
+
+typedef enum
+{
+    JoAudioMusicPcm8,
+    JoAudioMusicPcm16,
+    JoAudioMusicImaAdpcm
+}                                   jo_audio_music_format;
+
+static struct
+{
+    volatile bool                   playing;
+    bool                            paused;
+    bool                            loop;
+    volatile bool                   end_of_data;
+    jo_audio_music_format           format;
+    unsigned int                    channels;
+    unsigned int                    rate;
+    unsigned int                    block_align;
+    unsigned int                    samples_per_block;
+    unsigned int                    fad;
+    unsigned int                    data_start;
+    unsigned int                    data_end;
+    unsigned int                    cursor;
+    unsigned int                    reading_sector;
+    unsigned char                   *buffer;
+    volatile unsigned int           in;
+    volatile unsigned int           out;
+    unsigned int                    written;
+    unsigned int                    played_blocks;
+    unsigned int                    block;
+    unsigned int                    end_written;
+    unsigned int                    underruns;
+    volatile bool                   ended;
+    unsigned char                   volume;
+}                                   __jo_audio_music = { .volume = JO_DEFAULT_AUDIO_VOLUME };
+
+static unsigned int                 __jo_audio_music_sector[JO_AUDIO_MUSIC_SECTOR_SIZE / 4];
+static unsigned int                 __jo_audio_music_block[JO_AUDIO_MUSIC_MAX_BLOCK / 4];
+
+extern void                         (*__jo_core_music_vblank)(void);
+extern void                         (*__jo_core_music_update)(void);
+
+static const short                  __jo_audio_ima_steps[89] =
+{
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+    130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963, 1060,
+    1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132,
+    7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+};
+
+static const signed char            __jo_audio_ima_index[16] = {-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8};
+
+/** @brief A sample of the music in sound RAM */
+# define JO_AUDIO_MUSIC_SAMPLE(SIDE, INDEX) (*(volatile short *)(JO_SOUND_RAM + __jo_audio_music_sound_ram + \
+                                             (SIDE) * (JO_AUDIO_MUSIC_RING_SAMPLES * 2) + ((INDEX) & JO_AUDIO_MUSIC_RING_MASK) * 2))
+
+static  __jo_force_inline unsigned char jo_audio_music_byte(const unsigned int position)
+{
+    return (__jo_audio_music.buffer[position & JO_AUDIO_MUSIC_BUFFER_MASK]);
+}
+
+/** @brief Decode a nibble of IMA ADPCM
+ *  @param nibble Code (4 bits)
+ *  @param sample Last sample (updated)
+ *  @param index Step index (updated)
+ */
+static  __jo_force_inline int       jo_audio_ima_decode(const unsigned int nibble, int * const sample, int * const index)
+{
+    int                             step;
+    int                             diff;
+
+    step = __jo_audio_ima_steps[*index];
+    diff = step >> 3;
+    if (nibble & 4)
+        diff += step;
+    if (nibble & 2)
+        diff += step >> 1;
+    if (nibble & 1)
+        diff += step >> 2;
+    *sample += (nibble & 8) ? -diff : diff;
+    if (*sample > 32767)
+        *sample = 32767;
+    else if (*sample < -32768)
+        *sample = -32768;
+    *index += __jo_audio_ima_index[nibble];
+    if (*index < 0)
+        JO_ZERO(*index);
+    else if (*index > 88)
+        *index = 88;
+    return (*sample);
+}
+
+static void                         jo_audio_music_decode_ima_block(const unsigned char *block)
+{
+    unsigned int                    c;
+    unsigned int                    k;
+    unsigned int                    b;
+    unsigned int                    w;
+    unsigned int                    value;
+    int                             sample[2];
+    int                             index[2];
+    const unsigned char             *p;
+
+    w = __jo_audio_music.written;
+    for (JO_ZERO(c); c < __jo_audio_music.channels; ++c)
+    {
+        sample[c] = (short)(block[c * 4] | (block[c * 4 + 1] << 8));
+        index[c] = block[c * 4 + 2] > 88 ? 88 : block[c * 4 + 2];
+        JO_AUDIO_MUSIC_SAMPLE(c, w) = (short)sample[c];
+    }
+    p = block + 4 * __jo_audio_music.channels;
+    ++w;
+    if (__jo_audio_music.channels == 1)
+    {
+        for (k = 1; k < __jo_audio_music.samples_per_block; k += 2, ++p, w += 2)
+        {
+            JO_AUDIO_MUSIC_SAMPLE(0, w) = (short)jo_audio_ima_decode(*p & 0xF, &sample[0], &index[0]);
+            JO_AUDIO_MUSIC_SAMPLE(0, w + 1) = (short)jo_audio_ima_decode(*p >> 4, &sample[0], &index[0]);
+        }
+    }
+    else
+    {
+        for (k = 1; k < __jo_audio_music.samples_per_block; k += 8, w += 8)
+            for (JO_ZERO(c); c < 2; ++c, p += 4)
+            {
+                value = p[0] | (p[1] << 8) | (p[2] << 16) | ((unsigned int)p[3] << 24);
+                for (JO_ZERO(b); b < 8; ++b, value >>= 4)
+                    JO_AUDIO_MUSIC_SAMPLE(c, w + b) = (short)jo_audio_ima_decode(value & 0xF, &sample[c], &index[c]);
+            }
+    }
+    __jo_audio_music.written += __jo_audio_music.samples_per_block;
+}
+
+/** @brief Silence in sound RAM up to a sample
+ *  @param end Sample (total count)
+ */
+static void                         jo_audio_music_silence(const unsigned int end)
+{
+    while ((int)(end - __jo_audio_music.written) > 0)
+    {
+        JO_AUDIO_MUSIC_SAMPLE(0, __jo_audio_music.written) = 0;
+        JO_AUDIO_MUSIC_SAMPLE(1, __jo_audio_music.written) = 0;
+        ++__jo_audio_music.written;
+    }
+}
+
+/** @brief Decode the bytes read up to a sample in sound RAM
+ *  @param limit Last sample (excluded, total count)
+ */
+static void                         jo_audio_music_decode(const unsigned int limit)
+{
+    unsigned int                    available;
+    unsigned int                    frames;
+    unsigned int                    frame_size;
+    unsigned int                    i;
+    unsigned int                    k;
+    unsigned int                    position;
+    unsigned char                   *block;
+
+    frame_size = __jo_audio_music.format == JoAudioMusicPcm16 ? 2 * __jo_audio_music.channels : __jo_audio_music.channels;
+    while ((int)(limit - __jo_audio_music.written) > 0)
+    {
+        available = __jo_audio_music.in - __jo_audio_music.out;
+        if (__jo_audio_music.format == JoAudioMusicImaAdpcm)
+        {
+            if (available < __jo_audio_music.block_align)
+                break;
+            if (limit - __jo_audio_music.written < __jo_audio_music.samples_per_block)
+                return;
+            position = __jo_audio_music.out & JO_AUDIO_MUSIC_BUFFER_MASK;
+            if (position + __jo_audio_music.block_align <= JO_AUDIO_MUSIC_BUFFER_SIZE)
+                block = __jo_audio_music.buffer + position;
+            else
+            {
+                block = (unsigned char *)__jo_audio_music_block;
+                for (JO_ZERO(i); i < __jo_audio_music.block_align; ++i)
+                    block[i] = jo_audio_music_byte(__jo_audio_music.out + i);
+            }
+            jo_audio_music_decode_ima_block(block);
+            __asm__ volatile ("" : : : "memory");
+            __jo_audio_music.out += __jo_audio_music.block_align;
+            continue;
+        }
+        frames = available / frame_size;
+        if (frames == 0)
+            break;
+        if (frames > limit - __jo_audio_music.written)
+            frames = limit - __jo_audio_music.written;
+        position = __jo_audio_music.out;
+        for (JO_ZERO(i); i < frames; ++i, ++__jo_audio_music.written)
+            for (JO_ZERO(k); k < __jo_audio_music.channels; ++k)
+            {
+                if (__jo_audio_music.format == JoAudioMusicPcm16)
+                {
+                    JO_AUDIO_MUSIC_SAMPLE(k, __jo_audio_music.written) =
+                        (short)(jo_audio_music_byte(position) | (jo_audio_music_byte(position + 1) << 8));
+                    position += 2;
+                }
+                else
+                    JO_AUDIO_MUSIC_SAMPLE(k, __jo_audio_music.written) = (short)((jo_audio_music_byte(position++) - 128) << 8);
+            }
+        __asm__ volatile ("" : : : "memory");
+        __jo_audio_music.out = position;
+    }
+    if ((int)(limit - __jo_audio_music.written) <= 0)
+        return;
+    if (__jo_audio_music.end_of_data)
+    {
+        if (__jo_audio_music.end_written == 0)
+            __jo_audio_music.end_written = __jo_audio_music.written;
+        jo_audio_music_silence(limit);
+        return;
+    }
+    if ((int)(__jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES + JO_AUDIO_MUSIC_BLOCK_SAMPLES * 2 - __jo_audio_music.written) > 0)
+    {
+        ++__jo_audio_music.underruns;
+        jo_audio_music_silence(__jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES + JO_AUDIO_MUSIC_BLOCK_SAMPLES * 2);
+    }
+}
+
+static void                         jo_audio_music_key_off(void)
+{
+    jo_audio_key_off(JO_AUDIO_MUSIC_LEFT_SLOT);
+    jo_audio_key_off(JO_AUDIO_MUSIC_RIGHT_SLOT);
+#ifdef JO_COMPILE_WITH_AUDIO_DRIVER_SUPPORT
+    jo_audio_driver_flush();
+#endif
+}
+
+static void                         jo_audio_music_key_on(void)
+{
+    unsigned short                  pitch;
+
+    pitch = __jo_scsp_pitch(__jo_audio_music.rate);
+    if (__jo_audio_music.channels == 1)
+        jo_audio_key_on(JO_AUDIO_MUSIC_LEFT_SLOT, __jo_audio_music_sound_ram, JO_AUDIO_MUSIC_RING_SAMPLES, false, pitch,
+                        __jo_audio_music.volume, JO_SCSP_PAN_CENTER, true, 0);
+    else
+    {
+        jo_audio_key_on(JO_AUDIO_MUSIC_LEFT_SLOT, __jo_audio_music_sound_ram, JO_AUDIO_MUSIC_RING_SAMPLES, false, pitch,
+                        __jo_audio_music.volume, JO_SCSP_PAN_LEFT, true, 0);
+        jo_audio_key_on(JO_AUDIO_MUSIC_RIGHT_SLOT, __jo_audio_music_sound_ram + JO_AUDIO_MUSIC_RING_SAMPLES * 2,
+                        JO_AUDIO_MUSIC_RING_SAMPLES, false, pitch, __jo_audio_music.volume, JO_SCSP_PAN_RIGHT, true, 0);
+    }
+#ifdef JO_COMPILE_WITH_AUDIO_DRIVER_SUPPORT
+    jo_audio_driver_flush();
+#endif
+    JO_ZERO(__jo_audio_music.played_blocks);
+    JO_ZERO(__jo_audio_music.block);
+}
+
+/** @brief The samples of the music at each VBLANK (interrupt) */
+static void                         jo_audio_music_vblank(void)
+{
+    unsigned int                    block;
+
+    if (!__jo_audio_music.playing || __jo_audio_music.paused || __jo_audio_music.ended)
+        return;
+    JO_SCSP_COMMON(JO_SCSP_COMMON_MONITOR) = JO_SCSP_MONITOR_SLOT(JO_AUDIO_MUSIC_LEFT_SLOT);
+    block = JO_SCSP_MONITOR_BLOCK(JO_SCSP_COMMON(JO_SCSP_COMMON_MONITOR)) & 3;
+    __jo_audio_music.played_blocks += (block - __jo_audio_music.block) & 3;
+    __jo_audio_music.block = block;
+    if (__jo_audio_music.end_written != 0 &&
+        (int)(__jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES - __jo_audio_music.end_written) >= 0)
+    {
+        __jo_audio_music.ended = true;
+        return;
+    }
+    jo_audio_music_decode(__jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES + JO_AUDIO_MUSIC_AHEAD);
+}
+
+/** @brief Put the sectors of the file in the buffer
+ *  @param urgent Wait for the drive until the buffer is three quarters full (a file is loaded: the drive goes back to it after)
+ */
+static void                         jo_audio_music_fill(const bool urgent)
+{
+    unsigned int                    sector;
+    unsigned int                    last_sector;
+    unsigned int                    free;
+    unsigned int                    from;
+    unsigned int                    to;
+    unsigned int                    position;
+    unsigned int                    timeout;
+    unsigned char                   *src;
+    int                             n;
+
+    JO_ZERO(timeout);
+    for (;;)
+    {
+        if (__jo_audio_music.cursor >= __jo_audio_music.data_end)
+        {
+            if (!__jo_audio_music.loop)
+            {
+                __jo_audio_music.end_of_data = true;
+                return;
+            }
+            __jo_audio_music.cursor = __jo_audio_music.data_start;
+        }
+        free = JO_AUDIO_MUSIC_BUFFER_SIZE - (__jo_audio_music.in - __jo_audio_music.out);
+        if (free < JO_AUDIO_MUSIC_SECTOR_SIZE || (urgent && free < JO_AUDIO_MUSIC_BUFFER_SIZE / 4))
+            return;
+        sector = __jo_audio_music.cursor / JO_AUDIO_MUSIC_SECTOR_SIZE;
+        if (!__jo_fs_stream_is_reading() || sector != __jo_audio_music.reading_sector)
+        {
+            if (!urgent && free < JO_AUDIO_MUSIC_BUFFER_SIZE / 2)
+                return;
+            last_sector = (__jo_audio_music.data_end + JO_AUDIO_MUSIC_SECTOR_SIZE - 1) / JO_AUDIO_MUSIC_SECTOR_SIZE;
+            if (last_sector > sector + free / JO_AUDIO_MUSIC_SECTOR_SIZE)
+                last_sector = sector + free / JO_AUDIO_MUSIC_SECTOR_SIZE;
+            if (__jo_fs_stream_read(__jo_audio_music.fad + sector, last_sector - sector) < 0)
+                return;
+            __jo_audio_music.reading_sector = sector;
+        }
+        if ((n = __jo_fs_stream_take(__jo_audio_music_sector, 1)) <= 0)
+        {
+            if (!urgent || ++timeout > JO_AUDIO_MUSIC_URGENT_TIMEOUT)
+                return;
+            continue;
+        }
+        JO_ZERO(timeout);
+        from = __jo_audio_music.cursor - sector * JO_AUDIO_MUSIC_SECTOR_SIZE;
+        to = __jo_audio_music.data_end - sector * JO_AUDIO_MUSIC_SECTOR_SIZE;
+        if (to > JO_AUDIO_MUSIC_SECTOR_SIZE)
+            to = JO_AUDIO_MUSIC_SECTOR_SIZE;
+        src = (unsigned char *)__jo_audio_music_sector + from;
+        position = __jo_audio_music.in & JO_AUDIO_MUSIC_BUFFER_MASK;
+        if (position + (to - from) <= JO_AUDIO_MUSIC_BUFFER_SIZE)
+            jo_memcpy(__jo_audio_music.buffer + position, src, to - from);
+        else
+        {
+            jo_memcpy(__jo_audio_music.buffer + position, src, JO_AUDIO_MUSIC_BUFFER_SIZE - position);
+            jo_memcpy(__jo_audio_music.buffer, src + JO_AUDIO_MUSIC_BUFFER_SIZE - position, to - from - (JO_AUDIO_MUSIC_BUFFER_SIZE - position));
+        }
+        __asm__ volatile ("" : : : "memory");
+        __jo_audio_music.in += to - from;
+        __jo_audio_music.cursor = sector * JO_AUDIO_MUSIC_SECTOR_SIZE + to;
+        __jo_audio_music.reading_sector = sector + 1;
+    }
+}
+
+/** @brief The reads of the music at each frame */
+static void                         jo_audio_music_update(void)
+{
+    if (__jo_audio_music.ended)
+        jo_audio_stop_music();
+    else if (__jo_audio_music.playing && !__jo_audio_music.end_of_data)
+        jo_audio_music_fill(false);
+}
+
+/** @brief The reads of the music while a file is loaded: only when its buffer is below a quarter */
+static void                         jo_audio_music_service(void)
+{
+    if (__jo_audio_music.playing && !__jo_audio_music.paused && !__jo_audio_music.end_of_data &&
+        __jo_audio_music.in - __jo_audio_music.out < JO_AUDIO_MUSIC_BUFFER_SIZE / 4)
+        jo_audio_music_fill(true);
+}
+
+/** @brief Read the header of a WAV file: the format, the place of the samples
+ *  @return true if the format can be played
+ */
+static bool                         jo_audio_music_header(const unsigned char * const header, const unsigned int size)
+{
+    const unsigned char             *p;
+    const unsigned char             *end;
+    unsigned int                    format;
+    unsigned int                    bits;
+    unsigned int                    chunk;
+
+    if (size < 12 || header[0] != 'R' || header[1] != 'I' || header[8] != 'W' || header[9] != 'A')
+        return (false);
+    JO_ZERO(format);
+    JO_ZERO(bits);
+    end = header + size;
+    for (p = header + 12; p + 8 <= end; p += 8 + ((chunk + 1) & ~1U))
+    {
+        chunk = jo_audio_wav_value(p + 4, 4);
+        if (p[0] == 'f' && p[1] == 'm' && p[2] == 't' && p + 24 <= end)
+        {
+            format = jo_audio_wav_value(p + 8, 2);
+            __jo_audio_music.channels = jo_audio_wav_value(p + 10, 2);
+            __jo_audio_music.rate = jo_audio_wav_value(p + 12, 4);
+            __jo_audio_music.block_align = jo_audio_wav_value(p + 20, 2);
+            bits = jo_audio_wav_value(p + 22, 2);
+        }
+        else if (p[0] == 'd' && p[1] == 'a' && p[2] == 't' && p[3] == 'a')
+        {
+            __jo_audio_music.data_start = (unsigned int)(p + 8 - header);
+            // (a size of 0xFFFFFFFF: to the end of the file, see jo_audio_play_music())
+            __jo_audio_music.data_end = chunk > 0xFFFFFFFFu - __jo_audio_music.data_start ? 0xFFFFFFFFu :
+                                        __jo_audio_music.data_start + chunk;
+            break;
+        }
+        // (a chunk after the end of the header read: the end, not a pointer wrapped around)
+        if (chunk > (unsigned int)(end - p) - 8)
+            break;
+    }
+    if (__jo_audio_music.data_end == 0 || (__jo_audio_music.channels != 1 && __jo_audio_music.channels != 2) ||
+        __jo_audio_music.rate == 0 || __jo_audio_music.rate > JO_SCSP_BASE_SAMPLING_RATE)
+        return (false);
+    if (format == 1 && (bits == 8 || bits == 16))
+    {
+        __jo_audio_music.format = bits == 8 ? JoAudioMusicPcm8 : JoAudioMusicPcm16;
+        __jo_audio_music.block_align = __jo_audio_music.channels * (bits >> 3);
+    }
+    else if (format == 0x11 && bits == 4 && __jo_audio_music.block_align > 4 * __jo_audio_music.channels &&
+             __jo_audio_music.block_align <= JO_AUDIO_MUSIC_MAX_BLOCK && (__jo_audio_music.block_align & 3) == 0)
+    {
+        __jo_audio_music.format = JoAudioMusicImaAdpcm;
+        __jo_audio_music.samples_per_block = (__jo_audio_music.block_align - 4 * __jo_audio_music.channels) * 2 / __jo_audio_music.channels + 1;
+    }
+    else
+        return (false);
+    __jo_audio_music.data_end -= (__jo_audio_music.data_end - __jo_audio_music.data_start) % __jo_audio_music.block_align;
+    return (__jo_audio_music.data_end > __jo_audio_music.data_start);
+}
+
+bool                                jo_audio_play_music(const char * const filename, const bool loop)
+{
+    void                            *handle;
+    int                             file_id;
+    int                             len;
+    unsigned int                    size;
+
+#ifdef JO_DEBUG
+    if (filename == JO_NULL)
+    {
+        jo_core_error("filename is null");
+        return (false);
+    }
+#endif
+    jo_audio_stop_music();
+    if ((file_id = __jo_fs_get_file_id(filename)) < 0 || (handle = __jo_fs_open(file_id)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: file not found", filename);
+#endif
+        return (false);
+    }
+    __jo_audio_music.fad = __jo_fs_get_fad(handle);
+    size = (unsigned int)__jo_fs_get_file_size(handle);
+    JO_ZERO(__jo_audio_music.data_start);
+    JO_ZERO(__jo_audio_music.data_end);
+    len = __jo_fs_read_sectors(handle, 1, __jo_audio_music_sector, JO_AUDIO_MUSIC_SECTOR_SIZE);
+    __jo_fs_close(handle);
+    if (len <= 0 || !jo_audio_music_header((unsigned char *)__jo_audio_music_sector, (unsigned int)len))
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: not a PCM or IMA ADPCM WAV file", filename);
+#endif
+        return (false);
+    }
+    if (__jo_audio_music.data_end > size)
+        __jo_audio_music.data_end = size - (size - __jo_audio_music.data_start) % __jo_audio_music.block_align;
+    if (__jo_audio_music_sound_ram == 0)
+    {
+        if (__jo_audio_resident_start < JO_AUDIO_PCM_AREA_START + JO_AUDIO_COPIED_ROOM + JO_AUDIO_MUSIC_SOUND_RAM_SIZE)
+            return (false);
+        __jo_audio_music_sound_ram = (__jo_audio_resident_start - JO_AUDIO_MUSIC_SOUND_RAM_SIZE) & ~0x1F;
+        for (len = 0; len < JO_AUDIO_CACHE_ENTRIES; ++len)
+            if (__jo_audio_cache[len].data != JO_NULL && __jo_audio_cache[len].offset + __jo_audio_cache[len].size > __jo_audio_music_sound_ram)
+                __jo_audio_cache[len].data = JO_NULL;
+        if (__jo_audio_alloc_next > __jo_audio_music_sound_ram)
+            __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
+        jo_audio_stop_channels_in(__jo_audio_music_sound_ram, __jo_audio_resident_start);
+        __jo_audio_resident_start = __jo_audio_music_sound_ram;
+    }
+    if ((__jo_audio_music.buffer = (unsigned char *)jo_malloc(JO_AUDIO_MUSIC_BUFFER_SIZE)) == JO_NULL)
+        return (false);
+    __jo_audio_music.loop = loop;
+    __jo_audio_music.paused = false;
+    __jo_audio_music.ended = false;
+    __jo_audio_music.end_of_data = false;
+    __jo_audio_music.cursor = __jo_audio_music.data_start;
+    __jo_audio_music.reading_sector = 0xFFFFFFFF;
+    JO_ZERO(__jo_audio_music.in);
+    JO_ZERO(__jo_audio_music.out);
+    JO_ZERO(__jo_audio_music.written);
+    JO_ZERO(__jo_audio_music.end_written);
+    JO_ZERO(__jo_audio_music.underruns);
+    jo_audio_music_fill(true);
+    JO_ZERO(__jo_audio_music.played_blocks);
+    jo_audio_music_decode(JO_AUDIO_MUSIC_AHEAD);
+    jo_audio_music_key_on();
+    __jo_audio_music.playing = true;
+    __jo_fs_stream_service = jo_audio_music_service;
+    __jo_core_music_update = jo_audio_music_update;
+    __jo_core_music_vblank = jo_audio_music_vblank;
+    return (true);
+}
+
+void                                jo_audio_stop_music(void)
+{
+    __jo_core_music_vblank = JO_NULL;
+    __jo_core_music_update = JO_NULL;
+    __jo_fs_stream_service = JO_NULL;
+    if (__jo_audio_music.buffer == JO_NULL)
+        return;
+    __jo_audio_music.playing = false;
+    jo_audio_music_key_off();
+    __jo_fs_stream_stop();
+    jo_free(__jo_audio_music.buffer);
+    __jo_audio_music.buffer = JO_NULL;
+}
+
+void                                jo_audio_pause_music(void)
+{
+    if (!__jo_audio_music.playing || __jo_audio_music.paused || __jo_audio_music.ended)
+        return;
+    __jo_audio_music.paused = true;
+    jo_audio_music_key_off();
+}
+
+void                                jo_audio_resume_music(void)
+{
+    unsigned int                    start;
+    unsigned int                    count;
+    unsigned int                    i;
+    unsigned int                    c;
+    short                           *copy;
+
+    if (!__jo_audio_music.playing || !__jo_audio_music.paused)
+        return;
+    start = __jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES;
+    count = __jo_audio_music.written - start;
+    if ((copy = (short *)jo_malloc(count * 2 + 4)) != JO_NULL)
+    {
+        for (JO_ZERO(c); c < __jo_audio_music.channels; ++c)
+        {
+            for (JO_ZERO(i); i < count; ++i)
+                copy[i] = JO_AUDIO_MUSIC_SAMPLE(c, start + i);
+            for (JO_ZERO(i); i < count; ++i)
+                JO_AUDIO_MUSIC_SAMPLE(c, i) = copy[i];
+        }
+        jo_free(copy);
+    }
+    else
+        JO_ZERO(count);
+    if (__jo_audio_music.end_written != 0)
+        __jo_audio_music.end_written = __jo_audio_music.end_written > start ? __jo_audio_music.end_written - start : 1;
+    __jo_audio_music.written = count;
+    // (the samples kept are at the start of the ring again: the blocks played count from 0, as jo_audio_music_key_on()
+    // will set them, before the decoding (with the count of the pause, the decoding wrote silence for a long time)
+    JO_ZERO(__jo_audio_music.played_blocks);
+    jo_audio_music_decode(JO_AUDIO_MUSIC_AHEAD);
+    jo_audio_music_key_on();
+    __jo_audio_music.paused = false;
+}
+
+bool                                jo_audio_is_music_playing(void)
+{
+    return (__jo_audio_music.playing && !__jo_audio_music.ended);
+}
+
+bool                                jo_audio_is_music_paused(void)
+{
+    return (__jo_audio_music.playing && __jo_audio_music.paused);
+}
+
+void                                jo_audio_set_music_volume(const unsigned char volume)
+{
+    __jo_audio_music.volume = volume > JO_MAX_AUDIO_VOLUME ? JO_MAX_AUDIO_VOLUME : volume;
+    if (!__jo_audio_music.playing)
+        return;
+    jo_audio_slot_write(JO_AUDIO_MUSIC_LEFT_SLOT, JO_SCSP_SLOT_TOTAL_LEVEL, (unsigned short)JO_SCSP_TOTAL_LEVEL(__jo_audio_music.volume));
+    jo_audio_slot_write(JO_AUDIO_MUSIC_RIGHT_SLOT, JO_SCSP_SLOT_TOTAL_LEVEL, (unsigned short)JO_SCSP_TOTAL_LEVEL(__jo_audio_music.volume));
+}
+
+unsigned int                        jo_audio_get_music_underruns(void)
+{
+    return (__jo_audio_music.underruns);
 }
 
 #endif

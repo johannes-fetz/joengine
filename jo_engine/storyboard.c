@@ -84,22 +84,43 @@ jo_storyboard                       *jo_storyboard_create(const bool autoplay, c
 
 void                                jo_storyboard_destroy(jo_storyboard * const storyboard)
 {
+    // (the helpers give JO_NULL when the memory is full: its lists were read at the address 0, garbage freed)
+    if (storyboard == JO_NULL)
+        return;
     jo_list_free_and_clear(&storyboard->objects);
     jo_list_free_and_clear(&storyboard->animations);
     jo_list_remove_first_value(&__storyboards, (jo_list_data)(void *)storyboard);
     jo_free(storyboard);
 }
 
+/** @brief An angle turned by a step, kept in ]-360, 360[ (the angles are shorts: at 32767 they went on from -32768, 8
+ *  degrees (32768 modulo 360) the other way: a rotation, a circle without end jumped every few minutes)
+ *  @param angle Angle (degrees)
+ *  @param step Step (degrees, -128 to 127)
+ *  @return The angle turned
+ */
+static  __jo_force_inline short     jo_storyboard_turn(const short angle, const int step)
+{
+    int                             turned;
+
+    turned = angle + step;
+    if (turned >= 360)
+        turned -= 360;
+    else if (turned <= -360)
+        turned += 360;
+    return ((short)turned);
+}
+
 static void                         animate_object(jo_animation * const animation, jo_storyboard_object_cache * const object)
 {
     if (animation->rotation_speed)
-        object->user->rz += animation->rotation_speed;
+        object->user->rz = jo_storyboard_turn(object->user->rz, animation->rotation_speed);
     if (animation->cos_radius)
     {
         object->user->x = jo_cos_mult(animation->cos_radius, object->current_cos);
         if (object->dx)
             object->user->x += JO_DIV_BY_8(object->dx);
-        object->current_cos += animation->translation_speed_x;
+        object->current_cos = jo_storyboard_turn(object->current_cos, animation->translation_speed_x);
     }
     else if (animation->translation_speed_x)
     {
@@ -118,7 +139,7 @@ static void                         animate_object(jo_animation * const animatio
         object->user->y = jo_sin_mult(animation->sin_radius, object->current_sin);
         if (object->dy)
             object->user->y += JO_DIV_BY_8(object->dy);
-        object->current_sin += animation->translation_speed_y;
+        object->current_sin = jo_storyboard_turn(object->current_sin, animation->translation_speed_y);
     }
     else if (animation->translation_speed_y)
     {
@@ -194,8 +215,11 @@ jo_animation                        *jo_storyboard_create_animation(jo_storyboar
                                                                     const unsigned char frame_skip,
                                                                     const unsigned int duration)
 {
-    jo_animation                    *tmp = (jo_animation *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    jo_animation                    *tmp;
 
+    if (storyboard == JO_NULL)
+        return (JO_NULL);
+    tmp = (jo_animation *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
     if (tmp == JO_NULL)
     {
 #ifdef JO_DEBUG

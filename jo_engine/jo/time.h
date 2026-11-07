@@ -73,10 +73,21 @@ static  __jo_force_inline unsigned int jo_time_peek_int(jo_time_memory_address a
 /** @brief Get Free Running Counter value */
 static  __jo_force_inline int jo_time_get_frc(void)
 {
-    return (jo_time_peek_byte(RegisterHighFRC) << 8 | jo_time_peek_byte(RegisterLowFRC));
+    unsigned int sr;
+    unsigned int high;
+    unsigned int low;
+
+    // (the high byte first: its read latches the low byte in the only temporary register of the timer, an interrupt that
+    // reads the timer between the 2 reads changed it: masked. The order of the 2 operands of | is not fixed by C)
+    __asm__ volatile ("stc sr, %0" : "=r" (sr) : : "memory");
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr | 0xF0) : "memory");
+    high = jo_time_peek_byte(RegisterHighFRC);
+    low = jo_time_peek_byte(RegisterLowFRC);
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
+    return ((int)(high << 8 | low));
 }
 
-static  __jo_force_inline void jo_time_set_frc(unsigned char reg)
+static  __jo_force_inline void jo_time_set_frc(unsigned short reg)
 {
     jo_time_poke_byte(RegisterHighFRC, reg >> 8);
     jo_time_poke_byte(RegisterLowFRC, reg);

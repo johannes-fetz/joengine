@@ -56,7 +56,6 @@ typedef struct
 void                            benchmark_add(const char * const name, const unsigned int ticks, const unsigned int items);
 /** @brief Results added so far */
 const benchmark_result          *benchmark_get(const int index);
-int                             benchmark_count(void);
 
 /** @brief Measure a statement: the ticks of jo_profile_ticks() around it (16 bits: a test must take less than 78 ms) */
 # define BENCHMARK_MEASURE(NAME, ITEMS, STATEMENT) \

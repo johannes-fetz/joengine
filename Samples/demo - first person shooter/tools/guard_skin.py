@@ -326,6 +326,65 @@ def skin_color(p, face):
     return np.clip(col, 0, 255)
 
 
+# The scientists: a white lab coat over grey trousers, black shoes
+COAT = (226, 226, 222)
+TROUSERS = (92, 94, 100)
+
+
+def coat_color(p):
+    """The lab coat of the scientists at the points p (..., 3): white cloth, the placket and its buttons, a breast pocket
+    with a pen, the collar; no shoulder boards, no tabs"""
+    x = p[..., 0]
+    y = p[..., 1]
+    z = p[..., 2]
+    s = np.abs(x)
+    ang = np.degrees(np.arctan2(x, -z))
+    a = np.abs(ang)
+    front = a < 70
+    col = cloth(p, COAT, 141)
+    col *= (1 - 0.08 * smoothstep(52, 49, y))[..., None]
+    # The front: the placket (a seam), the buttons (white)
+    col *= (1 - 0.22 * np.exp(-((x - 0.7) / 0.1) ** 2) * front)[..., None]
+    for by in (52.0, 57.0, 62.0, 67.0):
+        d = np.sqrt((x / 0.45) ** 2 + ((y - by) / 0.45) ** 2)
+        col = mix(col, np.array((200, 200, 196.0)) * (1.1 - 0.4 * d[..., None]), (d < 1) & front)
+        col *= (1 - 0.25 * ((d > 1) & (d < 1.4) & front & (y < by)))[..., None]
+    # The breast pocket on the left (his left: +X), a pen in it
+    px = 4.4
+    inside = (np.abs(x - px) < 2.2) & (y > 58.5) & (y < 64.5) & front
+    border = inside & ((np.abs(np.abs(x - px) - 2.2) < 0.18) | (np.abs(y - 58.6) < 0.18))
+    col *= (1 - 0.04 * inside)[..., None]
+    col *= (1 - 0.25 * border)[..., None]
+    pen = (np.abs(x - (px + 1.0)) < 0.25) & (y > 62.5) & (y < 66.0) & front
+    col = mix(col, np.array((40, 60, 150.0)), pen)
+    # The back: the seam, the collar folded (a darker line under it)
+    col *= (1 - 0.18 * np.exp(-((x) / 0.12) ** 2) * (a > 150))[..., None]
+    col *= (1 - 0.22 * np.exp(-((y - 70.6) / 0.3) ** 2))[..., None]
+    col *= (1 - 0.12 * smoothstep(60, 90, a) * smoothstep(64, 69, y))[..., None]
+    return np.clip(col, 0, 255)
+
+
+def trousers_color(p):
+    """The trousers of the scientists: grey cloth, a crease down the front"""
+    col = cloth(p, TROUSERS, 151)
+    x = p[..., 0]
+    z = p[..., 2]
+    col *= (1 + 0.06 * np.exp(-((x - 4.5) / 0.3) ** 2) * (z < 0))[..., None]
+    return np.clip(col, 0, 255)
+
+
+def shoes_color(p):
+    """The legs of the scientists below the knee: the trousers down to the ankle, black shoes"""
+    y = p[..., 1]
+    col = cloth(p, TROUSERS, 151)
+    shoe = np.zeros(p.shape[:-1] + (3,)) + np.array((28, 26, 26.0))
+    shoe *= (0.85 + 0.3 * fbm(p, 1.2, 2, 81)[..., None])
+    col = mix(col, shoe, y < 5.5)
+    col *= (1 - 0.5 * smoothstep(1.4, 0.6, y))[..., None]
+    col *= (1 - 0.3 * np.exp(-((y - 5.5) / 0.3) ** 2))[..., None]
+    return np.clip(col, 0, 255)
+
+
 def cap_color(p, front=False):
     """The side cap: olive cloth, its folded edge; at the front, the red star"""
     col = cloth(p, UNIFORM, 101)

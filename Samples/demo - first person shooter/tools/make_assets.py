@@ -827,6 +827,75 @@ def texture_screen():
     save_texture('screen', rgb)
 
 
+def screen_text(rgb, seed, cursor_row, cursor_on, scroll=0):
+    """Lines of green text on a screen (rgb: the image, 5 pixels of margin), the lines shifted up by scroll pixels, a
+    cursor block at the end of the row cursor_row when cursor_on"""
+    h, w = rgb.shape[:2]
+    lines = np.random.default_rng(seed)
+    for y in range(5 - scroll, h - 4, 3):
+        if y < 4:
+            # (a line scrolled out: its random numbers drawn anyway, the lines below keep their text)
+            x = 5
+            while x < w - 6:
+                x += int(lines.integers(2, 7)) + int(lines.integers(1, 3))
+                if lines.random() < 0.2:
+                    break
+            continue
+        x = 5
+        while x < w - 6:
+            length = int(lines.integers(2, 7))
+            rgb[y, x:min(x + length, w - 5)] = (90, 230, 110)
+            x += length + int(lines.integers(1, 3))
+            if lines.random() < 0.2:
+                break
+    if cursor_on and 4 <= cursor_row < h - 4:
+        rgb[cursor_row, w - 10:w - 7] = (150, 255, 170)
+
+
+def texture_screen_frames():
+    """The screen of a computer animated (3 frames swapped by the game, see tools/screen_frames.h): the same text with a
+    cursor blinking on the last line, then the text scrolled up by a line; and the screen broken (dark, a star of cracks,
+    the glass gone white at the impact)"""
+    w, h = 32, 32
+    for k, (cursor_on, scroll) in enumerate(((False, 0), (True, 0), (False, 3))):
+        rgb = np.zeros((h, w, 3))
+        rgb[:, :] = (16, 40, 22)
+        screen_text(rgb, 37, 26, cursor_on, scroll)
+        rgb[:3, :] = rgb[-3:, :] = (120, 118, 112)
+        rgb[:, :3] = rgb[:, -3:] = (120, 118, 112)
+        save_texture('screen%d' % k, rgb)
+    rgb = np.zeros((h, w, 3))
+    rgb[:, :] = (22, 24, 26)
+    yy, xx = np.mgrid[0:h, 0:w]
+    cx, cy = 14, 17
+    a = np.arctan2(yy - cy, xx - cx)
+    r = np.hypot(yy - cy, xx - cx)
+    for k in range(7):
+        angle = k * 2 * np.pi / 7 + 0.4
+        crack = (np.abs(((a - angle + np.pi) % (2 * np.pi)) - np.pi) * r < 0.9) & (r > 1) & (r < 9 + 4 * ((k * 5) % 3))
+        rgb[crack] = (150, 156, 160)
+    rgb[r < 2.2] = (200, 204, 206)
+    rgb[:3, :] = rgb[-3:, :] = (120, 118, 112)
+    rgb[:, :3] = rgb[:, -3:] = (120, 118, 112)
+    save_texture('screenx', rgb)
+
+
+def texture_glassware():
+    """The glass of the test tubes and the flasks (8 x 16: a pale glass with a liquid in the lower part: green, red,
+    blue; the empty glass), drawn in screen doors in the game"""
+    w, h = 8, 16
+    for name, color, level in (('tubeg', (110, 220, 120), 9), ('tuber', (220, 90, 80), 7), ('tubeb', (100, 150, 230), 10),
+                               ('tubee', None, 0), ('flaskg', (120, 230, 130), 10), ('flaskb', (110, 160, 235), 8)):
+        rgb = np.zeros((h, w, 3))
+        rgb[:, :] = (200, 220, 230)
+        rgb[:, 0] = rgb[:, -1] = (150, 170, 185)
+        rgb[1:h - 1, 2:w - 2] += 12
+        if color is not None:
+            rgb[h - level:, 1:w - 1] = color
+            rgb[h - level, 1:w - 1] = tuple(c * 0.8 + 50 for c in color)
+        save_texture(name, rgb)
+
+
 def texture_keyboard():
     """The keys of a keyboard seen from above: light keys, dark gaps, a space bar"""
     w, h = 32, 16
@@ -1025,6 +1094,8 @@ def all_textures():
     texture_mouse()
     texture_rifle_top()
     texture_screen()
+    texture_screen_frames()
+    texture_glassware()
     texture_keyboard()
     texture_gun()
     texture_skin()
@@ -1581,6 +1652,8 @@ def write_model(mesh, name, description, lut=True):
         # whole quad, see STRAIGHT_LINE_TEXTURES)
         if sub == '1' and tex in STRAIGHT_LINE_TEXTURES:
             mtl.append('jo_subdivision_error %d' % STRAIGHT_LINE_TEXTURES[tex])
+        # (no smaller copies of the textures far away (mipmaps): tried on the 64 x 64 textures of the rooms, the VDP1 time
+        # of Mednafen did not move (20.8 to 20.0 ms in the hall) while the CPUs spent 1.5 ms more choosing the copies)
         mtl.append('jo_mipmaps 0')
         if options.get('sort'):
             mtl.append('jo_sort ' + options['sort'])
@@ -2079,6 +2152,113 @@ def build_barrel_models():
     return models
 
 
+def build_monitor_models():
+    """The monitor of a computer: a box of beige plastic, the screen on its front (toward -Z: the model turned by the yaw
+    of the entity), its stand; the origin on the desk under the stand. The monitor exploded (like the barrels): the stand
+    and the torn bottom of the casing, burnt (a jagged ring, its floor)"""
+    models = []
+    for screen in ('screen0',):
+        m = Mesh()
+        o = dict(subdivision=0)
+        m.box(-18, -40, -15, 18, -8, 15, 'casing', faces='xXZy', split=False, **o)
+        # (the screen in RGB: its texture is swapped by the game for the animation; the table of a 16 colors texture
+        # belongs to the polygon, the other frames showed grey)
+        face(m, [(-18, -40, -15), (18, -40, -15), (18, -8, -15), (-18, -8, -15)], (0, 0, -1), screen, lut=False, **o)
+        m.box(-6, -8, -5, 6, 0, 5, 'frame', faces='xXzZ', split=False, **o)
+        for q in m.quads:
+            n = quad_normal(q[0])
+            q[3] = [(0.50, 0.50, 0.50) if n[1] < -0.5 else (0.56, 0.56, 0.56) if q[1].startswith('screen') else
+                    (0.46, 0.46, 0.46)] * 4
+        models.append(m)
+    rng = np.random.default_rng(31)
+    d = Mesh()
+    o = dict(subdivision=0)
+    d.box(-6, -8, -5, 6, 0, 5, 'burnt', faces='xXzZ', split=False, **o)
+    corners = [(-18, -15), (18, -15), (18, 15), (-18, 15)]
+    tops = [-(11 + 7 * rng.random()) for k in range(4)]
+    for k in range(4):
+        (ax, az), (bx, bz) = corners[k], corners[(k + 1) % 4]
+        quad_out(d, [(ax, -8, az), (bx, -8, bz), (bx, tops[(k + 1) % 4], bz), (ax, tops[k], az)], (0, -10, 0), 'burnt', dual=True, **o)
+    face(d, [(-18, -8.5, -15), (18, -8.5, -15), (18, -8.5, 15), (-18, -8.5, 15)], (0, -1, 0), 'burnt', **o)
+    for q in d.quads:
+        q[3] = [(0.40, 0.40, 0.40)] * 4
+    models.append(d)
+    return models
+
+
+def build_screen_frames():
+    """The other frames of the screens of the monitors: cd/SCRFRM.JOM (a quad per texture, only to load them in the
+    VRAM) and screen_frames.h (the names of the embedded textures of the frames, in their order: props.c swaps them on
+    the polygon of the screen, see build_monitor_models())"""
+    import jo_model
+    frames = ['screen0', 'screen1', 'screen2']
+    names = [jo_model.embedded_texture_name(os.path.join(MODELS, f + '.png'), False, []) for f in frames]
+    m = Mesh()
+    for k, f in enumerate(frames[1:]):
+        m.quad([(k * 10, -10, 0), (k * 10 + 8, -10, 0), (k * 10 + 8, 0, 0), (k * 10, 0, 0)], f, subdivision=0, lut=False)
+    for q in m.quads:
+        q[3] = [(0.5, 0.5, 0.5)] * 4
+    write_model(m, 'scrfrm', 'The frames of the screens of the computers (their textures only)')
+    out = ['/*', '** Jo Sega Saturn Engine: first person shooter demo, the screens of the computers (generated by tools/make_assets.py)',
+           '*/', '', '#ifndef __SCREEN_FRAMES_H__', '# define __SCREEN_FRAMES_H__', '',
+           '/** @brief The frames of the animation of a screen (the first one: in cd/MONITOR.JOM, the others in cd/SCRFRM.JOM) */',
+           '# define SCREEN_FRAME_COUNT (%d)' % len(frames), '',
+           '/** @brief The names of the embedded textures of the frames */',
+           'static const char * const screen_frame_textures[SCREEN_FRAME_COUNT] =', '{',
+           '    ' + ', '.join('"%s"' % n for n in names), '};', '', '#endif /* !__SCREEN_FRAMES_H__ */']
+    with open(os.path.join(DEMO, 'screen_frames.h'), 'w') as f:
+        f.write('\n'.join(out) + '\n')
+
+
+def build_glassware_models():
+    """The glassware of the benches (screen doors: the glass half transparent), the origin at the bottom in the middle:
+    a rack of 5 test tubes (a dark bar with the tubes standing in it), the rack with the tubes broken (stubs); an
+    Erlenmeyer flask (a 6-sided cone and its neck), its bottom broken (a jagged ring)"""
+    o = dict(subdivision=0)
+    g = dict(subdivision=0, mesh=True)
+    models = {}
+    for broken in (False, True):
+        m = Mesh()
+        m.box(-14, -3, -3, 14, 0, 3, 'frame', faces='xXzZy', split=False, **o)
+        for k in range(5):
+            cx = -11 + k * 5.5
+            tex = ('tubeg', 'tuber', 'tubee', 'tubeb', 'tubeg')[k]
+            top = -6 if broken else -17
+            if broken and k % 2 == 1:
+                continue
+            for a0, a1 in ((-1, 1), (1, 1), (1, -1), (-1, -1)):
+                pass
+            r = 1.8
+            ring = [(cx - r, -r), (cx + r, -r), (cx + r, r), (cx - r, r)]
+            for i in range(4):
+                (ax, az), (bx, bz) = ring[i], ring[(i + 1) % 4]
+                quad_out(m, [(ax, -3, az), (bx, -3, bz), (bx, top, bz), (ax, top, az)], (cx, -10, 0), tex if not broken else 'tubee', **g)
+        for q in m.quads:
+            q[3] = [(0.46, 0.46, 0.46) if q[1] == 'frame' else (0.58, 0.58, 0.60)] * 4
+        models['tubesd' if broken else 'tubes'] = m
+    for broken in (False, True):
+        m = Mesh()
+        sides = 6
+        base = [(7 * math.cos(2 * math.pi * (k + 0.5) / sides), 7 * math.sin(2 * math.pi * (k + 0.5) / sides)) for k in range(sides)]
+        if broken:
+            rng_b = np.random.default_rng(91)
+            tops = [-(3 + 4 * rng_b.random()) for k in range(sides)]
+            for k in range(sides):
+                (ax, az), (bx, bz) = base[k], base[(k + 1) % sides]
+                quad_out(m, [(ax, 0, az), (bx, 0, bz), (bx, tops[(k + 1) % sides], bz), (ax, tops[k], az)], (0, -2, 0), 'flaskg', **g)
+        else:
+            neck = [(2.5 * math.cos(2 * math.pi * (k + 0.5) / sides), 2.5 * math.sin(2 * math.pi * (k + 0.5) / sides)) for k in range(sides)]
+            for k in range(sides):
+                (ax, az), (bx, bz) = base[k], base[(k + 1) % sides]
+                (nx, nz), (mx, mz) = neck[k], neck[(k + 1) % sides]
+                quad_out(m, [(ax, 0, az), (bx, 0, bz), (mx, -18, mz), (nx, -18, nz)], (0, -9, 0), 'flaskg', **g)
+                quad_out(m, [(nx, -18, nz), (mx, -18, mz), (mx, -25, mz), (nx, -25, nz)], (0, -21, 0), 'tubee', **g)
+        for q in m.quads:
+            q[3] = [(0.58, 0.58, 0.60)] * 4
+        models['flaskd' if broken else 'flask'] = m
+    return models
+
+
 def check_kept_files():
     """The fire, the smoke and the sound of the explosions, the HUD: files of the cd that this script does not make"""
     for name in EXPLOSION_FILES + HUD_FILES:
@@ -2362,6 +2542,14 @@ def build_lab():
     door_frames(m, 'lab')
     boxes = [bench(m, 1040, 1600, 1440, 1660), bench(m, 1040, 1760, 1440, 1820), bench(m, 1560, 1800, 1720, 1880, 40)]
     boxes += crates(m, [(1000, 1440, 60)])
+    # The racks of test tubes and the flasks on the benches (the class breakable: broken by a shot), 2 computers on the
+    # second bench facing the door of the hall (the keyboards painted, their monitors are entities)
+    GLASSWARE.extend([('tubes', 1090, -45, 1632, 0), ('flask', 1160, -45, 1626, 0), ('tubes', 1300, -45, 1628, 15),
+                      ('flask', 1395, -45, 1636, 0), ('flask', 1070, -45, 1792, 0), ('tubes', 1380, -45, 1788, 0),
+                      ('flask', 1640, -40, 1840, 0), ('tubes', 1690, -40, 1850, 90)])
+    for cx in (1180, 1260):
+        m.decal([(cx - 20, -45, 1806), (cx + 20, -45, 1806), (cx + 20, -45, 1786), (cx - 20, -45, 1786)], 'keyboard')
+        MONITORS.append((cx, -45, 1774, 0))
     bake_light(m, LAMPS['lab'], AMBIENT['lab'], boxes)
     return m
 
@@ -2376,21 +2564,22 @@ def build_guards():
     return m
 
 
-def computer(m, x_back, cz, top):
-    """A computer on a desk (its top at the height top), facing -X: the monitor (a screen of green text), its stand, the
-    keyboard and the mouse in front of it. Things on furniture are sorted with their nearest point (see check_on_top())"""
-    o = dict(subdivision=0, sort='min')
-    # The monitor: a box of beige plastic, the screen on its front
-    m.box(x_back - 30, top - 40, cz - 18, x_back, top - 8, cz + 18, 'casing', faces='XzZy', **o)
-    face(m, [(x_back - 30, top - 40, cz + 18), (x_back - 30, top - 40, cz - 18), (x_back - 30, top - 8, cz - 18),
-             (x_back - 30, top - 8, cz + 18)], (-1, 0, 0), 'screen', unlit=(0.56, 0.56, 0.56), **o)
-    m.box(x_back - 20, top - 8, cz - 6, x_back - 10, top, cz + 6, 'frame', faces='xXzZ', **o)
-    # The keyboard, the mouse on its right (seen from the screen: -Z): painted on the top of the desk (flat things on a
-    # surface: polygons a few units over it were cut by it, see check_no_overlap())
+def computer(m, x_back, cz, top, yaw=90):
+    """A computer on a desk (its top at the height top), facing -X: the keyboard and the mouse in front of its place,
+    painted on the top of the desk (flat things on a surface: polygons a few units over it were cut by it, see
+    check_no_overlap()). The monitor is an entity (the class breakable of props.c: its screen animated, broken by a shot),
+    placed in the level, see MONITORS"""
     m.decal([(x_back - 70, top, cz + 20), (x_back - 50, top, cz + 20), (x_back - 50, top, cz - 20), (x_back - 70, top, cz - 20)],
             'keyboard')
     m.decal([(x_back - 64, top, cz - 26), (x_back - 56, top, cz - 26), (x_back - 56, top, cz - 32), (x_back - 64, top, cz - 32)],
             'mouse')
+    MONITORS.append((x_back - 15, top, cz, yaw))
+
+
+# The monitors of the computers: (x, y of the desk top, z, yaw) filled by computer(); the glassware on the benches:
+# (model, x, y, z, yaw)
+MONITORS = []
+GLASSWARE = []
 
 
 def build_office():
@@ -3121,7 +3310,7 @@ def build_level():
     # (the doors: a recording, opening and closing; the closing sound starts so that the door hits its frame when it is
     # closed, see tools/make_sounds.py; the doors of the stalls: the same sound higher, lighter doors)
     import make_sounds
-    close_hit = make_sounds.door_close_hit_ms()
+    close_hit = make_sounds.door_close_hit_ms() if os.path.exists(make_sounds.DOOR_RECORDING) else 331
     for a, b, axis, pos, c0, c1, fy, style in DOORS:
         # The standard door (brushed steel, hinged; brown on the lower floor); the panel fills the
         # opening: no light between it and the frame. The hinge: on the north post of a wall along Z (the panel goes
@@ -3160,6 +3349,20 @@ def build_level():
                              health=40, flags=['SOLID'], radius=BARREL_RADIUS, height=BARREL_HEIGHT,
                              props=dict(damage=120, radius=230, delay=160, size=180, sound='EXPLODE.PCM', dead_model='BARRELD.JOM',
                                         far_model='BARRELF.JOM', far_distance=1000, draw_distance=1800)))
+    # The monitors of the computers (the class breakable of props.c: the screen animated, broken by a shot, see computer())
+    # and the glassware of the benches (broken by a shot: the pieces fly)
+    for k, (mx, my, mz, yaw) in enumerate(MONITORS):
+        entities.append(dict(name='monitor%d' % (k + 1), cls='breakable', model='MONITOR.JOM', x=int(mx), y=int(my), z=int(mz), yaw=yaw,
+                             health=1, flags=['SOLID'], radius=18, height=40,
+                             props=dict(dead_model='MONITORD.JOM', frames=3, shards=10, draw_distance=1400, blast='monitor%d_blast' % (k + 1))))
+        # (its explosion: an explosive of the engine without a model at the same place, set off by the monitor (blast):
+        # the fire, the smoke, the flash, the sound and the damage around, like the barrels but smaller)
+        entities.append(dict(name='monitor%d_blast' % (k + 1), cls='explosive', x=int(mx), y=int(my), z=int(mz), health=1, flags=['HIDDEN'],
+                             radius=18, height=36, props=dict(damage=35, radius=55, delay=120, size=70, flash=90, shake=4, sound='EXPLODE.PCM')))
+    for k, (model, gx, gy, gz, yaw) in enumerate(GLASSWARE):
+        entities.append(dict(name='%s%d' % (model, k + 1), cls='breakable', model=model.upper() + '.JOM', x=int(gx), y=int(gy), z=int(gz),
+                             yaw=yaw, health=1, flags=['SOLID'], radius=14 if model == 'tubes' else 7, height=17 if model == 'tubes' else 25,
+                             props=dict(dead_model=model.upper() + 'D.JOM', shards=6, draw_distance=900)))
     # The panes of the windows (the class glass: broken by a shot)
     for k, (a, b, axis, pos, c0, c1, bottom, top) in enumerate(WINDOWS):
         x, z, yaw = (pos, (c0 + c1) // 2, 90) if axis == 'x' else ((c0 + c1) // 2, pos, 0)
@@ -3175,7 +3378,7 @@ def build_level():
     # storage room (one patrols)
     # (each guard his own face: make_guard.FACES, see guard_faces.h)
     import make_guard
-    faces = iter(range(len(make_guard.skin.FACES) * 4))
+    faces = iter(range(len(make_guard.skin.FACES) * 8))
     def guard(name, x, z, yaw, patrol=(0, 0), y=0):
         return dict(name=name, cls='guard', model='GUARD.JOM', x=x, y=y, z=z, yaw=yaw, health=100, flags=['SOLID'], radius=20,
                     height=132, props=dict(animation='idle', draw_distance=2000, far_model='GUARDF.JOM', far_distance=320, patrol_x=patrol[0],
@@ -3199,6 +3402,15 @@ def build_level():
                  guard('guard_bottling3', 4120, 520, 90, y=LOWER),
                  guard('guard_walkway', 3560, 1440, 90),
                  guard('guard_office', 1600, 1200, 270)]
+    # The scientists (the class scientist of guards.c: they walk, raise their hands when the agent aims at them, run away
+    # from the shots): between the benches of the laboratory, along its east side, in the office
+    def scientist(name, x, z, yaw, patrol=(0, 0), y=0):
+        return dict(name=name, cls='scientist', model='SCIENT.JOM', x=x, y=y, z=z, yaw=yaw, health=60, flags=['SOLID'], radius=20,
+                    height=132, props=dict(animation='idle', draw_distance=2000, far_model='SCIENTF.JOM', far_distance=320, patrol_x=patrol[0],
+                                           patrol_z=patrol[1], face=next(faces) % len(make_guard.skin.FACES)))
+    entities += [scientist('scientist_lab1', 1100, 1710, 90, patrol=(280, 0)),
+                 scientist('scientist_lab2', 1600, 1440, 0, patrol=(0, 260)),
+                 scientist('scientist_office', 1460, 1000, 0, patrol=(0, 220))]
     # The furniture: invisible solid boxes
     for k, solid in enumerate(SOLIDS):
         # (center x, center z, half x, half z[, floor, height])
@@ -3467,6 +3679,13 @@ if __name__ == '__main__':
     pane, shard = build_glass_models()
     write_model(pane, 'glass', 'The pane of a window')
     write_model(shard, 'shard', 'A piece of broken glass')
+    monitor, monitord = build_monitor_models()
+    write_model(monitor, 'monitor', 'The monitor of a computer')
+    write_model(monitord, 'monitord', 'The monitor of a computer, exploded: its stand and the burnt bottom of its casing')
+    build_screen_frames()
+    for name, mesh in build_glassware_models().items():
+        write_model(mesh, name, {'tubes': 'A rack of test tubes', 'tubesd': 'A rack of test tubes, broken', 'flask': 'A flask',
+                                 'flaskd': 'A flask, broken'}[name])
     write_model(build_hinged_door_model('bdoor', DOOR_WIDTH, -DOOR_HEIGHT, 0, 'bdoor', (0.46, 0.46, 0.48)), 'bdoor',
                 'A brown hinged door (the lower floor)')
     write_model(build_hinged_door_model('stalld', STALL_DOOR_WIDTH, -STALL_HEIGHT + 10, -STALL_DOOR_BOTTOM, 'panelp', (0.50, 0.50, 0.50),
@@ -3480,7 +3699,8 @@ if __name__ == '__main__':
     build_defs()
     print('Sounds')
     import make_sounds
-    make_sounds.build_sounds()
+    if os.path.exists(make_sounds.DOOR_RECORDING):
+        make_sounds.build_sounds()
     hud_sprites()
     # The texts of the disc
     for name, text in (('ABS.TXT', 'Abstract'), ('BIB.TXT', 'Bibliographic'), ('CPY.TXT', 'Copyright')):

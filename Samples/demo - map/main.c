@@ -91,12 +91,7 @@ void			my_gamepad(void)
 
 void            load_background()
 {
-    jo_img      bg;
-
-    bg.data = JO_NULL;
-    jo_tga_loader(&bg, "BG", "BG.TGA", JO_COLOR_Transparent);
-    jo_set_background_sprite(&bg, 0, 0);
-    jo_free_img(&bg);
+    jo_set_background_tga("BG", "BG.TGA", JO_COLOR_Transparent);
 }
 
 void			load_sprites()

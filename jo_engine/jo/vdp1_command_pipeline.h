@@ -42,6 +42,7 @@
 ** 0x00020 : command table A
 ** 0x08000 : command table B
 ** 0x10000 : textures (JO_VDP1_TEXTURE_DEF_BASE_ADDRESS)
+** 0x7E4F8 : gouraud tables of the sprites, 2 sets of 32 (JO_VDP1_USER_AREA_END_ADDR, jo_set_gouraud_shading_colors())
 ** 0x7E700 : gouraud tables of the clipped and subdivided 3D polygons
 ** 0x7FF00 : gouraud tables used for 3D lighting
 */
@@ -124,6 +125,10 @@ typedef struct
 # define JO_VDP1_MSB_ON                     (1 << 15)
 /** @brief High speed shrink */
 # define JO_VDP1_HIGH_SPEED_SHRINK          (1 << 12)
+/** @brief Pre-clipping disabled: for a command entirely inside of the clipping area (the VDP1 tests each line of a command
+ *  against the clipping area before it draws it: about 4 cycles per line, for nothing when no line is out of it; the
+ *  pixels out of the clipping area are not drawn anyway) */
+# define JO_VDP1_PRE_CLIPPING_DISABLE       (1 << 11)
 /** @brief No clipping window */
 # define JO_VDP1_NO_WINDOW                  (0)
 /** @brief Draw inside the user clipping area */
@@ -269,10 +274,8 @@ typedef struct
     bool                    screen;         // Its rectangle is its screen (clipped, windows apart: see jo_3d_window_clip())
 }                           jo_vdp1_window;
 
-/** @brief 3D windows (internal usage) */
 /** @brief Number of 3D windows: near (default), far, and a second far window (see jo_3d_select_window()) */
 # define JO_VDP1_WINDOW_COUNT       (3)
-extern jo_vdp1_window       __jo_vdp1_windows[JO_VDP1_WINDOW_COUNT];
 
 /** @brief Current 3D window (internal usage) */
 extern int                  __jo_vdp1_current_window;
@@ -283,28 +286,6 @@ extern jo_fixed                __jo_vdp1_projection_distance;
 /** @brief Near clipping divisor (internal usage, see jo_3d_display_level()) */
 extern unsigned short       __jo_vdp1_display_level;
 
-/** @brief Initialize the VDP1 (internal usage) */
-void                        __jo_vdp1_init(void);
-
-/** @brief Sort the commands of the frame and copy them into the VDP1 VRAM (internal usage) */
-void                        __jo_vdp1_end_frame(void);
-
-/** @brief Display the last complete command table (internal usage, called during VBLANK-IN) */
-void                        __jo_vdp1_vblank(void);
-
-/** @brief Number of the frame being built (internal usage): the VDP2 changes that must match the image of this frame are
- *  kept with this number and applied when it is displayed (see __jo_vdp1_displayed_frame_changed())
- *  @return Frame number (it increases at each frame)
- */
-unsigned int                __jo_vdp1_frame_tag(void);
-
-/** @brief Called during the VBLANK, after __jo_vdp1_vblank() (internal usage, a VBLANK callback): the image of an other
- *  frame is displayed from this field
- *  @param tag Output: number of the frame displayed (see __jo_vdp1_frame_tag())
- *  @return true if the frame displayed changes at this VBLANK
- */
-bool                        __jo_vdp1_displayed_frame_changed(unsigned int * const tag);
-
 /** @brief Draw the last frame again (from a VBLANK callback while the main loop doesn't run: a loading). A texture of
  *  this frame changed by the callback is seen (the sand of an hourglass)
  *  @remarks The manual change of the frame buffers (JO_FRAMERATE > 1) draws a frame only once: the frame buffers change
@@ -312,68 +293,11 @@ bool                        __jo_vdp1_displayed_frame_changed(unsigned int * con
  */
 void                        jo_vdp1_redraw_last_frame(void);
 
-/** @brief Allocate a command for the current frame (internal usage)
- *  @param z Depth used to sort the commands (bigger = farther)
- *  @return Command or JO_NULL if the table is full
- */
-jo_vdp1_command             *__jo_vdp1_add_command(const jo_fixed z);
-
-/** @brief Reserve commands for the current frame (internal usage)
- *  @param count Wanted command count
- *  @param keys Output: depth keys of the reserved commands (see __jo_vdp1_sort_key())
- *  @param reserved Output: reserved command count (less than count if the table is full)
- *  @return First reserved command
- *  @remarks The commands are added by __jo_vdp1_commit_commands(). link must be set to 0.
- */
-jo_vdp1_command             *__jo_vdp1_reserve_commands(const unsigned int count, unsigned short **keys, unsigned int *reserved);
-
-/** @brief Add the first commands reserved by __jo_vdp1_reserve_commands() to the frame, their windows written by the caller
- *  (internal usage: the slave CPU copies its commands, see jo_3d_slave_end())
- *  @param used Command count
- *  @return The windows of the commands (to write)
- */
-unsigned short              *__jo_vdp1_commit_commands_without_window(const unsigned int used);
-
-/** @brief Add the first commands reserved by __jo_vdp1_reserve_commands() to the frame (internal usage)
- *  @param used Command count
- */
-void                        __jo_vdp1_commit_commands(const unsigned int used);
-
 /** @brief Biggest depth key */
 # define JO_VDP1_MAX_KEY            (0xffff)
 
 /** @brief Depth added to the keys of the commands (see jo_3d_set_depth_bias()) */
 extern int                  __jo_vdp1_depth_bias;
-
-/** @brief Depth key of a command (internal usage)
- *  @param z Depth (bigger = farther)
- *  @return Key used to sort the commands
- */
-static  __jo_force_inline unsigned short __jo_vdp1_sort_key(const jo_fixed z)
-{
-    int                     key;
-
-    key = JO_FIXED_TO_INT(z) + __jo_vdp1_depth_bias;
-    if (key < 0)
-        return (0);
-    if (key > JO_VDP1_MAX_KEY)
-        return (JO_VDP1_MAX_KEY);
-    return ((unsigned short)key);
-}
-
-/** @brief Right of the system clipping area (internal usage) */
-extern short                __jo_vdp1_system_clip_right;
-
-/** @brief Bottom of the system clipping area (internal usage) */
-extern short                __jo_vdp1_system_clip_bottom;
-
-/** @brief Fill the drawing part of a command from a sprite attribute (internal usage)
- *  @param cmd VDP1 command
- *  @param attr Sprite attribute
- *  @return true if the command is textured
- *  @remarks The coordinates are not set
- */
-bool                        __jo_vdp1_set_attribute(jo_vdp1_command *cmd, const jo_vdp1_sprite_attribute *attr);
 
 /** @brief Near clipping distance (internal usage, see __jo_vdp1_near_clip()) */
 extern jo_fixed             __jo_vdp1_near_z;
@@ -392,68 +316,6 @@ static  __jo_force_inline void __jo_vdp1_update_near_clip(void)
     __jo_vdp1_near_z = __jo_vdp1_projection_distance >> (__jo_vdp1_display_level ? __jo_vdp1_display_level : 1);
 }
 
-/** @brief Near clipping distance (internal usage)
- *  @return Projection distance divided by 2^display level (Q16.16)
- *  @remarks Polygons and sprites nearer than this distance are not displayed
- */
-static  __jo_force_inline jo_fixed __jo_vdp1_near_clip(void)
-{
-    return (__jo_vdp1_near_z);
-}
-
-/** @brief Draw a sprite on the screen (internal usage)
- *  @param pos Position relative to the center of the current window, depth and scale (scale_x, negative scale: perspective scale)
- *  @param attr Sprite attribute
- *  @param angle Rotation
- *  @return false if the sprite is not visible or if the command table is full
- */
-bool                        __jo_vdp1_draw_sprite(const jo_vdp1_sprite_position * const pos, const jo_vdp1_sprite_attribute * const attr, const jo_angle angle);
-
-/** @brief Draw a sprite on the screen with different horizontal and vertical scale (internal usage)
- *  @param pos Position relative to the center of the current window, depth and scales (negative scale: perspective scale)
- *  @param attr Sprite attribute
- *  @param angle Rotation
- *  @return false if the sprite is not visible or if the command table is full
- */
-bool                        __jo_vdp1_draw_sprite_hv(const jo_vdp1_sprite_position * const pos, const jo_vdp1_sprite_attribute * const attr, const jo_angle angle);
-
-/** @brief Draw a sprite or a polygon using 4 points (internal usage)
- *  @param points 4 points relative to the center of the current window (clockwise from the top left corner)
- *  @param z Depth
- *  @param attr Sprite attribute
- *  @return false if the sprite is not visible or if the command table is full
- */
-bool                        __jo_vdp1_draw_sprite_4p(const jo_pos2D_fixed * const points, const jo_fixed z, const jo_vdp1_sprite_attribute * const attr);
-
-/** @brief Write the command of a sprite using 4 points in a command table of the caller (internal usage: the slave CPU, see
- *  jo_3d_slave_draw_standing_sprite())
- *  @param cmd Command (its sort key is written by the caller)
- *  @param points 4 points relative to the center of the window (clockwise from the top left corner)
- *  @param z Depth
- *  @param attr Sprite attribute
- *  @param window Window (its center and its far limit)
- *  @return false if the sprite is not visible (the command is not written)
- */
-bool                        __jo_vdp1_write_sprite_4p(jo_vdp1_command * const cmd, const jo_pos2D_fixed * const points, const jo_fixed z,
-                                                      const jo_vdp1_sprite_attribute * const attr, const int window);
-
-/** @brief Attribute of a sprite with some sprite attributes (internal usage: the slave CPU uses its copy of them, see
- *  jo_3d_slave_begin())
- *  @param attr Attribute (output)
- *  @param sprite_id Sprite Id
- *  @param state Sprite attributes
- */
-void                        __jo_sprite_attributes_of(jo_vdp1_sprite_attribute *attr, const int sprite_id, const jo_sprite_attributes * const state);
-
-/** @brief Draw a sprite in the 3D space using the current matrix (internal usage)
- *  @param pos Position in the 3D space and scale (scale_x)
- *  @param attr Sprite attribute
- *  @param angle Rotation
- *  @return false if the sprite is not visible or if the command table is full
- *  @remarks The sprite always faces the camera (billboard)
- */
-bool                        __jo_vdp1_draw_sprite_3d(const jo_vdp1_sprite_position * const pos, const jo_vdp1_sprite_attribute * const attr, const jo_angle angle);
-
 /** @brief Set the current 3D window (internal usage)
  *  @param left Left clipping position (screen pixels)
  *  @param top Top clipping position (screen pixels)
@@ -466,6 +328,31 @@ bool                        __jo_vdp1_draw_sprite_3d(const jo_vdp1_sprite_positi
  */
 void                        __jo_vdp1_set_window(const short left, const short top, const short right, const short bottom,
                                                  const short zlimit, const short center_x, const short center_y);
+
+/** @brief Depth limit of the current window (the far clipping distance of jo_3d_window()): the polygons beyond it are not
+ *  drawn (all their vertices farther, in the view space). A wall that fills the screen: nothing behind it is seen, the
+ *  polygons of the room behind it cost VDP1 time for nothing (up to 50 ms against a wall)
+ *  @param z Depth limit (world units), -1: none (the default)
+ *  @remarks Set it for the frame (the slave CPU draws in the same window); the mirrors use the far windows
+ */
+void                        jo_3d_set_depth_limit(const int z);
+
+/** @brief The frame buffer is cleared at the start of each frame (see jo_3d_set_frame_clear()) */
+extern bool                 __jo_vdp1_frame_clear;
+
+/** @brief Clear the frame buffer at the start of each frame (the default), or not
+ *  @param enabled false: the frame buffer is not cleared, what the frame does not draw keeps the pixels of the frame
+ *  drawn 2 frames before (the frame buffers alternate)
+ *  @remarks With JO_FRAMERATE > 1 (the frame buffers change when the VDP1 finished a frame) the frame buffer is cleared
+ *  by a polygon of the transparent color that costs the VDP1 about 4 ms: a program that covers the whole screen at each
+ *  frame (the rooms of a first person game) does not need it. The last pixel of a line between 2 polygons is the one
+ *  of the older frame instead of the background. With JO_FRAMERATE 1 the VDP1 erases the frame buffer itself
+ *  @remarks From the next frame
+ */
+static  __jo_force_inline void jo_3d_set_frame_clear(const bool enabled)
+{
+    __jo_vdp1_frame_clear = enabled;
+}
 
 /** @brief The 3D polygons of the current window clipped to its rectangle (internal usage, see jo_3d_window_clip()) */
 void                        __jo_vdp1_set_window_clip(const bool clip);
@@ -481,9 +368,13 @@ static  __jo_force_inline void __jo_vdp1_select_window(const int window)
 /** @brief VDP1 commands of the last frame (the polygons, their parts, the sprites: see jo_vdp1_command_max()) */
 int                         jo_vdp1_command_count(void);
 
-/** @brief VDP1 commands of the frame being made by the master CPU, read without the cache (internal usage: the budget of
- *  the subdivisions, see 3d.c; the commands of the slave CPU are added at jo_3d_slave_end()) */
-int                         __jo_vdp1_frame_command_count(void);
+/** @brief VDP1 commands of the frame being made now by the master CPU (the polygons, their parts, the sprites added
+ *  since the start of the frame, see jo_vdp1_command_count() for the last frame and jo_vdp1_command_max())
+ *  @return Command count
+ *  @remarks The commands of the slave CPU are added at jo_3d_slave_end(). The commands of an object: the count after
+ *  its drawing minus the count before it (a budget: draw a far object simpler when the frame has few commands left)
+ */
+int                         jo_vdp1_frame_command_count(void);
 
 /** @brief Most VDP1 commands in a frame (the next ones are not drawn) */
 int                         jo_vdp1_command_max(void);

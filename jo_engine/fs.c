@@ -39,6 +39,8 @@
 #include "jo/fs.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
+#include "internal/tools.h"
+#include "internal/fs.h"
 
 /** @brief Read retry
  */
@@ -234,7 +236,15 @@ static unsigned int             __jo_fs_data_end_fad = 0;
 # define JO_CD_SKIP_MAX                 (48)
 static jo_fs_dir_entry          __jo_fs_dir[JO_FS_MAX_FILES];
 static int                      __jo_fs_dir_count = 0;
+/** @brief The directory loaded in __jo_fs_dir (loaded again after a failed jo_fs_cd(): the table was half replaced) */
+static unsigned int             __jo_fs_dir_fad = 0;
+static unsigned int             __jo_fs_dir_size = 0;
 static jo_fs_handle             __jo_fs_handles[JO_OPEN_MAX];
+/** @brief The current read of the drive belongs to the stream (__jo_fs_stream_read()) */
+static bool                     __jo_cd_stream_owner = false;
+/** @brief Called by the reads of files while they wait for the drive (the music keeps its buffer filled) */
+void                            (*__jo_fs_stream_service)(void) = JO_NULL;
+static bool                     __jo_fs_stream_service_running = false;
 
 /** @brief Send a command to the CD block
  *  @param cr1 Command register 1 (JO_CD_CR1_VALUE())
@@ -356,6 +366,7 @@ static void                     jo_cd_stop_read(void)
     jo_cd_reset_partition();
     JO_ZERO(__jo_cd_play_next_fad);
     JO_ZERO(__jo_cd_play_end_fad);
+    __jo_cd_stream_owner = false;
 }
 
 /** @brief Start reading sectors in the buffer partition
@@ -379,6 +390,7 @@ static int                      jo_cd_start_read(const unsigned int fad, const u
         return (-1);
     __jo_cd_play_next_fad = fad;
     __jo_cd_play_end_fad = fad + count;
+    __jo_cd_stream_owner = false;
     return (0);
 }
 
@@ -419,14 +431,14 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     if (read_ahead_end < fad + count)
         read_ahead_end = fad + count;
     // A little after the sectors read in advance: the sectors between are dropped (a seek costs more, about 10 frames)
-    if (__jo_cd_play_end_fad && fad > __jo_cd_play_next_fad && fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX &&
+    if (__jo_cd_play_end_fad && !__jo_cd_stream_owner && fad > __jo_cd_play_next_fad && fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX &&
         fad + count <= __jo_cd_play_end_fad)
     {
         while (__jo_cd_play_next_fad < fad)
             if (jo_cd_read_sectors(__jo_cd_play_next_fad, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, read_ahead_end) < 0)
                 return (-1);
     }
-    if (fad != __jo_cd_play_next_fad || fad + count > __jo_cd_play_end_fad)
+    if (__jo_cd_stream_owner || fad != __jo_cd_play_next_fad || fad + count > __jo_cd_play_end_fad)
     {
         if (jo_cd_start_read(fad, read_ahead_end - fad) < 0)
             return (-1);
@@ -435,6 +447,15 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     JO_ZERO(timeout);
     while (done < count)
     {
+        if (__jo_fs_stream_service != JO_NULL && !__jo_fs_stream_service_running)
+        {
+            __jo_fs_stream_service_running = true;
+            __jo_fs_stream_service();
+            __jo_fs_stream_service_running = false;
+            if ((__jo_cd_stream_owner || __jo_cd_play_next_fad != fad + done) &&
+                jo_cd_start_read(fad + done, read_ahead_end - (fad + done)) < 0)
+                return (-1);
+        }
         if ((available = jo_cd_sector_count()) < 0)
             return (-1);
         if (available == 0)
@@ -560,7 +581,8 @@ static unsigned int             jo_cd_track_end_fad(const int track)
     {
         entry = (unsigned int)JO_CD_INFO << 16;
         entry |= (unsigned int)JO_CD_INFO;
-        if (i == (unsigned int)track && entry != 0xFFFFFFFF)
+        // (the entry 99 is the first track, not a track: the end of the track 99 is the lead-out)
+        if (track < 99 && i == (unsigned int)track && entry != 0xFFFFFFFF)
             next = entry & 0xFFFFFF;
         if (i == JO_CD_TOC_ENTRIES - 1)
             lead_out = entry & 0xFFFFFF;
@@ -660,7 +682,9 @@ static int                      jo_fs_load_directory(const unsigned int fad, con
         {
             record = &__jo_cd_sector_buffer[pos];
             record_length = record[JO_ISO9660_RECORD_LENGTH];
-            if (record_length == 0)
+            // (a record never crosses a sector: a damaged one was read after the buffer)
+            if (record_length == 0 || pos + record_length > JO_SECTOR_SIZE ||
+                (unsigned int)JO_ISO9660_RECORD_NAME + record[JO_ISO9660_RECORD_NAME_LENGTH] > record_length)
                 break;
             if (count >= JO_FS_MAX_FILES)
                 return (count);
@@ -712,8 +736,9 @@ static int                      jo_fs_load_root_directory(void)
     // Standard identifier: "CD001"
     if (__jo_cd_sector_buffer[1] != 'C' || __jo_cd_sector_buffer[2] != 'D' || __jo_cd_sector_buffer[3] != '0')
         return (-1);
-    return (jo_fs_load_directory(jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD,
-                                 jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_SIZE])));
+    __jo_fs_dir_fad = jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD;
+    __jo_fs_dir_size = jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_SIZE]);
+    return (jo_fs_load_directory(__jo_fs_dir_fad, __jo_fs_dir_size));
 }
 
 /*
@@ -788,9 +813,62 @@ int                             __jo_fs_get_file_size(void *handle)
     return (((jo_fs_handle *)handle)->size);
 }
 
-int                             __jo_fs_get_sector_count(void *handle)
+static int                      __jo_fs_get_sector_count(void *handle)
 {
     return (((jo_fs_handle *)handle)->sector_count);
+}
+
+unsigned int                    __jo_fs_get_fad(void *handle)
+{
+    return (((jo_fs_handle *)handle)->fad);
+}
+
+int                             __jo_fs_stream_read(const unsigned int fad, const unsigned int count)
+{
+    if (jo_cd_init() < 0 || count == 0 || jo_cd_start_read(fad, count) < 0)
+        return (-1);
+    __jo_cd_stream_owner = true;
+    return (0);
+}
+
+int                             __jo_fs_stream_take(void *buf, const int max_sectors)
+{
+    int                         available;
+    int                         n;
+
+    if (!__jo_cd_stream_owner)
+        return (-1);
+    if ((available = jo_cd_sector_count()) < 0)
+        return (-1);
+    n = available < max_sectors ? available : max_sectors;
+    if (n <= 0)
+        return (0);
+    if (jo_cd_command(JO_CD_CR1_VALUE(JO_CD_COMMAND_GET_THEN_DELETE, 0), 0, JO_CD_PARTITION << 8, (unsigned short)n, JO_CD_HIRQ_DRDY, JO_NULL) < 0)
+    {
+        jo_cd_stop_read();
+        return (-1);
+    }
+    __jo_dma_read_port32(&JO_CD_DATA, buf, (unsigned int)n * JO_SECTOR_SIZE);
+    jo_cd_end_transfer();
+    __jo_cd_play_next_fad += (unsigned int)n;
+    if (__jo_cd_play_next_fad >= __jo_cd_play_end_fad)
+    {
+        JO_ZERO(__jo_cd_play_next_fad);
+        JO_ZERO(__jo_cd_play_end_fad);
+        __jo_cd_stream_owner = false;
+    }
+    return (n);
+}
+
+bool                            __jo_fs_stream_is_reading(void)
+{
+    return (__jo_cd_stream_owner);
+}
+
+void                            __jo_fs_stream_stop(void)
+{
+    if (__jo_cd_stream_owner)
+        jo_cd_stop_read();
 }
 
 bool                            __jo_fs_seek_sector(void *handle, const int sector)
@@ -966,16 +1044,18 @@ bool                    jo_fs_read_file_async_ptr(const char *const filename, jo
     return (false);
 }
 
-void			        jo_fs_cd(const char *const sub_dir)
+bool			        jo_fs_cd(const char *const sub_dir)
 {
     int			        fid;
     int                 count;
+    unsigned int        fad;
+    unsigned int        size;
 
 #ifdef JO_DEBUG
     if (sub_dir == JO_NULL)
     {
         jo_core_error("sub_dir is null");
-        return ;
+        return (false);
     }
 #endif
     fid = __jo_fs_get_file_id(sub_dir);
@@ -984,16 +1064,24 @@ void			        jo_fs_cd(const char *const sub_dir)
 #ifdef JO_DEBUG
         jo_core_error("%s: Directory not found", sub_dir);
 #endif
-        return ;
+        return (false);
     }
-    if ((count = jo_fs_load_directory(JO_FS_ENTRY_FAD(&__jo_fs_dir[fid]), __jo_fs_dir[fid].size)) < 0)
+    fad = JO_FS_ENTRY_FAD(&__jo_fs_dir[fid]);
+    size = __jo_fs_dir[fid].size;
+    if ((count = jo_fs_load_directory(fad, size)) < 0)
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: Read failed", sub_dir);
 #endif
-        return ;
+        // (the table was half replaced by the entries read: the current directory is loaded again)
+        count = jo_fs_load_directory(__jo_fs_dir_fad, __jo_fs_dir_size);
+        __jo_fs_dir_count = count < 0 ? 0 : count;
+        return (false);
     }
+    __jo_fs_dir_fad = fad;
+    __jo_fs_dir_size = size;
     __jo_fs_dir_count = count;
+    return (true);
 }
 
 /** @brief Read a whole file
@@ -1087,9 +1175,23 @@ char                    *jo_fs_read_file_ptr(const char *const filename, void *b
 char*					jo_fs_read_file_in_dir(const char *const filename, const char *const sub_dir, int *len)
 {
     char                *stream;
+    int                 fid;
 
+    // (a directory not found: no read in the current directory, and no move to its parent after it)
     if (sub_dir != JO_NULL)
-        jo_fs_cd(sub_dir);
+    {
+        fid = __jo_fs_get_file_id(sub_dir);
+        if (fid < 0 || !(__jo_fs_dir[fid].fad & JO_FS_DIRECTORY_FAD_FLAG))
+        {
+#ifdef JO_DEBUG
+            jo_core_error("%s: Directory not found", sub_dir);
+#endif
+            return (JO_NULL);
+        }
+        // (a failed read: still in the current directory, no move to its parent after)
+        if (!jo_fs_cd(sub_dir))
+            return (JO_NULL);
+    }
     stream = jo_fs_read_file(filename, len);
     if (sub_dir != JO_NULL)
         jo_fs_cd(JO_PARENT_DIR);

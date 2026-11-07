@@ -300,16 +300,6 @@ typedef struct
     unsigned short                  count;          // Number of points
 }                                   jo_3d_part;
 
-/** @brief Draw polygons whose points are in parts, each one transformed by its own matrix: the bones of a skeleton
- *  (one draw for the whole model, see jo_3d_model_draw_pose()) (Internal usage)
- *  @param pdata Polygon data (vertices, polygons and attributes)
- *  @param parts Parts (the points not in a part are not transformed: the polygons must not use them)
- *  @param part_count Number of parts
- *  @return false if the VDP1 command table is full
- */
-bool                                __jo_3d_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
-                                                       const int part_count);
-
 /** @brief Draw polygons using the current matrix (Internal usage)
  *  @param pdata Polygon data (vertices, polygons and attributes)
  *  @param point_count Number of points transformed (the first ones of pdata)
@@ -677,6 +667,33 @@ static  __jo_force_inline void      jo_3d_light(const int x, const int y, const 
     p.z = JO_MULT_BY_65536(z);
     __jo_3d_light(&p);
 }
+
+/** @brief Use a light source: its direction as a unit vector
+ *  @param x X of the direction (Q16.16)
+ *  @param y Y of the direction (Q16.16)
+ *  @param z Z of the direction (Q16.16)
+ *  @remarks The vector is transformed by the current matrix, so call it after jo_3d_camera_look_at()
+ */
+static  __jo_force_inline void      jo_3d_light_fixed(const jo_fixed x, const jo_fixed y, const jo_fixed z)
+{
+    jo_pos3D_fixed  p;
+
+    p.x = x;
+    p.y = y;
+    p.z = z;
+    __jo_3d_light(&p);
+}
+
+/** @brief Palette lighting (the light of jo_3d_light() without the RGB colors: the only lighting of the 640 and 704 pixels
+ *  modes): a lit polygon of a palette color (or a texture of 16 colors with a color bank) takes the shade of its light,
+ *  its color code + shade * stride (shade 0 = the darkest)
+ *  @param levels Shades of each color (2 to 32; 0 = off, the default)
+ *  @param stride Color codes between 2 shades of a color (the count of jo_palette_set_light_shades(): the same for all the
+ *  lit palette polygons)
+ *  @remarks In the 640 and 704 pixels modes, the polygons of the RGB textures are not lit (their gouraud shading needs an
+ *  RGB frame buffer)
+ */
+void                                jo_3d_set_palette_light(const int levels, const int stride);
 
 /** @brief Enable/Disable light on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
@@ -1149,7 +1166,8 @@ static  __jo_force_inline void      jo_3d_set_scale_fixed(const jo_fixed x, cons
     __jo_3d_scale(x, y, z);
 }
 
-/** @brief Restore default scale for every 3d model displayed after this call
+/** @brief Scale of 1 (nothing changes): the scale of jo_3d_set_scale() is in the current matrix, jo_3d_pop_matrix()
+ *  restores the matrix before it (jo_3d_push_matrix(), jo_3d_set_scale(), draw, jo_3d_pop_matrix())
  */
 static  __jo_force_inline void	jo_3d_restore_scale(void)
 {
@@ -1226,11 +1244,11 @@ static  __jo_force_inline void      jo_3d_set_windows_apart(const bool apart)
 }
 
 /** @brief Set the perspective angle
- *  @param angle Angle in degree (from 21 to 159)
+ *  @param angle Angle in degree (from 10 to 160)
  */
 static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
 {
-#if JO_DEBUG
+#ifdef JO_DEBUG
     if (angle < 10 || angle > 160)
         jo_core_error("Valid angle range is 10 to 160");
 #endif
@@ -1338,18 +1356,11 @@ void                                jo_3d_transform_point(const jo_pos3D_fixed *
 void                                jo_3d_transform_point_by(const jo_fixed (* const m)[3], const jo_pos3D_fixed * const in,
                                                              jo_pos3D_fixed * const out);
 
-/** @brief The matrix of a bone (Internal usage, see jo_3d_model_draw_pose()): the matrix of its parent turned around its
- *  joint (the same operations as jo_3d_translate_matrix_fixed() and __jo_3d_rotate() on the current matrix)
- *  @param out Matrix of the bone (output)
- *  @param parent Matrix of its parent
- *  @param pivot Joint
- *  @param angles Around X, Y and Z
+/** @brief Select the window of the next drawings of the slave CPU (call it on the slave CPU; jo_3d_slave_begin() selects
+ *  the window of the master CPU, see jo_3d_select_window())
+ *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
  */
-void                                __jo_3d_bone_matrix(jo_fixed (* const out)[3], const jo_fixed (* const parent)[3],
-                                                        const jo_pos3D_fixed * const pivot, const jo_angle * const angles);
-
-/** @brief The current matrix (Internal usage): 4 rows of 3 */
-jo_fixed                            (*__jo_3d_current_matrix(void))[3];
+void                                jo_3d_slave_select_window(const int window);
 
 /** @brief Copy the current matrix
  *  @param m Output: 12 values, 4 rows of 3 values. Rows 0 to 2: the rotation (m[2], m[5], m[8] is the direction of the
@@ -1505,8 +1516,24 @@ jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned in
  *  vertex, or when it crosses the near plane
  *  @remarks The tiles are new sprites (copies of the texture: about twice the VRAM of the texture). Call it once, after the
  *  texture was added (jo_sprite_add(), jo_sprite_add_bin(), etc)
+ *  @remarks A texture magnified near the camera (a few texels on a big quad): see jo_3d_set_texture_subdivision_fine()
  */
 bool                                jo_3d_set_texture_subdivision(const int sprite_id);
+
+/** @brief Add finer tiles to the tiles of a texture (see jo_3d_set_texture_subdivision()): 8 x 8 and 16 x 16 tiles, for the parts
+ *  of its polygons cut in 4 x 4 parts that cross the near plane, go very far outside of the screen, are big and partly out
+ *  of the screen, or still distorted by the perspective. The last tile of a part through the near plane, or with its lines
+ *  pulled in to the screen (VDP1 time), is drawn whole on what is seen of it (the VDP1 can't start a texture at any column):
+ *  its texture is squeezed by up to a tile, 8 texels of a 32 x 32 texture with the 4 x 4 tiles, 2 with the 16 x 16 tiles.
+ *  For a texture magnified near the camera (texels of more than about 10 pixels: a texture of a few texels on a big wall,
+ *  a big floor)
+ *  @param sprite_id Texture (RGB or 16 colors sprite, width and height multiples of 16)
+ *  @return true if the tiles were created (with the 2 x 2 and 4 x 4 tiles if they were not)
+ *  @remarks One more sprite, the tiles one under the other, 1/8 of the width of the texture and at least 8 pixels wide (16 for
+ *  16 colors: a narrower tile has its texels repeated): 3 times the VRAM of the texture (64 pixels wide and more, RGB; 128,
+ *  16 colors), 6 times for a 32 x 32 RGB texture. More parts near the camera (CPU time, VDP1 commands)
+ */
+bool                                jo_3d_set_texture_subdivision_fine(const int sprite_id);
 
 /** @brief Like jo_3d_set_texture_subdivision(), but only the polygons that cross the near plane (or go very far outside of
  *  the screen) are drawn in parts: a model already cut in small quads when it was made keeps its quads as they are,
@@ -1545,18 +1572,6 @@ void                                jo_3d_set_texture_subdivision_error(const in
  */
 bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
 
-/** @brief Forget the tiles and the smaller copies of the textures freed from a sprite (Internal usage, see
- *  jo_3d_model_free_textures_from())
- *  @param sprite_id First sprite freed
- */
-void                                __jo_3d_forget_sprites_from(const int sprite_id);
-
-/** @brief Forget the tinted copies of the gouraud tables of a mesh: its polygons got other tables (Internal usage, see
- *  jo_3d_point_lights_add_mesh())
- *  @param pdata Polygons of the mesh
- */
-void                                __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata);
-
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /*
@@ -1570,6 +1585,8 @@ void                                __jo_3d_forget_tint(const jo_3d_polygon_data
 
 /** @brief Prepare the 3D drawing of the slave CPU (call it on the master CPU, before jo_core_exec_on_slave())
  *  @remarks The slave CPU uses a copy of the current matrix, the current depth bias and the current window
+ *  @remarks A second drawing of the slave CPU in a frame (a split screen): after jo_core_wait_for_slave() of the first one
+ *  (this function replaces the matrix and the counters that the slave CPU uses while it draws)
  */
 void                                jo_3d_slave_begin(void);
 
@@ -1628,7 +1645,7 @@ void                                jo_3d_slave_set_scale_fixed(const jo_fixed x
 
 /** @brief Draw some ranges of polygons of a mesh on the slave CPU, without copying them (see jo_3d_mesh_draw_ranges())
  *  @param mesh Mesh
- *  @param point_count Number of points used by these polygons (512 at most)
+ *  @param point_count Number of points used by these polygons (1024 at most)
  *  @param ranges Ranges of polygons
  *  @param range_count Number of ranges
  *  @return false if the command table of the slave CPU is full (960 commands) or a polygon uses a point after point_count
@@ -1637,7 +1654,7 @@ bool                                jo_3d_slave_mesh_draw_ranges(const jo_3d_mes
                                                                  const jo_3d_polygon_range * const ranges, const int range_count);
 
 /** @brief Draw a mesh on the slave CPU (call it on the slave CPU, between jo_3d_slave_begin() and jo_3d_slave_end())
- *  @param mesh Mesh (512 points at most)
+ *  @param mesh Mesh (1024 points at most, JO_3D_SLAVE_MAX_VERTICES)
  *  @return false if the command table of the slave CPU is full (960 commands)
  */
 static  __jo_force_inline bool      jo_3d_slave_mesh_draw(const jo_3d_mesh * const mesh)
@@ -1707,11 +1724,14 @@ void                                jo_3d_slave_set_kept_commands(const int coun
  */
 unsigned short                      jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count);
 
-/** @brief Sprites freed from a sprite (see jo_sprite_free_from()): the shared sprite of the gouraud tables is dropped
- *  if it is among them
- *  @param sprite_id First sprite freed
+/** @brief Give back gouraud tables of jo_3d_add_gouraud_tables() (jo_3d_free_model() gives back the tables of a model)
+ *  @param adr Address / 8 returned by jo_3d_add_gouraud_tables()
+ *  @param count Table count given to jo_3d_add_gouraud_tables()
+ *  @remarks The memory is given back for the last set of the shared sprite of the small sets, or for a set in its own
+ *  sprite when it is the last sprite: free the sets in the reverse order of their adding. Else it stays used
+ *  (jo_sprite_free_from() of an earlier sprite gives it back)
  */
-void                                __jo_3d_gouraud_pool_freed(const int sprite_id);
+void                                jo_3d_free_gouraud_tables(const unsigned short adr, const unsigned int count);
 
 /** @brief Tint the next meshes drawn by the master CPU: added to the colors of their gouraud tables (the light of a lamp on
  *  a character, see jo_3d_point_lights_sample()), jo_3d_set_tint(0, 0, 0) to stop
@@ -1719,10 +1739,34 @@ void                                __jo_3d_gouraud_pool_freed(const int sprite_
  *  @param g Green added
  *  @param b Blue added
  *  @remarks Only the polygons with a gouraud table. Each mesh keeps a few tinted copies of its tables in the VDP1 VRAM
- *  (a copy is written when a new tint is needed: a tint that changes at each frame costs a copy at each frame). The
- *  polygons tinted are drawn by the C loop (not the assembly loop)
+ *  (a copy is written when a new tint is needed; a copy used in the frame is kept for it: the slave CPU draws with the
+ *  copies, see jo_3d_slave_set_tint(). All the copies used in the frame: the nearest one, within 3 units, else no tint)
  */
 void                                jo_3d_set_tint(const int r, const int g, const int b);
+
+/** @brief The tint of the master CPU, packed (see jo_3d_set_tint()): 5 bits per component (signed, steps of 2), 0: none
+ *  @remarks For jo_3d_set_packed_tint() and jo_3d_slave_set_tint(): the tint of an object sampled by the master CPU
+ *  (jo_3d_point_lights_sample()), drawn by the slave CPU
+ */
+unsigned short                      jo_3d_get_tint(void);
+
+/** @brief Tint the next meshes drawn by the master CPU (see jo_3d_set_tint())
+ *  @param tint Packed tint (see jo_3d_get_tint()), 0: none
+ */
+void                                jo_3d_set_packed_tint(const unsigned short tint);
+
+/** @brief Tint the next meshes drawn by the slave CPU (call it on the slave CPU)
+ *  @param tint Packed tint (see jo_3d_get_tint()), 0: none
+ *  @remarks The slave CPU writes no copy of the tables: it uses the nearest copy made by the master CPU (within 3 units),
+ *  else no tint. The master CPU makes the copy of a tint before the job of the slave CPU with jo_3d_prepare_tint()
+ */
+void                                jo_3d_slave_set_tint(const unsigned short tint);
+
+/** @brief Make the tinted copy of the gouraud tables of a mesh for the current tint of the master CPU (see
+ *  jo_3d_set_tint()), for the slave CPU to draw it with this tint (jo_3d_slave_set_tint())
+ *  @param mesh Mesh
+ */
+void                                jo_3d_prepare_tint(const jo_3d_mesh * const mesh);
 
 /** @brief Environment map of a mesh (a reflection, like the paint of a car): its polygons set by
  *  jo_3d_set_mesh_polygon_environment() show a tile of a picture of the surroundings, the tile of the direction of their

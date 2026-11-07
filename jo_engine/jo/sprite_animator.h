@@ -91,7 +91,7 @@ static  __jo_force_inline unsigned short	jo_get_sprite_anim_frame(const int anim
  *  @param anim_id Id returned by jo_create_sprite_anim()
  *  @param frame Frame of animation to be displayed, where 0 is the first frame.
  */
-static __jo_force_inline void	jo_set_sprite_anim_frame(const int anim_id, const unsigned char frame)
+static __jo_force_inline void	jo_set_sprite_anim_frame(const int anim_id, const unsigned short frame)
 {
     __jo_sprite_anim_tab[anim_id].cur_frame = frame;
 }

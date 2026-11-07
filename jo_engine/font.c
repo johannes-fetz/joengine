@@ -155,6 +155,9 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
 #ifdef JO_DEBUG
         jo_core_error("Out of memory #3");
 #endif
+        // (the sprites of the characters too: the last ones)
+        if (first_sprite_id + char_count - 1 == jo_get_last_sprite_id())
+            jo_sprite_free_from(first_sprite_id);
         jo_free(font);
         jo_free(font_tileset);
         return (JO_NULL);
@@ -246,6 +249,21 @@ void                jo_font_free(jo_font * const font)
         return ;
     }
 #endif
+    int             first;
+    int             last;
+    int             i;
+
+    // The sprites of its characters (from the smallest id to the biggest in its table): given back when they are the last
+    // sprites, a font loaded at each screen used up the sprites
+    first = font->lookup_table[0];
+    last = first;
+    for (JO_ZERO(i); i <= font->end_ascii - font->start_ascii; ++i)
+    {
+        first = JO_MIN(first, font->lookup_table[i]);
+        last = JO_MAX(last, font->lookup_table[i]);
+    }
+    if (first >= 0 && last == jo_get_last_sprite_id())
+        jo_sprite_free_from(first);
     jo_free(font->lookup_table);
     jo_free(font);
 }

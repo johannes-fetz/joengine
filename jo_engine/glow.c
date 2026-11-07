@@ -53,6 +53,7 @@
 #include "jo/3d.h"
 #include "jo/vdp2_malloc.h"
 #include "jo/glow.h"
+#include "internal/vdp1_command_pipeline.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
@@ -395,18 +396,18 @@ static void                         jo_glow_vblank(void)
         {
             JO_VDP2_SCXN2 = (unsigned short)(l->scroll_x & 0x7FF);
             JO_VDP2_SCYN2 = (unsigned short)(l->scroll_y & 0x7FF);
-            JO_VDP2_WPSX0 = (unsigned short)(l->rect.left << 1);
+            JO_VDP2_WPSX0 = (unsigned short)(l->rect.left << !__jo_screen.hires);
             JO_VDP2_WPSY0 = (unsigned short)l->rect.top;
-            JO_VDP2_WPEX0 = (unsigned short)(l->rect.right << 1);
+            JO_VDP2_WPEX0 = (unsigned short)(l->rect.right << !__jo_screen.hires);
             JO_VDP2_WPEY0 = (unsigned short)l->rect.bottom;
         }
         else
         {
             JO_VDP2_SCXN3 = (unsigned short)(l->scroll_x & 0x7FF);
             JO_VDP2_SCYN3 = (unsigned short)(l->scroll_y & 0x7FF);
-            JO_VDP2_WPSX1 = (unsigned short)(l->rect.left << 1);
+            JO_VDP2_WPSX1 = (unsigned short)(l->rect.left << !__jo_screen.hires);
             JO_VDP2_WPSY1 = (unsigned short)l->rect.top;
-            JO_VDP2_WPEX1 = (unsigned short)(l->rect.right << 1);
+            JO_VDP2_WPEX1 = (unsigned short)(l->rect.right << !__jo_screen.hires);
             JO_VDP2_WPEY1 = (unsigned short)l->rect.bottom;
         }
         JO_VDP2_WCTLB = JO_GLOW_WINDOWS;
@@ -533,6 +534,8 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
     int                             dx;
     int                             dy;
     int                             dz;
+    int                             scale;
+    int                             scaled;
 
     glow->tested = true;
     glow->tested_from = *camera;
@@ -541,19 +544,28 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
         glow->seen = true;
         return;
     }
+    // (a far lamp in a big level: the differences halved until the sum of their squares and jo_int2fixed() fit, the sum
+    // overflowed above about 26000 world units, the ray went in another direction)
     dx = jo_fixed2int(glow->position.x - camera->x);
     dy = jo_fixed2int(glow->position.y - camera->y);
     dz = jo_fixed2int(glow->position.z - camera->z);
-    length = (int)jo_sqrt((unsigned int)(dx * dx + dy * dy + dz * dz));
-    if (length <= JO_GLOW_LAMP_SIZE)
+    for (JO_ZERO(scale); JO_ABS(dx) > 16383 || JO_ABS(dy) > 16383 || JO_ABS(dz) > 16383; ++scale)
+    {
+        dx >>= 1;
+        dy >>= 1;
+        dz >>= 1;
+    }
+    scaled = (int)jo_sqrt((unsigned int)(dx * dx) + (unsigned int)(dy * dy) + (unsigned int)(dz * dz));
+    length = scaled << scale;
+    if (length <= JO_GLOW_LAMP_SIZE || scaled == 0)
     {
         glow->seen = true;
         return;
     }
-    dir.x = jo_int2fixed(dx) / length;
-    dir.y = jo_int2fixed(dy) / length;
-    dir.z = jo_int2fixed(dz) / length;
-    glow->seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(length - JO_GLOW_LAMP_SIZE));
+    dir.x = jo_int2fixed(dx) / scaled;
+    dir.y = jo_int2fixed(dy) / scaled;
+    dir.z = jo_int2fixed(dz) / scaled;
+    glow->seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(JO_MIN(length - JO_GLOW_LAMP_SIZE, 32767)));
 }
 
 void                                jo_3d_glows_draw(const jo_pos3D_fixed * const camera)
@@ -609,18 +621,18 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
             sy[i] = jo_fixed2int(jo_fixed_mult(v.y, k));
             diameter[i] = jo_fixed2int(jo_fixed_mult(jo_int2fixed(glow->radius * 2), k));
             s = JO_MIN(diameter[i], 128) / 2;
-            on_screen[i] = sx[i] + s > -JO_TV_WIDTH_2 && sx[i] - s < JO_TV_WIDTH_2 && sy[i] + s > -JO_TV_HEIGHT_2 && sy[i] - s < JO_TV_HEIGHT_2;
+            on_screen[i] = sx[i] + s > -__jo_screen.width_2 && sx[i] - s < __jo_screen.width_2 && sy[i] + s > -__jo_screen.height_2 && sy[i] - s < __jo_screen.height_2;
             // Seen only where the place of the lamp is seen (the rectangle of a door: the walls around it hide its glow)
             rect[i].left = 0;
             rect[i].top = 0;
-            rect[i].right = JO_TV_WIDTH - 1;
-            rect[i].bottom = JO_TV_HEIGHT - 1;
+            rect[i].right = __jo_screen.width - 1;
+            rect[i].bottom = __jo_screen.height - 1;
             if (on_screen[i] && __jo_glow_clip != JO_NULL)
             {
                 on_screen[i] = __jo_glow_clip(&glow->position, &rect[i]);
                 // (the disc and the rectangle)
-                on_screen[i] = on_screen[i] && sx[i] + JO_TV_WIDTH_2 + s > rect[i].left && sx[i] + JO_TV_WIDTH_2 - s < rect[i].right &&
-                               sy[i] + JO_TV_HEIGHT_2 + s > rect[i].top && sy[i] + JO_TV_HEIGHT_2 - s < rect[i].bottom;
+                on_screen[i] = on_screen[i] && sx[i] + __jo_screen.width_2 + s > rect[i].left && sx[i] + __jo_screen.width_2 - s < rect[i].right &&
+                               sy[i] + __jo_screen.height_2 + s > rect[i].top && sy[i] + __jo_screen.height_2 - s < rect[i].bottom;
             }
         }
     }
@@ -713,8 +725,8 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
         l->size = (char)size;
         l->rect = rect[i];
         // The middle of the disc on the lamp
-        l->scroll_x = (short)(__jo_glow_sizes[size] / 2 - (JO_TV_WIDTH_2 + sx[i]));
-        l->scroll_y = (short)(__jo_glow_sizes[size] / 2 - (JO_TV_HEIGHT_2 + sy[i]));
+        l->scroll_x = (short)(__jo_glow_sizes[size] / 2 - (__jo_screen.width_2 + sx[i]));
+        l->scroll_y = (short)(__jo_glow_sizes[size] / 2 - (__jo_screen.height_2 + sy[i]));
         // (the light of a level: (level / 15)^2: a soft halo, the light falls quickly away from the lamp. Linear, the halo
         // was a wide bright disc with a visible edge)
         for (s = 0; s < JO_GLOW_LEVELS; ++s)

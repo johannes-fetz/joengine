@@ -193,13 +193,18 @@ jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
 {
     jo_fixed        result;
     int             n;
-    bool            negative;
 
-    // Only the integer part of y is used
+    // Only the integer part of y is used (toward 0: -0.5 is 0; no -y, it overflowed for the smallest y)
     n = JO_DIV_BY_65536(y);
-    negative = n < 0;
-    if (negative)
+    if (y < 0 && (y & JO_FIXED_DECIMAL_MASK))
+        ++n;
+    // A negative exponent: (1 / x)^n (x^n overflowed or lost its precision before the division: pow(16, -4) was 32768,
+    // pow(-2, -17) was positive)
+    if (n < 0)
+    {
+        x = jo_fixed_div(JO_FIXED_1, x);
         n = -n;
+    }
     // Exponentiation by squaring
     for (result = JO_FIXED_1; n > 0; n >>= 1)
     {
@@ -207,8 +212,6 @@ jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
             result = jo_fixed_mult(result, x);
         x = jo_fixed_mult(x, x);
     }
-    if (negative)
-        return (jo_fixed_div(JO_FIXED_1, result));
     return (result);
 }
 
@@ -275,12 +278,18 @@ static jo_fixed                 jo_atan_degrees_0_45(const jo_fixed t)
     return (45 * t - jo_fixed_mult(jo_fixed_mult(t, t - JO_FIXED_1), 918815 + jo_fixed_mult(249037, t)));
 }
 
-int                             jo_atan2_degrees(const jo_fixed y, const jo_fixed x)
+int                             jo_atan2_degrees(jo_fixed y, jo_fixed x)
 {
     jo_fixed                    ax;
     jo_fixed                    ay;
     int                         a;
 
+    // (the smallest int: its absolute value is negative. Halved: the same direction)
+    if (x == (jo_fixed)0x80000000 || y == (jo_fixed)0x80000000)
+    {
+        x >>= 1;
+        y >>= 1;
+    }
     ax = JO_ABS(x);
     ay = JO_ABS(y);
     if (ax == 0 && ay == 0)
@@ -311,6 +320,7 @@ static jo_angle                 jo_atan_angle_0_45(const jo_fixed t)
 {
     jo_fixed                    t2;
     jo_fixed                    p;
+    jo_fixed                    tp;
 
     t2 = jo_fixed_mult(t, t);
     // (the coefficients in radians x 65536: 0.99997726, -0.33262347, 0.19354346, -0.11643287, 0.05265332, -0.01172120)
@@ -320,16 +330,24 @@ static jo_angle                 jo_atan_angle_0_45(const jo_fixed t)
     p = 12684 + jo_fixed_mult(t2, p);
     p = -21799 + jo_fixed_mult(t2, p);
     p = 65535 + jo_fixed_mult(t2, p);
-    // (radians to jo_angle: x 32768 / pi = x 10430.378 / 65536 in Q16: the product read in Q16 x 10430.378)
-    return ((jo_angle)((jo_fixed_mult(t, p) * 10430 + jo_fixed_mult(jo_fixed_mult(t, p), 24772)) >> 16));
+    // (radians to jo_angle: x 32768 / pi = x 10430.378 / 65536 in Q16: the product read in Q16 x 10430.378. Rounded: + 3
+    // (the mean of the 6 products rounded down) and + 0.5 unit, the error was up to 1.75 units, always too low)
+    tp = jo_fixed_mult(t, p) + 3;
+    return ((jo_angle)((tp * 10430 + jo_fixed_mult(tp, 24772) + 32768) >> 16));
 }
 
-jo_angle                        jo_atan2_fixed(const jo_fixed y, const jo_fixed x)
+jo_angle                        jo_atan2_fixed(jo_fixed y, jo_fixed x)
 {
     jo_fixed                    ax;
     jo_fixed                    ay;
     int                         a;
 
+    // (the smallest int: its absolute value is negative. Halved: the same direction)
+    if (x == (jo_fixed)0x80000000 || y == (jo_fixed)0x80000000)
+    {
+        x >>= 1;
+        y >>= 1;
+    }
     ax = JO_ABS(x);
     ay = JO_ABS(y);
     if (ax == 0 && ay == 0)
@@ -390,8 +408,10 @@ void                        jo_planar_rotate(const jo_pos2D * const point, const
     dx = point->x - origin->x;
     dy = point->y - origin->y;
     jo_sincos(angle, &sin_theta, &cos_theta);
-    result->x = (jo_fixed2int(dx * cos_theta) - jo_fixed2int(dy * sin_theta)) + origin->x;
-    result->y = (jo_fixed2int(dy * cos_theta) + jo_fixed2int(dx * sin_theta)) + origin->y;
+    // (64 bits products, rounded once: dx * cos overflowed above 32767 pixels, the 2 products rounded down were 3 pixels
+    // off at 1000 pixels)
+    result->x = (int)(((long long)dx * cos_theta - (long long)dy * sin_theta + 32768) >> 16) + origin->x;
+    result->y = (int)(((long long)dy * cos_theta + (long long)dx * sin_theta + 32768) >> 16) + origin->y;
 }
 
 /*

@@ -105,14 +105,18 @@ jo_level                            *jo_level_load(const char * const filename)
         return (jo_level_refuse(level, filename, "not a level file", 0));
     if (header->version > JO_LEVEL_FORMAT_VERSION)
         return (jo_level_refuse(level, filename, "newer file format", 0));
-    if (header->size > level->size || sizeof(*header) + header->section_count * sizeof(*e) > level->size)
+    // (by divisions: a corrupted count must not wrap around 32 bits)
+    if (header->size > level->size || header->section_count > (level->size - sizeof(*header)) / sizeof(*e))
         return (jo_level_refuse(level, filename, "file too short", 0));
     level->directory = (const jo_level_directory_entry *)(level->data + sizeof(*header));
     level->section_count = header->section_count;
     for (k = 0, e = level->directory; k < level->section_count; ++k, ++e)
     {
-        if ((e->offset & 3) != 0 || e->offset + e->size > level->size ||
-            e->header_size + e->record_size * e->record_count > e->size)
+        // (records read in place: aligned on 4 bytes for the SH-2. Records of 0 bytes: any count passed, the copy of an
+        // older version (count x the size of the engine) wrapped around 32 bits, a small block written past its end)
+        if (((e->offset | e->header_size | e->record_size) & 3) != 0 || e->offset > level->size ||
+            e->size > level->size - e->offset || e->header_size > e->size ||
+            (e->record_count != 0 && (e->record_size == 0 || e->record_size > (e->size - e->header_size) / e->record_count)))
             return (jo_level_refuse(level, filename, "invalid section", e->id));
         // A required section: this engine must know it, in this version or an older one
         known = false;
@@ -183,6 +187,9 @@ static void                         *jo_level_copy_items(jo_level * const level,
 #endif
         return (JO_NULL);
     }
+    // (a count of a damaged file must not wrap the size of the copy)
+    if (size == 0 || count > 0xFFFFFFFFu / size)
+        return (JO_NULL);
     copy = (unsigned char *)jo_malloc(size * JO_MAX(count, 1));
     if (copy == JO_NULL)
         return (JO_NULL);
@@ -213,23 +220,28 @@ const void                          *jo_level_get_records(jo_level * const level
 {
     const jo_level_directory_entry  *e;
     const unsigned char             *records;
+    const void                      *result;
 
     *count = 0;
     e = jo_level_find_section(level, id);
     if (e == JO_NULL || e->record_count == 0)
         return (JO_NULL);
     records = level->data + e->offset + e->header_size;
-    *count = e->record_count;
     // The records of the file are used as they are when they have the same size (a newer, bigger record can't be used in
     // place: the structure of the engine is smaller than the step between the records)
     if (e->record_size == size)
-        return (records);
-    if (e->record_size > size)
+        result = records;
+    else if (e->record_size > size)
     {
         // Newer file: the fields of this engine (the first ones) are copied, the other fields are skipped
-        return (jo_level_copy_items(level, records, e->record_size, size, records, e->record_count));
+        result = jo_level_copy_items(level, records, e->record_size, size, records, e->record_count);
     }
-    return (jo_level_copy_items(level, records, e->record_size, size, defaults, e->record_count));
+    else
+        result = jo_level_copy_items(level, records, e->record_size, size, defaults, e->record_count);
+    // (the count only with the records: a copy can fail, out of memory or of copies)
+    if (result != JO_NULL)
+        *count = e->record_count;
+    return (result);
 }
 
 const void                          *jo_level_get_array(const jo_level * const level, const unsigned int id, const unsigned int offset)

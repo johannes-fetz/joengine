@@ -45,6 +45,7 @@
 #include "jo/list.h"
 #include "jo/3d.h"
 #include "jo/light.h"
+#include "internal/3d.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
@@ -82,6 +83,7 @@ typedef struct
     bool                            used;
     bool                            enabled;
     bool                            computed;       // The entries are up to date with the position
+    bool                            partial;        // Without shadows: meshes in its reach skipped (not seen), computed when seen
     jo_pos3D_fixed                  position;
     int                             r;
     int                             g;
@@ -504,10 +506,17 @@ bool                                jo_3d_point_lights_add_mesh(jo_3d_mesh * con
 void                                jo_3d_point_lights_set_mesh_seen(const jo_3d_mesh * const mesh, const bool seen)
 {
     int                             m;
+    int                             k;
 
     for (m = 0; m < __jo_point_light_mesh_count; ++m)
         if (__jo_point_light_meshes[m] == mesh)
         {
+            // (seen again: the lights without shadows that skipped it are computed again (a lamp that doesn't move never
+            // lit the rooms not seen at its first update))
+            if (seen && !__jo_point_light_mesh_seen[m])
+                for (k = 0; k < JO_MAX_POINT_LIGHTS; ++k)
+                    if (__jo_point_lights[k].used && __jo_point_lights[k].partial)
+                        __jo_point_lights[k].computed = false;
             __jo_point_light_mesh_seen[m] = seen;
             return;
         }
@@ -523,13 +532,15 @@ static void                         jo_point_light_normal(const jo_pos3D_fixed *
     int                             length;
     int                             shift;
 
-    u[0] = jo_fixed2int(b->x - a->x);
-    u[1] = jo_fixed2int(b->y - a->y);
-    u[2] = jo_fixed2int(b->z - a->z);
-    v[0] = jo_fixed2int(c->x - a->x);
-    v[1] = jo_fixed2int(c->y - a->y);
-    v[2] = jo_fixed2int(c->z - a->z);
-    // (big polygons: the sides scaled down first, the squares stay in 32 bits)
+    // (the sides in fixed point, halved: the whole units only gave a normal 25 degrees off for a side of 1.9 units, the
+    // floor normal for sides under 1 unit)
+    u[0] = (b->x >> 1) - (a->x >> 1);
+    u[1] = (b->y >> 1) - (a->y >> 1);
+    u[2] = (b->z >> 1) - (a->z >> 1);
+    v[0] = (c->x >> 1) - (a->x >> 1);
+    v[1] = (c->y >> 1) - (a->y >> 1);
+    v[2] = (c->z >> 1) - (a->z >> 1);
+    // (the sides scaled down first, the squares stay in 32 bits)
     for (shift = 0; JO_MAX(JO_MAX(JO_ABS(u[0]), JO_ABS(u[1])), JO_MAX(JO_ABS(u[2]), JO_MAX(JO_ABS(v[0]), JO_MAX(JO_ABS(v[1]), JO_ABS(v[2]))))) > 128; ++shift)
     {
         u[0] >>= 1; u[1] >>= 1; u[2] >>= 1;
@@ -573,6 +584,9 @@ static int                          jo_point_light_gain(const jo_point_light * c
     int                             k;
     int                             c;
     int                             q;
+    unsigned int                    rr;
+    unsigned int                    dd;
+    unsigned int                    shift;
 
     range = l->radius * JO_POINT_LIGHT_RANGE;
     dx = jo_fixed2int(p->x - l->position.x);
@@ -637,7 +651,11 @@ static int                          jo_point_light_gain(const jo_point_light * c
     // strength x facing x radius^2 / (radius^2 + distance^2): 16 gouraud units (x 64) for JO_POINT_LIGHT_STRENGTH_DEFAULT in
     // front of the light (facing 256): strength x facing / 64. (32 bits: radius^2 / (radius^2 + distance^2) x 4096 first,
     // a 64 bits division costs a lot: the flashes of the shots are computed again at each shot)
-    q = (int)(((unsigned int)(l->radius * l->radius) << 12) / (unsigned int)(l->radius * l->radius + dist * dist));
+    // (radius^2 x 4096 overflows from a radius of 1024: the 2 terms shifted together, the same ratio)
+    rr = (unsigned int)(l->radius * l->radius);
+    dd = (unsigned int)(dist * dist);
+    shift = rr > 0xFFFFF || dd > 0x7FFFFFFF - rr ? 10 : 0;
+    q = (int)(((rr >> shift) << 12) / JO_MAX(1u, (rr >> shift) + (dd >> shift)));
     // (a positive strength: logical shifts, the same result; an arithmetic shift by more than 2 bits is a call of the library
     // of the compiler, 3 calls for each corner)
     if (l->strength >= 0)
@@ -732,23 +750,35 @@ static void                         jo_point_light_compute(jo_point_light * cons
     l->entries = JO_NULL;
     l->entry_count = 0;
     l->computed = true;
+    l->partial = false;
     capacity = 0;
     range = l->radius * JO_POINT_LIGHT_RANGE;
+    // (all the meshes first: out of memory, the loop stops and the next meshes kept the entries of the last compute)
+    for (m = 0; m < __jo_point_light_mesh_count; ++m)
+    {
+        l->applied[m] = 0;
+        l->mesh_first[m] = 0;
+        l->mesh_entries[m] = 0;
+    }
     for (m = 0; m < __jo_point_light_mesh_count; ++m)
     {
         l->applied[m] = 0;
         l->mesh_first[m] = (unsigned short)l->entry_count;
         l->mesh_entries[m] = 0;
         mesh = __jo_point_light_meshes[m];
-        // (a light without shadows moves at each frame, a flash: only on the meshes seen)
-        if (!l->shadows && !__jo_point_light_mesh_seen[m])
-            continue;
         // (the meshes out of reach of the light)
         reach = __jo_point_light_mesh_radius[m] + l->radius * JO_POINT_LIGHT_RANGE;
         if (JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].x - l->position.x)) > reach ||
             JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].y - l->position.y)) > reach ||
             JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].z - l->position.z)) > reach)
             continue;
+        // (a light without shadows moves at each frame, a flash: only on the meshes seen. The others when they are seen, see
+        // jo_3d_point_lights_set_mesh_seen())
+        if (!l->shadows && !__jo_point_light_mesh_seen[m])
+        {
+            l->partial = true;
+            continue;
+        }
         // The rays of the shadows of each corner, shot once (a corner is shared by about 4 polygons): -1, not shot yet
         seen = l->shadows && __jo_point_light_hit != JO_NULL ? (signed char *)jo_malloc(mesh->data.point_count) : JO_NULL;
         if (seen != JO_NULL)
@@ -919,6 +949,8 @@ void                                jo_3d_point_lights_clear(void)
     int                             k;
     int                             j;
 
+    // (the copy of jo_3d_point_lights_update() ended first: it would write the lit tables again after them)
+    jo_dma_wait();
     // The colors of the gouraud tables as they were
     for (k = 0, p = __jo_point_light_polygons; k < __jo_point_light_polygon_count; ++k, ++p)
     {

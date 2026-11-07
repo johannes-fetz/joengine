@@ -45,7 +45,9 @@ jo_keyboard_special_key   jo_keyboard_get_special_key(void)
     jo_peripheral_keyboard                                     *keyboard;
 
 	keyboard = (jo_peripheral_keyboard *)&__jo_smpc_peripherals[0];
-	if ((keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0)
+    // (a keyboard only: the condition and the code are the axes of an analog pad, the position of a mouse: Enter read from
+    // a 3D pad closed the error screen, see jo_core_suspend())
+	if (keyboard->id != JO_PERIPHERAL_ID_KEYBOARD || (keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0)
         return JO_KEYBOARD_NO_SPECIAL_KEY;
     switch (keyboard->code)
     {
@@ -64,6 +66,8 @@ jo_keyboard_special_key   jo_keyboard_get_special_key(void)
             return (JO_KEYBOARD_ENTER);
         case 102:
             return (JO_KEYBOARD_BACKSPACE);
+        case 13:
+            return (JO_KEYBOARD_TAB);
         case 133:
             return (JO_KEYBOARD_DELETE);
         case 135:

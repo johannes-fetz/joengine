@@ -203,6 +203,17 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
             return (-1);
         }
 #endif
+        // (a tile out of the image: read after the file)
+        if (tileset[i].x < 0 || tileset[i].y < 0 || tileset[i].x + tileset[i].width > full_image.width || tileset[i].y + tileset[i].height > full_image.height)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("%s: tile %d out of the image", filename, i);
+#endif
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
+            jo_free(stream_begin);
+            return (-1);
+        }
         tile_image.width = tileset[i].width;
         tile_image.height = tileset[i].height;
         tile_image.data = (unsigned short *)jo_malloc_with_behaviour(tile_image.height * tile_image.width * sizeof(*tile_image.data), JO_MALLOC_TRY_REUSE_BLOCK);
@@ -229,6 +240,14 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
         }
         x = jo_sprite_add(&tile_image);
         jo_free_img(&tile_image);
+        // (the sprites full: the ids after the last one added were given to the font)
+        if (x < 0)
+        {
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
+            jo_free(stream_begin);
+            return (-1);
+        }
         if (first_id < 0)
             first_id = x;
     }
@@ -342,16 +361,19 @@ int							jo_sprite_add_image_pack(const char * const sub_dir, const char * cons
             ++stream;
         if (!*stream)
             break;
-#ifdef JO_DEBUG
+        // (checked in all the builds: the names are in a table of the stack)
         if (count >= JO_MAX_FILE_IN_IMAGE_PACK)
         {
+#ifdef JO_DEBUG
             jo_core_error("Please increase JO_MAX_FILE_IN_IMAGE_PACK");
+#endif
             jo_free(stream_begin);
             return (-1);
         }
-#endif
-        for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
-            filenames[count][i] = *stream++;
+        // (a name longer than JO_MAX_FILENAME_LENGTH - 1 characters is cut: not written after its place)
+        for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++stream)
+            if (i < JO_MAX_FILENAME_LENGTH - 1)
+                filenames[count][i++] = *stream;
         JO_ZERO(filenames[count][i]);
         ++count;
     }

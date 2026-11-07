@@ -49,7 +49,7 @@
 #include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/vdp2.h"
-#include "jo/console_builtins.h"
+#include "internal/console_builtins.h"
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
 #ifndef JO_COMPILE_NO_CONSOLE_BUILTINS
@@ -101,7 +101,7 @@ static __jo_force_inline void               __jo_console_builtins_background(int
 
 static __jo_force_inline void               __jo_console_builtins_load_sprite(int argc, char **argv, int vertical_output)
 {
-    int                                     result;
+    int                                     result = -1;
     char                                    *subdir;
     jo_color                                color;
 

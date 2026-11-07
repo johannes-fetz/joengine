@@ -49,7 +49,7 @@ typedef struct
  *  @param Y Vertical location from the top border of the screen
  *  @param S Font scale
  */
-# define jo_font_printf(F, X, Y, S, ...)		        do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
+# define jo_font_printf(F, X, Y, S, ...)		        do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_font_print((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
 
 /** @brief Print arguments using a specific font (using screen center coordinates)
  *  @param F The font (returned by jo_font_load())
@@ -57,7 +57,7 @@ typedef struct
  *  @param Y Vertical location from the center of the screen
  *  @param S Font scale
  */
-# define jo_font_printf_centered(F, X, Y, S, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_font_print_centered((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
+# define jo_font_printf_centered(F, X, Y, S, ...)		do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_font_print_centered((F), (X), (Y), (S), __jo_sprintf_buf);} while(0)
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 

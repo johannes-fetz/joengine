@@ -75,7 +75,7 @@ void			jo_main(void)
 
 	// Here we create a custom palette for the second sprite
 	jo_create_palette(&palette2);
-	palette2.data[0] = JO_COLOR_RGB(255, 0, 0); // You can change values at any time (see line 44)
+	palette2.data[0] = JO_COLOR_RGB(255, 0, 0); // You can change values at any time (see my_draw())
     palette2.data[1] = JO_COLOR_RGB(255, 127, 39);
 
 	jo_core_add_callback(my_draw);

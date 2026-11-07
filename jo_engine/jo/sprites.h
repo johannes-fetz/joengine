@@ -57,8 +57,6 @@ extern jo_texture_definition        __jo_sprite_def[JO_MAX_SPRITE];
  *  @warning MC Hammer: don't touch this
  */
 extern jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
-/** @brief (internal engine usage) Color lookup table of a 16 colors texture (VRAM address / 8), 0: none */
-extern unsigned short           __jo_sprite_lut[JO_MAX_SPRITE];
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
@@ -123,30 +121,12 @@ int     jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsign
  */
 int     jo_sprite_add_image_4bits_lut(const jo_img * const img);
 
-/** @brief Add a 16 colors texture that uses the color lookup table of another one (internal engine usage: smaller copies,
- *  tiles, see 3d.c)
- *  @param pixels 2 pixels per byte
- *  @param width Width (multiple of 8)
- *  @param height Height
- *  @param lut Table (VRAM address / 8, see __jo_sprite_lut)
- *  @return Sprite Id or -1 if failed
- */
-int     __jo_sprite_add_4bits(const void * const pixels, const unsigned short width, const unsigned short height, const unsigned short lut);
-
 /** @brief Replace a sprite
  *  @param img Pointer to a image struct
  *  @param sprite_id Sprite ID to replace
  *  @return sprite_id
  */
 int     jo_sprite_replace(const jo_img * const img, const int sprite_id);
-
-/** @brief Replace a sprite (internal usage)
- *  @param img Pointer to a image struct
- *  @param sprite_id Sprite ID to replace
- *  @param async true: the copy is done by the DMA controller in the background (see jo_dma_wait())
- *  @return sprite_id
- */
-int     __jo_sprite_replace(const jo_img * const img, const int sprite_id, const bool async);
 
 /** @brief Write the VDP1 end codes after the last visible pixel of each line of a sprite (RGB sprites)
  *  @param sprite_id Sprite Id
@@ -217,14 +197,16 @@ static  __jo_force_inline void	jo_sprite_disable_screen_doors_filter(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_half_transparency(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x3);
+    // (the color calculation mode of the VDP1: 3, or 7 with the gouraud shading)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x3) | 0x3;
 }
 
 /** @brief Disable half transparency for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_half_transparency(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x3);
+    if ((__jo_sprite_attributes.effect & 0x3) == 0x3)
+        __jo_sprite_attributes.effect &= ~0x3;
 }
 
 /*
@@ -240,14 +222,16 @@ static  __jo_force_inline void	jo_sprite_disable_half_transparency(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_shadow_filter(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x1);
+    // (the mode 1 of the VDP1: no gouraud shading with it)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x7) | 0x1;
 }
 
 /** @brief Disable shadow filter for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_shadow_filter(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x1);
+    if ((__jo_sprite_attributes.effect & 0x7) == 0x1)
+        __jo_sprite_attributes.effect &= ~0x7;
 }
 
 /*
@@ -258,14 +242,16 @@ static  __jo_force_inline void	jo_sprite_disable_shadow_filter(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_dark_filter(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x2);
+    // (the mode 2 of the VDP1, half luminance: 6 with the gouraud shading)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x3) | 0x2;
 }
 
 /** @brief Disable dark filter for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_dark_filter(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x2);
+    if ((__jo_sprite_attributes.effect & 0x3) == 0x2)
+        __jo_sprite_attributes.effect &= ~0x3;
 }
 
 /*
@@ -280,7 +266,8 @@ static  __jo_force_inline void	jo_sprite_disable_dark_filter(void)
 /** @brief Value used to keep the original color for jo_set_gouraud_shading_colors() */
 # define JO_NO_GOURAUD_COLOR            (0xc210)
 
-/** @brief Change Gouraud Shading colors
+/** @brief Change Gouraud Shading colors (a new table for the sprites displayed after this call with
+ *  jo_sprite_enable_gouraud_shading(): up to 32 tables per frame, the last one is reused after them)
  *  @param topleft_color Top left corner color in sprite
  *  @param topright_color Top right corner color in sprite
  *  @param bottomright_color bottom right corner color in sprite
@@ -295,7 +282,10 @@ void	jo_set_gouraud_shading_colors(const jo_color topleft_color,
  */
 static  __jo_force_inline void	jo_sprite_enable_gouraud_shading(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x4);
+    // (no shadow with it: 5 is prohibited)
+    if ((__jo_sprite_attributes.effect & 0x7) == 0x1)
+        __jo_sprite_attributes.effect &= ~0x7;
+    __jo_sprite_attributes.effect |= 0x4;
 }
 
 /** @brief Disable Gouraud Shading for every sprite displayed after this call
@@ -493,6 +483,12 @@ static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int 
     jo_sprite_draw(sprite_id, &__jo_sprite_pos, false, false);
 }
 
+/** @brief Display a sprite on 4 points (distorted sprite)
+ *  @param sprite_id Sprite Id
+ *  @param four_points The corners: top left, top right, bottom right, bottom left (fixed point)
+ *  @param z Z index (depth)
+ *  @param centered_style_coordinates true: (0, 0) is the center of the screen, false: the top left of the screen
+ */
 void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates);
 
 /** @brief Display a sprite turned on the screen (any angle: the 4 corners are computed, the sprite is distorted by the VDP1)
@@ -506,6 +502,55 @@ void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * 
  */
 void        jo_sprite_draw_rotated_fixed(const int sprite_id, const jo_fixed x, const jo_fixed y, const jo_fixed z,
                                          const jo_fixed half_width, const jo_fixed half_height, const int angle);
+
+/*
+** Colored shapes: VDP1 polygons of one color, drawn like the sprites (no texture, no sprite to add)
+*/
+
+/** @brief Draw a rectangle of one color (no texture): a health bar, a frame, a window of text, a fade to black
+ *  @param x Horizontal position of the left edge, from the left of the screen (pixels)
+ *  @param y Vertical position of the top edge, from the top of the screen (pixels)
+ *  @param width Width in pixels (nothing is drawn for 0 or less)
+ *  @param height Height in pixels (nothing is drawn for 0 or less)
+ *  @param color RGB color (JO_COLOR_RGB(), JO_COLOR_Red...). In the 8 bits modes of the screen (640 or 704 pixels wide):
+ *  a color of the palette of the screen (palette id * 256 + index, see jo_core_set_screen_palette(), JO_PALETTE_LIGHT_COLOR())
+ *  @param z Depth like jo_sprite_draw3D() (bigger is farther): the rectangle is sorted with the sprites and the 3D polygons
+ *  by this depth; at the same depth, in the order of the calls (the last one on top)
+ *  @remarks Like a sprite: not drawn when nearer than the near clipping distance of the 3D (half the projection distance:
+ *  80 in 320 x 224) or beyond the depth limit of the window (jo_3d_window()); its position is relative to the current
+ *  3D window (the whole screen by default). In front of all the 3D polygons (a head-up display over a 3D game):
+ *  jo_3d_set_depth_bias(-z) before the rectangles, jo_3d_set_depth_bias(0) after them (see the fighters demo)
+ *  @remarks The effects of the sprites apply (the state set before the call): jo_sprite_enable_half_transparency(),
+ *  jo_sprite_enable_shadow_filter(), jo_sprite_enable_dark_filter(), jo_sprite_enable_screen_doors_filter(),
+ *  jo_sprite_enable_gouraud_shading() (the colors of jo_set_gouraud_shading_colors() on the corners: top left, top right,
+ *  bottom right, bottom left) and jo_sprite_enable_clipping(). The color calculations (half transparency, shadow, dark,
+ *  gouraud) need an RGB color: none in the 8 bits modes. The flips, the scale and the palette of the sprites are not used
+ *  @remarks A health bar at the top left of the screen: a black frame and a green bar in it
+ *  @code
+ *  jo_sprite_draw_rectangle(8, 8, 104, 12, JO_COLOR_Black, 500);
+ *  jo_sprite_draw_rectangle(10, 10, health, 8, JO_COLOR_Green, 500);
+ *  @endcode
+ */
+void        jo_sprite_draw_rectangle(const int x, const int y, const int width, const int height, const jo_color color, const int z);
+
+/** @brief Draw a quadrilateral of one color (no texture) on 4 points: jo_sprite_draw_4p_fixed() with a color instead of a
+ *  sprite
+ *  @param four_points The corners: top left, top right, bottom right, bottom left (pixels, fixed point: jo_int2fixed()).
+ *  The corners are drawn (the corners 0 and 9 cover 10 pixels)
+ *  @param color RGB color, or a color of the palette of the screen in the 8 bits modes (see jo_sprite_draw_rectangle())
+ *  @param z Depth (fixed point, see jo_sprite_draw_rectangle())
+ *  @param centered_style_coordinates true: (0, 0) is the center of the screen, false: the top left of the screen
+ *  @remarks Any quadrilateral (a triangle: the last 2 corners equal). The effects of the sprites apply, its depth and its
+ *  window like a sprite (see jo_sprite_draw_rectangle())
+ *  @remarks A red triangle pointing up in the middle of the screen
+ *  @code
+ *  jo_pos2D_fixed triangle[4] = {{0, jo_int2fixed(-20)}, {jo_int2fixed(20), jo_int2fixed(20)},
+ *                                {jo_int2fixed(-20), jo_int2fixed(20)}, {jo_int2fixed(-20), jo_int2fixed(20)}};
+ *  jo_sprite_draw_color_4p_fixed(triangle, JO_COLOR_Red, jo_int2fixed(500), true);
+ *  @endcode
+ */
+void        jo_sprite_draw_color_4p_fixed(const jo_pos2D_fixed * const four_points, const jo_color color, const jo_fixed z,
+                                          const bool centered_style_coordinates);
 
 /*
  ██████╗██╗     ██╗██████╗ ██████╗ ██╗███╗   ██╗ ██████╗

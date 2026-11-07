@@ -41,11 +41,16 @@
 # define JO_VDP2_KTABLE_SIZE                    (0x1FE00)
 # define JO_VDP2_ROTATION_TABLE_SIZE            (0x00080)
 # define JO_VDP2_MAP_SIZE                       (8192)
+/** @brief The font of jo_printf() (NBG0, 256 cells of 16 colors) at the start of the bank B1 (VRAM offset) */
+# define JO_VDP2_PRINTF_CELL_OFFSET             (0x60000)
+# define JO_VDP2_PRINTF_CELL_SIZE               (0x2000)
+/** @brief The map of jo_printf() (NBG0) in the bank B1 (VRAM offset) */
+# define JO_VDP2_PRINTF_MAP_OFFSET              (0x76000)
 # define JO_VDP2_CELL_TO_MAP_OFFSET(CELL_PTR)   JO_DIV_BY_32(JO_MOD_POW2((int)CELL_PTR, JO_VDP2_BANK_SIZE))
 
 typedef enum
 {
-    /** @brief For user */
+    /** @brief For user (in the bank B1, with the maps and the cells of NBG0, NBG2 and NBG3) */
     JO_VDP2_RAM_USER,
     /** @brief MAP (rotation and normal scroll screen maps) */
     JO_VDP2_RAM_MAP_NBG0,
@@ -91,12 +96,6 @@ static  __jo_force_inline void  *jo_vdp2_malloc_autosize(const jo_vdp2_ram_usage
 {
     return (jo_vdp2_malloc(usage, ~0));
 }
-
-/** @brief Whether jo_vdp2_malloc() would return the start of the bank A0 for n bytes (bitmap, line scroll, cells)
- *  @param n Size in bytes
- *  @return true if the next allocation of n bytes there is at JO_VDP2_VRAM_A0
- */
-bool                            __jo_vdp2_a0_start_is_free(const unsigned int n);
 
 /** @brief function frees VDP2 memory space pointed to by p
  *  @param p pointer that must have been returned by a previous call to jo_vdp2_malloc()

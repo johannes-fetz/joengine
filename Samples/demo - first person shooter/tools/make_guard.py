@@ -185,19 +185,38 @@ def corner_slots(p, n):
     return best[1]
 
 
-def guard_textures(prefix='G', colors=None):
-    """The textures shared by the guards (the uniform, the boots, the cap, the rifle): baked on patches of the body"""
+# The clothes: the color functions of guard_skin.py for each style (the guards in uniform, the scientists in a lab coat)
+STYLES = {
+    'guard': dict(jacket=skin.jacket_color, pants=skin.pants_color, boots=skin.boots_color, belt=skin.belt_color),
+    'scientist': dict(jacket=skin.coat_color, pants=skin.trousers_color, boots=skin.shoes_color, belt=skin.coat_color),
+}
+
+
+# The textures of the body itself (the faces, the hands, the neck): the same for all the styles (the prefix G), the
+# other styles bake only their clothes (the sprites of the console are counted: 340 at most)
+BODY_TEXTURES = ('skin', 'neck', 'ffar', 'fside', 'hhairb', 'hhairt', 'hnape') + tuple('h%d%d' % (i, k) for i in range(3) for k in range(3))
+
+
+def texture_prefix(prefix, mat):
+    return 'G' if mat in BODY_TEXTURES else prefix
+
+
+def guard_textures(prefix='G', style='guard'):
+    """The textures shared by the guards (the uniform, the boots, the cap, the rifle): baked on patches of the body
+    (style: the clothes, see STYLES; prefix: the names of the textures of the models of this style)"""
     face = skin.FACES[0]
+    fns = STYLES[style]
     def bake(name, corners, fn, w, h):
-        save_rgb(skin.bake_tile(corners, fn, w, h), prefix + name.upper() + '.BIN')
-    bake('shirt', flat_corners((9.6, 64, 0), 6, 6, 'x'), skin.jacket_color, 16, 16)
-    bake('jacketb', flat_corners((0, 60, 5.6), 9, 12, 'back'), skin.jacket_color, 16, 16)
-    bake('pants', flat_corners((4.5, 36, -3.6), 7, 12), skin.pants_color, 16, 16)
-    bake('boots', flat_corners((4.5, 14, -3.2), 6.4, 16), skin.boots_color, 16, 16)
-    bake('boott', flat_corners((4.5, 3, -6), 6, 6), skin.boots_color, 16, 8)
+        if texture_prefix(prefix, name) == prefix:
+            save_rgb(skin.bake_tile(corners, fn, w, h), prefix + name.upper() + '.BIN')
+    bake('shirt', flat_corners((9.6, 64, 0), 6, 6, 'x'), fns['jacket'], 16, 16)
+    bake('jacketb', flat_corners((0, 60, 5.6), 9, 12, 'back'), fns['jacket'], 16, 16)
+    bake('pants', flat_corners((4.5, 36, -3.6), 7, 12), fns['pants'], 16, 16)
+    bake('boots', flat_corners((4.5, 14, -3.2), 6.4, 16), fns['boots'], 16, 16)
+    bake('boott', flat_corners((4.5, 3, -6), 6, 6), fns['boots'], 16, 8)
     bake('skin', flat_corners((0, 60, -10), 3, 3), lambda p: skin.skin_color(p, face), 8, 8)
-    bake('belt', flat_corners((6, 48.75, -3), 6, 3.5), skin.belt_color, 16, 8)
-    bake('beltf', flat_corners((0, 48.75, -5.2), 3.4, 3.5), skin.belt_color, 16, 16)
+    bake('belt', flat_corners((6, 48.75, -3), 6, 3.5), fns['belt'], 16, 8)
+    bake('beltf', flat_corners((0, 48.75, -5.2), 3.4, 3.5), fns['belt'], 16, 16)
     bake('cap', flat_corners((4, 88.5, 0), 10, 7, 'x'), skin.cap_color, 16, 16)
     # The front of the cap: the red star
     a = skin.bake_tile(flat_corners((0, 88.5, -5.5), 8, 7), skin.cap_color, 16, 16).astype(float)
@@ -212,8 +231,8 @@ def guard_textures(prefix='G', colors=None):
     mask = np.asarray(im.resize((16, 16), Image.LANCZOS), float)[..., None] / 255
     a = a * (1 - mask) + np.array((200, 40, 32)) * mask
     save_rgb(np.clip(a, 0, 255), prefix + 'CAPF.BIN')
-    # The shoulder boards: red, a stripe
-    a = np.zeros((8, 16, 3)) + skin.RED_TABS
+    # The shoulder boards: red, a stripe (the scientists: the white of the coat, a seam)
+    a = np.zeros((8, 16, 3)) + (skin.RED_TABS if style == 'guard' else skin.COAT)
     a *= 0.9 + 0.2 * np.random.default_rng(5).random((8, 16, 1))
     a[:, 0] *= 0.7
     a[:, -1] *= 0.7
@@ -229,7 +248,14 @@ def guard_textures(prefix='G', colors=None):
     save_rgb(np.clip(a, 0, 255), prefix + 'WOOD.BIN')
 
 
-def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True):
+# The arms of a man without a rifle: his hands hang by his hips (the elbows a little bent, the pivots of the forearms
+# moved), see guard_model(hanging)
+HANGING_HANDS = {'forearm_r': (-11.8, 57.0, 0.5), 'forearm_l': (11.8, 57.0, 0.5)}
+HANGING_LEFT = np.array((-12.5, 44.5, 2.0))
+HANGING_GRIP = np.array((12.5, 44.5, 2.0))
+
+
+def guard_model(name='guard', style='guard', far=False, scale=GUARD_SCALE, prefix='G', helmet=True, rifle=True, hanging=False, only=None):
     """A guard holding a rifle (about 1.75 m: 87 design units, times scale), 12 parts moved by the bones.
     The body is made of rings (8 sides for the head, the torso, the belt; 6 for the limbs): its shape is round, the
     proportions are the ones of a man (the head 1/7.5 of his height, the legs half of it, the shoulders 3 heads wide),
@@ -239,11 +265,45 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
     guards.c). models/NAME.obj, .mtl, .json (the skeleton and the animations, see Compiler/COMMON/jo_model.py --skeleton)"""
     light = np.array((0.25, 1.0, -0.35))
     light /= np.linalg.norm(light)
+    fns = STYLES[style]
+    bones = [(b, p, HANGING_HANDS.get(b, v) if hanging else v) for b, p, v in GUARD_BONES]
+    pivots = {b: v for b, p, v in bones}
     groups = {b[0]: [] for b in GUARD_BONES}     # (4 points, material, flat)
     textures = {}                                 # material -> (texture name, flipped)
 
     def face(group, pts, mat, flat=False):
         groups[group].append(([tuple(float(x) for x in v) for v in pts], mat, flat))
+
+    # The skin of the joints: a face of a part may use points of the part before it (an elbow: the ring at the end of the
+    # upper arm and the ring at the start of the forearm, each point moving with its bone, the quads between them
+    # stretch when the joint bends: no gap, no ball inside). The points of a part lent to the next one are registered
+    # here (their coordinates -> the part); the OBJ writer reuses the vertex of that part (jo_model.py: a point belongs
+    # to the group it is declared in)
+    owners = {}
+    extra_points = {b[0]: [] for b in GUARD_BONES}      # (points of a part used only by the faces of the next part)
+
+    def pkey(v):
+        return tuple(round(float(x), 3) for x in v)
+
+    def lend(group, pts, declared=False):
+        for v in pts:
+            owners[pkey(v)] = group
+            if declared:
+                extra_points[group].append(tuple(float(x) for x in v))
+
+    def bridge(group, ring_a, ring_b, mat):
+        """The quads of the skin between the ring of the part before (its points lent, see lend()) and the ring of this
+        part (the rings in the same direction; the start of ring_b turned to the nearest point of ring_a)"""
+        a = [np.array(v, dtype=float) for v in ring_a]
+        b = [np.array(v, dtype=float) for v in ring_b]
+        n = len(a)
+        assert len(b) == n
+        best = min(range(n), key=lambda o: sum(np.linalg.norm(a[k] - b[(k + o) % n]) for k in range(n)))
+        b = [b[(k + best) % n] for k in range(n)]
+        center = (sum(a) + sum(b)) / (2 * n)
+        for k in range(n):
+            pts = [a[k], a[(k + 1) % n], b[(k + 1) % n], b[k]]
+            add_face(group, pts, mat, np.mean(pts, axis=0) - center)
 
     def orient(pts, outward):
         p = [np.array(v, dtype=float) for v in pts]
@@ -272,19 +332,20 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         variants: the face textures of the guards (fn(points, face))"""
         p, n = orient(pts, outward)
         key = mat + ('_flip' if flip else '')
-        textures[key] = (prefix + mat.upper() + '.BIN', flip)
-        if not flip and mat not in BAKED:
+        tp = texture_prefix(prefix, mat)
+        textures[key] = (tp + mat.upper() + '.BIN', flip)
+        if not flip and tp + mat not in BAKED:
             c = tile_corners(p, n)
             if variants is not None:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: fn(q, f), size[0], size[1])
                     if v == 0:
-                        save_rgb(a, prefix + mat.upper() + '.BIN')
+                        save_rgb(a, tp + mat.upper() + '.BIN')
                     else:
                         save_rgb(a, 'V%d%s.BIN' % (v, mat.upper()))
             else:
-                save_rgb(skin.bake_tile(c, fn, size[0], size[1]), prefix + mat.upper() + '.BIN')
-            BAKED.add(mat)
+                save_rgb(skin.bake_tile(c, fn, size[0], size[1]), tp + mat.upper() + '.BIN')
+            BAKED.add(tp + mat)
         face(group, p, key, flat)
 
     def ring(y, rx, rz, n, cx=0.0, cz=0.0):
@@ -326,7 +387,38 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                 pts = [first[0], first[k], first[k + 1], first[(k + 2) % n]]
                 add_face(group, pts, bottom, np.array((0, -1.0, 0)), True)
 
-    def tube(group, a, b, ra, rb, n, mat, up=(0, 0, -1), cap_a=False, cap_b=False):
+    def fan(group, pts, mat, outward):
+        """A flat end on a ring of points: n / 2 - 1 quads (the texture flat)"""
+        n = len(pts)
+        for k in range(1, n - 1, 2):
+            add_face(group, [pts[0], pts[k], pts[k + 1], pts[(k + 2) % n]], mat, outward, True)
+
+    def dome(group, pts, center, axis, mat, r=None):
+        """The ball of a joint: a dome on a ring of points (the end of a limb) around center (the pivot of the joint of
+        the part next to it), out along axis (unit): a band to a ring at 0.55 r (radius 0.83 r: a sphere), then the
+        quads to its pole at r. With the part next to it starting at the pivot with a ring of the same radius, the ball
+        fills the gap when the joint bends (its material: the one of the part next to it, hidden inside it when the
+        joint is straight: a wrong order of the painter's sort shows the same color)"""
+        pts = [np.array(v, dtype=float) for v in pts]
+        center = np.array(center, dtype=float)
+        axis = np.array(axis, dtype=float)
+        n = len(pts)
+        if r is None:
+            r = float(np.mean([np.linalg.norm(q - center) for q in pts]))
+        mid = []
+        for q in pts:
+            d = q - center
+            d -= axis * np.dot(d, axis)
+            mid.append(center + axis * 0.55 * r + d * 0.83)
+        pole = center + axis * r
+        for k in range(n):
+            face_pts = [pts[k], pts[(k + 1) % n], mid[(k + 1) % n], mid[k]]
+            add_face(group, face_pts, mat, np.mean(face_pts, axis=0) - center)
+        for k in range(0, n, 2):
+            face_pts = [mid[k], mid[(k + 1) % n], mid[(k + 2) % n], pole]
+            add_face(group, face_pts, mat, np.mean(face_pts, axis=0) - center)
+
+    def tube(group, a, b, ra, rb, n, mat, up=(0, 0, -1), cap_a=False, cap_b=False, ball_b=None):
         """A tapered tube (n sides) from the point a (radius ra) to the point b"""
         a = np.array(a, dtype=float)
         b = np.array(b, dtype=float)
@@ -356,6 +448,9 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                 for k in range(1, n - 1, 2):
                     pts = [rr[0], rr[k], rr[k + 1], rr[(k + 2) % n]]
                     add_face(group, pts, mat, out, True)
+        if ball_b is not None:
+            dome(group, r1, ball_b[0], axis, ball_b[1])
+        return r0, r1
 
     def prism(group, bottom, top, mats, flat=False):
         bottom = [np.array(v, dtype=float) for v in bottom]
@@ -385,41 +480,54 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
 
     # --- The legs: the breeches (fuller over the knee), tucked into the high boots (to the knee), the feet forward
     for side, x in (('r', -4.4), ('l', 4.4)):
+        # (the joints closed: the top of the thigh under the belt (a flat end, the color of the belt), the knee (the ball
+        # of the boot at the end of the thigh: the boot wraps the knee when it bends), the sole of the boot (he lies on the
+        # floor): a bent joint showed the inside of the parts, see dome())
         if far:
-            frustum('thigh_' + side, 23, 6.0, 6.4, 48.5, 7.8, 7.8, 'pants', x, 0.2, x, 0)
-            frustum('shin_' + side, 0, 5.6, 6.0, 25, 6.4, 6.6, 'boots', x, 0)
-            box('shin_' + side, x - 2.8, 0, -9.0, x + 2.8, 5, -2.8, 'boott', faces='Yzx X'.replace(' ', ''))
+            frustum('thigh_' + side, 23, 6.0, 6.4, 48.5, 7.8, 7.8, {'z': 'pants', 'X': 'pants', 'Z': 'pants', 'x': 'pants', 'Y': 'belt', 'y': 'boots'},
+                    x, 0.2, x, 0)
+            frustum('shin_' + side, 0, 5.6, 6.0, 25, 6.4, 6.6, {'z': 'boots', 'X': 'boots', 'Z': 'boots', 'x': 'boots', 'Y': 'boots'}, x, 0)
+            box('shin_' + side, x - 2.8, 0, -9.0, x + 2.8, 5, -2.8, 'boott', faces='Yyzx X'.replace(' ', ''))
             continue
-        loft('thigh_' + side, [ring(23.0, 3.0, 3.2, 6, x, 0.2), ring(48.5, 4.0, 4.1, 6, x, 0)], 'pants')
+        # (the knee: the skin between the end of the thigh and the top of the boot, see bridge())
+        knee = ring(25.6, 3.0, 3.2, 6, x, 0.1)
+        hip_top = ring(48.5, 4.0, 4.1, 6, x, 0)
+        loft('thigh_' + side, [knee, hip_top], 'pants')
+        fan('thigh_' + side, hip_top, 'belt', np.array((0, 1.0, 0)))
+        lend('thigh_' + side, knee)
         # (the boot: its shaft from the ankle to the knee, its top edge a little wider)
-        loft('shin_' + side, [ring(5.5, 2.6, 2.9, 6, x, 0.3), ring(24.0, 3.2, 3.4, 6, x, 0)], 'boots')
-        frustum('shin_' + side, 0, 5.6, 12.6, 6.5, 5.0, 6.4, {'z': 'boott', 'X': 'boott', 'Z': 'boots', 'x': 'boott', 'Y': 'boott'},
-                x, -3.0, x, -0.2)
+        boot_top = ring(22.6, 3.2, 3.4, 6, x, 0)
+        loft('shin_' + side, [ring(6.0, 2.6, 2.9, 6, x, 0.0), boot_top], 'boots')
+        bridge('shin_' + side, knee, boot_top, 'boots')
+        frustum('shin_' + side, 0, 5.6, 12.6, 6.5, 5.6, 6.6, {'z': 'boott', 'X': 'boott', 'Z': 'boots', 'x': 'boott', 'Y': 'boott', 'y': 'boots'},
+                x, -3.0, x, -0.1)
     # --- The hips (the breeches), the belt with its buckle
     if far:
         frustum('hips', 42, 15.5, 9.0, 50.5, 16.0, 9.4, {'z': 'beltf', 'X': 'belt', 'Z': 'belt', 'x': 'belt'})
     else:
         def belt(i, k, pts, outward):
             if k == 0:
-                baked_face('hips', pts, outward, 'beltf', skin.belt_color, (16, 16))
+                baked_face('hips', pts, outward, 'beltf', fns['belt'], (16, 16))
             else:
                 add_face('hips', pts, 'belt', outward)
-        loft('hips', [ring(46.8, 8.35, 5.25, 8), ring(50.6, 8.35, 5.25, 8)], belt)
+        belt_bottom = ring(46.8, 8.35, 5.25, 8)
+        loft('hips', [belt_bottom, ring(50.6, 8.35, 5.25, 8)], belt)
+        fan('hips', belt_bottom, 'pants', np.array((0, -1.0, 0)))
     # --- The torso: the waist, the chest, the shoulders sloping to the neck; the collar standing with its red tabs
     # (the shoulders: the widest ring, then the slope to the neck, the shoulder boards lie on it)
     SHOULDER_Y, SHOULDER_X = 68.3, 11.0
     torso_rings = [ring(48.0, 7.9, 4.9, 8), ring(62.0, 9.6, 5.9, 8), ring(SHOULDER_Y, SHOULDER_X, 5.3, 8), ring(72.8, 2.75, 2.6, 8, 0, 0.3)]
     if far:
         frustum('torso', 48, 15.8, 9.6, 71, 18.4, 10.4, {'z': 'jfar', 'X': 'shirt', 'Z': 'jacketb', 'x': 'shirt', 'Y': 'shirt'})
-        if 'jfar' not in BAKED:
-            save_rgb(skin.bake_tile(flat_corners((0, 59.5, -5.6), 16, 23), skin.jacket_color, 16, 24), prefix + 'JFAR.BIN')
-            BAKED.add('jfar')
+        if prefix + 'jfar' not in BAKED:
+            save_rgb(skin.bake_tile(flat_corners((0, 59.5, -5.6), 16, 23), fns['jacket'], 16, 24), prefix + 'JFAR.BIN')
+            BAKED.add(prefix + 'jfar')
         textures['jfar'] = (prefix + 'JFAR.BIN', False)
     else:
         def jacket(i, k, pts, outward):
             if k in (0, 1, 7):
                 mat = 'j%d%d' % (i, 0 if k == 0 else 1)
-                baked_face('torso', pts, outward, mat, skin.jacket_color, (24, 24) if k == 0 else (16, 24), flip=(k == 7))
+                baked_face('torso', pts, outward, mat, fns['jacket'], (24, 24) if k == 0 else (16, 24), flip=(k == 7))
             elif k in (2, 6):
                 add_face('torso', pts, 'shirt', outward)
             else:
@@ -432,18 +540,18 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
             lo, hi = sorted((sx * 6.0, sx * 9.4))
             prism('torso', [(lo, slope_y(lo) - 0.2, -1.6), (hi, slope_y(hi) - 0.2, -1.6), (hi, slope_y(hi) - 0.2, 1.6), (lo, slope_y(lo) - 0.2, 1.6)],
                   [(lo, slope_y(lo) + 0.5, -1.6), (hi, slope_y(hi) + 0.5, -1.6), (hi, slope_y(hi) + 0.5, 1.6), (lo, slope_y(lo) + 0.5, 1.6)],
-                  {'z': 'epaul', 'Z': 'epaul', 'Y': 'epaul'})
+                  {'z': 'epaul', 'Z': 'epaul', 'Y': 'epaul', ('X' if sx > 0 else 'x'): 'epaul'})
         def collar(i, k, pts, outward):
             if k in (0, 1, 7):
-                baked_face('torso', pts, outward, 'c%d' % (0 if k == 0 else 1), skin.jacket_color, (16, 8), flip=(k == 7))
+                baked_face('torso', pts, outward, 'c%d' % (0 if k == 0 else 1), fns['jacket'], (16, 8), flip=(k == 7))
             else:
                 add_face('torso', pts, 'collar', outward)
         # The neck
-        tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck')
-        if 'neck' not in BAKED:
+        tube('head', (0, 71.5, 0.3), (0, 76.6, 0.5), 2.45, 2.35, 4, 'neck', cap_a=True)
+        if 'Gneck' not in BAKED:
             save_rgb(skin.bake_tile(flat_corners((0, 74, -2.3), 3, 5), lambda q: skin.skin_color(q, skin.FACES[0]) * 0.92, 8, 8),
-                     prefix + 'NECK.BIN')
-            BAKED.add('neck')
+                     'GNECK.BIN')
+            BAKED.add('Gneck')
     # --- The head: the chin, the cheeks, the brow, the top (a dome): 8 sides, a texture per polygon in front
     head_rings = [ring(75.4, 2.9, 3.6, 8, 0, -0.35), ring(78.5, 3.55, 4.35, 8, 0, -0.15), ring(82.0, 3.75, 4.55, 8),
                   ring(85.6, 3.6, 4.4, 8, 0, 0.1)]
@@ -451,14 +559,18 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         frustum('head', 75.4, 6.4, 7.6, 86.0, 7.2, 8.8, {'z': 'ffar', 'X': 'fside', 'Z': 'hhairb', 'x': 'fside'}, 0, -0.1, 0, 0.1)
         for t, c, sz, axis in (('ffar', flat_corners((0, 80.7, -4.4), 6.8, 10.6), (16, 16), 'z'),
                                ('fside', flat_corners((3.6, 80.7, 0), 8.2, 10.6, 'x'), (8, 16), 'x')):
-            textures[t] = (prefix + t.upper() + '.BIN', False)
-            if t not in BAKED:
+            textures[t] = ('G' + t.upper() + '.BIN', False)
+            if 'G' + t not in BAKED:
                 for v, f in enumerate(skin.FACES):
                     a = skin.bake_tile(c, lambda q: skin.head_color(q, f), sz[0], sz[1])
-                    save_rgb(a, (prefix + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
-                BAKED.add(t)
-        textures['hhairb'] = (prefix + 'HHAIRB.BIN', False)
-        frustum('cap' if helmet else 'head', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
+                    save_rgb(a, ('G' + t.upper() if v == 0 else 'V%d%s' % (v, t.upper())) + '.BIN')
+                BAKED.add('G' + t)
+        textures['hhairb'] = ('GHHAIRB.BIN', False)
+        if helmet:
+            frustum('cap', 84.9, 7.5, 10.4, 90.2, 2.6, 9.8, {'z': 'capf', 'X': 'cap', 'Z': 'cap', 'x': 'cap', 'Y': 'cap', 'y': 'cap'})
+        else:
+            # (no cap: the top of the head, his hair)
+            frustum('head', 85.6, 6.8, 8.2, 88.6, 3.4, 4.6, {'z': 'hhairb', 'X': 'hhairb', 'Z': 'hhairb', 'x': 'hhairb', 'Y': 'hhairb', 'y': 'hhairb'})
     else:
         def head(i, k, pts, outward):
             if k < 0:
@@ -470,7 +582,7 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
             else:
                 # (the back of the head: the same texture on the 3 sides)
                 mat = 'hnape' if i == 0 else 'hhairb'
-                if mat in BAKED or k == 4:
+                if 'G' + mat in BAKED or k == 4:
                     baked_face('head', pts, outward, mat, skin.head_color, face_size(mat), variants=True)
                 else:
                     later.append((i, k, pts, outward))
@@ -490,17 +602,33 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         b = np.array(b, dtype=float)
         return tuple(a + (a - b) / np.linalg.norm(a - b) * d)
     grip, left = rifle_point(0) - RIFLE_HAND_DROP, rifle_point(RIFLE_LEFT_HAND) - RIFLE_HAND_DROP
+    if hanging:
+        grip, left = HANGING_GRIP, HANGING_LEFT
     for sx, arm, fore, hand in ((-1, 'arm_r', 'forearm_r', left), (1, 'arm_l', 'forearm_l', grip)):
         shoulder = (sx * 10.5, 70.5, 0)
-        elbow = np.array(BONE_PIVOTS[fore], dtype=float)
+        elbow = np.array(pivots[fore], dtype=float)
         along = (hand - elbow) / np.linalg.norm(hand - elbow)
         wrist = hand - along * 2.2
+        down = (elbow - np.array(shoulder, dtype=float))
+        down /= np.linalg.norm(down)
         if far:
-            tube(arm, back(shoulder, elbow, 1.5), elbow, 3.0, 2.4, 4, 'shirt')
-            tube(fore, elbow, wrist, 2.4, 2.0, 4, 'shirt')
+            _, arm_end = tube(arm, back(shoulder, elbow, 1.5), elbow - down * 1.2, 3.0, 2.4, 4, 'shirt', cap_a=True)
+            lend(arm, arm_end)
+            fore_start, _ = tube(fore, elbow + along * 1.2, wrist, 2.4, 2.0, 4, 'shirt')
+            bridge(fore, arm_end, fore_start, 'shirt')
+            # (the hand: seen from afar too, raised over the head)
+            tube(fore, wrist, hand + along * 1.8, 2.0, 1.8, 4, 'skin', cap_b=True)
             continue
-        tube(arm, back(shoulder, elbow, 0.5), elbow, (2.9, 3.1), (2.35, 2.5), 6, 'shirt', up=(0, 0, -1))
-        tube(fore, back(elbow, wrist, 2.5), wrist, 2.45, 2.0, 4, 'shirt', up=(0, 1, 0))
+        # The shoulder: a ring of the torso inside it around the joint (points of the torso without faces), the skin
+        # from it to the start of the sleeve; the elbow: the skin between the end of the upper arm and the start of the
+        # forearm (see bridge())
+        arm_start, arm_end = tube(arm, back(shoulder, elbow, 0.5), elbow - down * 1.4, (2.9, 3.1), (2.25, 2.4), 6, 'shirt', up=(0, 0, -1))
+        socket = [np.array(v, dtype=float) - down * 2.3 for v in arm_start]
+        lend('torso', socket, declared=True)
+        bridge(arm, socket, arm_start, 'shirt')
+        lend(arm, arm_end)
+        fore_start, _ = tube(fore, elbow + along * 1.4, wrist, 2.45, 2.0, 6, 'shirt', up=(0, 1, 0))
+        bridge(fore, arm_end, fore_start, 'shirt')
         tube(fore, wrist - along * 0.6, hand + along * 1.8, (1.9, 2.3), (1.7, 2.1), 4, 'skin', up=(0, 1, 0), cap_b=True)
     if far and rifle:
         tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_MUZZLE), (1.2, 2.2), (1.2, 2.2), 4, 'gun', up=(0, 1, 0))
@@ -508,11 +636,11 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         # The rifle (its bone: it moves with the right hand): the stock and the receiver, the wooden
         # handguard, the barrel, the magazine under the receiver in front of the grip (rifle=False: the dead guard, his
         # rifle dropped on the floor)
-        tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_WOOD[0]), (1.3, 2.5), (1.3, 2.5), 4, 'gun', up=(0, 1, 0))
+        tube('rifle', rifle_point(RIFLE_STOCK), rifle_point(RIFLE_WOOD[0]), (1.3, 2.5), (1.3, 2.5), 4, 'gun', up=(0, 1, 0), cap_a=True)
         tube('rifle', rifle_point(RIFLE_WOOD[0]), rifle_point(RIFLE_WOOD[1]), (1.4, 2.6), (1.4, 2.6), 4, 'wood', up=(0, 1, 0), cap_b=True)
-        tube('rifle', rifle_point(RIFLE_WOOD[1]), rifle_point(RIFLE_MUZZLE), 0.6, 0.6, 4, 'gun', up=(0, 1, 0))
+        tube('rifle', rifle_point(RIFLE_WOOD[1]), rifle_point(RIFLE_MUZZLE), 0.6, 0.6, 4, 'gun', up=(0, 1, 0), cap_b=True)
         mag = rifle_point(RIFLE_MAGAZINE)
-        tube('rifle', mag, mag + np.array((0, -5.5, 0)) + RIFLE_DIR * 2, (0.9, 1.5), (0.9, 1.5), 4, 'gun', up=tuple(RIFLE_DIR))
+        tube('rifle', mag, mag + np.array((0, -5.5, 0)) + RIFLE_DIR * 2, (0.9, 1.5), (0.9, 1.5), 4, 'gun', up=tuple(RIFLE_DIR), cap_b=True)
     # The OBJ: the groups in the order of the bones, their points together (shared by the faces of the group, never by 2
     # groups). The texture of each face is drawn upright as seen from outside (vt: the corner at the top left of the
     # texture is the corner up and left for someone in front of the face, "up" = the Y axis, or the front for a
@@ -522,10 +650,15 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
     body = []
     shades = {}
     count = 0
-    for bone, parent, pivot in GUARD_BONES:
-        if not groups[bone]:
+    lent = {}           # (part, coordinates) -> vertex of the OBJ (the first one written for these coordinates)
+    for bone, parent, pivot in bones:
+        # (only: one part alone, a rigid model in the same coordinates: the cap on the floor (cd/CAP.JOM): drawn from the
+        # model of the guard with all its bones but the cap hidden, it cost the whole model, 300 points and 212 polygons
+        # rejected, 3 ms per frame for 6 s)
+        if not groups[bone] or (only is not None and bone != only):
             continue
         body.append('g ' + bone)
+        out.append('g ' + bone)
         # The normals of the faces, the normals of the points (the mean of the faces around the point, the flat faces
         # keep their own normal)
         face_normals = []
@@ -547,7 +680,7 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
         current = None
         for (pts, mat, flat), n in zip(groups[bone], face_normals):
             shade = 'guard_%s' % mat
-            shades[shade] = textures.get(mat, (prefix + mat.upper() + '.BIN', False))
+            shades[shade] = textures.get(mat, (texture_prefix(prefix, mat) + mat.upper() + '.BIN', False))
             # The texture corners: "up" along Y (the front for a horizontal face), "right" for someone in front
             up = np.array((0.0, 1.0, 0.0)) if abs(n[1]) < 0.9 else np.array((0.0, 0.0, -1.0))
             up = up - n * np.dot(up, n)
@@ -558,6 +691,11 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
             ids = []
             slots = corner_slots(p, n)
             for v, q, sl in zip(pts, p, slots):
+                owner = owners.get(pkey(v))
+                if owner is not None and owner != bone:
+                    # (a point lent by the part before: its vertex)
+                    ids.append('%d/%d' % (lent[(owner, pkey(v))], sl + 1))
+                    continue
                 vn = n if flat else sum(around[v])
                 vn = vn / max(np.linalg.norm(vn), 1e-9)
                 g = grey(vn)
@@ -566,12 +704,19 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                     count += 1
                     index[key] = count
                     out.append('v %.2f %.2f %.2f %.3f %.3f %.3f' % key)
+                    lent.setdefault((bone, pkey(v)), count)
                 uv = sl + 1
                 ids.append('%d/%d' % (index[key], uv))
             if shade != current:
                 body.append('usemtl ' + shade)
                 current = shade
             body.append('f %s %s %s %s' % tuple(ids))
+        # (the points of this part lent to the next one, without faces of their own: declared here, they move with it)
+        for v in extra_points[bone]:
+            if (bone, pkey(v)) not in lent:
+                count += 1
+                lent[(bone, pkey(v))] = count
+                out.append('v %.2f %.2f %.2f 0.500 0.500 0.500' % tuple(round(float(x) * scale, 2) for x in v))
     with open(os.path.join(MODELS, name + '.obj'), 'w') as f:
         f.write('\n'.join(out + body) + '\n')
     # (no subdivision: the agent never comes 5 units near a guard, his radius and the one of the guard; the tiles of the
@@ -585,21 +730,24 @@ def guard_model(name='guard', colors=None, far=False, scale=GUARD_SCALE, prefix=
                (['jo_flip h'] if flip else []) + ['']
     with open(os.path.join(MODELS, name + '.mtl'), 'w') as f:
         f.write('\n'.join(mtl) + '\n')
-    anims = guard_animations()
+    if only is not None:
+        return
+    anims = guard_animations(armed=not hanging)
     # (the root moves scaled in copies of the keys: a pose is shared by several keys and animations (crouch_aim in kneel,
     # crouch_fire...), scaled in place it was scaled once per use: the guard on one knee went up and down between 2 shots)
     for a in anims:
         a['keys'] = [dict(key, root=[v * scale for v in key['root']]) if 'root' in key else dict(key) for key in a['keys']]
     rig = {'bones': [dict({'name': b, 'parent': p, 'pivot': [c * scale for c in v]}, **({} if groups[b] else {'group': None}))
-                     for b, p, v in GUARD_BONES],
+                     for b, p, v in bones],
            'animations': anims}
     with open(os.path.join(MODELS, name + '.json'), 'w') as f:
         json.dump(rig, f, indent=1)
 
 
 
-def guard_animations():
-    """The animations of the guard (degrees: + around X moves a leg or an arm forward, the torso backward)"""
+def guard_animations(armed=True):
+    """The animations of the guard (degrees: + around X moves a leg or an arm forward, the torso backward); armed=False:
+    the arms hang and swing with the steps (the scientists)"""
     anims = []
     # Idle: he breathes (4 s), his weight goes from a leg to the other, he looks around slowly (16 keys, smooth)
     keys = []
@@ -634,16 +782,28 @@ def guard_animations():
                 pose['thigh_' + side] = [h, 0, 0]
                 pose['shin_' + side] = [-kn, 0, 0]
             c2 = math.cos(4 * math.pi * t)
-            pose['hips'] = [lean, turn * math.cos(2 * math.pi * t), 3 * math.sin(2 * math.pi * t)]
-            pose['torso'] = [lean * 0.4, -turn * 1.2 * math.cos(2 * math.pi * t), -1.5 * math.sin(2 * math.pi * t)]
+            s1 = math.sin(2 * math.pi * t)
+            pose['hips'] = [lean, turn * math.cos(2 * math.pi * t), 3 * s1]
+            pose['torso'] = [lean * 0.4, -turn * 1.2 * math.cos(2 * math.pi * t), -1.5 * s1]
             pose['head'] = [-lean * 0.8 + 1.5 * c2, turn * 0.3 * math.cos(2 * math.pi * t), 0]
-            pose['arm_r'] = [arms * c2, 0, 0]
-            pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, 0]
-            pose['root'] = [0.7 * math.sin(2 * math.pi * t), -bob * (1 + c2) / 2, 0]
+            # (the rifle in both hands rides with the steps: the arms pump a little with the shoulders, the barrel dips
+            # at each landing, the elbows go out a little when he runs)
+            if armed:
+                pose['arm_r'] = [arms * c2, 0, arms * 0.5 * s1]
+                pose['arm_l'] = [arms * c2 - arms * 0.5 * math.cos(2 * math.pi * t), 0, -arms * 0.4 * s1]
+                pose['rifle'] = [-arms * 0.8 * c2, arms * 0.6 * s1, 0]
+            else:
+                # (the arms swing against the legs; the elbows bent forward (+X), a jogger's arms when he runs)
+                c1 = math.cos(2 * math.pi * t)
+                pose['arm_r'] = [-hip * 0.6 * c1 + arms * 2, 0, 4]
+                pose['arm_l'] = [hip * 0.6 * c1 + arms * 2, 0, -4]
+                pose['forearm_r'] = [10 + arms * 13 - 6 * c1, 0, 0]
+                pose['forearm_l'] = [10 + arms * 13 + 6 * c1, 0, 0]
+            pose['root'] = [0.7 * s1, -bob * (1 + c2) / 2, 0]
             keys.append(pose)
         anims.append({'name': name, 'key_time': period / 16, 'loop': True, 'keys': keys})
-    gait('walk', 1.05, 22, 14, 58, 1.4, -3, 5, 2)
-    gait('run', 0.66, 36, 22, 95, 3.0, -12, 8, 4)
+    gait('walk', 1.05, 22, 14, 58, 1.4, -3, 5, 3)
+    gait('run', 0.66, 36, 22, 95, 3.0, -12, 8, 6)
     # Aim: the rifle up to the shoulder (the arms up, the head down a little), then the shots (recoil). The rifle turns at
     # the wrist (its bone) from across the body to straight forward: the stock on the right shoulder, the cheek on it, the
     # barrel level, the left hand under the handguard (the angles found by a solver from RIFLE_*: the distance of the
@@ -655,37 +815,6 @@ def guard_animations():
     recoil = dict(aim, torso=[-6, 0, 0], arm_r=[aim['arm_r'][0] + 4] + aim['arm_r'][1:], arm_l=[aim['arm_l'][0] + 4] + aim['arm_l'][1:],
                   head=[5, 0, 6])
     anims.append({'name': 'fire', 'key_time': 0.05, 'loop': False, 'keys': [aim, recoil, aim]})
-    # Hit: he bends forward
-    anims.append({'name': 'hit', 'key_time': 0.1, 'loop': False, 'keys': [
-        {}, {'torso': [14, 0, 0], 'head': [10, 0, 0], 'hips': [-4, 0, 0], 'root': [0, -1, 0]}, {}]})
-    # Death: the knees bend, he falls on his back (the hips turn of 90 degrees: the body lies on the ground)
-    anims.append({'name': 'death', 'key_time': 0.18, 'loop': False, 'keys': [
-        {},
-        {'torso': [18, 0, 0], 'head': [12, 0, 0], 'thigh_r': [30, 0, 0], 'shin_r': [-55, 0, 0], 'thigh_l': [24, 0, 0],
-         'shin_l': [-48, 0, 0], 'arm_r': [-10, 0, 0], 'arm_l': [-20, 0, -12], 'root': [0, -10, 0]},
-        {'hips': [40, 0, 0], 'torso': [6, 0, 0], 'thigh_r': [36, 0, 0], 'shin_r': [-60, 0, 0], 'thigh_l': [20, 0, 0],
-         'shin_l': [-40, 0, 0], 'arm_r': [-40, 0, 20], 'arm_l': [-50, 0, -30], 'head': [-10, 0, 0], 'root': [0, -24, 4]},
-        {'hips': [88, 0, 0], 'torso': [-4, 0, 0], 'thigh_r': [8, 0, 0], 'shin_r': [-14, 0, 0], 'thigh_l': [-4, 0, 0],
-         'shin_l': [-8, 0, 0], 'arm_r': [-80, 0, 40], 'arm_l': [-90, 0, -40], 'forearm_l': [-30, 0, 0],
-         'head': [-14, 20, 0], 'root': [0, -41, 10]},
-        {'hips': [92, 0, 0], 'torso': [-4, 0, 0], 'thigh_r': [6, 0, 0], 'shin_r': [-10, 0, 0], 'thigh_l': [-4, 0, 0],
-         'shin_l': [-6, 0, 0], 'arm_r': [-84, 0, 44], 'arm_l': [-92, 0, -44], 'forearm_l': [-30, 0, 0],
-         'head': [-14, 24, 0], 'root': [0, -42, 10]}]})
-    # Hit in the head: it snaps back, he staggers
-    anims.append({'name': 'hit_head', 'key_time': 0.08, 'loop': False, 'keys': [
-        {}, {'head': [-30, 10, 0], 'torso': [-10, 6, 0], 'arm_l': [10, 0, -10], 'root': [0, 0, 2]},
-        {'head': [-12, 4, 0], 'torso': [-4, 0, 0]}, {}]})
-    # Hit on a side (the shoulder): he turns with the impact
-    anims.append({'name': 'hit_side', 'key_time': 0.09, 'loop': False, 'keys': [
-        {}, {'torso': [6, 24, 8], 'head': [6, -10, 0], 'arm_l': [-10, 0, -20], 'hips': [0, 6, 0]}, {}]})
-    # Hit in a leg: the knee gives way, he limps a moment; in an arm: the arm thrown back, the shoulder turns
-    anims.append({'name': 'hit_leg', 'key_time': 0.1, 'loop': False, 'keys': [
-        {}, {'thigh_r': [-10, 0, 0], 'shin_r': [-45, 0, 0], 'hips': [6, 0, -8], 'torso': [16, 0, 6], 'head': [8, 0, 0], 'root': [0, -8, 0]},
-        {'thigh_r': [10, 0, 0], 'shin_r': [-30, 0, 0], 'hips': [4, 0, -5], 'torso': [10, 0, 4], 'root': [0, -5, 0]}, {}]})
-    for name, sign, arm in (('hit_arm_r', -1, 'arm_r'), ('hit_arm_l', 1, 'arm_l')):
-        anims.append({'name': name, 'key_time': 0.09, 'loop': False, 'keys': [
-            {}, {arm: [-25, 0, sign * 25], 'torso': [-4, sign * 28, 0], 'head': [4, sign * -12, 0], 'hips': [0, sign * 6, 0]},
-            {arm: [-8, 0, sign * 8], 'torso': [0, sign * 10, 0]}, {}]})
     # Crouched: on one knee, the rifle up (he fights crouched behind the furniture), and its shots
     crouch = {'hips': [0, 0, 0], 'root': [0, -20, 0], 'thigh_r': [80, 0, 0], 'shin_r': [-80, 0, 0], 'thigh_l': [10, 0, 0],
               'shin_l': [-100, 0, 0], 'torso': [6, 0, 0]}
@@ -710,30 +839,158 @@ def guard_animations():
     anims.append({'name': 'kneel', 'key_time': 0.25, 'loop': True, 'keys': [crouch_aim, crouch_aim]})
     anims.append({'name': 'crouch_fire', 'key_time': 0.05, 'loop': False, 'keys': [
         crouch_aim, dict(crouch_aim, torso=[-3, 0, 0], arm_r=recoil['arm_r'], arm_l=recoil['arm_l']), crouch_aim]})
-    # Surprised: he jumps a little, looks at the player (before he raises his rifle)
-    anims.append({'name': 'surprise', 'key_time': 0.12, 'loop': False, 'keys': [
-        {}, {'torso': [-8, 0, 0], 'head': [-10, 0, 0], 'arm_l': [20, 0, -10], 'root': [0, 2, 0]}, {'torso': [-2, 0, 0]}]})
-    # Death, falling forward: the head thrown back by the shot, the knees give way, he falls on his face (the hips turn
-    # of -90 degrees: the body lies face down), the arms in front of him
-    anims.append({'name': 'death_front', 'key_time': 0.16, 'loop': False, 'keys': [
-        {},
-        {'head': [-28, 6, 0], 'torso': [-10, 4, 0], 'arm_r': [-12, 0, 10], 'arm_l': [-16, 0, -12], 'root': [0, 0, 2]},
-        {'torso': [16, 0, 0], 'head': [6, 0, 0], 'thigh_r': [30, 0, 0], 'shin_r': [-60, 0, 0], 'thigh_l': [26, 0, 0],
-         'shin_l': [-55, 0, 0], 'arm_r': [10, 0, 14], 'arm_l': [6, 0, -14], 'root': [0, -12, -2]},
-        {'hips': [-40, 0, 0], 'torso': [10, 0, 0], 'thigh_r': [34, 0, 0], 'shin_r': [-50, 0, 0], 'thigh_l': [26, 0, 0],
-         'shin_l': [-40, 0, 0], 'arm_r': [40, 0, 20], 'arm_l': [36, 0, -24], 'head': [10, 0, 0], 'root': [0, -26, -6]},
-        {'hips': [-86, 0, 0], 'torso': [2, 0, 0], 'thigh_r': [4, 0, 0], 'shin_r': [-12, 0, 0], 'thigh_l': [-2, 0, 0],
-         'shin_l': [-8, 0, 0], 'arm_r': [80, 0, 40], 'arm_l': [76, 0, -44], 'forearm_l': [-20, 0, 0], 'head': [-20, 28, 0],
-         'root': [0, -41, -10]},
-        {'hips': [-90, 0, 0], 'torso': [2, 0, 0], 'thigh_r': [2, 0, 0], 'shin_r': [-8, 0, 0], 'thigh_l': [-2, 0, 0],
-         'shin_l': [-6, 0, 0], 'arm_r': [84, 0, 44], 'arm_l': [80, 0, -46], 'forearm_l': [-20, 0, 0], 'head': [-22, 32, 0],
-         'root': [0, -42, -10]}]})
-    # The falls (deaths), the hits: their keys made smooth (Catmull-Rom between the poses, eased: they accelerate when
-    # they fall, they settle with a small bounce on the floor) at 30 keys per second
+    # --- The reactions and the falls: a few poses each with their times (seconds), the keys between them at 30 per
+    # second by a smooth curve (see timed_keys()): the body takes the shot, loses its balance, catches it or falls,
+    # with the secondary moves (the head, the free hand, the knees, the hips) of a motion capture. The free hand is the
+    # left one (arm_r, forearm_r: -X, see RIFLE_HAND), the rifle stays in the right hand
+    def clutch(ax, ay, az, fx):
+        """The free hand on the body: the arm (degrees) and the forearm bent"""
+        return {'arm_r': [ax, ay, az], 'forearm_r': [fx, 0, 0]}
+
+    def pose(*parts, **channels):
+        out = {}
+        for p in parts:
+            out.update(p)
+        out.update({k: list(v) for k, v in channels.items()})
+        return out
+
+    # (the angles found by a solver: the hand on the belly, the chest, the face, the thigh, the right shoulder)
+    hand_belly = clutch(-30, -30, -45, 64)
+    hand_chest = clutch(-30, -5, -45, 98)
+    hand_face = clutch(13, 16, 22, 113)
+    hand_thigh = clutch(-30, -28, -25, 0)
+    hand_shoulder = clutch(-27, -36, 4, 85)
+    # Hit in the chest or the belly: the shot pushes him back (0.1 s), he doubles over on the wound, his free hand on
+    # it, a step back to catch his balance, the knees bent; he straightens up (0.8 s in all)
+    anims.append(timed_keys('hit', [
+        (0.00, pose()),
+        (0.08, pose(torso=[14, -6, 0], head=[16, 0, 0], arm_l=[-10, 0, -6], arm_r=[-14, 0, 12], root=[0, -0.5, 1.5])),
+        (0.26, pose(hand_belly, torso=[-24, 8, 4], head=[-6, -10, 0], hips=[-6, 0, 0], thigh_r=[-18, 0, 0], shin_r=[-26, 0, 0],
+                    thigh_l=[12, 0, 0], shin_l=[-32, 0, 0], arm_l=[14, 0, -8], root=[0, -7, 7])),
+        (0.46, pose(clutch(-24, -24, -36, 50), torso=[-16, 6, 2], head=[-2, -6, 0], hips=[-4, 0, 0], thigh_r=[-8, 0, 0], shin_r=[-18, 0, 0],
+                    thigh_l=[8, 0, 0], shin_l=[-22, 0, 0], arm_l=[8, 0, -4], root=[0, -4, 8])),
+        (0.80, pose(root=[0, 0, 8])),
+    ]))
+    # Hit in a leg: the leg gives way under him, he drops on it, his arms out for his balance, his hand to the thigh, then
+    # he pushes up on the other leg and limps straight (1.0 s)
+    anims.append(timed_keys('hit_leg', [
+        (0.00, pose()),
+        (0.08, pose(thigh_r=[-6, 0, 0], shin_r=[-30, 0, 0], hips=[0, 0, -4], torso=[6, 0, 5], head=[4, 0, 0], root=[0, -2, 0])),
+        (0.28, pose(thigh_r=[32, 0, 0], shin_r=[-96, 0, 0], thigh_l=[20, 0, 0], shin_l=[-52, 0, 0], hips=[-8, 0, -12], torso=[-22, 6, 10],
+                    head=[-4, -8, -4], arm_r=[-30, 0, 46], forearm_r=[20, 0, 0], arm_l=[-8, 0, -30], root=[0, -16, 2])),
+        (0.50, pose(hand_thigh, thigh_r=[26, 0, 0], shin_r=[-80, 0, 0], thigh_l=[22, 0, 0], shin_l=[-48, 0, 0], hips=[-10, 0, -8],
+                    torso=[-26, 4, 6], head=[0, -6, -2], arm_l=[-6, 0, -18], root=[0, -14, 2])),
+        (0.74, pose(clutch(-16, -14, -12, 0), thigh_r=[12, 0, 0], shin_r=[-48, 0, 0], thigh_l=[10, 0, 0], shin_l=[-22, 0, 0], hips=[-4, 0, -4],
+                    torso=[-12, 2, 3], head=[2, 0, 0], arm_l=[-2, 0, -8], root=[0, -7, 2])),
+        (1.00, pose(root=[0, 0, 2])),
+    ]))
+    # Hit in an arm or on a side: the impact spins him, the hit arm thrown out and back, his other hand to the shoulder,
+    # a step aside to catch his balance; he turns back (0.8 s). hit_arm_l: the right arm as seen (+X, the rifle hand),
+    # hit_arm_r: the left one; hit_side: the body turned, the free hand to the ribs
+    for name, sg in (('hit_arm_l', 1), ('hit_arm_r', -1)):
+        arm = 'arm_l' if sg > 0 else 'arm_r'
+        other = hand_shoulder if sg > 0 else {'arm_l': [36, 0, 26], 'forearm_l': [70, 0, 0]}
+        anims.append(timed_keys(name, [
+            (0.00, pose()),
+            (0.08, pose(**{arm: [-34, 0, sg * 44]}, torso=[-2, sg * 26, sg * -6], head=[2, sg * -14, 0], hips=[0, sg * 8, 0], root=[sg * 1.5, 0, 1])),
+            (0.26, pose(other, **{arm: [-16, 0, sg * 28]}, torso=[-10, sg * 36, sg * -10], head=[-4, sg * -26, sg * 4], hips=[-2, sg * 14, sg * -4],
+                        thigh_r=[-8 if sg > 0 else 10, 0, sg * -6], thigh_l=[10 if sg > 0 else -8, 0, sg * -6], shin_r=[-20, 0, 0], shin_l=[-20, 0, 0],
+                        root=[sg * 5, -4, 3])),
+            (0.48, pose(other, **{arm: [-6, 0, sg * 12]}, torso=[-6, sg * 18, sg * -4], head=[-2, sg * -10, 0], hips=[0, sg * 6, 0],
+                        shin_r=[-10, 0, 0], shin_l=[-10, 0, 0], root=[sg * 5, -2, 3])),
+            (0.80, pose(root=[sg * 5, 0, 3])),
+        ]))
+    # --- The deaths: the body goes down and ends flat on the floor, the arms by the body (never thrown over the head: on
+    # the floor they went behind the back). hips +90: on his back, -90: face down; root y -42: the pelvis on the floor;
+    # the rifle hangs from the hand (rifle=[-30, 0, 20])
+    rifle_hang = [-30, 0, 20]
+    # (on the floor: the rifle flat on his chest (on his back), on the floor beside his hand (face down))
+    rifle_flat = [-110, 0, 20]
+    rifle_floor = [0, 0, -90]
+    # Shot in the chest: his free hand to the wound, he staggers one step back, his knees give way, he sits and tips over
+    # on his back, the arms fall out by his sides, the head rolls (1.3 s)
+    anims.append(timed_keys('death_back', [
+        (0.00, pose()),
+        (0.12, pose(hand_chest, torso=[12, 0, 0], head=[14, 0, 0], arm_l=[8, 0, -8], rifle=rifle_hang, root=[0, -1, 2])),
+        (0.45, pose(clutch(-24, -10, -40, 90), torso=[20, 4, 0], head=[18, 6, 0], hips=[-6, 0, 0], thigh_r=[24, 0, 4], shin_r=[-52, 0, 0],
+                    thigh_l=[18, 0, -4], shin_l=[-46, 0, 0], arm_l=[-6, 0, -16], rifle=rifle_hang, root=[0, -10, 9])),
+        (0.80, pose(torso=[6, 2, 0], head=[8, 10, 0], hips=[58, 0, 0], thigh_r=[22, 0, 6], shin_r=[-44, 0, 0], thigh_l=[16, 0, -6], shin_l=[-38, 0, 0],
+                    arm_r=[-30, 0, -34], forearm_r=[36, 0, 0], arm_l=[-28, 0, 30], forearm_l=[30, 0, 0], rifle=[-70, 0, 20], root=[0, -31, 15])),
+        (1.05, pose(torso=[-2, 0, 0], head=[-4, 26, 0], hips=[90, 0, 0], thigh_r=[8, 0, 8], shin_r=[-18, 0, 0], thigh_l=[5, 0, -8], shin_l=[-14, 0, 0],
+                    arm_r=[-40, 0, -48], forearm_r=[22, 0, 0], arm_l=[-38, 0, 42], forearm_l=[18, 0, 0], rifle=rifle_flat, root=[0, -42.5, 19])),
+        (1.30, pose(torso=[-3, 0, 0], head=[-4, 30, 0], hips=[90, 0, 0], thigh_r=[6, 0, 8], shin_r=[-14, 0, 0], thigh_l=[4, 0, -8], shin_l=[-10, 0, 0],
+                    arm_r=[-42, 0, -50], forearm_r=[18, 0, 0], arm_l=[-40, 0, 44], forearm_l=[14, 0, 0], rifle=rifle_flat, root=[0, -42, 20])),
+    ], fall=(0.80, 1.05)))
+    # Shot in the belly: he doubles up on the wound, drops on his knees, then pitches forward and lands face down, one arm
+    # under him, the other thrown ahead on the floor, the face turned to the side (1.2 s)
+    anims.append(timed_keys('death_front', [
+        (0.00, pose()),
+        (0.12, pose(hand_belly, torso=[-16, 0, 0], head=[-8, 0, 0], arm_l=[6, 0, -6], rifle=rifle_hang, root=[0, -1, -1])),
+        (0.42, pose(clutch(-28, -24, -40, 70), torso=[-32, 6, 0], head=[-16, -8, 0], thigh_r=[68, 0, 4], shin_r=[-112, 0, 0], thigh_l=[58, 0, -4],
+                    shin_l=[-104, 0, 0], arm_l=[26, 0, -10], rifle=rifle_hang, root=[0, -27, -2])),
+        (0.72, pose(torso=[-12, 4, 0], head=[-10, -20, 0], hips=[-56, 0, 0], thigh_r=[34, 0, 6], shin_r=[-48, 0, 0], thigh_l=[26, 0, -6],
+                    shin_l=[-40, 0, 0], arm_r=[70, 0, -24], forearm_r=[24, 0, 0], arm_l=[40, 0, 14], forearm_l=[30, 0, 0], rifle=[-15, 0, -35],
+                    root=[0, -36, -11])),
+        (0.95, pose(torso=[-2, 0, 0], head=[-2, -58, 0], hips=[-90, 0, 0], thigh_r=[6, 0, 8], shin_r=[-12, 0, 0], thigh_l=[4, 0, -8], shin_l=[-8, 0, 0],
+                    arm_r=[128, 0, -26], forearm_r=[18, 0, 0], arm_l=[-30, 0, 14], forearm_l=[30, 0, 0], rifle=rifle_floor, root=[0, -42.5, -22])),
+        (1.20, pose(torso=[-3, 0, 0], head=[-2, -62, 0], hips=[-90, 0, 0], thigh_r=[5, 0, 8], shin_r=[-10, 0, 0], thigh_l=[3, 0, -8], shin_l=[-6, 0, 0],
+                    arm_r=[132, 0, -28], forearm_r=[14, 0, 0], arm_l=[-34, 0, 14], forearm_l=[26, 0, 0], rifle=rifle_floor, root=[0, -42, -23])),
+    ], fall=(0.72, 0.95)))
+    # Shot from the side: the impact turns him half around, his arms flung out for his balance, his knees buckle as he
+    # turns, and he goes down on his back the other way, the arms out on the floor (1.3 s)
+    anims.append(timed_keys('death_twist', [
+        (0.00, pose()),
+        (0.12, pose(torso=[6, 28, -6], head=[4, 30, 0], arm_r=[-26, 0, -46], forearm_r=[20, 0, 0], arm_l=[16, 0, 26], rifle=rifle_hang, root=[0, -1, 1])),
+        (0.42, pose(torso=[12, 22, -4], head=[10, 20, 0], hips=[-4, 112, 0], thigh_r=[22, 0, 6], shin_r=[-44, 0, 0], thigh_l=[14, 0, -6], shin_l=[-36, 0, 0],
+                    arm_r=[-20, 0, -64], forearm_r=[26, 0, 0], arm_l=[-10, 0, 48], forearm_l=[20, 0, 0], rifle=rifle_hang, root=[3, -9, 3])),
+        (0.72, pose(torso=[8, 10, 0], head=[8, 4, 0], hips=[56, 160, 0], thigh_r=[18, 0, 6], shin_r=[-38, 0, 0], thigh_l=[12, 0, -6], shin_l=[-30, 0, 0],
+                    arm_r=[-28, 0, -58], forearm_r=[30, 0, 0], arm_l=[-26, 0, 52], forearm_l=[26, 0, 0], rifle=[-70, 0, 20], root=[7, -30, 0])),
+        (0.95, pose(torso=[-2, 0, 0], head=[-4, -26, 0], hips=[90, 172, 0], thigh_r=[7, 0, 8], shin_r=[-16, 0, 0], thigh_l=[5, 0, -8], shin_l=[-12, 0, 0],
+                    arm_r=[-40, 0, -62], forearm_r=[24, 0, 0], arm_l=[-38, 0, 50], forearm_l=[20, 0, 0], rifle=rifle_flat, root=[10, -42.5, -3])),
+        (1.30, pose(torso=[-3, 0, 0], head=[-4, -30, 0], hips=[90, 172, 0], thigh_r=[5, 0, 8], shin_r=[-12, 0, 0], thigh_l=[4, 0, -8], shin_l=[-8, 0, 0],
+                    arm_r=[-42, 0, -64], forearm_r=[20, 0, 0], arm_l=[-40, 0, 52], forearm_l=[16, 0, 0], rifle=rifle_flat, root=[10, -42, -3])),
+    ], fall=(0.72, 0.95)))
+    # A step aside with the rifle up (he dodges between 2 bursts, see guards.c): the leading leg goes out, the weight on
+    # it, the other leg follows (0.5 s); step_l toward +X (his right as seen in the game: the model is mirrored), step_r
+    # toward -X. The move of the body: guards.c (the feet with it)
+    for name, sg in (('step_l', 1), ('step_r', -1)):
+        lead, trail = ('thigh_l', 'thigh_r') if sg > 0 else ('thigh_r', 'thigh_l')
+        lead_s, trail_s = ('shin_l', 'shin_r') if sg > 0 else ('shin_r', 'shin_l')
+        anims.append(timed_keys(name, [
+            (0.00, pose(aim)),
+            (0.15, pose(aim, **{lead: [4, 0, sg * -26], lead_s: [-14, 0, 0], trail: [0, 0, sg * 6]}, hips=[2, 0, sg * -4], torso=[-2, 0, sg * 4],
+                        root=[0, -1.5, 0])),
+            (0.32, pose(aim, **{lead: [2, 0, sg * -10], lead_s: [-24, 0, 0], trail: [6, 0, sg * 24], trail_s: [-30, 0, 0]}, hips=[2, 0, sg * -2],
+                        torso=[-2, 0, sg * 2], root=[0, -3, 0])),
+            (0.50, pose(aim)),
+        ]))
+    # (the moves from a pose to another one (aim, crouch, stand, hit_kneel): their keys made smooth too)
     for a in anims:
-        if a['name'] in ('death', 'death_front', 'hit', 'hit_side', 'hit_head', 'hit_leg', 'hit_arm_r', 'hit_arm_l', 'surprise', 'aim',
-                         'crouch', 'stand', 'hit_kneel'):
-            a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'], fall=a['name'].startswith('death'))
+        if a['name'] in ('aim', 'crouch', 'stand', 'hit_kneel'):
+            a['keys'], a['key_time'] = smooth_keys(a['keys'], a['key_time'])
+    # Hands up (the scientists threatened: the arms raised over the head, the elbows a little out, the head down), held
+    # after (a loop: the arms shake a little, he looks at the agent)
+    # (the arm turned 180 around X: its Z now opens it outward; the forearms bent in, the hands over the head)
+    hands = {'arm_r': [-178, 0, 0], 'arm_l': [-178, 0, 0], 'forearm_r': [-22, 0, 16], 'forearm_l': [-22, 0, -16],
+             'head': [6, 0, 0], 'torso': [-4, 0, 0], 'hips': [2, 0, 0], 'root': [0, 0.6, 0]}
+    anims.append(timed_keys('hands_up', [(0, {}), (0.25, dict(hands, arm_r=[-110, 0, 4], arm_l=[-110, 0, -4], forearm_r=[-40, 0, 0], forearm_l=[-40, 0, 0], head=[-4, 0, 0])),
+                                         (0.5, hands)]))
+    keys = []
+    for k in range(10):
+        t = k / 10
+        sn = math.sin(2 * math.pi * t)
+        keys.append(dict(hands, arm_r=[-178 + 3 * sn, 0, 2 * sn], arm_l=[-178 - 3 * sn, 0, -2 * sn],
+                         head=[6 + 2 * sn, 4 * math.sin(2 * math.pi * t * 0.5), 0], torso=[-4, 2 * sn, 0]))
+    anims.append({'name': 'hands_hold', 'key_time': 0.15, 'loop': True, 'keys': keys})
+    if not armed:
+        # (the arms of a man without a rifle hang 40 degrees behind the guards' rest pose (the rifle held in front): the
+        # deaths, made on the guards, are shifted so that his arms lie flat too)
+        for a in anims:
+            if a['name'].startswith('death_'):
+                for key in a['keys']:
+                    for c in ('arm_r', 'arm_l'):
+                        if c in key:
+                            key[c] = [key[c][0] + 40, key[c][1], key[c][2]]
     return anims
 
 
@@ -769,6 +1026,47 @@ def smooth_keys(keys, key_time, fall=False, rate=30):
     return out, 1.0 / rate
 
 
+
+
+def timed_keys(name, frames, fall=None, rate=20, loop=False):
+    """An animation from poses at times (seconds): the keys between them at rate per second (20: 3 ticks of the engine, a
+    whole number) on a smooth curve (a cubic
+    Hermite spline through the poses, its slopes from the neighbours: no jolt at a pose). fall: (start, end) seconds of
+    a fall: the time runs like a weight that drops (slow at first, fast at the end), then a small bounce on the floor
+    at the next pose. A channel left out of a pose is 0 (the rest pose) there"""
+    times = [t for t, p in frames]
+    poses = [p for t, p in frames]
+    channels = sorted({c for p in poses for c in p})
+    n = len(frames)
+    def value(k, c):
+        return np.array(poses[k].get(c, [0, 0, 0]), dtype=float)
+    def slope(k, c):
+        if k == 0 or k == n - 1:
+            return np.zeros(3)
+        return (value(k + 1, c) - value(k - 1, c)) / (times[k + 1] - times[k - 1])
+    total = times[-1]
+    steps = int(round(total * rate))
+    out = []
+    for i in range(steps + 1):
+        t = i / rate
+        if fall is not None and fall[0] < t < fall[1]:
+            u = (t - fall[0]) / (fall[1] - fall[0])
+            t = fall[0] + (fall[1] - fall[0]) * u ** 1.7
+        k = 0
+        while k < n - 2 and t >= times[k + 1]:
+            k += 1
+        d = times[k + 1] - times[k]
+        f = min(1.0, max(0.0, (t - times[k]) / d))
+        h00 = 2 * f ** 3 - 3 * f ** 2 + 1
+        h10 = f ** 3 - 2 * f ** 2 + f
+        h01 = -2 * f ** 3 + 3 * f ** 2
+        h11 = f ** 3 - f ** 2
+        key = {}
+        for c in channels:
+            v = h00 * value(k, c) + h10 * d * slope(k, c) + h01 * value(k + 1, c) + h11 * d * slope(k + 1, c)
+            key[c] = [round(float(e), 2) for e in v]
+        out.append(key)
+    return {'name': name, 'key_time': 1.0 / rate, 'loop': loop, 'keys': out}
 
 
 def guard_faces(jo_model):
@@ -821,14 +1119,24 @@ def build_guards():
     # (far away: fewer polygons, the same skeleton and animations)
     guard_model('guardf', far=True)
     guard_model('guardnf', far=True, rifle=False)
+    # (the cap alone, rigid: the cap of a dead guard on the floor)
+    guard_model('cap', rifle=False, only='cap')
+    # The scientists: a white coat, no cap, no rifle (the same skeleton and animations: they walk, raise their hands, run,
+    # fall like the guards; their faces: the same textures, swapped by guards.c like the guards')
+    guard_textures('S', 'scientist')
+    guard_model('scient', style='scientist', prefix='S', helmet=False, rifle=False, hanging=True)
+    guard_model('scientf', style='scientist', prefix='S', far=True, helmet=False, rifle=False, hanging=True)
     # (the converter of the engine: the skeleton and the animations, the textures embedded)
     import sys
     sys.path.insert(0, os.path.join(DEMO, '..', '..', 'Compiler', 'COMMON'))
     import jo_model
     guard_faces(jo_model)
-    for name in ('guard', 'guardn', 'guardf', 'guardnf'):
+    for name in ('guard', 'guardn', 'guardf', 'guardnf', 'scient', 'scientf'):
         stats = jo_model.convert(os.path.join(MODELS, name + '.obj'), os.path.join(CD, name.upper() + '.JOM'), keep_triangles=True,
                                  remove_unused=True, embed_textures=True, quiet=True, skeleton=os.path.join(MODELS, name + '.json'))
         for w in stats.get('warnings', []):
             print('  %s: %s' % (name, w))
         print('  %s.JOM: %s polygons, %s bytes' % (name.upper(), stats.get('polygons'), stats.get('bytes')))
+    stats = jo_model.convert(os.path.join(MODELS, 'cap.obj'), os.path.join(CD, 'CAP.JOM'), keep_triangles=True, remove_unused=True,
+                             embed_textures=True, quiet=True)
+    print('  CAP.JOM: %s polygons, %s bytes' % (stats.get('polygons'), stats.get('bytes')))

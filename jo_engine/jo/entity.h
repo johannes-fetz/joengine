@@ -51,13 +51,14 @@
 
 /** @brief Entities at most (they are allocated with their count when a level is loaded) */
 # define JO_ENTITY_MAX                      (1024)
-/** @brief Classes at most (the engine uses 4) */
+/** @brief Classes at most (the engine uses 8) */
 # define JO_ENTITY_MAX_CLASSES              (24)
 /** @brief Actions waiting for their delay at most */
 # define JO_ENTITY_MAX_PENDING              (32)
-/** @brief Different models of the entities at most */
-# define JO_ENTITY_MAX_MODELS               (16)
-/** @brief The entities farther from the player are not updated (world units), unless they wait for something (timer) */
+/** @brief Different models of the entities at most (the models of the classes too: the things broken, the pieces) */
+# define JO_ENTITY_MAX_MODELS               (32)
+/** @brief The entities farther from the player are not updated (world units), unless they wait for something (timer), see
+ *  jo_entities_set_wake() */
 # define JO_ENTITY_WAKE_DISTANCE            (3000)
 /** @brief The models of the entities farther are not drawn (world units), see the property draw_distance */
 # define JO_ENTITY_DRAW_DISTANCE            (2000)
@@ -98,6 +99,12 @@ typedef struct
     void                            (*death)(jo_entity * const entity, jo_entity * const source);
     /** @brief Draw the entity (the camera matrix is the current matrix), JO_NULL: its model at its position */
     void                            (*draw)(jo_entity * const entity);
+    /** @brief Draw the entity on the slave CPU (see jo_entities_draw_slave(): the slave 3D calls, jo_actor_draw_slave()),
+     *  JO_NULL: the master CPU draws it (its draw callback). An entity without draw callback is drawn by both CPUs */
+    void                            (*draw_slave)(jo_entity * const entity);
+    /** @brief The tint of the entity (the light of the lamps on it, see jo_3d_point_lights_sample()) before it is drawn:
+     *  the class changes it (a character hit: red), JO_NULL: the light of the lamps */
+    void                            (*tint)(jo_entity * const entity, int * const r, int * const g, int * const b);
 }                                   jo_entity_class;
 
 /** @brief An entity */
@@ -116,7 +123,7 @@ struct __jo_entity
     int                             health;         // 0: can't be damaged (or dead: JO_ENTITY_FLAG_DEAD)
     jo_3d_mesh                      *mesh;          // Model drawn (JO_NULL: none)
     jo_3d_mesh                      *far_mesh;      // Model drawn far away (JO_NULL: mesh)
-    jo_pos3D_fixed                  center;         // Bounding sphere of the model (world space)
+    jo_pos3D_fixed                  center;         // Bounding sphere of the model (world space, at jo_entity_set_mesh())
     int                             mesh_radius;
     int                             far_distance;   // The far model is drawn farther (world units, on the ground)
     int                             draw_distance;  // The model is not drawn farther (world units, on the ground)
@@ -132,6 +139,12 @@ struct __jo_entity
     jo_pos3D_fixed                  cell_position;
     short                           cells[5];
     unsigned short                  cell_generation;
+    // (internal) Prepared for the frame (see jo_entities_prepare_draw()): the distance of the view (see
+    // jo_entity_view_distance(), -1: not drawn), the tint (packed, see jo_3d_get_tint())
+    short                           view_distance;
+    unsigned short                  tint;
+    // (internal) Height of the center of the bounding sphere above the position (the entity moves: its center follows)
+    jo_fixed                        center_dy;
 } __attribute__((aligned(16)));     // (128 bytes: an entity of the table on 8 lines of the cache, see jo_entities_load())
 
 /** @brief Damage around a point given to the game (the player is not an entity)
@@ -147,6 +160,18 @@ typedef void                        (*jo_entity_area_damage_callback)(const jo_p
  *  @param cls Class (it must stay in memory). A class with the name of a class of the engine replaces it
  */
 void                                jo_entity_register_class(const jo_entity_class * const cls);
+
+/** @brief Let the master CPU draw the entities of a class (its draw callback) while the slave CPU draws others of the same
+ *  class (its draw_slave callback), see jo_entities_draw()
+ *  @param cls Class (registered or not)
+ *  @param parallel true: the 2 callbacks don't share data that they change while they draw (each one only reads the
+ *         class data, or writes the data of its own entity), false (default): the master CPU waits until the slave CPU
+ *         has drawn all its entities with a draw_slave callback before it draws them
+ *  @remarks Without it, the characters of a crowd are drawn one CPU after the other: the master CPU waited 15 ms for the
+ *           slave CPU in front of 9 characters (28 frames per second instead of 30), whatever the share of each CPU
+ *  @remarks The actors of the class "actor" of the engine without bone callback are always drawn in parallel
+ */
+void                                jo_entity_class_set_parallel_draw(const jo_entity_class * const cls, const bool parallel);
 
 /** @brief Create the entities of a level (sections ENTI, PROP, LINK): the previous ones are freed
  *  @param level Level (it can be freed after: what the entities need is copied)
@@ -165,10 +190,51 @@ void                                jo_entities_free(void);
  */
 void                                jo_entities_update(const jo_pos3D_fixed * const player, const int elapsed);
 
-/** @brief Draw the entities (the camera matrix is the current matrix, see jo_3d_set_depth_bias())
+/** @brief The entities updated by jo_entities_update(): the ones that wait for something (timer > 0), the ones near the
+ *  player, and the ones seen
+ *  @param distance Nearer than it on X and Z, from the edge of their cylinder (world units, JO_ENTITY_WAKE_DISTANCE by
+ *  default; 0: none by the distance)
+ *  @param when_seen true: also the ones drawn in the last frame (in a cell seen, in the view: see jo_entities_prepare_draw()),
+ *  false by default. With a short distance, the entities behind the walls sleep (less CPU): their class wakes them by
+ *  their timer (a noise, an alarm)
+ */
+void                                jo_entities_set_wake(const int distance, const bool when_seen);
+
+/** @brief Prepare the drawing of the entities of the frame (the camera matrix is the current matrix, see
+ *  jo_3d_set_depth_bias()): the ones seen, their tint (the light of the lamps, see jo_3d_point_lights_sample()), the share
+ *  of the slave CPU (see jo_entities_draw_slave()). Before jo_3d_slave_begin() and the job of the slave CPU
+ *  @param slave_share Share of the cost of the entities drawn by the slave CPU (0 to 1024, 0: all by the master CPU): the
+ *         entities with a draw_slave callback or without draw callback, the others stay on the master CPU
+ *  @remarks Without it, jo_entities_draw() prepares the frame with everything on the master CPU
+ */
+void                                jo_entities_prepare_draw(const int slave_share);
+
+/** @brief Draw the entities of the master CPU (the camera matrix is the current matrix, see jo_3d_set_depth_bias())
  *  @return Number of entities drawn
+ *  @remarks The entities with a draw callback are drawn after the ones of the slave CPU with a draw_slave callback (the
+ *  master CPU waits for them: the callbacks of a class share its data, the faces of the characters), but the ones of a
+ *  class drawn in parallel (see jo_entity_class_set_parallel_draw()): drawn first, while the slave CPU draws
  */
 int                                 jo_entities_draw(void);
+
+/** @brief Draw the entities of the slave CPU (call it on the slave CPU, in the job between jo_3d_slave_begin() and
+ *  jo_3d_slave_end(), see jo_entities_prepare_draw()): first the ones with a draw_slave callback, then the models
+ *  @return Number of entities drawn
+ */
+int                                 jo_entities_draw_slave(void);
+
+/** @brief Time the master CPU waited for the entities of the slave CPU in the last frame (see jo_entities_draw())
+ *  @return Microseconds
+ */
+int                                 jo_entities_slave_wait_time(void);
+int                                 jo_entities_test_counts(const int which);
+
+/** @brief Polygons of the entities of a CPU in the frame (see jo_entities_prepare_draw(): the polygons of their models, plus
+ *  8 each), to balance the CPUs
+ *  @param slave false: the master CPU, true: the slave CPU
+ *  @return Polygons
+ */
+int                                 jo_entities_polygon_count(const bool slave);
 
 /** @brief Number of entities */
 int                                 jo_entity_count(void);
@@ -350,7 +416,7 @@ typedef void                        (*jo_actor_bone_callback)(jo_entity * const 
 typedef struct
 {
     jo_3d_model                     *model;
-    jo_3d_model                     *far_model;     // (property far_model, with a skeleton too) JO_NULL: model
+    jo_3d_model                     *far_model;     // (property far_model, the same bones and animations) JO_NULL: model
     short                           animation;      // Index in the model, -1: none
     short                           previous;       // Animation before the change (blended), -1: none
     int                             time;           // Milliseconds from the start of the animation
@@ -358,6 +424,7 @@ typedef struct
     int                             blend;          // Milliseconds left of the blend with the previous animation
     int                             blend_duration;
     jo_actor_bone_callback          bone_callback;  // JO_NULL: none
+    int                             shadow_radius;  // (property shadow) Its shadow on the ground (world units), 0: none
 }                                   jo_actor;
 
 /** @brief Create the actor of an entity: its model (the model of the entity, it has a skeleton), the animation of its
@@ -365,6 +432,13 @@ typedef struct
  *  @param entity Entity (its data starts with a jo_actor)
  */
 void                                jo_actor_spawn(jo_entity * const entity);
+
+/** @brief The shadow of an actor on the ground: a dark disc under its position (its feet), drawn with its model by
+ *  jo_actor_draw() and jo_actor_draw_slave() (the VDP1 darkens the pixels under it: 1 to 3 commands)
+ *  @param entity The actor
+ *  @param radius Radius (world units), 0: none (the property shadow of the entity, 0 by default)
+ */
+void                                jo_actor_set_shadow(jo_entity * const entity, const int radius);
 
 /** @brief Advance the animation of an actor
  *  @param entity Entity
@@ -376,6 +450,14 @@ void                                jo_actor_update(jo_entity * const entity, co
  *  @param entity Entity
  */
 void                                jo_actor_draw(jo_entity * const entity);
+
+/** @brief Draw an actor on the slave CPU (call it on the slave CPU, see jo_entities_draw_slave()): its model in the pose of
+ *  its animation at its position, turned by its yaw, with the distance and the tint prepared (see jo_entities_prepare_draw())
+ *  @param entity Entity
+ *  @param far_distance The far model farther (world units, on the ground), -1: the one of the entity
+ *  @param hidden_bones Bones not drawn (bits, see jo_3d_model_set_hidden_bones())
+ */
+void                                jo_actor_draw_slave(jo_entity * const entity, const int far_distance, const unsigned int hidden_bones);
 
 /** @brief Play an animation (nothing if it is already played)
  *  @param entity Entity

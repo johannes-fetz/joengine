@@ -56,6 +56,7 @@
 #include "jo/effects.h"
 #include "jo/entity.h"
 #include "jo/vehicle.h"
+#include "internal/vehicle.h"
 
 /** @brief The front wheels turn this fast (degrees per second), and come back */
 #define JO_VEHICLE_STEER_SPEED              (140)
@@ -201,9 +202,21 @@ void                                jo_vehicle_drive(jo_entity * const entity, c
         v->speed = v->speed > 0 ? JO_MAX(v->speed - step, 0) : JO_MIN(v->speed + step, 0);
     }
     else if (throttle > 0)
-        v->speed += jo_fixed_mult(step * throttle / 256, JO_FIXED_1 - v->speed / v->max_speed);
+    {
+        // (step x throttle overflowed from a frame of 457 ms (acceleration 280): the vehicle went backward. A long frame
+        // went past the top speed, then the speed swung around it, wider and wider: the top speed at most)
+        target = v->speed;
+        v->speed += jo_fixed_mult(jo_fixed_mult(step, throttle << 8), JO_FIXED_1 - v->speed / v->max_speed);
+        if (target <= jo_int2fixed(v->max_speed) && v->speed > jo_int2fixed(v->max_speed))
+            v->speed = jo_int2fixed(v->max_speed);
+    }
     else if (throttle < 0)
-        v->speed += jo_fixed_mult(step * throttle / 256, JO_FIXED_1 + v->speed / (v->max_speed / 3));
+    {
+        target = v->speed;
+        v->speed += jo_fixed_mult(jo_fixed_mult(step, throttle << 8), JO_FIXED_1 + v->speed / (v->max_speed / 3));
+        if (target >= -jo_int2fixed(v->max_speed / 3) && v->speed < -jo_int2fixed(v->max_speed / 3))
+            v->speed = -jo_int2fixed(v->max_speed / 3);
+    }
     else
     {
         step = jo_int2fixed(JO_VEHICLE_DRAG) / 1000 * elapsed;
@@ -264,8 +277,10 @@ void                                jo_vehicle_drive(jo_entity * const entity, c
     else if (v->lift < -JO_FIXED_1 * 6)
         v->lift = -JO_FIXED_1 * 6;
     entity->position.y = -mean;
-    // The wheels turn: the distance / the radius (radians to degrees)
-    v->wheel_angle = (v->wheel_angle + jo_fixed2int(distance * 573 / 10) / v->wheel_radius + 360) % 360;
+    // The wheels turn: the distance / the radius (radians to degrees: 57.3 in fixed point, distance * 573 overflowed
+    // above 57 world units per update)
+    v->wheel_angle = (v->wheel_angle + (jo_fixed2int(jo_fixed_mult(distance, 3755213)) / v->wheel_radius) % 360 + 360) % 360;
+    entity->center_dy = -jo_int2fixed(30);
     entity->center.x = entity->position.x;
     entity->center.z = entity->position.z;
     entity->center.y = entity->position.y - jo_int2fixed(30);
@@ -361,7 +376,7 @@ static void                         __jo_vehicle_draw(jo_entity * const entity)
 }
 
 const jo_entity_class               __jo_vehicle_class = {"vehicle", sizeof(jo_vehicle), __jo_vehicle_spawn, JO_NULL, JO_NULL,
-                                                          JO_NULL, __jo_vehicle_draw};
+                                                          JO_NULL, __jo_vehicle_draw, JO_NULL, JO_NULL};
 
 #endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 

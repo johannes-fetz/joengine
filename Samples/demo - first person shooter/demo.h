@@ -144,6 +144,16 @@ void                                hurt_player(const int damage);
  *  @return false if it can't be loaded
  */
 bool                                load_sound(const char * const name, jo_sound * const sound);
+/** @brief Pieces of glass flying from a point (count of them, spread units around it), away from dir, the sound (doors.c) */
+void                                glass_burst(const jo_pos3D_fixed * const center, const jo_pos3D_fixed * const dir, const int count, const int spread,
+                                                const jo_entity * const owner);
+/** @brief The pieces of glass moved and drawn by the entity broken last (glass_burst(), a window) */
+void                                glass_shards_update(const jo_entity * const entity, const int elapsed);
+void                                glass_shards_draw(const jo_entity * const entity);
+/** @brief Draw the pieces of glass on the slave CPU (see glass_shards_draw()) */
+void                                glass_shards_draw_slave(const jo_entity * const entity);
+/** @brief The classes of the breakable things (props.c): the monitors of the computers, the glassware */
+void                                props_register(void);
 /** @brief Play a sound on one of count channels from first, in turn (*next): the oldest one is stopped if it still
  *  plays (a burst, several guards: no shot is lost, the end of the echo of the oldest one is cut) */
 void                                play_sound(jo_sound * const sound, const int first, const int count, int * const next);
@@ -252,8 +262,16 @@ void                                billboards_draw(void);
 
 /** @brief Register the class guard (before the level is loaded) */
 void                                guards_register(void);
+/** @brief Keep some of the high work RAM for the models of the persons (before the level is loaded: the rooms take it all,
+ *  see guards_load()) */
+void                                guards_reserve_fast_memory(void);
+/** @brief Give back the memory kept for the table of the entities (just before jo_entities_load()) */
+void                                guards_release_entity_memory(void);
 /** @brief Their sounds, the sprite of the blood */
 void                                guards_load(void);
+#ifdef DEMO_TRACE
+void                                guards_trace(void);
+#endif
 /** @brief A shot on the cap of a guard in his fall (the cap follows the fall: the place where it was drawn)
  *  @param max_t Distance of what the shot hits first (world, fixed)
  *  @param knock true: the cap flies off his head
@@ -272,10 +290,28 @@ bool                                guards_auto_aim(const jo_pos3D_fixed * const
 void                                camera_view_to_world(const jo_fixed vx, const jo_fixed vy, const jo_fixed vz, jo_pos3D_fixed * const w);
 /** @brief The agent fires: the guards near him hear it, the guards near the bullet too (from eye along dir, it stopped at
  *  length) */
-void                                guards_hear_shot(const jo_pos3D_fixed * const eye, const jo_pos3D_fixed * const dir, const jo_fixed length);
+void                                guards_hear_shot(const jo_pos3D_fixed * const eye, const jo_pos3D_fixed * const dir, const jo_fixed length,
+                                                     const bool loud);
 /** @brief The drops of blood: their flight (each frame), their sprites (in the world) */
 void                                guards_update_blood(const int elapsed);
 void                                guards_draw_blood(void);
+
+#ifdef DEMO_BENCH_DOORS_OPEN
+/** @brief The benchmark: open all the doors (kept open, see DEMO_BENCH_DOORS_OPEN in main.c) */
+void                                doors_bench_open(void);
+#endif
+#ifdef DEMO_BENCH
+/** @brief The benchmark: count persons (the scientists first) in rows in front of a point (x, z, the yaw of the view);
+ *  scientists: the guards become scientists */
+void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int view_yaw, const int count,
+                                                        const bool scientists);
+# ifdef DEMO_BENCH_CHECK
+/** @brief The check of the benchmark: the persons in the view of a frame (one per person and per frame), the ones of them
+ *  not drawn in that frame (see check_persons() in guards.c) */
+extern int                          guards_check_seen;
+extern int                          guards_check_missed;
+# endif
+#endif
 
 /*
 ** HUD (hud.c)

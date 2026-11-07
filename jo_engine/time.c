@@ -37,6 +37,7 @@
 #include "jo/time.h"
 #include "jo/core.h"
 #include "jo/time.h"
+#include "internal/core.h"
 
 void                                    jo_time_init(unsigned char mode)
 {
@@ -65,9 +66,22 @@ static  __jo_force_inline unsigned int  __jo_time_get_clock_mode(void)
     return (8 << ((jo_time_peek_byte(RegisterTCR) & 3) << 1));
 }
 
+/** @brief Microseconds of clocks of the CPU (the speed of __jo_time_get_clock_speed() x 2^20: without float, this runs at
+ *  each VBLANK, see __jo_time_vblank()) */
+static  __jo_force_inline unsigned int  __jo_time_clocks_to_mcr(const unsigned int clocks)
+{
+    unsigned int                        speed;
+
+    speed = ((*(unsigned short *)0x25f80004 & 0x1) == 0x1) ?
+            ((jo_time_peek_int(RegisterSysClock) == 0) ? 39291 : 36873) :
+            ((jo_time_peek_int(RegisterSysClock) == 0) ? 39018 : 36617);
+    // (64 bits product: dmulu.l)
+    return ((unsigned int)(((unsigned long long)clocks * speed) >> 20));
+}
+
 static  __jo_force_inline int           __jo_time_frame_count_to_mcr(int count)
 {
-    return (__jo_time_get_clock_speed() * count * __jo_time_get_clock_mode());
+    return ((int)__jo_time_clocks_to_mcr((unsigned int)count * __jo_time_get_clock_mode()));
 }
 
 /** @brief Free running timer ticks since the previous call
@@ -86,12 +100,35 @@ static  __jo_force_inline int           jo_time_elapsed_frc(unsigned short *prev
     return (elapsed);
 }
 
+static unsigned int                     __jo_time_ticks = 0;
+static unsigned int                     __jo_time_microseconds = 0;
+static unsigned short                   __jo_time_previous = 0;
+
+/** @brief Count the time since the last call (the free running counter wraps after about 78 ms: counted at each VBLANK
+ *  too, jo_get_ticks() called once a second lost most of the time) */
+static void                             __jo_time_update_ticks(void)
+{
+    // (the microseconds under a millisecond are kept for the next call: called every 500 us, it advanced never)
+    __jo_time_microseconds += __jo_time_frame_count_to_mcr(jo_time_elapsed_frc(&__jo_time_previous));
+    __jo_time_ticks += __jo_time_microseconds / 1000;
+    __jo_time_microseconds %= 1000;
+}
+
+void                                    __jo_time_vblank(void)
+{
+    __jo_time_update_ticks();
+}
+
 unsigned int                            jo_get_ticks(void)
 {
-    static unsigned int                 ticks = 0;
-    static unsigned short               previous = 0;
+    unsigned int                        sr;
+    unsigned int                        ticks;
 
-    ticks += __jo_time_frame_count_to_mcr(jo_time_elapsed_frc(&previous)) / 1000;
+    // (the VBLANK interrupt counts too)
+    sr = __jo_core_disable_interrupts();
+    __jo_time_update_ticks();
+    ticks = __jo_time_ticks;
+    __jo_core_restore_interrupts(sr);
     return (ticks);
 }
 

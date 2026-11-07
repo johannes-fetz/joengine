@@ -206,6 +206,7 @@ typedef struct
     unsigned short                          *corner_normals;    // 4 per polygon: index in normals (JO_NULL: none)
     jo_pos3D_fixed                          *vertex_colors;     // r, g, b per point, 1.0 = JO_FIXED_1 (JO_NULL: none)
     unsigned short                          gouraud_tables;     // First gouraud table (polygon k: + k), 0: none
+    unsigned short                          gouraud_table_count;
     unsigned int                            group_count;
     jo_3d_model_group                       *groups;
     unsigned int                            bone_count;         // 0: no skeleton
@@ -221,6 +222,9 @@ typedef struct
                                                                 // (jo_3d_create_model_in_place()): not freed with the model
     bool                                    single_block;       // The model, its mesh, the attributes and the texture ids
                                                                 // in one memory block (jo_3d_create_model_in_place())
+    void                                    *fast_block;        // Copy of the points, the polygons, the bones and the
+                                                                // groups in the high work RAM (see
+                                                                // jo_3d_model_use_fast_memory()), JO_NULL: none
 }                                           jo_3d_model;
 
 /** @brief Create a model from the content of a JOM file
@@ -253,13 +257,6 @@ jo_3d_model                                 *jo_3d_create_model_in_place(const u
  *           the work RAM
  */
 jo_3d_model                                 *jo_3d_load_model(const char * const filename);
-
-/** @brief Load a model with a gouraud table per polygon (Internal usage: the cells, lit by the point lights, see
- *  jo_3d_point_lights_add_mesh()). jo_3d_load_model() gives one table to the polygons with the same colors
- *  @param filename File name
- *  @return The model, JO_NULL if not loaded
- */
-jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename);
 
 /** @brief The next models created or loaded get a gouraud table per polygon, in the order of the polygons (default: the
  *  polygons with the same 4 colors share a table): for a model whose tables the game writes again polygon by polygon (the
@@ -364,11 +361,40 @@ void                                        jo_3d_pose_blend(const jo_3d_model *
 void                                        jo_3d_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
                                                                   const jo_3d_bone_callback callback, void * const param);
 
+/** @brief Draw a model with a skeleton in a pose on the slave CPU (call it on the slave CPU, see jo_3d_model_draw_pose())
+ *  @param model Model
+ *  @param pose Pose (JO_NULL: the pose of the OBJ)
+ *  @param callback Called after each bone (JO_NULL: none; on the slave CPU: what it writes is read by the master CPU
+ *         without its cache)
+ *  @param param Parameter of the callback
+ *  @param hidden_bones Bones not drawn (bits, see jo_3d_model_set_hidden_bones())
+ *  @remarks The tint of the slave CPU (see jo_3d_slave_set_tint())
+ */
+void                                        jo_3d_slave_model_draw_pose(const jo_3d_model * const model, const jo_3d_pose * const pose,
+                                                                        const jo_3d_bone_callback callback, void * const param,
+                                                                        const unsigned int hidden_bones);
+
 /** @brief Bones not drawn by the next jo_3d_model_draw_pose() (a hat shot off the head of a character: its bone hidden, the hat
  *  drawn alone where it falls: the other bones hidden)
- *  @param mask Bit k: the bone k (and its children) hidden, 0: all drawn
+ *  @param mask Bit k: the polygons of the bone k hidden (its children are drawn), 0: all drawn
  */
 void                                        jo_3d_model_set_hidden_bones(const unsigned int mask);
+
+/** @brief Move what the drawing of a model reads for each vertex, polygon and bone (its points, its polygons, their
+ *  attributes, its bones and their groups) to the high work RAM, when it is in a slower memory (the low work RAM, a RAM
+ *  cartridge)
+ *  @param model Model loaded by jo_3d_load_model() (its data in the file: the copies replace them, the file stays)
+ *  @return true if the model reads them in the high work RAM now (moved, or already there), false: not enough free high
+ *          work RAM (the model is unchanged)
+ *  @remarks For the models drawn in many copies at each frame (the characters of a crowd): the high work RAM is full after
+ *           the rooms of a level, the characters loaded after them are read in the low work RAM. Measured (FPS demo, 9
+ *           scientists in front of the camera): the slave CPU drew them in 23.8 ms, 20.7 ms with their models in the high
+ *           work RAM
+ *  @remarks jo_malloc() takes the high work RAM first: it is often full after the loading of a level. Keep some for this
+ *           (jo_malloc() a block before the loading, jo_free() it just before this call)
+ *  @remarks The animations stay in the file (only 2 keys are read per pose)
+ */
+bool                                        jo_3d_model_use_fast_memory(jo_3d_model * const model);
 
 /** @brief Draw a model with the current matrix
  *  @param model Model

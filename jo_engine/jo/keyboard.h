@@ -106,7 +106,9 @@ static  __jo_force_inline unsigned char             jo_keyboard_get_char(void)
     jo_peripheral_keyboard                                     *keyboard;
 
 	keyboard = (jo_peripheral_keyboard *)&__jo_smpc_peripherals[0];
-	if ((keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0 || keyboard->code >= __JO_KEYBOARD_MAPPING_SIZE)
+    // (a keyboard only: the condition and the code are the axes of an analog pad, the position of a mouse)
+	if (keyboard->id != JO_PERIPHERAL_ID_KEYBOARD || (keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0 ||
+        keyboard->code >= __JO_KEYBOARD_MAPPING_SIZE)
         return (0);
 	if (keyboard->condition & JO_PERIPHERAL_KEYBOARD_CAPS_LOCK)
         return (__internal_keyboard_caps_lock_mapping[keyboard->code]);

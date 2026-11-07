@@ -108,8 +108,9 @@ static  __jo_force_inline unsigned int        jo_read_big_endian_uint(const unsi
  */
 int				sprintf(char* str, const char* format, ...);
 
-/** @brief A small sprintf of the engine (jo_printf()...): %d %i %u %x %X %c %s %%, the flags - and 0, a width. Faster and
- *  smaller than the one of the C library (which handles the floats: %f is not supported here, written as it is)
+/** @brief A small sprintf of the engine (jo_printf()...): %d %i %u %x %X %c %s %%, the flags - 0 + and space, a width, a
+ *  precision (%.3d: 3 digits at least, %.5s: 5 characters at most). Faster and smaller than the one of the C library
+ *  (which handles the floats: %f is not supported here, written as it is, its argument skipped)
  *  @param str String (big enough)
  *  @param format Format string
  *  @param ... Arguments
@@ -124,6 +125,24 @@ int                 jo_sprintf(char * const str, const char * const format, ...)
  *  @return The number of characters written (without the null character)
  */
 int                 jo_vsprintf(char * const str, const char * format, va_list args);
+
+/** @brief jo_sprintf() with the size of the string: size - 1 characters at most, then the null character
+ *  @param str String
+ *  @param size Size of the string (bytes)
+ *  @param format Format string
+ *  @param ... Arguments
+ *  @return The number of characters written (without the null character)
+ */
+int                 jo_snprintf(char * const str, const unsigned int size, const char * const format, ...);
+
+/** @brief jo_snprintf() with a list of arguments
+ *  @param str String
+ *  @param size Size of the string (bytes)
+ *  @param format Format string
+ *  @param args Arguments
+ *  @return The number of characters written (without the null character)
+ */
+int                 jo_vsnprintf(char * const str, const unsigned int size, const char * format, va_list args);
 
 #ifdef JO_DEBUG
 
@@ -153,7 +172,7 @@ void jo_print(int x, int y, char * str);
  *  @param Y Vertical position from top left screen corner
  *  @param ... Arguments
  */
-# define jo_printf(X, Y, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_print(X, Y, __jo_sprintf_buf); } while(0)
+# define jo_printf(X, Y, ...)		do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_print(X, Y, __jo_sprintf_buf); } while(0)
 
 /** @brief printf implementation
  *  @param X Horizontal position from top left screen corner
@@ -226,13 +245,6 @@ void            jo_dma_copy(const void * const src, void * const dest, const uns
   * @param size Size in bytes (multiple of 4)
   */
 void            jo_dma_fill32(void * const dest, const unsigned int value, const unsigned int size);
-
-/** @brief Read a 32 bits I/O port into memory with the DMA controller of the current CPU (Internal usage)
-  * @param port Port address (the address doesn't change)
-  * @param dest Destination (4 bytes aligned)
-  * @param size Size in bytes (multiple of 4)
-  */
-void            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size);
 
 /** @brief NULL implementation
  */

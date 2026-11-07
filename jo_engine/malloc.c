@@ -61,7 +61,7 @@ static jo_memory_zone   memory_zones[JO_MALLOC_MAX_MEMORY_ZONE];
 void                    jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
 {
 #ifdef JO_DEBUG
-    if (__jo_memory_zone_index >= (JO_MALLOC_MAX_MEMORY_ZONE - 1))
+    if (__jo_memory_zone_index >= JO_MALLOC_MAX_MEMORY_ZONE)
     {
         jo_core_error("Too many memory zone");
         return ;
@@ -152,7 +152,9 @@ static jo_memory_block  *jo_malloc_new_block(const int zone, const unsigned int 
     jo_memory_block     *block;
 
     block = (jo_memory_block *)memory_zones[zone].high;
-    if (((unsigned char *)block + n) > memory_zones[zone].end)
+    // (the room left, not block + n: a huge n (jo_malloc(-100000)) wrapped the address around, the block was accepted
+    // and the top of the zone went back over the blocks in use)
+    if (n > (unsigned int)(memory_zones[zone].end - (unsigned char *)block))
         return (JO_NULL);
     memory_zones[zone].high += n;
     block->zone = zone;
@@ -172,6 +174,9 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
         return (JO_NULL);
     }
 #endif
+    // (a huge size, a negative number given as a size: n + the header wrapped around, a block smaller than its header)
+    if (n > 0xFFFFFFFFu - sizeof(*block) - 3)
+        return (JO_NULL);
     n += sizeof(*block);
     while (JO_MOD_POW2(n, 4))
         ++n;
@@ -250,8 +255,6 @@ inline void                     jo_free(const void * const p)
     jo_malloc_merge_free_blocks(zone, block);
 }
 
-#ifdef JO_DEBUG
-
 int                     jo_memory_usage_percent(void)
 {
     register int        zone;
@@ -311,8 +314,6 @@ int                     jo_memory_fragmentation(void)
     }
     return fragment;
 }
-
-#endif
 
 /*
 ** END OF FILE
