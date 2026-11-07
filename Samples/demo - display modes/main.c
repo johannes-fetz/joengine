@@ -28,14 +28,14 @@
 
 /*
 ** Display modes: every resolution of the clock family (320/640 or 352/704 pixels, set JO_SCREEN_WIDTH = 352 in the
-** makefile for the second one), the VDP2 effects and the music streamed from the CD.
+** makefile for the second one) and the VDP2 effects.
 **
 ** The cube is lit by the palette lighting (the only lighting of the 640 and 704 pixels modes): 8 shades of its colors in
 ** its palette. Its first 3 faces use the shades at 192: in "sprite priority" they go behind the checker (640 and 704 pixels).
 **
 ** Special colors: the yellow stripes (colors 2 and 3 of their palette) of NBG2 are over the NBG1 bitmap or transparent.
 **
-** A: next resolution    B: next effect    C: automatic tour on/off    L/R: blend ratio    START: pause the music
+** A: next resolution    B: next effect    C: automatic tour on/off    L/R: blend ratio
 */
 
 #include <jo/jo.h>
@@ -217,13 +217,6 @@ static void             read_inputs(void)
         ++blend_ratio;
         set_effect(effect);
     }
-    if (jo_is_pad1_key_down(JO_KEY_START))
-    {
-        if (jo_audio_is_music_paused())
-            jo_audio_resume_music();
-        else
-            jo_audio_pause_music();
-    }
 }
 
 static void             demo_loop(void)
@@ -247,9 +240,7 @@ static void             demo_loop(void)
               modes[JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704][resolution][2] ? "single interlace" : "progressive");
     jo_printf(1, 2, "effect: %s                ", effect_names[effect]);
     jo_printf(1, 3, "blend ratio %d  tour %s  ", blend_ratio, tour ? "on " : "off");
-    jo_printf(1, 4, "music %s  underruns %d  ", jo_audio_is_music_paused() ? "paused " : "playing",
-              jo_audio_get_music_underruns());
-    jo_printf(1, 26, "A:mode B:effect C:tour L/R START");
+    jo_printf(1, 26, "A:mode B:effect C:tour L/R");
 }
 
 static jo_3d_mesh       *create_cube(const int size)
@@ -363,7 +354,6 @@ void                    jo_main(void)
     jo_3d_set_mesh_polygon_color(shadow, JO_VDP2_SHADOW_COLOR, 0);
     draw_background();
     create_stripes();
-    jo_audio_play_music("MUSIC.WAV", true);
     jo_core_add_callback(demo_loop);
     jo_core_run();
 }
