@@ -303,7 +303,8 @@ static void                     t_sprite_shapes(void)
     JT_EQ(__jo_vdp1_frame_command_count() - before, 1);
     JT_EQ(cmd->ctrl, JO_VDP1_CMD_POLYGON);
     JT_EQ(cmd->link, 0);
-    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB);
+    // (on the screen: the pre-clipping off, see JO_VDP1_PRE_CLIPPING_DISABLE)
+    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB | JO_VDP1_PRE_CLIPPING_DISABLE);
     JT_EQ(cmd->colr, JO_COLOR_RGB(255, 0, 0));
     JT_EQ(cmd->grda, 0);
     JT_EQ(cmd->xa, 10);
@@ -349,7 +350,8 @@ static void                     t_sprite_shapes(void)
     // The state of the sprites is back: a plain rectangle again
     cmd = t_shape_next(&keys);
     jo_sprite_draw_rectangle(10, 160, 30, 5, JO_COLOR_Red, 500);
-    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB);
+    // (on the screen: the pre-clipping off, see JO_VDP1_PRE_CLIPPING_DISABLE)
+    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB | JO_VDP1_PRE_CLIPPING_DISABLE);
     // A quad on 4 points from the top left of the screen, then the same from the center: the same command
     cmd = t_shape_next(&keys);
     jo_sprite_draw_color_4p_fixed(quad, JO_COLOR_Yellow, JO_MULT_BY_65536(400), false);

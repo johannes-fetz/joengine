@@ -2729,6 +2729,21 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     ++*ctx->displayed_polygon_count;
     function = a->direction & JO_VDP1_DIRECTION_FUNCTION_MASK;
     pmod = a->draw_mode | ctx->clip_mode;
+    // (the pre-clipping disabled for a polygon inside of the screen, see jo_3d_pre_clipping(): a window without clipping,
+    // the system clipping area. The sign bits of the packed positions (x, y) and of the packed distances to the right and
+    // bottom sides: a borrow of y into x only comes with a y out of the area, found by its own sign. The test of the 8
+    // coordinates cost 1 microsecond per polygon to the environment map demo, all its polygons in the C code)
+    if (ctx->clip_mode == 0)
+    {
+        const unsigned int                  area = ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+        const unsigned int                  p0 = (unsigned int)v0->xy;
+        const unsigned int                  p1 = (unsigned int)v1->xy;
+        const unsigned int                  p2 = (unsigned int)v2->xy;
+        const unsigned int                  p3 = (unsigned int)v3->xy;
+
+        if (((p0 | p1 | p2 | p3 | (area - p0) | (area - p1) | (area - p2) | (area - p3)) & 0x80008000u) == 0)
+            pmod |= JO_VDP1_PRE_CLIPPING_DISABLE;
+    }
     // Gouraud shading alone or with half luminance / half transparency (modes 4, 6 and 7)
     grda = (pmod & JO_VDP1_COLOR_CALC_GOURAUD) ? (a->gouraud_table != 0 ? (unsigned short)(a->gouraud_table + ctx->gouraud_offset) : 0) : 0;
     // An untextured polygon: its vertices rotated by one when the VDP1 draws it with fewer lines (0: not rotated, 1: B C D A)
@@ -5368,15 +5383,18 @@ typedef struct
     unsigned int                            gouraud_offset; // 52: offset to the tinted copy of the gouraud tables (a tint, 0: none)
     unsigned int                            no_subdivision; // 56: the budget of the subdivisions of the frame is spent (see
                                                             // JO_3D_SUBDIVISION_BUDGET): the polygons are not cut, fast path
-    short                                   window_left;    // 60: the rectangle of a clipped window (clip_mode != 0) in the
-    short                                   window_right;   // 62: local coordinates of the window: a polygon out of it is
-    short                                   window_top;     // 64: not drawn (see jo_3d_is_outside_window())
-    short                                   window_bottom;  // 66
+    unsigned int                            pre_clipping;   // 60: JO_VDP1_PRE_CLIPPING_DISABLE for the polygons inside of the
+                                                            // screen (no JO_3D_CODE_SCREEN), 0: never (see jo_3d_pre_clipping())
+    short                                   window_left;    // 64: the rectangle of a clipped window (clip_mode != 0) in the
+    short                                   window_right;   // 66: local coordinates of the window: a polygon out of it is
+    short                                   window_top;     // 68: not drawn (see jo_3d_is_outside_window())
+    short                                   window_bottom;  // 70
 }                                           jo_3d_polygon_loop;
 _Static_assert(__builtin_offsetof(jo_3d_polygon_loop, gouraud_offset) == 52, "__jo_3d_polygon_loop: offset of gouraud_offset");
 _Static_assert(__builtin_offsetof(jo_3d_polygon_loop, no_subdivision) == 56, "__jo_3d_polygon_loop: offset of no_subdivision");
-_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, window_left) == 60 && __builtin_offsetof(jo_3d_polygon_loop, window_bottom) == 66,
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, window_left) == 64 && __builtin_offsetof(jo_3d_polygon_loop, window_bottom) == 70,
                "__jo_3d_polygon_loop: offset of the window");
+_Static_assert(__builtin_offsetof(jo_3d_polygon_loop, pre_clipping) == 60, "__jo_3d_polygon_loop: offset of pre_clipping");
 
 /** @brief Check if a polygon (its 4 vertices projected) is outside of the rectangle of a window
  *  @param v The 4 vertices
@@ -5399,6 +5417,21 @@ static  __jo_force_inline bool              jo_3d_is_outside_window(jo_3d_vertex
             JO_MIN(JO_MIN(x[0], x[1]), JO_MIN(x[2], x[3])) > w->right - w->origin_x ||
             JO_MAX(JO_MAX(y[0], y[1]), JO_MAX(y[2], y[3])) < w->top - w->origin_y ||
             JO_MIN(JO_MIN(y[0], y[1]), JO_MIN(y[2], y[3])) > w->bottom - w->origin_y);
+}
+
+/** @brief The polygons of a window drawn with the pre-clipping of the VDP1 disabled when they are inside of the screen (their 4
+ *  vertices: the VDP1 tests each line against the clipping area before it draws it, about 4 cycles per line for nothing;
+ *  measured in Mednafen: 7 % of the drawing time of the fighters demo)
+ *  @param w Window
+ *  @return JO_VDP1_PRE_CLIPPING_DISABLE, or 0: a clipped window that is not a screen of its own (the pre-clipping of the
+ *  VDP1 skips the lines of a polygon out of its rectangle: kept)
+ *  @remarks The image doesn't change: the pixels out of the clipping area are not drawn anyway
+ *  @remarks The assembly loop (the outcodes of the vertices, against the screen of the window); the C code tests the screen
+ *  positions against the system clipping area, in the windows without clipping (see jo_3d_emit_polygon())
+ */
+static  __jo_force_inline unsigned int      jo_3d_pre_clipping(const jo_vdp1_window * const w)
+{
+    return (w->clip_mode != 0 && !w->screen ? 0 : JO_VDP1_PRE_CLIPPING_DISABLE);
 }
 
 #ifdef JO_TEST_PATH_COUNTS
@@ -5987,7 +6020,7 @@ __asm__(
 "    mov.l r13, @-r15\n"
 "    mov.l r14, @-r15\n"
 "    sts.l pr, @-r15\n"
-"    add #-16, r15\n"                    /* 0: zmin, 4 and 8: JO3DMIDDLE, 12: end code flag */
+"    add #-16, r15\n"                    /* 0: zmin, 4 and 8: JO3DMIDDLE, 12: draw mode bits (pre-clipping, end code) */
 "    mov r4, r14\n"
 "    mov r5, r8\n"
 "    mov r6, r9\n"
@@ -6058,6 +6091,7 @@ __asm__(
 "    or r13, r0\n"
 "    tst #48, r0\n"
 "    bf 8f\n"
+"    mov.l r0, @(12, r15)\n"             /* (the outcodes of the 4 vertices: the pre-clipping, see the label 2 below) */
      /* --- facing: cross product of the diagonals of the screen positions. Inside of the guard band (no JO_3D_CODE_GUARD),
         the differences of the coordinates fit in 16 bits: products of the low halves (muls.w), the coordinates are
         subtracted in the words without sign extension (the low half of a difference only depends on the low halves) */
@@ -6366,7 +6400,15 @@ __asm__(
 "    shll16 r0\n"
 "1:  mov #0, r0\n"
 "2:  mov.l r0, @(28, r13)\n"
-"    mov #0, r0\n"
+     /* (the draw mode bits of the polygon in the word 12 of the stack: the pre-clipping disabled when its 4 vertices are
+        inside of the screen (no JO_3D_CODE_SCREEN in their outcodes, see jo_3d_pre_clipping()), the end code flag added
+        to them below) */
+"    mov.l @(12, r15), r0\n"
+"    mov.l @(60, r14), r1\n"
+"    tst #15, r0\n"
+"    movt r0\n"
+"    neg r0, r0\n"
+"    and r1, r0\n"
 "    mov.l r0, @(12, r15)\n"
 "    mov r12, r0\n"
 "    tst #4, r0\n"
@@ -6390,7 +6432,8 @@ __asm__(
 "    mov.b @(r0, r2), r0\n"
 "    tst r0, r0\n"
 "    bt 1f\n"
-"    mov #-128, r0\n"
+"    mov.l @(12, r15), r0\n"
+"    or #128, r0\n"
 "    mov.l r0, @(12, r15)\n"
 "1:  mov.l 27f, r2\n"                   /* the flags of the texture: smaller copies (JO_3D_TEXTURE_HAS_MIPMAPS) */
 "    mov r1, r0\n"
@@ -6483,7 +6526,6 @@ __asm__(
 "    mov.l @(32, r14), r0\n"
 "    or r0, r11\n"
 "    mov.l @(12, r15), r0\n"
-"    extu.b r0, r0\n"
 "    or r0, r11\n"
 "    shll16 r11\n"
 "    mov.w @(6, r9), r0\n"
@@ -6578,7 +6620,7 @@ __asm__(
 "    JO3DRANGE r6, 1\n"
 "    JO3DRANGE r7, 1\n"                /* r2: xmin, r3: xmax */
 "    mov r14, r1\n"
-"    add #60, r1\n"
+"    add #64, r1\n"
 "    mov.w @r1+, r0\n"                 /* the left of the window */
 "    cmp/gt r3, r0\n"
 "    bt 60f\n"
@@ -6953,6 +6995,7 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     loop.window_right = (short)(w->right - w->origin_x);
     loop.window_top = (short)(w->top - w->origin_y);
     loop.window_bottom = (short)(w->bottom - w->origin_y);
+    loop.pre_clipping = jo_3d_pre_clipping(w);
     // (an environment map: the tile of each polygon is chosen by the C loop)
     ctx->environment = jo_3d_environment_of(pdata);
     fast = !ctx->mirror && ctx->front_shift < 0 && ctx->forced_key < 0 && ctx->texture_words == 0 && ctx->environment < 0;

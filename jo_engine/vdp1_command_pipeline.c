@@ -115,8 +115,9 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
  *  the frames as soon as the VDP1 draws a frame in a field (one image of 1 field) */
 # define JO_VDP1_PACED                      (1)
 #endif
-/** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check */
-# define JO_VDP1_CLEAR_POLYGON_MODE         (0x00C0)
+/** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check, no pre-clipping (it is the
+ *  system clipping area: see JO_VDP1_PRE_CLIPPING_DISABLE) */
+# define JO_VDP1_CLEAR_POLYGON_MODE         (0x00C0 | JO_VDP1_PRE_CLIPPING_DISABLE)
 /** @brief PTMR: the drawing starts automatically when the frame buffer changes */
 # define JO_VDP1_PTMR_AUTOMATIC_DRAW        (0x0002)
 /** @brief EDSR: the drawing of the current frame is finished */
@@ -145,6 +146,23 @@ unsigned short                          __jo_vdp1_display_level = 1;
 jo_fixed                                __jo_vdp1_near_z = JO_MULT_BY_65536(JO_TV_WIDTH_2) >> 1;
 short                                   __jo_vdp1_system_clip_right = JO_TV_WIDTH - 1;
 short                                   __jo_vdp1_system_clip_bottom = JO_TV_HEIGHT - 1;
+/** @brief The system clipping area in the local coordinates of each window, packed as the positions of the commands (right
+ *  in the high half, bottom in the low half, see JO_VDP1_OUTSIDE()) for the pre-clipping of the sprites: a window with its
+ *  own local coordinates (a screen of its own) has JO_VDP1_NO_PRE_CLIP_AREA (see jo_vdp1_update_pre_clip_areas()) */
+static unsigned int                     __jo_vdp1_pre_clip_areas[JO_VDP1_WINDOW_COUNT];
+/** @brief Area of no position: JO_VDP1_OUTSIDE() always has a sign bit */
+# define JO_VDP1_NO_PRE_CLIP_AREA           (0xFFFFFFFFu)
+
+/** @brief Compute the packed areas of the windows for the pre-clipping of the sprites (__jo_vdp1_pre_clip_areas), after a
+ *  change of the system clipping area or of the local coordinates of a window */
+static void                             jo_vdp1_update_pre_clip_areas(void)
+{
+    register int                        i;
+
+    for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
+        __jo_vdp1_pre_clip_areas[i] = (__jo_vdp1_windows[i].origin_x | __jo_vdp1_windows[i].origin_y) ? JO_VDP1_NO_PRE_CLIP_AREA :
+                                      ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+}
 
 /* Depth added to the keys of the commands (see jo_3d_set_depth_bias()) */
 int                                     __jo_vdp1_depth_bias = 0;
@@ -362,6 +380,7 @@ void                                    __jo_vdp1_init(void)
         __jo_vdp1_windows[i].screen = false;
     }
     __jo_vdp1_current_window = 0;
+    jo_vdp1_update_pre_clip_areas();
     __jo_vdp1_set_registers();
     JO_VDP1_PTMR = JO_VDP1_PTMR_AUTOMATIC_DRAW;
 }
@@ -384,6 +403,7 @@ void                                    __jo_vdp1_set_screen_mode(void)
     }
     __jo_vdp1_system_clip_right = __jo_screen.width - 1;
     __jo_vdp1_system_clip_bottom = __jo_screen.height - 1;
+    jo_vdp1_update_pre_clip_areas();
     __jo_vdp1_set_registers();
 }
 
@@ -407,6 +427,24 @@ int                                     __jo_vdp1_frame_command_count(void)
 int                                     jo_vdp1_command_max(void)
 {
     return (JO_VDP1_MAX_COMMANDS - JO_VDP1_HEADER_COMMANDS * 2 - 1);
+}
+
+/** @brief Allocate a command for the current frame, its link and gouraud table not written (see __jo_vdp1_add_command(): the
+ *  sprites write all the words of their commands, the call and the 2 stores of 16 bits paid for the test of their
+ *  pre-clipping)
+ *  @param z Depth used to sort the commands (bigger = farther)
+ *  @return Command or JO_NULL if the table is full
+ */
+static  __jo_force_inline jo_vdp1_command *jo_vdp1_new_command(const jo_fixed z)
+{
+    jo_vdp1_frame                       *frame;
+
+    frame = __jo_vdp1_frame;
+    if (__builtin_expect(frame->count >= JO_VDP1_MAX_COMMANDS - JO_VDP1_HEADER_COMMANDS * 2 - 1, 0))
+        return (__jo_vdp1_add_command(z));
+    frame->keys[frame->count] = __jo_vdp1_sort_key(z);
+    frame->window[frame->count] = (unsigned short)__jo_vdp1_current_window;
+    return (&frame->commands[frame->count++]);
 }
 
 jo_vdp1_command                         *__jo_vdp1_add_command(const jo_fixed z)
@@ -1296,12 +1334,14 @@ typedef unsigned int __attribute__((may_alias))  jo_vdp1_command_word;
  *  @param attr Attribute
  *  @param sprite_type Added to the type of the command if it is textured (JO_VDP1_CMD_xxx_SPRITE)
  *  @param polygon_type Added to the type of the command if it is not
+ *  @param mode Added to the draw mode (JO_VDP1_PRE_CLIPPING_DISABLE, see jo_vdp1_pre_clipping())
  *  @return true if textured
  *  @remarks The type is known before the command is written: it is not read back (the cache does not keep the lines
  *  written, a read of the command after it is written reads the work RAM)
  */
 static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command * const cmd, const jo_vdp1_sprite_attribute * const attr,
-                                                                const unsigned short sprite_type, const unsigned short polygon_type)
+                                                                const unsigned short sprite_type, const unsigned short polygon_type,
+                                                                const unsigned short mode)
 {
     jo_vdp1_command_word                *words;
     jo_texture_definition               *texture;
@@ -1329,7 +1369,7 @@ static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command 
             break;
     }
     words[0] = JO_VDP1_PACK(ctrl, 0);
-    words[1] = JO_VDP1_PACK(attr->draw_mode, attr->color);
+    words[1] = JO_VDP1_PACK(attr->draw_mode | mode, attr->color);
     // (the gouraud bit: the modes 4, 6 and 7, gouraud with half luminance or half transparency)
     words[7] = JO_VDP1_PACK((attr->draw_mode & JO_VDP1_COLOR_CALC_GOURAUD) ? attr->gouraud_table : 0, 0);
     return (textured);
@@ -1337,7 +1377,88 @@ static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command 
 
 bool                                    __jo_vdp1_set_attribute(jo_vdp1_command *cmd, const jo_vdp1_sprite_attribute *attr)
 {
-    return (jo_vdp1_write_attribute(cmd, attr, 0, 0));
+    return (jo_vdp1_write_attribute(cmd, attr, 0, 0, 0));
+}
+
+/** @brief Sign bits of a packed position (JO_VDP1_PACK(x, y)) out of a packed area (see __jo_vdp1_pre_clip_areas): x or y
+ *  negative, or over the right or the bottom (a borrow of y into x only comes with a y out of the area, found by its own
+ *  sign). The bits of several positions are or'ed, then tested by jo_vdp1_pre_clipping()
+ */
+# define JO_VDP1_OUTSIDE(AREA, P)           ((P) | ((AREA) - (P)))
+
+/** @brief The pre-clipping of a command disabled when it is inside of the system clipping area (see
+ *  JO_VDP1_PRE_CLIPPING_DISABLE: the VDP1 tests each line of a command against the clipping area, about 4 cycles per line)
+ *  @param draw_mode Draw mode of the command (clipped by the user clipping area: the pre-clipping is kept, the VDP1 skips
+ *  the lines out of the area)
+ *  @param outside The sign bits of the corners of the command (see JO_VDP1_OUTSIDE())
+ *  @return JO_VDP1_PRE_CLIPPING_DISABLE or 0
+ *  @remarks The image doesn't change: the pixels out of the clipping area are not drawn anyway
+ *  @remarks Packed positions and areas, no branch (the user clipping bit moved to a sign bit): the first test (the min and
+ *  max of the coordinates, the origin of the window added) cost 1.75 microseconds per sprite (200 sprites of the test ROM:
+ *  +11 % of CPU)
+ */
+static  __jo_force_inline unsigned short jo_vdp1_pre_clipping(const unsigned short draw_mode, const unsigned int outside)
+{
+    // (JO_VDP1_WINDOW_IN: bit 10, moved to the bit 15)
+    return ((unsigned short)((((outside | ((unsigned int)draw_mode << 5)) & 0x80008000u) == 0) << 11));
+}
+
+/** @brief Write the command of a rotated sprite (see jo_vdp1_draw_sprite(): out of its common path, the registers of this
+ *  one made the sprites without rotation slower)
+ *  @param cmd Command
+ *  @param attr Sprite attribute
+ *  @param cx Horizontal center (screen pixels, Q16.16)
+ *  @param cy Vertical center (screen pixels, Q16.16)
+ *  @param w Last pixel of the width (width - 1)
+ *  @param h Last pixel of the height
+ *  @param angle Rotation
+ */
+static __attribute__((noinline)) void   jo_vdp1_write_rotated_sprite(jo_vdp1_command * const cmd, const jo_vdp1_sprite_attribute * const attr,
+                                                                     const jo_fixed cx, const jo_fixed cy, const int w, const int h,
+                                                                     const jo_angle angle)
+{
+    jo_vdp1_command_word                *words;
+    jo_fixed                            s;
+    jo_fixed                            c;
+    jo_fixed                            lx0;
+    jo_fixed                            ly0;
+    jo_fixed                            lx1;
+    jo_fixed                            ly1;
+    jo_fixed                            ox;
+    jo_fixed                            oy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
+
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    s = jo_sin_angle(angle);
+    c = jo_cos_angle(angle);
+    // Rotation around the integer part of the center
+    ox = cx & ~JO_FIXED_DECIMAL_MASK;
+    oy = cy & ~JO_FIXED_DECIMAL_MASK;
+    lx0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(w));
+    ly0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(h));
+    lx1 = lx0 + JO_INT_TO_FIXED(w);
+    ly1 = ly0 + JO_INT_TO_FIXED(h);
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly0, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly0, c)));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly0, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly0, c)));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly1, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly1, c)));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly1, s)),
+                      JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly1, c)));
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
 }
 
 /*
@@ -1403,26 +1524,34 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
     int                                 x0;
     int                                 y0;
     bool                                textured;
-    jo_fixed                            s;
-    jo_fixed                            c;
-    jo_fixed                            lx0;
-    jo_fixed                            ly0;
-    jo_fixed                            lx1;
-    jo_fixed                            ly1;
-    jo_fixed                            ox;
-    jo_fixed                            oy;
+    bool                                normal;
+    unsigned int                        area;
+    unsigned int                        first;
+    unsigned int                        last;
+    unsigned short                      mode;
 
-    if ((cmd = __jo_vdp1_add_command(z)) == JO_NULL)
+    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
         return (false);
     words = JO_VDP1_COMMAND_WORDS(cmd);
     texture = &__jo_sprite_def[attr->texture_id];
-    if (sx < 0)
+    // (a negative scale is rare: out of the common path)
+    if (__builtin_expect(sx < 0, 0))
         sx = -sx;
-    if (sy < 0)
+    if (__builtin_expect(sy < 0, 0))
         sy = -sy;
-    // Size in pixels (rounded to the nearest pixel)
-    w = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->width), sx) + JO_FIXED_1_DIV_2);
-    h = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->height), sy) + JO_FIXED_1_DIV_2);
+    // Size in pixels (rounded to the nearest pixel). Without scale (the most common sprite): the size of the texture, the
+    // same without the 2 products (they paid for the test of the pre-clipping)
+    normal = sx == JO_FIXED_1 && sy == JO_FIXED_1;
+    if (normal)
+    {
+        w = texture->width;
+        h = texture->height;
+    }
+    else
+    {
+        w = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->width), sx) + JO_FIXED_1_DIV_2);
+        h = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->height), sy) + JO_FIXED_1_DIV_2);
+    }
     x0 = JO_FIXED_TO_INT(cx) - JO_DIV_BY_2(w);
     y0 = JO_FIXED_TO_INT(cy) - JO_DIV_BY_2(h);
     // Last pixel (inclusive coordinates)
@@ -1430,46 +1559,31 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
         --w;
     if (h > 0)
         --h;
-    if (angle == 0)
+    if (angle != 0)
     {
-        if (sx == JO_FIXED_1 && sy == JO_FIXED_1)
-            textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_NORMAL_SPRITE, JO_VDP1_CMD_POLYGON);
-        else
-            textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_SCALED_SPRITE, JO_VDP1_CMD_POLYGON);
-        if (textured && sx == JO_FIXED_1 && sy == JO_FIXED_1)
-            words[3] = JO_VDP1_PACK(x0, y0);
-        else if (textured)
-        {
-            words[3] = JO_VDP1_PACK(x0, y0);
-            words[5] = JO_VDP1_PACK(x0 + w, y0 + h);
-        }
-        else
-        {
-            words[3] = JO_VDP1_PACK(x0, y0);
-            words[4] = JO_VDP1_PACK(x0 + w, y0);
-            words[5] = JO_VDP1_PACK(x0 + w, y0 + h);
-            words[6] = JO_VDP1_PACK(x0, y0 + h);
-        }
+        jo_vdp1_write_rotated_sprite(cmd, attr, cx, cy, w, h, angle);
         return (true);
     }
-    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0);
-    s = jo_sin_angle(angle);
-    c = jo_cos_angle(angle);
-    // Rotation around the integer part of the center
-    ox = cx & ~JO_FIXED_DECIMAL_MASK;
-    oy = cy & ~JO_FIXED_DECIMAL_MASK;
-    lx0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(w));
-    ly0 = JO_INT_TO_FIXED(-JO_DIV_BY_2(h));
-    lx1 = lx0 + JO_INT_TO_FIXED(w);
-    ly1 = ly0 + JO_INT_TO_FIXED(h);
-    words[3] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly0, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly0, c)));
-    words[4] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly0, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly0, c)));
-    words[5] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx1, c) - jo_fixed_mult(ly1, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx1, s) + jo_fixed_mult(ly1, c)));
-    words[6] = JO_VDP1_PACK(JO_FIXED_TO_INT(ox + jo_fixed_mult(lx0, c) - jo_fixed_mult(ly1, s)),
-                            JO_FIXED_TO_INT(oy + jo_fixed_mult(lx0, s) + jo_fixed_mult(ly1, c)));
+    // (the corners of the sprite packed: its first and last pixels)
+    first = JO_VDP1_PACK(x0, y0);
+    last = JO_VDP1_PACK(x0 + w, y0 + h);
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    mode = jo_vdp1_pre_clipping(attr->draw_mode, JO_VDP1_OUTSIDE(area, first) | JO_VDP1_OUTSIDE(area, last));
+    if (normal)
+        textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_NORMAL_SPRITE, JO_VDP1_CMD_POLYGON, mode);
+    else
+        textured = jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_SCALED_SPRITE, JO_VDP1_CMD_POLYGON, mode);
+    words[3] = first;
+    if (textured && normal)
+        return (true);
+    if (textured)
+    {
+        words[5] = last;
+        return (true);
+    }
+    words[4] = JO_VDP1_PACK(x0 + w, y0);
+    words[5] = last;
+    words[6] = JO_VDP1_PACK(x0, y0 + h);
     return (true);
 }
 
@@ -1513,19 +1627,32 @@ bool                                    __jo_vdp1_draw_sprite_4p(const jo_pos2D_
     jo_vdp1_command_word                *words;
     jo_fixed                            cx;
     jo_fixed                            cy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
 
     if (!jo_vdp1_is_sprite_visible(z))
         return (false);
-    if ((cmd = __jo_vdp1_add_command(z)) == JO_NULL)
+    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
         return (false);
-    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0);
-    words = JO_VDP1_COMMAND_WORDS(cmd);
     cx = jo_vdp1_window_center_x();
     cy = jo_vdp1_window_center_y();
-    words[3] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
-    words[4] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
-    words[5] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
-    words[6] = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    area = __jo_vdp1_pre_clip_areas[__jo_vdp1_current_window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
     return (true);
 }
 
@@ -1533,27 +1660,35 @@ bool                                    __jo_vdp1_write_sprite_4p(jo_vdp1_comman
                                                                   const jo_vdp1_sprite_attribute * const attr, const int window)
 {
     const jo_vdp1_window                *w;
+    jo_vdp1_command_word                *words;
     jo_fixed                            cx;
     jo_fixed                            cy;
+    unsigned int                        area;
+    unsigned int                        p0;
+    unsigned int                        p1;
+    unsigned int                        p2;
+    unsigned int                        p3;
 
     w = &__jo_vdp1_windows[window];
     if (z <= __jo_vdp1_near_clip() || z > w->zlimit)
         return (false);
     // (the same command as __jo_vdp1_draw_sprite_4p())
-    cmd->link = 0;
-    cmd->grda = 0;
-    if (__jo_vdp1_set_attribute(cmd, attr))
-        cmd->ctrl |= JO_VDP1_CMD_DISTORTED_SPRITE;
     cx = JO_MULT_BY_65536(w->center_x - w->origin_x);
     cy = JO_MULT_BY_65536(w->center_y - w->origin_y);
-    cmd->xa = JO_FIXED_TO_INT(cx + points[0].x);
-    cmd->ya = JO_FIXED_TO_INT(cy + points[0].y);
-    cmd->xb = JO_FIXED_TO_INT(cx + points[1].x);
-    cmd->yb = JO_FIXED_TO_INT(cy + points[1].y);
-    cmd->xc = JO_FIXED_TO_INT(cx + points[2].x);
-    cmd->yc = JO_FIXED_TO_INT(cy + points[2].y);
-    cmd->xd = JO_FIXED_TO_INT(cx + points[3].x);
-    cmd->yd = JO_FIXED_TO_INT(cy + points[3].y);
+    p0 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[0].x), JO_FIXED_TO_INT(cy + points[0].y));
+    p1 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[1].x), JO_FIXED_TO_INT(cy + points[1].y));
+    p2 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[2].x), JO_FIXED_TO_INT(cy + points[2].y));
+    p3 = JO_VDP1_PACK(JO_FIXED_TO_INT(cx + points[3].x), JO_FIXED_TO_INT(cy + points[3].y));
+    area = __jo_vdp1_pre_clip_areas[window];
+    jo_vdp1_write_attribute(cmd, attr, JO_VDP1_CMD_DISTORTED_SPRITE, 0,
+                            jo_vdp1_pre_clipping(attr->draw_mode,
+                                                 JO_VDP1_OUTSIDE(area, p0) | JO_VDP1_OUTSIDE(area, p1) |
+                                                 JO_VDP1_OUTSIDE(area, p2) | JO_VDP1_OUTSIDE(area, p3)));
+    words = JO_VDP1_COMMAND_WORDS(cmd);
+    words[3] = p0;
+    words[4] = p1;
+    words[5] = p2;
+    words[6] = p3;
     return (true);
 }
 
@@ -1593,6 +1728,7 @@ void                                    jo_sprite_set_system_clipping_area(const
 #endif
     __jo_vdp1_system_clip_right = width - 1;
     __jo_vdp1_system_clip_bottom = height - 1;
+    jo_vdp1_update_pre_clip_areas();
 }
 
 /** @brief Before a change of the current window: the commands drawn so far in the frame keep the window as it is (its
@@ -1637,6 +1773,7 @@ void                                    __jo_vdp1_set_window(const short left, c
     w->screen = w->clip_mode != 0 && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? left : 0;
     w->origin_y = w->screen ? top : 0;
+    jo_vdp1_update_pre_clip_areas();
 }
 
 void                                    jo_3d_set_depth_limit(const int z)
@@ -1656,6 +1793,7 @@ void                                    __jo_vdp1_set_window_clip(const bool cli
     w->screen = clip && __jo_vdp1_windows_apart;
     w->origin_x = w->screen ? w->left : 0;
     w->origin_y = w->screen ? w->top : 0;
+    jo_vdp1_update_pre_clip_areas();
 }
 
 /*

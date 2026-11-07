@@ -125,6 +125,10 @@ typedef struct
 # define JO_VDP1_MSB_ON                     (1 << 15)
 /** @brief High speed shrink */
 # define JO_VDP1_HIGH_SPEED_SHRINK          (1 << 12)
+/** @brief Pre-clipping disabled: for a command entirely inside of the clipping area (the VDP1 tests each line of a command
+ *  against the clipping area before it draws it: about 4 cycles per line, for nothing when no line is out of it; the
+ *  pixels out of the clipping area are not drawn anyway) */
+# define JO_VDP1_PRE_CLIPPING_DISABLE       (1 << 11)
 /** @brief No clipping window */
 # define JO_VDP1_NO_WINDOW                  (0)
 /** @brief Draw inside the user clipping area */

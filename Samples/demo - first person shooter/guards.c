@@ -97,24 +97,15 @@
 /** @brief After a run, he aims badly for this long (milliseconds): this much less chance to hit */
 #define GUARD_WINDED_TIME           (2500)
 #define GUARD_WINDED_PENALTY        (30)
-/** @brief The scientists (the class scientist: the same body, a white coat, no rifle; they walk, raise their hands when the
- *  agent aims at them from nearer than this (units), run away from the shots). He stands with his hands up this long
- *  (milliseconds) after the agent stopped aiming at him; scared (a shot heard nearer than SCIENTIST_HEAR_DISTANCE, a cry
- *  of a guard, hit), he runs away this long, to places (the doorways, the way nodes) farther from the agent; at the
- *  ends of his walk he stops this long */
+/** @brief The scientists (the class scientist: the same body, a white coat, no rifle). They walk; when they see the agent
+ *  nearer than this (units), they stop where they are and raise their hands, facing him, and keep them up this long
+ *  (milliseconds) after they stopped seeing him. Scared (a shot heard nearer than SCIENTIST_HEAR_DISTANCE, a cry of a
+ *  guard, hit) once the agent met them: the same, their hands up on the spot (they never run away). At the ends of their
+ *  walk they stop this long */
 #define SCIENTIST_THREAT_DISTANCE   (700)
 #define SCIENTIST_CALM_TIME         (2500)
 #define SCIENTIST_HEAR_DISTANCE     (1100)
-#define SCIENTIST_FEAR_TIME         (9000)
 #define SCIENTIST_PAUSE_TIME        (1800)
-#define SCIENTIST_FLEE_RADIUS       (1000)
-/** @brief The first units of the way to a place must be free (the bench next to him) */
-#define SCIENTIST_FLEE_FIRST        (240)
-#define SCIENTIST_CHOICE_TIME       (400)
-/** @brief A scientist running away, in a room the agent doesn't see for this long (milliseconds) and farther than
- *  SCIENTIST_GONE_DISTANCE: he is gone (out of the level; he doesn't come back) */
-#define SCIENTIST_GONE_TIME         (700)
-#define SCIENTIST_GONE_DISTANCE     (300)
 /** @brief The agent dead: the guards come and look at him from this far (units) */
 #define GUARD_BODY_DISTANCE         (190)
 /** @brief Blocked by a door longer than this (milliseconds): he goes around it */
@@ -233,10 +224,9 @@ typedef enum
     GUARD_ATTACK,
     GUARD_SEARCH,
     GUARD_DEAD,
-    // (the scientists: walking between 2 points, his hands up, running away)
+    // (the scientists: walking between 2 points, his hands up)
     SCIENTIST_WALK,
     SCIENTIST_HANDS_UP,
-    SCIENTIST_FLEE,
 }                                   guard_state;
 
 /** @brief Data of a guard: an actor of the engine first */
@@ -256,12 +246,8 @@ typedef struct
     int                             step;           // Milliseconds left of his step aside, its side (step_side: 1, -1)
     int                             step_side;
     bool                            scientist;      // A scientist (the class scientist), not a guard
-    bool                            met;            // A scientist: the agent threatened him once (his hands went up)
-    int                             fear;           // A scientist: milliseconds left of his run away, of his pause
-    int                             stuck;          // A scientist: milliseconds without a move on his run away
-    int                             hidden_time;    // A scientist running away: milliseconds in a room the agent doesn't see
-    jo_fixed                        flee_x;         // A scientist: where he runs to
-    jo_fixed                        flee_z;
+    bool                            met;            // A scientist: the agent met him once (his hands went up)
+    int                             fear;           // A scientist: milliseconds left of his pause at an end of his walk
     int                             last_health;    // His health at the last update (hurt by an explosion: not by a shot)
     int                             moved;          // Distance walked in the last frame (1/256 units): the time of his steps
     int                             gait_speed;     // Speed of the animation of his steps (walk or run), 0: not walking
@@ -747,6 +733,8 @@ static void                         way_seen(const jo_pos3D_fixed * const p, int
     // The points in this room and the other sides of its doorways (through them): the nearest GUARD_WAY_ROOM_RAYS of them
     // get a ray (a ray costs 0.4 to 0.7 ms; the hall has 5 doors, 10 points: 7 ms for one way in a general alert)
     nearest = -1;
+    // (set with nearest: the compiler could not see it)
+    distance_nearest = 0;
     room_count = 0;
     for (i = 0, seen = 0; i < way_node_count; ++i)
     {
@@ -1099,7 +1087,7 @@ static void                         shoot_agent_inner(jo_entity * const e, const
 
     distance = distance_to_agent(e);
     muzzle_position(e, &muzzle, g->crouched);
-    // (his shots: the scientists around run away)
+    // (his shots: the scientists around raise their hands)
     scare_scientists(e, e->position.x, e->position.z);
     // (the flash at the muzzle)
     flash_position[next_flash] = muzzle;
@@ -1283,11 +1271,9 @@ static void                         person_spawn(jo_entity * const e, const bool
     g->state = scientist ? SCIENTIST_WALK : GUARD_IDLE;
     g->hatless = scientist;
     g->fear = 0;
-    g->stuck = 0;
     g->near_count = 0;
     g->near_age = NEAR_GATHER_TIME + jo_random(NEAR_GATHER_TIME);
     g->met = false;
-    g->hidden_time = 0;
     g->detour_time = 0;
     g->closing = 0;
     g->winded = 0;
@@ -1330,7 +1316,7 @@ static void                         guard_cry(const jo_entity * const e, jo_soun
     sound_from(&cry, e->position.x, e->position.z, GUARD_VOICE_VOLUME, GUARD_SOUND_RANGE);
     jo_audio_stop_channel(GUARD_VOICE_CHANNEL);
     jo_audio_play_sound_on_channel(&cry, GUARD_VOICE_CHANNEL);
-    // (his cry: the scientists around run away)
+    // (his cry: the scientists around raise their hands)
     scare_scientists(e, e->position.x, e->position.z);
 }
 
@@ -1367,179 +1353,37 @@ static void                         alert(jo_entity * const e, guard * const g)
     }
 }
 
-/** @brief A scientist is scared (a shot, a cry, hit): he runs away from the agent, see scientist_think() */
+/** @brief A scientist is scared (a shot, a cry, hit): he stops where he is, his hands up (see scientist_think()) */
 static void                         scare(jo_entity * const e, guard * const g, const bool hurt)
 {
-    // (never threatened by the agent (his hands never went up) and not hurt: the shots don't scare him, he stays at his
-    // work (scared by the shots heard through the walls, he was gone before the agent ever saw him))
+    // (never met by the agent (his hands never went up) and not hurt: the shots don't scare him, he stays at his work)
     if (g->state == GUARD_DEAD || (!g->met && !hurt))
         return;
     g->met = true;
-    g->fear = SCIENTIST_FEAR_TIME;
-    if (g->state != SCIENTIST_FLEE)
+    g->timer = 0;
+    if (g->state != SCIENTIST_HANDS_UP)
     {
-        g->state = SCIENTIST_FLEE;
-        // (a new place to run to, chosen in scientist_think())
-        g->flee_x = e->position.x;
-        g->flee_z = e->position.z;
-        g->timer = 0;
+        g->state = SCIENTIST_HANDS_UP;
+        g->gait_speed = 0;
+        jo_actor_restart(e, "hands_up", 120);
     }
 }
 
-/** @brief The agent aims at him, even roughly: his weapon toward him (25 degrees), or he is near (300 units) and the agent faces
- *  him (45 degrees) */
-static bool                         agent_aims_at(const jo_entity * const e)
-{
-    jo_pos3D_fixed                  dir;
-    int                             dx;
-    int                             dz;
-    int                             distance;
-    jo_fixed                        dot;
-
-    dx = jo_fixed2int(e->position.x - player_x);
-    dz = jo_fixed2int(e->position.z - player_z);
-    distance = (int)jo_sqrt((unsigned int)(dx * dx + dz * dz));
-    if (distance < 1)
-        return (true);
-    player_aim_direction(&dir);
-    // (the cosine of the angle between the aim and the direction to him, in the horizontal plane)
-    dot = (dir.x * dx + dir.z * dz) / distance;
-    // (roughly at him is enough: 45 degrees near, 25 farther)
-    return (dot > (distance < 300 ? JO_FIXED_1 * 45 / 64 : JO_FIXED_1 * 29 / 32));
-}
-
-/** @brief The straight line from him to a point can be walked (the first units of it, every 30: a bench is 60 deep, sampled
- *  every 60 it was skipped): the floor (the cells) and the furniture near him (near_gather() first) */
-static bool                         furniture_clear(const jo_entity * const e, const jo_fixed x, const jo_fixed z, const int first)
-{
-    int                             dx;
-    int                             dz;
-    int                             length;
-    int                             k;
-    int                             n;
-    jo_fixed                        px;
-    jo_fixed                        pz;
-
-    dx = jo_fixed2int(x - e->position.x);
-    dz = jo_fixed2int(z - e->position.z);
-    length = (int)jo_sqrt((unsigned int)(dx * dx + dz * dz));
-    n = JO_MIN(first, length);
-    for (k = 30; k <= n; k += 30)
-    {
-        px = e->position.x + jo_int2fixed(dx * k / length);
-        pz = e->position.z + jo_int2fixed(dz * k / length);
-        if (!jo_cells_is_walkable(px, e->position.y, pz, GUARD_RADIUS, GUARD_MAX_STEP) || near_blocks((const guard *)e->data, px, pz))
-            return (false);
-    }
-    return (true);
-}
-
-/** @brief The next place a scared scientist runs to: a doorway or a way node near him, the farthest from the agent (away
- *  from him), the whole way to it free of furniture, in flee_x flee_z; none: a few steps away from the agent
- *  @return false when no way is free around him (he cowers where he is) */
-static bool                         flee_point(const jo_entity * const e, guard * const g)
-{
-    jo_pos3D_fixed                  points[GUARD_WAY_NODES + 8];
-    int                             scores[GUARD_WAY_NODES + 8];
-    int                             count;
-    int                             k;
-    int                             best;
-    int                             score;
-    int                             dx;
-    int                             dz;
-    int                             from_agent;
-    int                             from_him;
-    int                             tried;
-
-    if (way_node_count < 0)
-        way_build();
-    for (k = 0; k < way_node_count; ++k)
-        points[k] = way_nodes[k];
-    count = way_node_count + doors_doorways(&points[way_node_count], 8, true);
-    near_update(e, g);
-    // The score of each place (cheap): far from the agent, not too far from him (the nearest of the far places), a
-    // little at random (blocked by the furniture on his way to one, he tries another). Then the way to the best ones is
-    // tested, in their order, the first one free wins: testing the way to every place made the frame lag (33 tests of the
-    // furniture per place, 20 places)
-    for (k = 0; k < count; ++k)
-    {
-        scores[k] = -1;
-        dx = jo_fixed2int(points[k].x - e->position.x);
-        dz = jo_fixed2int(points[k].z - e->position.z);
-        from_him = JO_MAX(JO_ABS(dx), JO_ABS(dz)) + JO_MIN(JO_ABS(dx), JO_ABS(dz)) / 2;
-        if (from_him < 80 || from_him > SCIENTIST_FLEE_RADIUS)
-            continue;
-        dx = jo_fixed2int(points[k].x - player_x);
-        dz = jo_fixed2int(points[k].z - player_z);
-        from_agent = JO_MAX(JO_ABS(dx), JO_ABS(dz)) + JO_MIN(JO_ABS(dx), JO_ABS(dz)) / 2;
-        // (not right at the agent; a place nearer to him than the scientist is stays possible: cornered at the end of a
-        // laboratory, the door being on the agent's side, he runs past him rather than staying in his corner)
-        if (from_agent < 200)
-            continue;
-        scores[k] = JO_MAX(1, from_agent * 2 - from_him + jo_random(240) + 1000);
-    }
-    for (tried = 0; tried < 4; ++tried)
-    {
-        best = -1;
-        score = 0;
-        for (k = 0; k < count; ++k)
-            if (scores[k] > score)
-            {
-                best = k;
-                score = scores[k];
-            }
-        if (best < 0)
-            break;
-        scores[best] = -1;
-        // (the first steps free: the way after goes through the doorways (way_to()), around the furniture (go_to_way()))
-        if (furniture_clear(e, points[best].x, points[best].z, SCIENTIST_FLEE_FIRST))
-        {
-            g->flee_x = points[best].x;
-            g->flee_z = points[best].z;
-            return (true);
-        }
-    }
-    // (no place: a few steps away from the agent, the nearest direction around that is free of furniture (45 degrees by 45))
-    {
-        int                         away;
-        int                         turn;
-
-        // (the yaw of a direction: x = sin, z = cos; already running away: he keeps his direction first (between 2 benches
-        // he ran back and forth, from the direction away from the agent to its neighbours and back))
-        away = jo_atan2_degrees(e->position.x - player_x, e->position.z - player_z);
-        if (JO_ABS(((e->yaw - away + 540) % 360) - 180) < 100)
-            away = e->yaw;
-        // (the 7th direction, straight at the agent, is the last resort: cornered between the benches, the only way out
-        // is past him)
-        static const int            turns[8] = {0, 45, -45, 90, -90, 135, -135, 180};
-
-        for (k = 0; k < 8; ++k)
-        {
-            turn = turns[k];
-            g->flee_x = e->position.x + jo_sin((away + turn + 720) % 360) * 200;
-            g->flee_z = e->position.z + jo_cos((away + turn + 720) % 360) * 200;
-            if (furniture_clear(e, g->flee_x, g->flee_z, 200))
-                return (true);
-        }
-    }
-    return (false);
-}
-
-/** @brief A scientist: he walks between his place and the end of his patrol (a pause at each end); the agent aims at him
- *  from near: he stops, his hands up, facing him, until the agent looks elsewhere for a while; scared (see scare()),
- *  he runs away from the agent, from place to place, until his fear is gone, then he walks again */
+/** @brief A scientist: he walks between his place and the end of his patrol (a pause at each end); he sees the agent near
+ *  him (or he is scared, see scare()): he stops where he is, his hands up, facing him, until he hasn't seen him for a
+ *  while, then he walks again */
 static void                         scientist_think(jo_entity * const e, guard * const g, const int elapsed)
 {
     bool                            threatened;
 
-    // (the agent aims at him: he saw him, or he is near (he hears him, he turns around))
-    threatened = player_health > 0 && g->sees && distance_to_agent(e) < SCIENTIST_THREAT_DISTANCE && agent_aims_at(e);
+    // (he sees the agent near him)
+    threatened = player_health > 0 && g->sees && distance_to_agent(e) < SCIENTIST_THREAT_DISTANCE;
     switch (g->state)
     {
         case SCIENTIST_WALK:
             if (threatened)
             {
-                // (threatened once: from then on the shots scare him, see scare())
+                // (met once: from then on the shots scare him, see scare())
                 g->met = true;
                 g->state = SCIENTIST_HANDS_UP;
                 g->timer = 0;
@@ -1589,54 +1433,6 @@ static void                         scientist_think(jo_entity * const e, guard *
                     g->state = SCIENTIST_WALK;
                     g->fear = SCIENTIST_PAUSE_TIME / 2;
                     jo_actor_play(e, "idle", 250);
-                }
-            }
-            break;
-        case SCIENTIST_FLEE:
-            g->fear -= elapsed;
-            if (g->fear <= 0)
-            {
-                g->state = SCIENTIST_WALK;
-                g->fear = SCIENTIST_PAUSE_TIME;
-                break;
-            }
-            // (out of sight in another room: he is gone)
-            if (jo_cells_depth_bias_at(e->position.x, e->position.y - JO_FIXED_1, e->position.z) < 0 &&
-                distance_to_agent(e) > SCIENTIST_GONE_DISTANCE)
-            {
-                g->hidden_time += elapsed;
-                if (g->hidden_time >= SCIENTIST_GONE_TIME)
-                {
-                    e->flags |= JO_ENTITY_FLAG_DISABLED | JO_ENTITY_FLAG_HIDDEN;
-                    e->flags &= ~JO_ENTITY_FLAG_SOLID;
-                    g->state = SCIENTIST_WALK;
-                    g->gait_speed = 0;
-                    break;
-                }
-            }
-            else
-                g->hidden_time = 0;
-            // (at the place (or blocked): the next one farther from the agent; stuck on the furniture: another one)
-            {
-                bool            there;
-
-                there = go_to(e, g->flee_x, g->flee_z, true, elapsed);
-                g->stuck = g->moved < 2 ? g->stuck + elapsed : 0;
-                // (a new place at most every SCIENTIST_CHOICE_TIME: the choice tests the furniture around, it costs;
-                // blocked at a place, he waits there a moment, then chooses)
-                g->timer -= elapsed;
-                if ((there || g->stuck > 600) && g->timer <= 0)
-                {
-                    g->stuck = 0;
-                    g->timer = SCIENTIST_CHOICE_TIME;
-                    // (nowhere to run: he stops, his hands up, until he is calm)
-                    if (!flee_point(e, g))
-                    {
-                        g->state = SCIENTIST_HANDS_UP;
-                        g->timer = 0;
-                        g->gait_speed = 0;
-                        jo_actor_restart(e, "hands_up", 120);
-                    }
                 }
             }
             break;
@@ -2790,7 +2586,7 @@ static bool                         bullet_passes_near(const jo_entity * const e
     return (JO_ABS(across) <= GUARD_BULLET_NEAR);
 }
 
-/** @brief The scientists near a sound at x z (the shots of a rifle, the cry of a guard hit): scared, they run away */
+/** @brief The scientists near a sound at x z (the shots of a rifle, the cry of a guard hit): scared, they raise their hands */
 static void                         scare_scientists(const jo_entity * const except, const jo_fixed x, const jo_fixed z)
 {
     jo_entity                       *e;
