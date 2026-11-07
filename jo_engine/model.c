@@ -994,6 +994,71 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
         __jo_3d_draw_parts(&model->mesh->data, m.parts, m.part_count);
 }
 
+/** @brief An address in the high work RAM (cached or not) */
+static  __jo_force_inline bool              jo_3d_model_is_fast_memory(const void * const p)
+{
+    return (((unsigned int)p & 0x0FF00000) == 0x06000000);
+}
+
+bool                                        jo_3d_model_use_fast_memory(jo_3d_model * const model)
+{
+    jo_3d_polygon_data                      *pdata;
+    jo_3d_polygon_attribute                 *attributes;
+    unsigned char                           *block;
+    unsigned int                            points;
+    unsigned int                            polygons;
+    unsigned int                            bones;
+    unsigned int                            groups;
+
+    if (model == JO_NULL || model->mesh == JO_NULL)
+        return (false);
+    pdata = &model->mesh->data;
+    // (already in the high work RAM: nothing to do. Only the data of a file loaded by jo_3d_load_model(): the other models
+    // own their arrays, the ones of jo_3d_create_model_in_place() belong to the caller)
+    if (model->fast_block != JO_NULL || (jo_3d_model_is_fast_memory(pdata->points) && jo_3d_model_is_fast_memory(pdata->polygons)))
+        return (true);
+    if (model->file == JO_NULL || model->single_block || model->file_not_owned)
+        return (false);
+    // One block: the points, the polygons, the bones, the groups (sizes multiple of 4)
+    points = pdata->point_count * sizeof(jo_pos3D_fixed);
+    polygons = pdata->polygon_count * sizeof(jo_3d_polygon);
+    bones = model->bones != JO_NULL ? model->bone_count * sizeof(jo_3d_bone) : 0;
+    groups = model->groups != JO_NULL ? model->group_count * sizeof(jo_3d_model_group) : 0;
+    groups = (groups + 3) & ~3u;
+    block = (unsigned char *)jo_malloc(points + polygons + bones + groups);
+    if (block == JO_NULL)
+        return (false);
+    attributes = (jo_3d_polygon_attribute *)jo_malloc(pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
+    // (not in the high work RAM: the slower memory is kept as it is)
+    if (!jo_3d_model_is_fast_memory(block) || attributes == JO_NULL || !jo_3d_model_is_fast_memory(attributes))
+    {
+        if (attributes != JO_NULL)
+            jo_free(attributes);
+        jo_free(block);
+        return (false);
+    }
+    jo_memcpy(block, pdata->points, points);
+    pdata->points = (jo_pos3D_fixed *)block;
+    jo_memcpy(block + points, pdata->polygons, polygons);
+    pdata->polygons = (jo_3d_polygon *)(block + points);
+    if (bones > 0)
+    {
+        jo_memcpy(block + points + polygons, model->bones, bones);
+        model->bones = (jo_3d_bone *)(block + points + polygons);
+    }
+    if (groups > 0)
+    {
+        jo_memcpy(block + points + polygons + bones, model->groups, model->group_count * sizeof(jo_3d_model_group));
+        model->groups = (jo_3d_model_group *)(block + points + polygons + bones);
+    }
+    // (the attributes: their own block, freed with the model as before (see jo_3d_model_free()))
+    jo_memcpy(attributes, pdata->attributes, pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
+    jo_free(pdata->attributes);
+    pdata->attributes = attributes;
+    model->fast_block = block;
+    return (true);
+}
+
 /*
 ** Loading
 */
@@ -1347,7 +1412,9 @@ static void                                 jo_3d_model_free(jo_3d_model * const
     }
     if (model->file != JO_NULL)
     {
-        // The data are in the file (see jo_3d_load_model())
+        // The data are in the file (see jo_3d_load_model()), or their copies in the high work RAM
+        if (model->fast_block != JO_NULL)
+            jo_free(model->fast_block);
         if (model->mesh != JO_NULL)
         {
             if (model->mesh->data.attributes != JO_NULL)

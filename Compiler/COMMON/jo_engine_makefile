@@ -46,6 +46,42 @@ else
 	CCFLAGS += -DJO_FRAMERATE=${JO_FRAMERATE}
 endif
 
+# The modules (JO_COMPILE_WITH_xxx_MODULE = 1 or 0 in the makefile of the game, before the include): off by default, except
+# the file system (FS), jo_printf() (PRINTF), the RAM cartridge (RAM_CARD), the slave CPU (DUAL_CPU) and
+# jo_sprite_name2id() (SPRITE_HASHTABLE). The other parts of the engine (sprites, maps, sprite animations, physics,
+# palettes, lists, math, input...) are always compiled: the link time optimization (-flto) keeps only the functions the
+# game calls, a part that is not used costs no byte in the program.
+#
+# JO_MINIMAL = 1: the smallest engine for a basic program (the core, the VDP1 and VDP2 basics, the sprites, the
+# input, jo_malloc()): every module is off by default, the 5 modules above too (no file system: jo_sprite_add() of
+# images in the program, no jo_printf(): jo_printf() and the error screen without text). Each module can still be
+# chosen by the game in its makefile (JO_MINIMAL = 1 and JO_COMPILE_WITH_FS_MODULE = 1: the files of the CD too). The
+# file system is on with the modules that read files (TGA, AUDIO, VIDEO, LEVEL), unless the game sets it.
+# JO_DEBUG keeps its default (1): JO_DEBUG = 0 removes the checks and the error messages too (a release).
+# Sizes of Samples/demo - minimal (game.raw: rectangles, a sprite made in the program, the pad): 29052 bytes with the
+# default engine, 20940 with JO_MINIMAL = 1, 17616 with JO_MINIMAL = 1 and JO_DEBUG = 0 (see also jo/conf.h)
+ifeq (1,${JO_MINIMAL})
+ifeq (${JO_COMPILE_WITH_FS_MODULE},)
+ifneq ($(filter 1,${JO_COMPILE_WITH_TGA_MODULE} ${JO_COMPILE_WITH_AUDIO_MODULE} ${JO_COMPILE_WITH_VIDEO_MODULE} ${JO_COMPILE_WITH_LEVEL_MODULE}),)
+	JO_COMPILE_WITH_FS_MODULE = 1
+else
+	JO_COMPILE_WITH_FS_MODULE = 0
+endif
+endif
+ifeq (${JO_COMPILE_WITH_PRINTF_MODULE},)
+	JO_COMPILE_WITH_PRINTF_MODULE = 0
+endif
+ifeq (${JO_COMPILE_WITH_RAM_CARD_MODULE},)
+	JO_COMPILE_WITH_RAM_CARD_MODULE = 0
+endif
+ifeq (${JO_COMPILE_WITH_DUAL_CPU_MODULE},)
+	JO_COMPILE_WITH_DUAL_CPU_MODULE = 0
+endif
+ifeq (${JO_COMPILE_WITH_SPRITE_HASHTABLE},)
+	JO_COMPILE_WITH_SPRITE_HASHTABLE = 0
+endif
+endif
+
 ifeq (${JO_COMPILE_WITH_FS_MODULE},)
 	JO_COMPILE_WITH_FS_MODULE = 1
 endif

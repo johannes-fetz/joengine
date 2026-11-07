@@ -273,6 +273,15 @@
  */
 # define JO_MAX(A, B)               (((A) > (B)) ? (A) : (B))
 
+/** @brief Keep X between MIN and MAX
+ *  @param X Value
+ *  @param MIN Smallest value
+ *  @param MAX Biggest value (MAX >= MIN)
+ *  @remarks JO_CLAMP(x, -100, 100) is JO_MAX(-100, JO_MIN(100, x)): like JO_MIN() and JO_MAX(), the operands may be
+ *  evaluated twice (no function call or side effect in them)
+ */
+# define JO_CLAMP(X, MIN, MAX)      JO_MAX((MIN), JO_MIN((MAX), (X)))
+
 /** @brief Change the sign of X
  *  @param X Variable name
  */
@@ -988,7 +997,7 @@ static  __jo_force_inline jo_fixed	jo_fixed_sin(const jo_fixed rad)
 }
 
 /** @brief Fast sinus computation
- *  @param deg Angle in degree
+ *  @param deg Angle in degree (any value: negative or over 360, no modulo needed)
  *  @return Fixed Sin(deg)
  */
 static  __jo_force_inline jo_fixed	jo_sin(const int deg)
@@ -1028,7 +1037,7 @@ static  __jo_force_inline float	jo_sin_radf(const float rad)
 }
 
 /** @brief Fast sinus multiplication
- *  @param deg Angle in degree
+ *  @param deg Angle in degree (any value: negative or over 360, no modulo needed)
  *  @param value Value
  *  @return value * Sin(deg)
  *  @remarks 64 bits product: value * Sin(deg) overflowed from |value| > 32767
@@ -1069,7 +1078,7 @@ static  __jo_force_inline jo_fixed	jo_fixed_cos(const jo_fixed rad)
 }
 
 /** @brief Fast cosinus computation
- *  @param deg Angle in degree
+ *  @param deg Angle in degree (any value: negative or over 360, no modulo needed)
  *  @return Fixed Cos(deg)
  */
 static  __jo_force_inline jo_fixed	jo_cos(const int deg)
@@ -1120,7 +1129,7 @@ static  __jo_force_inline float	jo_cos_radf(const float rad)
 }
 
 /** @brief Fast cosinus multiplication
- *  @param deg Angle in degree
+ *  @param deg Angle in degree (any value: negative or over 360, no modulo needed)
  *  @param value Value
  *  @return value * Cos(deg)
  *  @remarks 64 bits product: value * Cos(deg) overflowed from |value| > 32767

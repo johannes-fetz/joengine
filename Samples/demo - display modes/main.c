@@ -73,6 +73,8 @@ static const char       *effect_names[EFFECT_COUNT] =
 # define SHADES_BEHIND      (192)
 
 # define MODE_COUNT         (16)
+/** @brief The family of the resolutions: 0 (320 / 640 pixels) or 1 (352 / 704 pixels) */
+# define MODE_FAMILY        (JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704)
 
 static const short      modes[2][MODE_COUNT][3] =
 {
@@ -172,7 +174,7 @@ static void             set_resolution(int index)
 {
     const short         (*family)[3];
 
-    family = modes[JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704];
+    family = modes[MODE_FAMILY];
     for (index %= MODE_COUNT; !jo_core_set_screen_resolution(family[index][0], family[index][1]); index = (index + 1) % MODE_COUNT)
         ;
     jo_core_set_screen_single_interlace(family[index][2]);
@@ -237,7 +239,7 @@ static void             demo_loop(void)
     draw_cube();
     jo_printf(1, 1, "%dx%d %s      ", jo_core_get_screen_width(), jo_core_get_screen_height(),
               jo_core_get_screen_height() > 256 ? "double interlace" :
-              modes[JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704][resolution][2] ? "single interlace" : "progressive");
+              modes[MODE_FAMILY][resolution][2] ? "single interlace" : "progressive");
     jo_printf(1, 2, "effect: %s                ", effect_names[effect]);
     jo_printf(1, 3, "blend ratio %d  tour %s  ", blend_ratio, tour ? "on " : "off");
     jo_printf(1, 26, "A:mode B:effect C:tour L/R");
@@ -332,8 +334,8 @@ void                    jo_main(void)
     };
 
     jo_core_init(JO_COLOR_Black);
-    for (resolution = 0; modes[JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704][resolution][0] != JO_TV_WIDTH ||
-                         modes[JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704][resolution][1] != JO_TV_HEIGHT; ++resolution)
+    for (resolution = 0; modes[MODE_FAMILY][resolution][0] != JO_TV_WIDTH || modes[MODE_FAMILY][resolution][1] != JO_TV_HEIGHT;
+         ++resolution)
         ;
     jo_create_palette(&palette);
     jo_palette_set_light_shades(&palette, SHADES_FIRST, colors, 6, SHADES);

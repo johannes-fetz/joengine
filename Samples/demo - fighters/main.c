@@ -43,11 +43,11 @@
 
 #define SHADES              (16)
 #define SHADES_FIRST        (16)
-#define RING_HALF           (200)
+#define RING_HALF           (240)
 #define RING_Y              (-24)
 #define ARENA_SIZE          (256)
 #define ARENA_SCALE         (2)
-#define RING_TILE           (25)
+#define RING_TILE           (24)
 #define WATER_FIRST         (40)
 #define WATER_COLORS        (8)
 #define SKY_WIDTH           (512)
@@ -56,6 +56,7 @@
 #define HEALTH              (100)
 #define SPARK_FRAMES        (10)
 #define MAX_QUADS           (48)
+#define FIGHTER_LIMIT       (RING_HALF - 95)
 
 typedef enum
 {
@@ -182,18 +183,6 @@ static int                  spark_y;
 static int                  shake = 0;
 static int                  flash = 0;
 static bool                 player = false;
-static int                  fps = 0;
-static int                  fps_frames = 0;
-static unsigned int         fps_vblank = 0;
-static unsigned int         last_vblank = 0;
-static int                  late_frames = 0;
-static unsigned int         seed = 12345;
-
-static int                  random_int(const int max)
-{
-    seed = seed * 1103515245 + 12345;
-    return ((int)((seed >> 16) % (unsigned int)max));
-}
 
 static jo_color             color_of(const material m)
 {
@@ -225,9 +214,9 @@ static void                 ring_point(jo_fixed v[3], const int i, const int sid
     int                     a;
 
     a = 360 * i / sides + 180 / sides;
-    v[0] = jo_fixed_mult(jo_int2fixed(rx), jo_sin(a % 360));
+    v[0] = jo_fixed_mult(jo_int2fixed(rx), jo_sin(a));
     v[1] = jo_int2fixed(y);
-    v[2] = jo_fixed_mult(jo_int2fixed(rz), jo_cos(a % 360));
+    v[2] = jo_fixed_mult(jo_int2fixed(rz), jo_cos(a));
 }
 
 /** @brief Side quads of a ring from y0 (radii rx0, rz0) to y1 (rx1, rz1), the front quad (+Z) of the material front */
@@ -245,7 +234,7 @@ static void                 add_ring(builder *b, const int sides, const int y0, 
         ring_point(v[2], i, sides, y1, rx1, rz1);
         ring_point(v[3], i + 1, sides, y1, rx1, rz1);
         a = 360 * i / sides + 360 / sides;
-        add_quad(b, (const jo_fixed (*)[3])v, jo_sin(a % 360), 0, jo_cos(a % 360),
+        add_quad(b, (const jo_fixed (*)[3])v, jo_sin(a), 0, jo_cos(a),
                  i == sides - 1 ? front : i == sides / 2 - 1 ? back : m);
     }
 }
@@ -268,6 +257,46 @@ static void                 add_cap(builder *b, const int sides, const int y, co
             ring_point(v[i], k, sides, y, rx, rz);
         }
         add_quad(b, (const jo_fixed (*)[3])v, 0, top ? -JO_FIXED_1 : JO_FIXED_1, 0, m);
+    }
+}
+
+/** @brief A ring of 4 sides whose corners are exactly at (+-h, +-h) (add_ring() rounds the radius of its corners): from y0
+ *  (half side h0) to y1 (half side h1) */
+static void                 add_square_ring(builder *b, const int y0, const int h0, const int y1, const int h1, const material m)
+{
+    static const signed char    sx[4] = {1, 1, -1, -1};
+    static const signed char    sz[4] = {1, -1, -1, 1};
+    jo_fixed                    v[4][3];
+    int                         i;
+    int                         n;
+    int                         a;
+
+    for (JO_ZERO(i); i < 4; ++i)
+    {
+        n = (i + 1) & 3;
+        v[0][0] = jo_int2fixed(sx[n] * h0); v[0][1] = jo_int2fixed(y0); v[0][2] = jo_int2fixed(sz[n] * h0);
+        v[1][0] = jo_int2fixed(sx[i] * h0); v[1][1] = jo_int2fixed(y0); v[1][2] = jo_int2fixed(sz[i] * h0);
+        v[2][0] = jo_int2fixed(sx[i] * h1); v[2][1] = jo_int2fixed(y1); v[2][2] = jo_int2fixed(sz[i] * h1);
+        v[3][0] = jo_int2fixed(sx[n] * h1); v[3][1] = jo_int2fixed(y1); v[3][2] = jo_int2fixed(sz[n] * h1);
+        a = 90 * i + 90;
+        add_quad(b, (const jo_fixed (*)[3])v, jo_sin(a), 0, jo_cos(a), m);
+    }
+}
+
+/** @brief Turn the last quads of a mesh by 180 degrees around Y (x and z negated: the winding stays the same) */
+static void                 turn_quads(builder *b, const int first)
+{
+    int                     i;
+
+    for (i = first * 4; i < b->count * 4; ++i)
+    {
+        b->mesh->data.points[i].x = -b->mesh->data.points[i].x;
+        b->mesh->data.points[i].z = -b->mesh->data.points[i].z;
+    }
+    for (i = first; i < b->count; ++i)
+    {
+        b->mesh->data.polygons[i].normal.x = -b->mesh->data.polygons[i].normal.x;
+        b->mesh->data.polygons[i].normal.z = -b->mesh->data.polygons[i].normal.z;
     }
 }
 
@@ -335,6 +364,8 @@ static void                 create_fighter(fighter *f, const material gi, const 
     begin_mesh(&b);
     add_ring(&b, 8, -52, 21, 12, -30, 19, 12, gi, MAT_SKIN, gi);
     add_ring(&b, 8, -30, 19, 12, -9, 16, 11, gi, trim, gi);
+    // (under the top of the belt: no gap at the waist when the torso leans or twists)
+    add_ring(&b, 8, -9, 16, 11, -1, 13, 9, gi, trim, gi);
     add_cap(&b, 8, -52, 21, 12, true, gi);
     add_ring(&b, 6, -58, 5, 5, -51, 6, 6, MAT_SKIN, MAT_SKIN, MAT_SKIN);
     f->mesh[PART_TORSO] = end_mesh(&b, true);
@@ -350,8 +381,12 @@ static void                 create_fighter(fighter *f, const material gi, const 
     begin_mesh(&b);
     add_ring(&b, 8, 0, 8, 8, 28, 6, 6, gi, gi, gi);
     add_cap(&b, 8, 0, 8, 8, true, gi);
+    add_cap(&b, 8, 28, 6, 6, false, gi);
     f->mesh[PART_UPPER_ARM] = end_mesh(&b, true);
     begin_mesh(&b);
+    // (the forearm starts inside the end of the upper arm, closed: no hole at the elbow when it bends)
+    add_ring(&b, 6, -6, 5, 5, 0, 6, 6, MAT_SKIN, MAT_SKIN, MAT_SKIN);
+    add_cap(&b, 6, -6, 5, 5, true, MAT_SKIN);
     add_ring(&b, 6, 0, 6, 6, 24, 5, 5, MAT_SKIN, MAT_SKIN, MAT_SKIN);
     add_ring(&b, 6, 18, 6, 6, 24, 6, 6, MAT_WRAP, MAT_WRAP, MAT_WRAP);
     f->mesh[PART_FOREARM] = end_mesh(&b, true);
@@ -359,15 +394,22 @@ static void                 create_fighter(fighter *f, const material gi, const 
     add_box(&b, -6, 23, -6, 6, 34, 7, 1, MAT_WRAP);
     f->mesh[PART_FIST] = end_mesh(&b, true);
     begin_mesh(&b);
+    // (the thigh starts inside the pelvis and is closed at the knee: no hole at the hip or the knee when they bend)
+    add_ring(&b, 8, -8, 8, 8, 0, 10, 10, pants, pants, pants);
     add_ring(&b, 8, 0, 10, 10, 44, 8, 8, pants, pants, pants);
-    add_cap(&b, 8, 0, 10, 10, true, pants);
+    add_cap(&b, 8, -8, 8, 8, true, pants);
+    add_cap(&b, 8, 44, 8, 8, false, pants);
     f->mesh[PART_THIGH] = end_mesh(&b, true);
     begin_mesh(&b);
+    add_ring(&b, 8, -6, 7, 7, 0, 8, 8, pants, pants, pants);
+    add_cap(&b, 8, -6, 7, 7, true, pants);
     add_ring(&b, 8, 0, 8, 8, 34, 8, 8, pants, pants, pants);
     add_ring(&b, 6, 34, 6, 6, 42, 5, 5, MAT_SKIN, MAT_SKIN, MAT_SKIN);
     f->mesh[PART_SHIN] = end_mesh(&b, true);
     begin_mesh(&b);
+    // (the toes in front of the fighter: the box is built with its toes on +Z, turned)
     add_box(&b, -6, 0, -7, 6, 7, 18, 2, MAT_SKIN);
+    turn_quads(&b, 0);
     f->mesh[PART_FOOT] = end_mesh(&b, true);
     f->x = x;
     f->dir = x < 0 ? 1 : -1;
@@ -394,7 +436,7 @@ static void                 create_effects(void)
     for (JO_ZERO(i); i < 8; ++i)
     {
         a = i * 45 + (i & 1) * 10;
-        v[0][0] = jo_fixed_mult(jo_int2fixed(3), jo_cos((a + 90) % 360)); v[0][1] = jo_fixed_mult(jo_int2fixed(3), jo_sin((a + 90) % 360));
+        v[0][0] = jo_fixed_mult(jo_int2fixed(3), jo_cos(a + 90)); v[0][1] = jo_fixed_mult(jo_int2fixed(3), jo_sin(a + 90));
         v[1][0] = jo_fixed_mult(jo_int2fixed((i & 1) ? 14 : 22), jo_cos(a)); v[1][1] = jo_fixed_mult(jo_int2fixed((i & 1) ? 14 : 22), jo_sin(a));
         v[2][0] = v[1][0]; v[2][1] = v[1][1];
         v[3][0] = -v[0][0]; v[3][1] = -v[0][1];
@@ -404,10 +446,11 @@ static void                 create_effects(void)
         jo_3d_set_mesh_polygon_color(b.mesh, (jo_color)(color_of((i & 1) ? MAT_SPARK : MAT_SPARK_CORE) + (SHADES - 1) * MAT_COUNT), b.count - 1);
     }
     spark = end_mesh(&b, false);
-    // The side of the ring above the water
+    // The side of the ring above the water: its top over the border of the floor (the edge of the VDP2 plane is drawn about
+    // 1 unit off: a line of water was seen between the floor and the side), sloped (seen from the inside of the ring, it
+    // faces away: not drawn)
     begin_mesh(&b);
-    add_ring(&b, 4, RING_Y, RING_HALF * 141 / 100, RING_HALF * 141 / 100, RING_Y + 14, RING_HALF * 141 / 100, RING_HALF * 141 / 100,
-             MAT_CURB, MAT_CURB, MAT_CURB);
+    add_square_ring(&b, RING_Y, RING_HALF - 3, RING_Y + 14, RING_HALF + 2, MAT_CURB);
     for (JO_ZERO(i); i < b.count; ++i)
         b.mesh->data.attributes[i].sort = (b.mesh->data.attributes[i].sort & ~JO_3D_SORT_MASK) | JO_3D_SORT_MAX;
     curb = end_mesh(&b, true);
@@ -468,7 +511,7 @@ static void                 create_arena(void)
                 c = 25;
             else
             {
-                c = (unsigned char)(1 + 8 * (((tx + ring) / RING_TILE * 7 + (ty + ring) / RING_TILE * 3) % 3) + random_int(3) +
+                c = (unsigned char)(1 + 8 * (((tx + ring) / RING_TILE * 7 + (ty + ring) / RING_TILE * 3) % 3) + jo_random(3) - 1 +
                                     ((tx + ring) % RING_TILE + (ty + ring) % RING_TILE < 4 ? 0 : 2) +
                                     ((tx + ring) % RING_TILE + (ty + ring) % RING_TILE > RING_TILE * 2 - 6 ? 3 : 0));
             }
@@ -528,7 +571,7 @@ static void                 make_pose(const fighter *f, pose *p)
     int                     bob;
 
     jo_memset(p, 0, sizeof(*p));
-    bob = jo_sin_mult(2, (f->frame * 6) % 360);
+    bob = jo_sin_mult(2, f->frame * 6);
     p->lean = 8 + bob;
     p->arm[0].shoulder = 60; p->arm[0].spread = 10; p->arm[0].elbow = 110;
     p->arm[1].shoulder = 40; p->arm[1].spread = 14; p->arm[1].elbow = 120;
@@ -538,7 +581,7 @@ static void                 make_pose(const fighter *f, pose *p)
     switch (f->state)
     {
         case STATE_WALK:
-            k = jo_sin_mult(14, (t * 12) % 360);
+            k = jo_sin_mult(14, t * 12);
             p->leg[0].hip += (short)(k * f->walk);
             p->leg[1].hip -= (short)(k * f->walk);
             p->leg[0].knee += (short)JO_ABS(k);
@@ -780,19 +823,19 @@ static void                 think(fighter *f, const fighter *other, int *move, b
         *guard = f->state == STATE_GUARD;
         return;
     }
-    f->think = 8 + random_int(16);
-    if ((other->state == STATE_PUNCH || other->state == STATE_KICK) && dist < 110 && random_int(3) == 0)
+    f->think = 7 + jo_random(16);
+    if ((other->state == STATE_PUNCH || other->state == STATE_KICK) && dist < 110 && jo_random(3) == 1)
         *guard = true;
     else if (dist > 100)
         *move = 1;
     else if (dist < 50)
         *move = -1;
-    else if (random_int(3) == 0)
+    else if (jo_random(3) == 1)
         *kick = true;
-    else if (random_int(2) == 0)
+    else if (jo_random(2) == 1)
         *punch = true;
     else
-        *move = random_int(3) - 1;
+        *move = jo_random(3) - 2;
 }
 
 static void                 update_fighter(fighter *f, fighter *other, const bool pad)
@@ -837,7 +880,7 @@ static void                 update_fighter(fighter *f, fighter *other, const boo
         if (f->state != STATE_WALK)
             set_state(f, STATE_WALK);
         f->walk = move;
-        if (move > 0 ? JO_ABS(other->x - f->x) > 60 : JO_ABS(f->x) < RING_HALF - 30)
+        if (move < 0 || JO_ABS(other->x - f->x) > 60)
             f->x += f->dir * move * 2;
     }
     else if (f->state != STATE_IDLE)
@@ -859,36 +902,29 @@ static void                 new_round(void)
 }
 
 /*
-** Head-up display: the health bars (VDP1 polygons in front of everything, the red part shows the last damages)
+** Head-up display: the health bars (VDP1 rectangles in front of everything, the red part shows the last damages)
 */
 
-static jo_3d_mesh           *hud;
+#define HUD_Z               (500)
 
-static void                 set_hud_rect(const int q, int x0, int x1, const int y0, const int y1, const material m, const int z)
+/** @brief A rectangle of the head-up display from x0 to x1 (the pixels of both included, 2 pixels at least) */
+static void                 draw_hud_rect(const int x0, int x1, const int y0, const int y1, const material m)
 {
-    int                     cx;
-    int                     cy;
-
-    cx = jo_core_get_screen_width() / 2;
-    cy = jo_core_get_screen_height() / 2;
     if (x1 <= x0)
         x1 = x0 + 1;
-    jo_3d_set_mesh_vertice(hud, jo_int2fixed(x0 - cx), jo_int2fixed(y0 - cy), jo_int2fixed(z), q * 4);
-    jo_3d_set_mesh_vertice(hud, jo_int2fixed(x1 - cx), jo_int2fixed(y0 - cy), jo_int2fixed(z), q * 4 + 1);
-    jo_3d_set_mesh_vertice(hud, jo_int2fixed(x1 - cx), jo_int2fixed(y1 - cy), jo_int2fixed(z), q * 4 + 2);
-    jo_3d_set_mesh_vertice(hud, jo_int2fixed(x0 - cx), jo_int2fixed(y1 - cy), jo_int2fixed(z), q * 4 + 3);
-    jo_3d_set_mesh_polygon_color(hud, (jo_color)(color_of(m) + (SHADES - 3) * MAT_COUNT), q);
+    // (a color of the palette of the screen in 704 x 480: the brightest shades of the material)
+    jo_sprite_draw_rectangle(x0, y0, x1 - x0 + 1, y1 - y0 + 1, (jo_color)(color_of(m) + (SHADES - 3) * MAT_COUNT), HUD_Z);
 }
 
 static void                 draw_hud(void)
 {
-    static const jo_pos3D   origin = {0, 0, 0};
-    int                     z;
     int                     i;
     int                     x;
     int                     w;
 
-    z = jo_fixed2int(jo_3d_get_projection_distance());
+    // In front of the 3D: their sort key is 0 (the depth bias added to HUD_Z), the 3D polygons are farther than the
+    // near plane; at the same depth, drawn in the order of the calls (the frame, the red part, the yellow part)
+    jo_3d_set_depth_bias(-HUD_Z);
     for (JO_ZERO(i); i < 2; ++i)
     {
         if (fighters[i].shown_health > fighters[i].health)
@@ -897,24 +933,19 @@ static void                 draw_hud(void)
             fighters[i].shown_health = fighters[i].health;
         x = i ? 386 : 38;
         w = 280;
-        set_hud_rect(i * 3, x - 3, x + w + 3, 32, 54, MAT_BELT, z + 2);
+        draw_hud_rect(x - 3, x + w + 3, 32, 54, MAT_BELT);
         if (i)
         {
-            set_hud_rect(i * 3 + 1, x + w - w * fighters[i].shown_health / HEALTH, x + w, 35, 51, MAT_GI_RED, z + 1);
-            set_hud_rect(i * 3 + 2, x + w - w * fighters[i].health / HEALTH, x + w, 35, 51, MAT_SPARK, z);
+            draw_hud_rect(x + w - w * fighters[i].shown_health / HEALTH, x + w, 35, 51, MAT_GI_RED);
+            draw_hud_rect(x + w - w * fighters[i].health / HEALTH, x + w, 35, 51, MAT_SPARK);
         }
         else
         {
-            set_hud_rect(i * 3 + 1, x, x + w * fighters[i].shown_health / HEALTH, 35, 51, MAT_GI_RED, z + 1);
-            set_hud_rect(i * 3 + 2, x, x + w * fighters[i].health / HEALTH, 35, 51, MAT_SPARK, z);
+            draw_hud_rect(x, x + w * fighters[i].shown_health / HEALTH, 35, 51, MAT_GI_RED);
+            draw_hud_rect(x, x + w * fighters[i].health / HEALTH, 35, 51, MAT_SPARK);
         }
     }
-    jo_3d_camera_set_viewpoint(&camera, origin.x, origin.y, origin.z);
-    jo_3d_camera_set_target(&camera, 0, 0, 100);
-    jo_3d_camera_look_at(&camera);
-    jo_3d_set_front_layer(4);
-    jo_3d_mesh_draw(hud);
-    jo_3d_set_front_layer(-1);
+    jo_3d_set_depth_bias(0);
 }
 
 /*
@@ -937,10 +968,10 @@ static void                 update_camera(void)
     dist = 175 + JO_ABS(fighters[1].x - fighters[0].x) * 2 / 3;
     if (ko_frames > 0)
         dist -= JO_MIN(ko_frames, 60) * 50 / 60;
-    a = jo_sin_mult(26, (frame_count / 4) % 360);
-    height = 92 + jo_sin_mult(10, (frame_count / 3) % 360);
-    sx = shake ? random_int(shake) - shake / 2 : 0;
-    sy = shake ? random_int(shake) - shake / 2 : 0;
+    a = jo_sin_mult(26, frame_count / 4);
+    height = 92 + jo_sin_mult(10, frame_count / 3);
+    sx = shake ? jo_random(shake) - 1 - shake / 2 : 0;
+    sy = shake ? jo_random(shake) - 1 - shake / 2 : 0;
     cx = mid + jo_sin_mult(dist, a);
     cz = -jo_cos_mult(dist, a);
     jo_3d_camera_set_viewpoint(&camera, cx + sx, RING_Y - height + sy, cz);
@@ -966,23 +997,6 @@ static void                 draw_arena(void)
     jo_3d_pop_matrix();
 }
 
-static void                 update_fps(void)
-{
-    unsigned int            vblank;
-
-    ++fps_frames;
-    vblank = jo_core_get_vblank_count();
-    if (last_vblank && vblank - last_vblank > 1)
-        ++late_frames;
-    last_vblank = vblank;
-    if (vblank - fps_vblank >= 120)
-    {
-        fps = (fps_frames * 60 + 30) / (int)(vblank - fps_vblank);
-        fps_frames = 0;
-        fps_vblank = vblank;
-    }
-}
-
 static void                 game_loop(void)
 {
     ++frame_count;
@@ -992,6 +1006,9 @@ static void                 game_loop(void)
         player = true;
     update_fighter(&fighters[0], &fighters[1], player);
     update_fighter(&fighters[1], &fighters[0], false);
+    // On the ring: walking back, pushed by a hit or a guard (a fighter knocked out falls backward: his body stays on it)
+    fighters[0].x = JO_CLAMP(fighters[0].x, -FIGHTER_LIMIT, FIGHTER_LIMIT);
+    fighters[1].x = JO_CLAMP(fighters[1].x, -FIGHTER_LIMIT, FIGHTER_LIMIT);
     if (fighters[0].state == STATE_KO || fighters[1].state == STATE_KO)
         if (++ko_frames > 180)
             new_round();
@@ -1014,11 +1031,10 @@ static void                 game_loop(void)
     draw_effects();
     jo_core_wait_for_slave();
     jo_3d_slave_end();
-    update_fps();
     jo_printf(3, 4, "RED %d", fighters[0].wins);
     jo_printf(34, 4, "%d WHITE", fighters[1].wins);
     jo_printf(19, 6, ko_frames > 0 ? "K.O.  " : round_frames < 90 ? "FIGHT!" : "      ");
-    jo_printf(2, 27, "%d FPS  %s  LATE %d   ", fps, player ? "PLAYER 1" : "DEMO", late_frames);
+    jo_printf(2, 27, "%d FPS  %s  LATE %d   ", jo_core_get_fps(), player ? "PLAYER 1" : "DEMO", jo_core_get_late_frame_count());
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
     jo_profile_print(1, 8);
 #endif
@@ -1026,8 +1042,6 @@ static void                 game_loop(void)
 
 void                        jo_main(void)
 {
-    builder                 b;
-
     jo_core_init(JO_COLOR_RGB(150, 176, 204));
     jo_create_palette(&palette);
     jo_palette_set_light_shades(&palette, SHADES_FIRST, material_colors, MAT_COUNT, SHADES);
@@ -1037,9 +1051,6 @@ void                        jo_main(void)
     create_fighter(&fighters[0], MAT_GI_RED, MAT_TRIM_RED, MAT_PANTS_BLUE, -70);
     create_fighter(&fighters[1], MAT_GI_WHITE, MAT_TRIM_WHITE, MAT_PANTS_BLACK, 70);
     create_effects();
-    begin_mesh(&b);
-    b.count = 6;
-    hud = end_mesh(&b, false);
     jo_3d_camera_init(&camera);
     new_round();
     jo_core_add_callback(game_loop);

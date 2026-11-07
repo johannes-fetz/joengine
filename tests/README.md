@@ -35,10 +35,10 @@ starts `Xvfb`.
 |---|---|---|---|
 | 0 build | every sample, the test ROM 320x224 | + the variants (`release`: `JO_DEBUG=0`), the test ROM 704x480 | the build succeeds; the warnings of the test ROM are shown |
 | 1 logic | yes | yes | math (fixed point, square roots, trigonometry, matrices), strings, `jo_sprintf`, lists, `jo_malloc` |
-| 2 state | yes | yes | after the API calls: screen modes, VDP2 registers (windows, blend, shadow, mosaic, special colors, sprite priorities, color offset), palettes, sprites, VDP2 memory, files of the CD |
+| 2 state | yes | yes | after the API calls: screen modes, VDP2 registers (windows, blend, shadow, mosaic, special colors, sprite priorities, color offset), palettes, sprites, the VDP1 commands of the colored shapes (`jo_sprite_draw_rectangle()`: corners, draw mode, effects, depth key), VDP2 memory, files of the CD |
 | 3 images | | yes | the scenes of the test ROM, frame by frame, against `golden/rom/<variant>/*.png` |
 | 4 sound | | yes | the loudness of each sample (blocks of 100 ms) against `golden/samples/<sample>/audio.json` |
-| 5 budgets | sizes: warning only | yes | CPU and VDP1 time of the measures of the test ROM, memory used, sizes of each program (code, data, RAM), against `golden/budgets.json` |
+| 5 budgets | sizes: warning only | yes | CPU and VDP1 time of the measures of the test ROM, memory used, sizes of each program (code, data, RAM), against `golden/budgets.json`; the absolute limits of `samples.max_bin_size` (`demo - minimal`, built with `JO_MINIMAL = 1`: a failure in both modes) |
 | 6 samples | | yes | each sample boots in Mednafen; its frames against `golden/samples/<sample>/frame_*.png` |
 | 3 glitch | 9 views | 217 views | the anti-glitch views of the 3D (`rom/t_glitch.c`, `harness/glitch.py`): absolute checks, no reference (see below) |
 
@@ -103,6 +103,8 @@ report.
 - `rom.modules`, `rom.sources`, `rom.variants`: the makefile of the test ROM and its variants (`JO_SCREEN_WIDTH`, etc); the keys
   `T_*` are defines of the test ROM (`T_FUZZ_LONG`)
 - `samples.skip`: samples not built; `samples.full_variants`: the other builds of the full mode
+- `samples.max_bin_size`: the most bytes of the program (`game.raw`) of a sample in each build (`demo - minimal`: the
+  engine reduced by `JO_MINIMAL = 1` must stay much smaller than the default engine, 29 KB for the same program)
 - `samples.boot.frames`: the frames of each sample compared (the BIOS takes about 700 frames);
   `samples.boot.per_sample`: other frames or `"audio": false` for a sample; `samples.boot.skip`: samples built but not run
 - `tolerances`: `image_threshold` (difference of a color component, 0 to 255), `image_max_pixels_percent`, `perf_percent`,

@@ -265,6 +265,10 @@ typedef struct
     int                             last_health;    // His health at the last update (hurt by an explosion: not by a shot)
     int                             moved;          // Distance walked in the last frame (1/256 units): the time of his steps
     int                             gait_speed;     // Speed of the animation of his steps (walk or run), 0: not walking
+    int                             draw_mode;      // In this frame (see guard_tint()): 0 his models by the distance, 1 his far
+                                                    // model, -1 not drawn (the table of the VDP1 nearly full)
+    int                             commands;       // VDP1 commands of his last drawing (written by the CPU that drew him)
+    bool                            commands_far;   // ... with his far model
     bool                            run;            // He runs to the agent (from another room, from far)
     int                             door_wait;      // Milliseconds blocked by a door (open: he goes around its panel)
     int                             detour_time;    // Milliseconds left walking around a piece of furniture
@@ -1869,6 +1873,10 @@ static void                         guard_update_inner(jo_entity * const e, cons
         g->sight_timer = g->state == GUARD_IDLE ? GUARD_IDLE_SIGHT_PERIOD : GUARD_SIGHT_PERIOD;
         // (a scientist notices the agent near him whatever his facing: he hears him, he turns around)
         g->sees = g->scientist ? sees_agent_within(e, SCIENTIST_THREAT_DISTANCE * 2 / 3) : sees_agent(e);
+#ifdef DEMO_BENCH_HIDDEN
+        // (the benchmark: nobody sees the agent, the persons patrol)
+        g->sees = false;
+#endif
     }
     if (g->sees)
     {
@@ -2085,7 +2093,7 @@ static void                         guard_update_inner(jo_entity * const e, cons
 
 /** @brief The faces: the sprites of their textures (-1: not loaded), the polygons of the models of the guards that have
  *  them (the models are shared by the guards: the textures of his face are set on them before each guard is drawn) */
-#define FACE_MAX_MODELS             (6)
+#define FACE_MAX_MODELS             (12)
 #define FACE_MAX_POLYGONS           (40)
 typedef struct
 {
@@ -2181,13 +2189,100 @@ static void                         set_face(const jo_3d_model * const model, co
     }
 }
 
+/** @brief The copies of the models of the persons drawn by the master CPU: their own polygon attributes (the textures of
+ *  the faces, see set_face()), the rest shared with the model. The 2 CPUs draw the persons at the same time (see
+ *  jo_entity_class_set_parallel_draw()): with one model, the master CPU wrote the face of its guard in the textures that
+ *  the slave CPU was reading for another one. Before, the master CPU waited for all the persons of the slave CPU before it
+ *  drew its own (15 ms of wait in front of 9 scientists: 28 frames per second) */
+#define MASTER_COPY_MAX             (8)
+static const jo_3d_model            *master_sources[MASTER_COPY_MAX];
+static jo_3d_model                  *master_copies[MASTER_COPY_MAX];
+static int                          master_copy_count = 0;
+
+/** @brief The copy of a model for the master CPU (made at the loading), the model itself if it has none */
+static jo_3d_model                  *master_copy_of(jo_3d_model * const model)
+{
+    int                             k;
+
+    for (k = 0; k < master_copy_count; ++k)
+        if (master_sources[k] == model)
+            return (master_copies[k]);
+    return (model);
+}
+
+/** @brief Make the copy of a model for the master CPU (see master_copies) */
+static void                         add_master_copy(const jo_3d_model * const model)
+{
+    unsigned char                   *block;
+    jo_3d_model                     *copy;
+    jo_3d_mesh                      *mesh;
+    unsigned int                    attributes;
+
+    if (model == JO_NULL || model->mesh == JO_NULL || master_copy_count >= MASTER_COPY_MAX ||
+        master_copy_of((jo_3d_model *)model) != model)
+        return;
+    // (one block: the model, its mesh, the attributes of its polygons; never freed, like the models of the level)
+    attributes = model->mesh->data.polygon_count * sizeof(jo_3d_polygon_attribute);
+    block = (unsigned char *)jo_malloc(((sizeof(jo_3d_model) + 3) & ~3u) + ((sizeof(jo_3d_mesh) + 3) & ~3u) + attributes);
+    if (block == JO_NULL)
+        return;
+    copy = (jo_3d_model *)block;
+    mesh = (jo_3d_mesh *)(block + ((sizeof(jo_3d_model) + 3) & ~3u));
+    *copy = *model;
+    *mesh = *model->mesh;
+    mesh->data.attributes = (jo_3d_polygon_attribute *)((unsigned char *)mesh + ((sizeof(jo_3d_mesh) + 3) & ~3u));
+    jo_memcpy(mesh->data.attributes, model->mesh->data.attributes, attributes);
+    copy->mesh = mesh;
+    master_sources[master_copy_count] = model;
+    master_copies[master_copy_count++] = copy;
+}
+
+/** @brief The VDP1 commands left for the persons in this frame (see plan_draw()), the frame of the plan */
+static int                          persons_commands_left = 0;
+static int                          persons_plan_frame = -1;
+
+/** @brief How a person is drawn in this frame (his far model, or not at all when the table of the VDP1 is nearly full),
+ *  decided by the master CPU before the drawing (jo_entities_prepare_draw() calls the tint of the class), in the order of
+ *  the entities, from the commands each one took when drawn last: the same choice whatever the CPU that draws him. (Each
+ *  CPU decided while it drew, from the commands of both CPUs so far: with the 2 CPUs drawing persons at the same time, the
+ *  count of the other CPU changed from a frame to the next and persons of a still scene appeared and vanished) */
+static void                         plan_draw(const jo_entity * const e, guard * const g)
+{
+    const jo_3d_model               *model;
+    int                             commands;
+    bool                            far;
+
+    if (persons_plan_frame != frame_counter)
+    {
+        // (the polygons of the cells found: all of them, even the ones that will face away: a margin for the other
+        // entities)
+        persons_plan_frame = frame_counter;
+        persons_commands_left = jo_vdp1_command_max() - GUARD_RESERVE_COMMANDS - jo_cells_prepared_polygon_count();
+    }
+    if (persons_commands_left < GUARD_FAR_COMMANDS)
+    {
+        g->draw_mode = -1;
+        return;
+    }
+    g->draw_mode = persons_commands_left < GUARD_NEAR_COMMANDS ? 1 : 0;
+    far = g->draw_mode == 1 || (g->actor.far_model != JO_NULL && e->view_distance > g->far_distance);
+    model = far && g->actor.far_model != JO_NULL ? g->actor.far_model : g->actor.model;
+    // (his commands the last time he was drawn with this model, else two thirds of its polygons: the others face away)
+    commands = *(volatile int *)JO_CACHE_THROUGH(&g->commands);
+    if (commands <= 0 || *(volatile bool *)JO_CACHE_THROUGH(&g->commands_far) != far)
+        commands = model != JO_NULL && model->mesh != JO_NULL ? (int)model->mesh->data.polygon_count * 2 / 3 : GUARD_FAR_COMMANDS;
+    persons_commands_left -= commands;
+}
+
 /** @brief The tint of a guard (the light of the lamps on him, see jo_entities_prepare_draw()): red for a moment after a
  *  hit */
 static void                         guard_tint(jo_entity * const e, int * const r, int * const g, int * const b)
 {
-    const guard                     *gd;
+    guard                           *gd;
 
-    gd = (const guard *)e->data;
+    gd = (guard *)e->data;
+    if (gd != JO_NULL)
+        plan_draw(e, gd);
     if (gd != JO_NULL && gd->hurt > 0)
     {
         *r = GUARD_HURT_RED * gd->hurt / GUARD_HURT_TIME;
@@ -2200,24 +2295,40 @@ static void                         guard_tint(jo_entity * const e, int * const 
 static void                         guard_draw(jo_entity * const e)
 {
     guard                           *g;
-    int                             left;
+    int                             commands;
+    jo_3d_model                     *model;
+    jo_3d_model                     *far_model;
 
     g = (guard *)e->data;
+    model = JO_NULL;
+    far_model = JO_NULL;
+    commands = 0;
     if (g != JO_NULL)
     {
-        // (the commands of the slave CPU too: its count now, or in the last frame if it had more, it still draws)
-        left = jo_vdp1_command_max() - __jo_vdp1_frame_command_count() - GUARD_RESERVE_COMMANDS -
-               JO_MAX(jo_3d_slave_get_current_command_count(), jo_3d_slave_get_command_count());
-        if (left < GUARD_FAR_COMMANDS)
+        // (planned in jo_entities_prepare_draw(), see plan_draw(); the table of the master CPU nearly full: not drawn)
+        if (g->draw_mode < 0 || jo_vdp1_command_max() - __jo_vdp1_frame_command_count() - GUARD_RESERVE_COMMANDS < GUARD_FAR_COMMANDS)
             return;
-        e->far_distance = left < GUARD_NEAR_COMMANDS ? 0 : g->far_distance;
-        set_face(g->actor.model, g->face, true);
-        set_face(g->actor.far_model, g->face, true);
+        e->far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
+        commands = __jo_vdp1_frame_command_count();
+        // (the copies of the models of the master CPU: only this CPU writes their faces)
+        model = g->actor.model;
+        far_model = g->actor.far_model;
+        g->actor.model = master_copy_of(model);
+        g->actor.far_model = far_model != JO_NULL ? master_copy_of(far_model) : JO_NULL;
+        set_face(g->actor.model, g->face, false);
+        set_face(g->actor.far_model, g->face, false);
     }
     if (g != JO_NULL && g->hatless && cap_bone >= 0)
         jo_3d_model_set_hidden_bones(1u << cap_bone);
     jo_actor_draw(e);
     jo_3d_model_set_hidden_bones(0);
+    if (g != JO_NULL)
+    {
+        g->actor.model = model;
+        g->actor.far_model = far_model;
+        g->commands = __jo_vdp1_frame_command_count() - commands;
+        g->commands_far = far_model != JO_NULL && e->view_distance > e->far_distance;
+    }
 }
 
 /** @brief Draw a guard on the slave CPU (see jo_entities_draw_slave()): like guard_draw(), with the commands of the slave
@@ -2225,32 +2336,86 @@ static void                         guard_draw(jo_entity * const e)
 static void                         guard_draw_slave(jo_entity * const e)
 {
     guard                           *g;
-    int                             left;
+    int                             commands;
     int                             far_distance;
 
     g = (guard *)e->data;
     far_distance = e->far_distance;
+    commands = 0;
     if (g != JO_NULL)
     {
-        // (the table of the VDP1 is shared by the 2 CPUs: the commands of the slave CPU so far, the polygons of the cells
-        // of the master CPU as planned (not its count now: it depends on how far it got, a run would differ from another);
-        // the slave CPU drops its last commands when the table is full)
-        left = JO_MIN(jo_3d_slave_get_max_commands() - jo_3d_slave_get_current_command_count(),
-                      jo_vdp1_command_max() - jo_cells_prepared_polygon_count() * jo_cells_get_share() / 1024 -
-                      jo_3d_slave_get_current_command_count()) - GUARD_RESERVE_COMMANDS;
-        if (left < GUARD_FAR_COMMANDS)
+        // (planned in jo_entities_prepare_draw(), see plan_draw(); the table of the slave CPU nearly full: not drawn)
+        if (g->draw_mode < 0 || jo_3d_slave_get_max_commands() - jo_3d_slave_get_current_command_count() - GUARD_RESERVE_COMMANDS <
+            GUARD_FAR_COMMANDS)
             return;
-        far_distance = left < GUARD_NEAR_COMMANDS ? 0 : g->far_distance;
+        far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
         set_face(g->actor.model, g->face, false);
         set_face(g->actor.far_model, g->face, false);
+        commands = jo_3d_slave_get_current_command_count();
     }
     jo_actor_draw_slave(e, far_distance, g != JO_NULL && g->hatless && cap_bone >= 0 ? 1u << cap_bone : 0);
+    if (g != JO_NULL)
+    {
+        // (read by the master CPU in the next frame, see plan_draw(): without its cache)
+        *(volatile int *)JO_CACHE_THROUGH(&g->commands) = jo_3d_slave_get_current_command_count() - commands;
+        *(volatile bool *)JO_CACHE_THROUGH(&g->commands_far) = g->actor.far_model != JO_NULL && e->view_distance > far_distance;
+    }
 }
 
 static const jo_entity_class        guard_class = {"guard", sizeof(guard), guard_spawn, guard_update, JO_NULL, guard_death, guard_draw,
                                                    guard_draw_slave, guard_tint};
 static const jo_entity_class        scientist_class = {"scientist", sizeof(guard), scientist_spawn, guard_update, JO_NULL, guard_death,
                                                        guard_draw, guard_draw_slave, guard_tint};
+
+#ifdef DEMO_BENCH
+void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int yaw, const int count,
+                                                        const bool scientists)
+{
+    int                             k;
+    int                             n;
+    int                             forward;
+    int                             side;
+    jo_entity                       *e;
+    guard                           *g;
+    const guard                     *model;
+
+    // (the model of the scientists: the first one)
+    model = JO_NULL;
+    for (k = 0; k < jo_entity_count() && model == JO_NULL; ++k)
+        if (jo_entity_get(k)->cls == &scientist_class && jo_entity_get(k)->data != JO_NULL)
+            model = (const guard *)jo_entity_get(k)->data;
+    // (the scientists first, then the guards)
+    n = 0;
+    for (k = 0; k < 2 * jo_entity_count() && n < count; ++k)
+    {
+        e = jo_entity_get(k % jo_entity_count());
+        if ((k < jo_entity_count()) != (e->cls == &scientist_class) || !is_person(e) || e->data == JO_NULL)
+            continue;
+        g = (guard *)e->data;
+        if (scientists && !g->scientist && model != JO_NULL)
+        {
+            e->cls = &scientist_class;
+            g->scientist = true;
+            g->hatless = true;
+            g->state = SCIENTIST_WALK;
+            g->actor.model = model->actor.model;
+            g->actor.far_model = model->actor.far_model;
+            jo_actor_restart(e, "idle", 0);
+        }
+        forward = 170 + (n / 3) * 120;
+        side = ((n % 3) - 1) * 120 + ((n / 3) & 1) * 50;
+        e->position.x = x + jo_sin(yaw) * forward + jo_cos(yaw) * side;
+        e->position.z = z + jo_cos(yaw) * forward - jo_sin(yaw) * side;
+        e->yaw = (yaw + 180) % 360;
+        g->home_x = e->position.x;
+        g->home_z = e->position.z;
+        g->home_yaw = e->yaw;
+        g->patrol_x = e->position.x + jo_cos(yaw) * 70;
+        g->patrol_z = e->position.z - jo_sin(yaw) * 70;
+        ++n;
+    }
+}
+#endif
 
 /** @brief Blood: drops flying out of the hit, falling */
 static void                         add_blood(const jo_pos3D_fixed * const p, const jo_pos3D_fixed * const dir)
@@ -2860,6 +3025,55 @@ void                                guards_register(void)
 {
     jo_entity_register_class(&guard_class);
     jo_entity_register_class(&scientist_class);
+    // (drawn by both CPUs at the same time: the master CPU draws its persons with the copies of the models, see master_copies)
+    jo_entity_class_set_parallel_draw(&guard_class, true);
+    jo_entity_class_set_parallel_draw(&scientist_class, true);
+}
+
+/** @brief The high work RAM kept for the models of the persons (see guards_reserve_fast_memory()): their points, polygons,
+ *  attributes and bones (about 46 KB for the 6 models) and the attributes of the copies of the master CPU (10 KB) */
+#define PERSONS_FAST_MEMORY         (60 * 1024)
+static void                         *persons_fast_reserve = JO_NULL;
+/** @brief The high work RAM kept for the table of the entities (151 x 128 bytes) and the first of their data, given back
+ *  just before they are created: with only the memory of the persons kept, the table went to the low work RAM and the
+ *  update of the entities (the collisions read it) went from 2.2 to 4.3 ms per frame. 48 KB: the walkway went to the low
+ *  work RAM too */
+#define ENTITIES_FAST_MEMORY        (32 * 1024)
+static void                         *entities_fast_reserve = JO_NULL;
+
+void                                guards_reserve_fast_memory(void)
+{
+    persons_fast_reserve = jo_malloc(PERSONS_FAST_MEMORY);
+    entities_fast_reserve = jo_malloc(ENTITIES_FAST_MEMORY);
+}
+
+void                                guards_release_entity_memory(void)
+{
+    if (entities_fast_reserve != JO_NULL)
+        jo_free(entities_fast_reserve);
+    entities_fast_reserve = JO_NULL;
+}
+
+/** @brief The models of the persons read in the high work RAM (the memory kept by guards_reserve_fast_memory() given to
+ *  them): loaded after the rooms, they were in the low work RAM, slower (9 scientists in front of the agent: 23.8 ms of the
+ *  slave CPU, 20.7 ms in the high work RAM) */
+static void                         persons_to_fast_memory(void)
+{
+    jo_entity                       *e;
+    guard                           *g;
+    int                             k;
+
+    if (persons_fast_reserve != JO_NULL)
+        jo_free(persons_fast_reserve);
+    persons_fast_reserve = JO_NULL;
+    for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+        if ((e->cls == &guard_class || e->cls == &scientist_class) && (g = (guard *)e->data) != JO_NULL)
+        {
+            jo_3d_model_use_fast_memory(g->actor.model);
+            jo_3d_model_use_fast_memory(g->actor.far_model);
+        }
+    jo_3d_model_use_fast_memory(unarmed_model);
+    jo_3d_model_use_fast_memory(unarmed_far_model);
 }
 
 /** @brief The textures of the faces (cd/GFACES.JOM: its textures stay in the VRAM, the model is freed) */
@@ -2891,6 +3105,7 @@ void                                guards_load(void)
     find_cap_middle(unarmed_model);
     unarmed_far_model = jo_3d_load_model("GUARDNF.JOM");
     load_faces();
+    persons_to_fast_memory();
     // (the face polygons of the models of the guards found now, by the master CPU: the slave CPU reads them when it draws
     // the guards, it must not find them)
     if (faces_loaded)
@@ -2902,11 +3117,21 @@ void                                guards_load(void)
         for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
             if ((e->cls == &guard_class || e->cls == &scientist_class) && (g = (const guard *)e->data) != JO_NULL)
             {
+                add_master_copy(g->actor.model);
+                add_master_copy(g->actor.far_model);
+            }
+        add_master_copy(unarmed_model);
+        add_master_copy(unarmed_far_model);
+        for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+            if ((e->cls == &guard_class || e->cls == &scientist_class) && (g = (const guard *)e->data) != JO_NULL)
+            {
                 find_face_polygons(g->actor.model);
                 find_face_polygons(g->actor.far_model);
             }
         find_face_polygons(unarmed_model);
         find_face_polygons(unarmed_far_model);
+        for (k = 0; k < master_copy_count; ++k)
+            find_face_polygons(master_copies[k]);
     }
     sounds_loaded = load_sound("GSHOT1.WAV", &guard_shots[0]) && load_sound("GSHOT2.WAV", &guard_shots[1]) &&
                     load_sound("GPAIN1.WAV", &pain_sounds[0]) && load_sound("GPAIN2.WAV", &pain_sounds[1]) &&

@@ -290,6 +290,19 @@ t_tga_error_code		    jo_tga_loader(jo_img *img, const char * const sub_dir, con
     return (__jo_tga_any_loader((jo_raw_img *)img, sub_dir, filename, transparent_color, &bits));
 }
 
+bool                        jo_set_background_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color)
+{
+    jo_img                  img;
+
+    img.data = JO_NULL;
+    // (the pixels are allocated after the checks of the file: nothing to free when it fails)
+    if (jo_tga_loader(&img, sub_dir, filename, transparent_color) != JO_TGA_OK)
+        return (false);
+    jo_vdp2_set_nbg1_image(&img, 0, 0);
+    jo_free_img(&img);
+    return (true);
+}
+
 /** @brief Free the tiles allocated by jo_tga_8bits_tileset_loader() when an error occurs
  *  @param output_tiles Tiles
  *  @param allocated Bitset of the tiles allocated by jo_tga_8bits_tileset_loader()

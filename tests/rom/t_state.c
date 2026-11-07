@@ -263,6 +263,113 @@ static void                     t_sprites(void)
 }
 
 /*
+** Colored shapes: jo_sprite_draw_rectangle() and jo_sprite_draw_color_4p_fixed() (the VDP1 commands of the frame)
+*/
+
+/** @brief The commands written by a call (the next commands of the frame, see __jo_vdp1_reserve_commands())
+ *  @param keys Output: their sort keys
+ *  @return The first one
+ */
+static const jo_vdp1_command    *t_shape_next(unsigned short ** const keys)
+{
+    unsigned int                reserved;
+
+    return (__jo_vdp1_reserve_commands(0, keys, &reserved));
+}
+
+static void                     t_sprite_shapes(void)
+{
+    // (low on the screen: the barcode of the reports is at its top; drawn during the frame of the checks only)
+    static const jo_pos2D_fixed quad[4] = {{JO_MULT_BY_65536(40), JO_MULT_BY_65536(150)}, {JO_MULT_BY_65536(70), JO_MULT_BY_65536(152)},
+                                           {JO_MULT_BY_65536(66), JO_MULT_BY_65536(180)}, {JO_MULT_BY_65536(44), JO_MULT_BY_65536(178)}};
+    const jo_vdp1_command       *cmd;
+    unsigned short              *keys;
+    jo_pos2D_fixed              centered[4];
+    int                         before;
+    int                         cx;
+    int                         cy;
+    int                         i;
+
+    jt_group("sprites.shapes");
+    // (the center of the default window: the center of the screen, see jo_sprite_draw3D())
+    cx = __jo_vdp1_windows[__jo_vdp1_current_window].center_x - __jo_vdp1_windows[__jo_vdp1_current_window].origin_x;
+    cy = __jo_vdp1_windows[__jo_vdp1_current_window].center_y - __jo_vdp1_windows[__jo_vdp1_current_window].origin_y;
+    JT_EQ(cx, jo_core_get_screen_width() / 2);
+    JT_EQ(cy, jo_core_get_screen_height() / 2);
+    // A rectangle: one polygon, its corners the first and the last pixel (VDP1 coordinates are inclusive)
+    before = __jo_vdp1_frame_command_count();
+    cmd = t_shape_next(&keys);
+    jo_sprite_draw_rectangle(10, 160, 30, 5, JO_COLOR_RGB(255, 0, 0), 500);
+    JT_EQ(__jo_vdp1_frame_command_count() - before, 1);
+    JT_EQ(cmd->ctrl, JO_VDP1_CMD_POLYGON);
+    JT_EQ(cmd->link, 0);
+    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB);
+    JT_EQ(cmd->colr, JO_COLOR_RGB(255, 0, 0));
+    JT_EQ(cmd->grda, 0);
+    JT_EQ(cmd->xa, 10);
+    JT_EQ(cmd->ya, 160);
+    JT_EQ(cmd->xb, 39);
+    JT_EQ(cmd->yb, 160);
+    JT_EQ(cmd->xc, 39);
+    JT_EQ(cmd->yc, 164);
+    JT_EQ(cmd->xd, 10);
+    JT_EQ(cmd->yd, 164);
+    JT_EQ(keys[0], 500);
+    // One pixel; nothing for an empty size
+    cmd = t_shape_next(&keys);
+    jo_sprite_draw_rectangle(5, 170, 1, 1, JO_COLOR_White, 500);
+    JT_TRUE(cmd->xa == 5 && cmd->ya == 170 && cmd->xc == 5 && cmd->yc == 170);
+    before = __jo_vdp1_frame_command_count();
+    jo_sprite_draw_rectangle(5, 170, 0, 10, JO_COLOR_White, 500);
+    jo_sprite_draw_rectangle(5, 170, 10, -1, JO_COLOR_White, 500);
+    // Like the sprites: not drawn nearer than the near clipping distance
+    jo_sprite_draw_rectangle(5, 170, 10, 10, JO_COLOR_White, JO_FIXED_TO_INT(__jo_vdp1_near_clip()));
+    JT_EQ(__jo_vdp1_frame_command_count() - before, 0);
+    // The effects of the sprites: half transparency, gouraud shading (its table), clipping; the depth bias
+    cmd = t_shape_next(&keys);
+    jo_sprite_enable_half_transparency();
+    jo_sprite_enable_clipping(false);
+    jo_3d_set_depth_bias(-100);
+    jo_sprite_draw_rectangle(10, 160, 30, 5, JO_COLOR_Blue, 300);
+    jo_3d_set_depth_bias(0);
+    jo_sprite_disable_clipping();
+    jo_sprite_disable_half_transparency();
+    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB |
+                     JO_VDP1_COLOR_CALC_HALF_TRANSPARENT | JO_VDP1_WINDOW_IN);
+    JT_EQ(keys[0], 200);
+    cmd = t_shape_next(&keys);
+    jo_set_gouraud_shading_colors(JO_COLOR_Red, JO_COLOR_Green, JO_COLOR_Blue, JO_COLOR_White);
+    jo_sprite_enable_gouraud_shading();
+    jo_sprite_draw_rectangle(10, 160, 30, 5, JO_COLOR_Gray, 500);
+    jo_sprite_disable_gouraud_shading();
+    JT_EQ(cmd->pmod & JO_VDP1_COLOR_CALC_MASK, JO_VDP1_COLOR_CALC_GOURAUD);
+    JT_TRUE(cmd->grda != 0);
+    JT_EQ(*(volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(cmd->grda)), JO_COLOR_Red);
+    JT_EQ(*(volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(cmd->grda) + 6), JO_COLOR_White);
+    // The state of the sprites is back: a plain rectangle again
+    cmd = t_shape_next(&keys);
+    jo_sprite_draw_rectangle(10, 160, 30, 5, JO_COLOR_Red, 500);
+    JT_EQ(cmd->pmod, JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE | JO_VDP1_COLOR_MODE_RGB);
+    // A quad on 4 points from the top left of the screen, then the same from the center: the same command
+    cmd = t_shape_next(&keys);
+    jo_sprite_draw_color_4p_fixed(quad, JO_COLOR_Yellow, JO_MULT_BY_65536(400), false);
+    JT_EQ(cmd->ctrl, JO_VDP1_CMD_POLYGON);
+    JT_EQ(cmd->colr, JO_COLOR_Yellow);
+    JT_TRUE(cmd->xa == 40 && cmd->ya == 150 && cmd->xb == 70 && cmd->yb == 152);
+    JT_TRUE(cmd->xc == 66 && cmd->yc == 180 && cmd->xd == 44 && cmd->yd == 178);
+    JT_EQ(keys[0], 400);
+    for (i = 0; i < 4; ++i)
+    {
+        centered[i].x = quad[i].x - JO_MULT_BY_65536(cx);
+        centered[i].y = quad[i].y - JO_MULT_BY_65536(cy);
+    }
+    cmd = t_shape_next(&keys);
+    jo_sprite_draw_color_4p_fixed(centered, JO_COLOR_Yellow, JO_MULT_BY_65536(400), true);
+    JT_TRUE(cmd->xa == 40 && cmd->ya == 150 && cmd->xb == 70 && cmd->yb == 152);
+    JT_TRUE(cmd->xc == 66 && cmd->yc == 180 && cmd->xd == 44 && cmd->yd == 178);
+}
+
+/*
 ** VDP2 memory
 */
 
@@ -330,6 +437,7 @@ void                            t_state(void)
     t_vdp2_effects();
     t_palettes();
     t_sprites();
+    t_sprite_shapes();
     t_vdp2_malloc();
     t_files();
 }

@@ -89,6 +89,15 @@ typedef struct
 
 static const jo_entity_class        *__jo_entity_classes[JO_ENTITY_MAX_CLASSES];
 static int                          __jo_entity_class_count = 0;
+/** @brief The classes drawn by both CPUs at the same time (see jo_entity_class_set_parallel_draw()) */
+static const jo_entity_class        *__jo_entity_parallel_classes[JO_ENTITY_MAX_CLASSES];
+static int                          __jo_entity_parallel_class_count = 0;
+/** @brief The classes of the entities drawn by a draw_slave callback in this frame (see jo_entities_prepare_draw()): the
+ *  master CPU waits for the slave CPU before it draws an entity of one of them, not before the others (a door of the master
+ *  CPU waited for all the characters of the slave CPU), more than JO_ENTITY_SLAVE_CLASSES: before all of them */
+#define JO_ENTITY_SLAVE_CLASSES             (8)
+static const jo_entity_class        *__jo_entity_slave_classes[JO_ENTITY_SLAVE_CLASSES];
+static int                          __jo_entity_slave_class_count = 0;
 /** @brief The entities of the level: allocated with their count (a static array of JO_ENTITY_MAX cost its whole size to
  *  every program, a big level no longer fitted in the work RAM) */
 static jo_entity                    *__jo_entities = JO_NULL;
@@ -151,6 +160,21 @@ void                                jo_entity_register_class(const jo_entity_cla
         return;
     }
     __jo_entity_classes[__jo_entity_class_count++] = cls;
+}
+
+void                                jo_entity_class_set_parallel_draw(const jo_entity_class * const cls, const bool parallel)
+{
+    int                             k;
+
+    for (k = 0; k < __jo_entity_parallel_class_count; ++k)
+        if (__jo_entity_parallel_classes[k] == cls)
+        {
+            if (!parallel)
+                __jo_entity_parallel_classes[k] = __jo_entity_parallel_classes[--__jo_entity_parallel_class_count];
+            return;
+        }
+    if (parallel && cls != JO_NULL && __jo_entity_parallel_class_count < JO_ENTITY_MAX_CLASSES)
+        __jo_entity_parallel_classes[__jo_entity_parallel_class_count++] = cls;
 }
 
 static const jo_entity_class        *__jo_entity_find_class(const char * const name)
@@ -813,6 +837,39 @@ static  __jo_force_inline jo_3d_mesh *__jo_entity_mesh_at(const jo_entity * cons
     return (e->far_mesh != JO_NULL && distance > e->far_distance ? e->far_mesh : e->mesh);
 }
 
+/** @brief The class of the actors of the engine (see __jo_entity_draws_in_parallel()) */
+static const jo_entity_class        __jo_entity_class_actor;
+
+/** @brief An entity drawn by its class on the master CPU while the slave CPU draws the entities of its class: no wait (see
+ *  jo_entity_class_set_parallel_draw()) */
+static bool                         __jo_entity_draws_in_parallel(const jo_entity * const e)
+{
+    int                             k;
+
+    // (an actor of the engine: jo_actor_draw() and jo_actor_draw_slave() write nothing shared (a shadow mesh per CPU), but a
+    // bone callback of the game may)
+    if (e->cls == &__jo_entity_class_actor)
+        return (e->data != JO_NULL && ((const jo_actor *)e->data)->bone_callback == JO_NULL);
+    for (k = 0; k < __jo_entity_parallel_class_count; ++k)
+        if (__jo_entity_parallel_classes[k] == e->cls)
+            return (true);
+    return (false);
+}
+
+/** @brief The slave CPU draws entities of the class of an entity in this frame (with its draw_slave callback): the master
+ *  CPU waits for them before it draws this one (see jo_entities_draw()) */
+static bool                         __jo_entity_class_on_slave(const jo_entity * const e)
+{
+    int                             k;
+
+    if (__jo_entity_slave_class_count > JO_ENTITY_SLAVE_CLASSES)
+        return (true);
+    for (k = 0; k < __jo_entity_slave_class_count; ++k)
+        if (__jo_entity_slave_classes[k] == e->cls)
+            return (true);
+    return (false);
+}
+
 void                                jo_entities_prepare_draw(const int slave_share)
 {
     int                             k;
@@ -824,6 +881,7 @@ void                                jo_entities_prepare_draw(const int slave_sha
     int                             cost;
     int                             master_cost;
     int                             slave_cost;
+    int                             c;
     bool                            slave;
     jo_entity                       *e;
     const jo_3d_mesh                *mesh;
@@ -838,6 +896,7 @@ void                                jo_entities_prepare_draw(const int slave_sha
     last = __jo_entity_draw_list + JO_ENTITY_MAX;
     __jo_entity_draw_base_bias = jo_3d_get_depth_bias();
     __jo_entity_slave_callbacks = 0;
+    __jo_entity_slave_class_count = 0;
     for (k = 0, e = __jo_entities; k < __jo_entity_count; ++k, ++e)
     {
         e->view_distance = -1;
@@ -884,14 +943,26 @@ void                                jo_entities_prepare_draw(const int slave_sha
         {
             slave_cost += cost;
             --last;
-            // (the ones with a callback first: from the end of the table, the others before them)
-            if (e->cls->draw_slave != JO_NULL)
+            // (the ones with a callback first: from the end of the table, the others before them. The ones of a class drawn in
+            // parallel with the others: the master CPU doesn't wait for them, the others are drawn first (the master CPU
+            // waits for them only))
+            if (e->cls->draw_slave != JO_NULL && !__jo_entity_draws_in_parallel(e))
             {
                 callbacks = __jo_entity_draw_list + JO_ENTITY_MAX - 1 - __jo_entity_slave_callbacks;
                 *last = *callbacks;
                 callbacks->entity = (short)k;
                 callbacks->bias = (short)bias;
                 ++__jo_entity_slave_callbacks;
+                // (its class: the master CPU waits for the slave CPU before it draws an entity of this class)
+                for (c = 0; c < __jo_entity_slave_class_count && c <= JO_ENTITY_SLAVE_CLASSES; ++c)
+                    if (c == JO_ENTITY_SLAVE_CLASSES || __jo_entity_slave_classes[c] == e->cls)
+                        break;
+                if (c == __jo_entity_slave_class_count)
+                {
+                    if (c < JO_ENTITY_SLAVE_CLASSES)
+                        __jo_entity_slave_classes[c] = e->cls;
+                    ++__jo_entity_slave_class_count;
+                }
             }
             else
             {
@@ -972,14 +1043,15 @@ int                                 jo_entities_draw(void)
     waited = false;
     start = 0;
     __jo_entity_slave_wait = 0;
-    // The models first, then the entities drawn by their class: after the ones of the slave CPU (the callbacks of a class
-    // share its data)
+    // The models first (and the entities of the classes drawn in parallel by both CPUs), then the entities drawn by their
+    // class: after the ones of the slave CPU (the callbacks of a class share its data)
     for (pass = 0; pass < 2; ++pass)
         for (k = 0, d = __jo_entity_draw_list; k < __jo_entity_master_count; ++k, ++d)
         {
-            if ((__jo_entities[d->entity].cls->draw != JO_NULL) != (pass == 1))
+            if ((__jo_entities[d->entity].cls->draw != JO_NULL && !__jo_entity_draws_in_parallel(&__jo_entities[d->entity])) !=
+                (pass == 1))
                 continue;
-            if (pass == 1 && !waited)
+            if (pass == 1 && !waited && __jo_entity_class_on_slave(&__jo_entities[d->entity]))
             {
                 waited = true;
                 if (__jo_entity_slave_callbacks > 0)

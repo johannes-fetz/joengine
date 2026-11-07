@@ -601,6 +601,73 @@ void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_po
     __jo_vdp1_draw_sprite_4p(points, z, &attr);
 }
 
+/** @brief Draw a polygon of one color with the current sprite attributes (the effects and the clipping of the sprites)
+ *  @param points 4 points relative to the center of the screen (the current window)
+ *  @param color RGB color or color of the palette (written as it is in the command: CMDCOLR)
+ *  @param z Depth
+ */
+static void             jo_sprite_draw_color_polygon(const jo_pos2D_fixed * const points, const jo_color color, const jo_fixed z)
+{
+    jo_vdp1_sprite_attribute attr;
+
+    // (the draw mode of the flat polygons of the 3D meshes: color mode RGB, no end code, no transparent pixel; the color
+    // is not a texel, the VDP1 writes it as it is in the RGB and in the 8 bits frame buffers)
+    attr.direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_POLYGON);
+    attr.draw_mode = JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_POLYGON) | JO_VDP1_COLOR_MODE_RGB |
+                     __jo_sprite_attributes.effect | __jo_sprite_attributes.clipping;
+    attr.color = color;
+    // (the gouraud table of the sprites, see jo_sprite_attributes_of_state())
+    attr.gouraud_table = !(__jo_sprite_attributes.effect & 4) ? JO_VDP1_NO_GOURAUD :
+                         __jo_sprite_attributes.gouraud_shading_index != 0 ? (unsigned short)__jo_sprite_attributes.gouraud_shading_index :
+                         __jo_gouraud_shading_runtime_index >= 0 ?
+                         (unsigned short)(JO_DIV_BY_8(JO_SPRITE_GOURAUD_OFFSET) + __jo_gouraud_shading_set * JO_SPRITE_GOURAUD_TABLES +
+                                          __jo_gouraud_shading_runtime_index) :
+                         (unsigned short)(JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + 16);
+    JO_ZERO(attr.texture_id);
+    __jo_vdp1_draw_sprite_4p(points, z, &attr);
+}
+
+void                    jo_sprite_draw_rectangle(const int x, const int y, const int width, const int height, const jo_color color, const int z)
+{
+    jo_pos2D_fixed      points[4];
+    int                 left;
+    int                 top;
+
+    if (width <= 0 || height <= 0)
+        return;
+    // From the top left of the screen to the center (like jo_sprite_draw3D2()); the corners are drawn: the last pixel
+    left = x - __jo_screen.width_2;
+    top = y - __jo_screen.height_2;
+    points[0].x = jo_int2fixed(left);
+    points[0].y = jo_int2fixed(top);
+    points[1].x = jo_int2fixed(left + width - 1);
+    points[1].y = points[0].y;
+    points[2].x = points[1].x;
+    points[2].y = jo_int2fixed(top + height - 1);
+    points[3].x = points[0].x;
+    points[3].y = points[2].y;
+    jo_sprite_draw_color_polygon(points, color, jo_int2fixed(z));
+}
+
+void                    jo_sprite_draw_color_4p_fixed(const jo_pos2D_fixed * const four_points, const jo_color color, const jo_fixed z,
+                                                      const bool centered_style_coordinates)
+{
+    jo_pos2D_fixed      points[4];
+    register int        i;
+
+    if (centered_style_coordinates)
+    {
+        jo_sprite_draw_color_polygon(four_points, color, z);
+        return;
+    }
+    for (JO_ZERO(i); i < 4; ++i)
+    {
+        points[i].x = four_points[i].x - jo_int2fixed(__jo_screen.width_2);
+        points[i].y = four_points[i].y - jo_int2fixed(__jo_screen.height_2);
+    }
+    jo_sprite_draw_color_polygon(points, color, z);
+}
+
 /** @brief Compute the position of a sprite for the VDP1
  *  @param sprite_id Sprite Id
  *  @param pos Position

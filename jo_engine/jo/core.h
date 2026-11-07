@@ -401,6 +401,30 @@ static  __jo_force_inline unsigned int  jo_core_get_vblank_count(void)
     return (__jo_core_vblank_count);
 }
 
+/** @brief Frames per second shown (Internal usage, see jo_core_get_fps()) */
+extern int                          __jo_core_fps;
+
+/** @brief Count of late frames (Internal usage, see jo_core_get_late_frame_count()) */
+extern unsigned int                 __jo_core_late_frames;
+
+/** @brief Get the frames per second really shown, measured over the last 2 seconds
+ *  @return Frames per second (60 / JO_FRAMERATE in NTSC when no frame is late), 0 during the first 2 seconds
+ *  @remarks jo_printf(0, 27, "%d FPS  ", jo_core_get_fps());
+ */
+static  __jo_force_inline int       jo_core_get_fps(void)
+{
+    return (__jo_core_fps);
+}
+
+/** @brief Get the count of the late frames since startup
+ *  @return Frames that took more VBLANK than JO_FRAMERATE (the game missed the end of a frame: it slows down)
+ *  @remarks The first frame is not counted (the loading before it)
+ */
+static  __jo_force_inline unsigned int  jo_core_get_late_frame_count(void)
+{
+    return (__jo_core_late_frames);
+}
+
 /** @brief Wait for the end of the current frame (Internal usage)
  *  @remarks Send the VDP1 commands and wait for JO_FRAMERATE VBLANK
  */

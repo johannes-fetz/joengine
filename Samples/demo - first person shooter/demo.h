@@ -262,6 +262,11 @@ void                                billboards_draw(void);
 
 /** @brief Register the class guard (before the level is loaded) */
 void                                guards_register(void);
+/** @brief Keep some of the high work RAM for the models of the persons (before the level is loaded: the rooms take it all,
+ *  see guards_load()) */
+void                                guards_reserve_fast_memory(void);
+/** @brief Give back the memory kept for the table of the entities (just before jo_entities_load()) */
+void                                guards_release_entity_memory(void);
 /** @brief Their sounds, the sprite of the blood */
 void                                guards_load(void);
 #ifdef DEMO_TRACE
@@ -290,6 +295,13 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
 /** @brief The drops of blood: their flight (each frame), their sprites (in the world) */
 void                                guards_update_blood(const int elapsed);
 void                                guards_draw_blood(void);
+
+#ifdef DEMO_BENCH
+/** @brief The benchmark: count persons (the scientists first) in rows in front of a point (x, z, the yaw of the view);
+ *  scientists: the guards become scientists */
+void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int yaw, const int count,
+                                                        const bool scientists);
+#endif
 
 /*
 ** HUD (hud.c)

@@ -122,6 +122,10 @@ char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 /** @brief Number of VBLANK since startup */
 volatile unsigned int                       __jo_core_vblank_count = 0;
 static unsigned int                         __jo_core_last_synch_vblank = 0;
+int                                         __jo_core_fps = 0;
+unsigned int                                __jo_core_late_frames = 0;
+static unsigned int                         __jo_core_fps_frames = 0;
+static unsigned int                         __jo_core_fps_vblank = 0;
 static jo_list                             __vblank_callbacks;
 static jo_list                             __callbacks;
 static jo_event_callback                   __jo_restart_game_callback = JO_NULL;
@@ -395,6 +399,8 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     divisor = JO_SH2_DVSR;
     high = JO_SH2_DVDNTH;
     ++__jo_core_vblank_count;
+    // (first: the light guns read TVSTAT, other reads would clear the flag of the latch)
+    __jo_smpc_gun_vblank();
     __jo_time_vblank();
     __jo_vdp2_vblank();
     __jo_vdp1_vblank();
@@ -466,6 +472,24 @@ void                                        __jo_core_synch(void)
     }
     jo_profile_end(JO_PROFILE_VSYNC);
     jo_profile_count(JO_PROFILE_VBLANKS, 100 * (__jo_core_vblank_count - __jo_core_last_synch_vblank));
+    // The frames really shown (see jo_core_get_fps()): a frame is late when it took more VBLANK than JO_FRAMERATE (not
+    // the first one: the time of the loading before it)
+    if (__jo_core_fps_vblank == 0)
+        __jo_core_fps_vblank = __jo_core_vblank_count;
+    else
+    {
+        if (__jo_core_vblank_count - __jo_core_last_synch_vblank > (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE))
+            ++__jo_core_late_frames;
+        ++__jo_core_fps_frames;
+        // (every 2 seconds: 120 VBLANK in NTSC, 100 in PAL. Rounded)
+        if (__jo_core_vblank_count - __jo_core_fps_vblank >= 2 * (unsigned int)jo_core_get_refresh_rate())
+        {
+            __jo_core_fps = (int)((__jo_core_fps_frames * (unsigned int)jo_core_get_refresh_rate() * 2 + (__jo_core_vblank_count - __jo_core_fps_vblank)) /
+                                  (2 * (__jo_core_vblank_count - __jo_core_fps_vblank)));
+            JO_ZERO(__jo_core_fps_frames);
+            __jo_core_fps_vblank = __jo_core_vblank_count;
+        }
+    }
     __jo_core_last_synch_vblank = __jo_core_vblank_count;
     __jo_vdp1_frame_start();
     // The inputs of the new frame

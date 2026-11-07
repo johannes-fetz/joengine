@@ -129,15 +129,12 @@ void CreateOutsideCube()
     }
 }
 
-/** @brief This will draw a solid colored sprite to clear the frame buffer
+/** @brief This will draw a solid colored polygon to clear the frame buffer
  *  @param color Color to clear buffer with
  */
 void ClearFrameBuffer(const jo_color color)
 {
-    // Define sprite attributes (solid color polygon)
-    jo_vdp1_sprite_attribute attribute = JO_VDP1_SPRITE_ATTRIBUTE(0, color, JO_VDP1_NO_GOURAUD, JO_VDP1_WINDOW_IN, JO_VDP1_POLYGON);
-
-    // Define sprite points
+    // Define polygon points (relative to the center of the current window: the outside area)
     jo_fixed x = jo_int2fixed(BUFFER_WIDTH >> 1);
     jo_fixed y = jo_int2fixed(BUFFER_HEIGHT >> 1);
     jo_pos2D_fixed fourPoints[4] = {
@@ -147,8 +144,13 @@ void ClearFrameBuffer(const jo_color color)
         { -x, y }
     };
 
-    // Draw this solid colored sprite, that will clear frame buffer
-    __jo_vdp1_draw_sprite_4p(fourPoints, jo_int2fixed(ZLIMIT), &attribute);
+    // Draw only inside of the window (jo_3d_window)
+    jo_sprite_enable_clipping(false);
+
+    // Draw this solid colored polygon, that will clear frame buffer
+    jo_sprite_draw_color_4p_fixed(fourPoints, color, jo_int2fixed(ZLIMIT), true);
+
+    jo_sprite_disable_clipping();
 }
 
 /** @brief Main demo loop

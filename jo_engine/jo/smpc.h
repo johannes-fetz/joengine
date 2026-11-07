@@ -178,6 +178,11 @@ static  __jo_force_inline void jo_smpc_end_command(jo_smpc_command command)
 # define JO_PERIPHERAL_ID_SHUTTLE_MOUSE         (0xe3)
 /** @brief Peripheral ID: keyboard */
 # define JO_PERIPHERAL_ID_KEYBOARD              (0x34)
+/** @brief Peripheral ID: light gun (Virtua Gun, Stunner)
+ *  @remarks Not a Saturn peripheral ID: the SMPC only reports a port status A0H (a Mega Drive ID AH without data), the gun is
+ *  then read by the SH-2 (SH-2 direct mode, see jo_get_input_gun_position())
+ */
+# define JO_PERIPHERAL_ID_GUN                   (0xa0)
 
 /** @brief Keyboard condition: caps lock is on */
 # define JO_PERIPHERAL_KEYBOARD_CAPS_LOCK       (1 << 6)
@@ -235,6 +240,23 @@ typedef struct
     unsigned int        reserved[3];
 }                       jo_peripheral_pointer;
 
+/** @brief Light gun data (Internal usage, see jo_get_input_gun_position())
+ *  @remarks Inherits from jo_peripheral (cast friendly)
+ */
+typedef struct
+{
+    unsigned char       id;
+    unsigned char       size;
+    unsigned short      data;
+    unsigned short      push;
+    unsigned short      pull;
+    short               x;          // Position of the last latch (pixels of the screen, without the calibration)
+    short               y;
+    unsigned char       light;      // 1: the light sensor latched the position during the last field
+    unsigned char       reserved1[3];
+    unsigned int        reserved2[2];
+}                       jo_peripheral_gun;
+
 /** @brief Keyboard data
  *  @remarks Inherits from jo_peripheral (cast friendly)
  */
@@ -280,6 +302,11 @@ extern jo_smpc_status   __jo_smpc_status;
  *  @param command SMPC command
  */
 void                    __jo_smpc_command(const jo_smpc_command command);
+
+/** @brief Read the light guns (Internal usage): called first in the VBLANK-IN interrupt (before any other read of TVSTAT,
+ *  which clears the flag of the latch)
+ */
+void                    __jo_smpc_gun_vblank(void);
 
 /** @brief Enable or disable the reset button, nested calls (Internal usage, see jo_core_disable_reset())
  *  @param enabled false: disable (once more), true: enable when every disable has its enable

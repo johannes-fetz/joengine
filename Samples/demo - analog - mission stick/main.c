@@ -62,9 +62,9 @@ void			my_gamepad(void)
 {
 	if (jo_get_input_type(0) == JoMissionStick)
 	{
-		// X and Y are centered at 128
-		char axis_x_raw = jo_get_input_axis(0, JoAxis1) - 0x80;
-		char axis_y_raw = jo_get_input_axis(0, JoAxis2) - 0x80;
+		// X and Y: -128 to 127, 0 in the middle
+		int axis_x_raw = jo_get_input_axis_centered(0, JoAxis1);
+		int axis_y_raw = jo_get_input_axis_centered(0, JoAxis2);
 
 		// Left and right trigger start at 0 and go to 255
 		unsigned char throttle_raw = jo_get_input_axis(0, JoAxis3);

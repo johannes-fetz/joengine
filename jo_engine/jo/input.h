@@ -30,7 +30,6 @@
  *
  *  @brief Jo Engine Gamepad functions
  *  @bug No known bugs.
- *  @todo analog gamepad, wheel, gun
  */
 
 #ifndef __JO_INPUT_H__
@@ -67,7 +66,12 @@ typedef enum
     JO_MOUSE_START_BUTTON = 1 << 11,
     JO_MOUSE_LEFT_BUTTON = 1 << 10,
     JO_MOUSE_MIDDLE_BUTTON = 1 << 8,
-    JO_MOUSE_RIGHT_BUTTON = 1 << 9
+    JO_MOUSE_RIGHT_BUTTON = 1 << 9,
+
+    /** @brief Trigger of a light gun (the same bit as JO_KEY_A: a gun works with the code written for a pad) */
+    JO_GUN_TRIGGER = 1 << 10,
+    /** @brief Start button of a light gun (the same bit as JO_KEY_START) */
+    JO_GUN_START_BUTTON = 1 << 11
 }           jo_gamepad_keys;
 
 /** @brief Input type
@@ -91,7 +95,11 @@ typedef enum
     
 	/** @brief Racing wheel, Axis1 is the wheel
 	 */
-	JoRacingWheel = 7
+	JoRacingWheel = 7,
+
+    /** @brief Light gun (Virtua Gun, Stunner): JO_GUN_TRIGGER, JO_GUN_START_BUTTON and jo_get_input_gun_position()
+     */
+    JoLightGun = 8
 }           jo_gamepad_type;
 
 /** @brief Input axis type
@@ -149,6 +157,16 @@ int                             jo_get_player_input_port(const int player);
  *  @return Analog axis value
  */
 unsigned char                   jo_get_input_axis(const int port, const jo_input_axis axis);
+
+/** @brief Get a centered analog axis (a stick or a wheel): 0 in the middle
+ *  @param port Gamepad port
+ *  @param axis Analog axis: JoAxis1 and JoAxis2 (the stick of the Nights pad and of the mission stick), JoAxis1 (the
+ *  racing wheel)
+ *  @return -128 (left, up) to 127 (right, down), 0 if the device has no such centered axis (not connected, a trigger,
+ *  the throttle: see jo_get_input_axis(), 0 to 255)
+ *  @remarks jo_get_input_axis() gives 0 to 255 with the middle at 128 (128 is subtracted here)
+ */
+int                             jo_get_input_axis_centered(const int port, const jo_input_axis axis);
 
 /** @brief Check if the key is pressed for the given port
  *  @param port Gamepad port
@@ -228,6 +246,50 @@ static  __jo_force_inline int	jo_get_mouse_pos_y(const int port)
     return (((jo_peripheral_pointer *)&jo_inputs[port])->y);
 }
 
+
+/*
+** LIGHT GUN
+*/
+
+/** @brief Get the position on the screen where the light gun points
+ *  @param port Gamepad port: 0 (port 1) or JO_INPUT_PORT2_FIRST_DEVICE (port 2), the gun can't be used behind a multitap
+ *  @param x Horizontal position in pixels of the screen (0 to jo_core_get_screen_width() - 1, from the left), -1 when false
+ *  is returned
+ *  @param y Vertical position in lines of the screen (0 to jo_core_get_screen_height() - 1, from the top), -1 when false is
+ *  returned
+ *  @return true if the light sensor of the gun saw the screen during the last frame, false if it points out of the screen,
+ *  at a dark area of the screen, or if there is no gun on the port
+ *  @remarks The gun is found automatically (jo_get_input_type() returns JoLightGun). The trigger and the start button are
+ *  read like the keys of a pad: jo_is_input_key_down(port, JO_GUN_TRIGGER), jo_is_pad1_key_pressed(JO_GUN_START_BUTTON)...
+ *  @remarks How it works: the light sensor sees the beam of the CRT draw the pixel, the VDP2 keeps the position of the
+ *  beam at this time (HV counter latch). Only a CRT TV works (no LCD TV, no upscaler): a gun sees nothing on the other
+ *  TVs. The gun sees a bright area only: when the trigger is pulled at a dark area (false is returned), draw a white
+ *  screen for 2 frames: the position comes 2 frames after the trigger (see the sample "demo - light gun")
+ *  @remarks With 2 guns, each one gets a position every other field (the VDP2 has one latch)
+ *  @remarks Each gun and each TV is a little different: see jo_calibrate_input_gun()
+ *  @code
+ *  int     x;
+ *  int     y;
+ *
+ *  if (jo_get_input_type(0) == JoLightGun && jo_is_input_key_down(0, JO_GUN_TRIGGER) && jo_get_input_gun_position(0, &x, &y))
+ *      jo_sprite_draw3D(hit_sprite_id, x - JO_TV_WIDTH_2, y - JO_TV_HEIGHT_2, 100);
+ *  @endcode
+ */
+bool                            jo_get_input_gun_position(const int port, int * const x, int * const y);
+
+/** @brief Calibrate a light gun: the player shoots at a target, the position read is moved onto the target
+ *  @param port Gamepad port: 0 (port 1) or JO_INPUT_PORT2_FIRST_DEVICE (port 2)
+ *  @param target_x Horizontal position of the target (pixels of the screen, from the left)
+ *  @param target_y Vertical position of the target (pixels of the screen, from the top)
+ *  @return true if the gun saw the screen during the last frame (the next positions are corrected), false otherwise
+ *  (nothing changes)
+ *  @remarks Sega's advice: draw a cross at the center of the screen, ask the player to aim at it and to pull the trigger,
+ *  then call jo_calibrate_input_gun(port, JO_TV_WIDTH_2, JO_TV_HEIGHT_2). The correction of each port is kept until the
+ *  next calibration (calibrate again after jo_core_set_screen_resolution())
+ *  @remarks Before the calibration, the position is corrected by the delay of the gun measured in Mednafen (29 dots in the
+ *  320 and 640 pixel modes, 31 dots in the 352 and 704 pixel modes)
+ */
+bool                            jo_calibrate_input_gun(const int port, const int target_x, const int target_y);
 
 /*
 ** HELPER

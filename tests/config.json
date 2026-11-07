@@ -93,6 +93,9 @@
  "samples": {
   "dir": "Samples",
   "skip": [],
+  "max_bin_size": {
+   "demo - minimal": 22528
+  },
   "full_variants": {
    "release": {
     "JO_DEBUG": "0"

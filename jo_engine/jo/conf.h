@@ -75,6 +75,28 @@
     JO_SCREEN_HEIGHT = 240                       (224, 240, 256 in PAL; 448, 480, 512 in PAL: interlace; optional)
     SRCS=main.c
     include ../Compiler/COMMON/jo_engine_makefile
+
+  The smallest engine: JO_MINIMAL = 1
+
+    JO_MINIMAL = 1
+    SRCS=main.c
+    include ../Compiler/COMMON/jo_engine_makefile
+
+  Every module is off unless the makefile turns it on, even the 5 modules on by default: the file system (FS: on with
+  the TGA, AUDIO, VIDEO and LEVEL modules, they read files), jo_printf() (PRINTF), the RAM cartridge (RAM_CARD), the
+  slave CPU (DUAL_CPU) and jo_sprite_name2id() (SPRITE_HASHTABLE). What stays: jo_core_init() and the main loop, the
+  VDP1 (sprites added from images in the program, jo_sprite_draw_rectangle()...), the VDP2 (the back color, the NBG1
+  bitmap, the palettes), the inputs, jo_malloc(), the math, the lists, the time. Without jo_printf() an error of the
+  engine (JO_DEBUG = 1) shows a red screen, press START to go on. A module can still be chosen one by one:
+
+    JO_MINIMAL = 1
+    JO_COMPILE_WITH_PRINTF_MODULE = 1            (jo_printf() and the messages of the errors)
+    JO_DEBUG = 0                                 (no check, no error message: the smallest program)
+
+  The helpers that are always compiled (maps, sprite animations, physics, sprite fonts, images, palettes) cost no byte
+  in a program that does not call them: the link time optimization keeps only the functions used. Sizes of
+  Samples/demo - minimal (game.raw): 29052 bytes with the default engine, 20940 with JO_MINIMAL = 1, 17616 with
+  JO_MINIMAL = 1 and JO_DEBUG = 0
 */
 
 /*

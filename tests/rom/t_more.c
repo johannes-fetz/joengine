@@ -147,8 +147,50 @@ static void             t_list_more(void)
     jo_list_clear(&list);
 }
 
+/** @brief Light gun API without a gun (the test ROM runs with a pad on the port 1): no gun found, no position, safe on
+ *  every port; a peripheral with the ID of a gun is typed JoLightGun but has no position until its sensor latches */
+static void             t_gun_more(void)
+{
+    int                 x;
+    int                 y;
+    int                 port;
+    unsigned int        sr;
+    jo_peripheral       saved;
+    bool                typed;
+    bool                seen;
+
+    jt_group("input.gun");
+    JT_EQ(JO_GUN_TRIGGER, JO_KEY_A);
+    JT_EQ(JO_GUN_START_BUTTON, JO_KEY_START);
+    JT_TRUE(jo_get_input_type(0) != JoLightGun);
+    for (port = 0; port < JO_INPUT_MAX_DEVICE; ++port)
+    {
+        x = 123;
+        y = 456;
+        seen = jo_get_input_gun_position(port, &x, &y);
+        JT_TRUE(!seen);
+        JT_EQ(x, -1);
+        JT_EQ(y, -1);
+        JT_TRUE(!jo_calibrate_input_gun(port, 160, 120));
+    }
+    // (no gun: the HV counters are not latched by the external signal)
+    JT_EQ(JO_VDP2_EXTEN & JO_VDP2_EXTEN_EXLTEN, 0);
+    // A gun ID on the port 1 for a moment (the VBLANK copies the peripherals: interrupts masked)
+    sr = __jo_core_disable_interrupts();
+    saved = jo_inputs[0];
+    jo_inputs[0].id = JO_PERIPHERAL_ID_GUN;
+    typed = jo_get_input_type(0) == JoLightGun;
+    seen = jo_get_input_gun_position(0, &x, &y);
+    jo_inputs[0] = saved;
+    __jo_core_restore_interrupts(sr);
+    JT_TRUE(typed);
+    JT_TRUE(!seen);
+    JT_EQ(x, -1);
+}
+
 void                    t_more(void)
 {
     t_math_more();
     t_list_more();
+    t_gun_more();
 }

@@ -222,6 +222,9 @@ typedef struct
                                                                 // (jo_3d_create_model_in_place()): not freed with the model
     bool                                    single_block;       // The model, its mesh, the attributes and the texture ids
                                                                 // in one memory block (jo_3d_create_model_in_place())
+    void                                    *fast_block;        // Copy of the points, the polygons, the bones and the
+                                                                // groups in the high work RAM (see
+                                                                // jo_3d_model_use_fast_memory()), JO_NULL: none
 }                                           jo_3d_model;
 
 /** @brief Create a model from the content of a JOM file
@@ -383,6 +386,22 @@ void                                        jo_3d_slave_model_draw_pose(const jo
  *  @param mask Bit k: the polygons of the bone k hidden (its children are drawn), 0: all drawn
  */
 void                                        jo_3d_model_set_hidden_bones(const unsigned int mask);
+
+/** @brief Move what the drawing of a model reads for each vertex, polygon and bone (its points, its polygons, their
+ *  attributes, its bones and their groups) to the high work RAM, when it is in a slower memory (the low work RAM, a RAM
+ *  cartridge)
+ *  @param model Model loaded by jo_3d_load_model() (its data in the file: the copies replace them, the file stays)
+ *  @return true if the model reads them in the high work RAM now (moved, or already there), false: not enough free high
+ *          work RAM (the model is unchanged)
+ *  @remarks For the models drawn in many copies at each frame (the characters of a crowd): the high work RAM is full after
+ *           the rooms of a level, the characters loaded after them are read in the low work RAM. Measured (FPS demo, 9
+ *           scientists in front of the camera): the slave CPU drew them in 23.8 ms, 20.7 ms with their models in the high
+ *           work RAM
+ *  @remarks jo_malloc() takes the high work RAM first: it is often full after the loading of a level. Keep some for this
+ *           (jo_malloc() a block before the loading, jo_free() it just before this call)
+ *  @remarks The animations stay in the file (only 2 keys are read per pose)
+ */
+bool                                        jo_3d_model_use_fast_memory(jo_3d_model * const model);
 
 /** @brief Draw a model with the current matrix
  *  @param model Model

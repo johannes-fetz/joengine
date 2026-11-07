@@ -51,8 +51,8 @@ void			my_gamepad(void)
 {
 	if (jo_get_input_type(0) == JoRacingWheel)
 	{
-		// X and Y are centered at 128
-		char axis_x_raw = jo_get_input_axis(0, JoAxis1) - 0x80;
+		// The wheel: -128 to 127, 0 in the middle
+		int axis_x_raw = jo_get_input_axis_centered(0, JoAxis1);
 
 		// Scale input to the 90°deg rotation
 		axis_x = JO_DIV_BY_65536(jo_fixed_mult(JO_MULT_BY_256(axis_x_raw), JO_MULT_BY_65536(90)));

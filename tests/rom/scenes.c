@@ -158,6 +158,59 @@ static void                     s_sprites_draw(void)
     jo_sprite_disable_shadow_filter();
 }
 
+/** @brief The colored shapes (jo_sprite_draw_rectangle(), jo_sprite_draw_color_4p_fixed()): flat, sorted with the sprites,
+ *  with the effects of the sprites (half transparency, gouraud, screen doors, shadow; RGB colors, the palette of the screen
+ *  in the 640 and 704 pixels modes)
+ */
+static void                     s_shapes_draw(void)
+{
+    static const jo_pos2D_fixed triangle[4] = {{0, -JO_MULT_BY_65536(90)}, {JO_MULT_BY_65536(40), -JO_MULT_BY_65536(30)},
+                                               {-JO_MULT_BY_65536(40), -JO_MULT_BY_65536(30)}, {-JO_MULT_BY_65536(40), -JO_MULT_BY_65536(30)}};
+    static const jo_color       rgb[6] = {JO_COLOR_Red, JO_COLOR_Green, JO_COLOR_Blue, JO_COLOR_Yellow, JO_COLOR_Cyan, JO_COLOR_Purple};
+    jo_color                    colors[6];
+    int                         w;
+    int                         h;
+    int                         i;
+
+    w = jo_core_get_screen_width();
+    h = jo_core_get_screen_height();
+    for (i = 0; i < 6; ++i)
+        colors[i] = __jo_screen.hires ? JO_PALETTE_LIGHT_COLOR(t_palette.id, T_SHADES_FIRST, i) : rgb[i];
+    t_select_sprite();
+    // A frame around the screen (1 pixel lines) and bars of each color (1, 2... 6 pixels high)
+    jo_sprite_draw_rectangle(0, 0, w, 1, colors[5], 600);
+    jo_sprite_draw_rectangle(0, h - 1, w, 1, colors[5], 600);
+    jo_sprite_draw_rectangle(0, 0, 1, h, colors[5], 600);
+    jo_sprite_draw_rectangle(w - 1, 0, 1, h, colors[5], 600);
+    for (i = 0; i < 6; ++i)
+        jo_sprite_draw_rectangle(8 + i * 20, 24, 16, i + 1, colors[i], 500);
+    // The sort: a rectangle behind a sprite (farther), another in front of it (nearer), the same depth in the order of the calls
+    jo_sprite_draw_rectangle(w / 2 - 40, h / 2 - 8, 80, 16, colors[0], 600);
+    jo_sprite_draw3D(t_sprite, 0, 0, 500);
+    jo_sprite_draw_rectangle(w / 2 - 4, h / 2 - 30, 8, 60, colors[1], 400);
+    jo_sprite_draw_rectangle(w / 2 + 50, h / 2 - 20, 20, 20, colors[2], 450);
+    jo_sprite_draw_rectangle(w / 2 + 55, h / 2 - 15, 20, 20, colors[3], 450);
+    // A triangle from the center of the screen
+    jo_sprite_draw_color_4p_fixed(triangle, colors[4], JO_MULT_BY_65536(500), true);
+    // The effects over a sprite: half transparency, screen doors, shadow, gouraud shading
+    jo_sprite_draw3D(t_sprite, -100, 60, 500);
+    jo_sprite_enable_half_transparency();
+    jo_sprite_draw_rectangle(w / 2 - 116, h / 2 + 50, 32, 20, colors[0], 400);
+    jo_sprite_disable_half_transparency();
+    jo_sprite_draw3D(t_sprite, -40, 60, 500);
+    jo_sprite_enable_screen_doors_filter();
+    jo_sprite_draw_rectangle(w / 2 - 56, h / 2 + 50, 32, 20, colors[2], 400);
+    jo_sprite_disable_screen_doors_filter();
+    jo_sprite_draw3D(t_sprite, 20, 60, 500);
+    jo_sprite_enable_shadow_filter();
+    jo_sprite_draw_rectangle(w / 2 + 4, h / 2 + 50, 32, 20, JO_COLOR_Black, 400);
+    jo_sprite_disable_shadow_filter();
+    jo_set_gouraud_shading_colors(JO_COLOR_RGB(255, 0, 0), JO_COLOR_RGB(0, 255, 0), JO_COLOR_RGB(0, 0, 255), JO_COLOR_RGB(128, 128, 128));
+    jo_sprite_enable_gouraud_shading();
+    jo_sprite_draw_rectangle(w / 2 + 64, h / 2 + 44, 48, 32, JO_COLOR_RGB(128, 128, 128), 500);
+    jo_sprite_disable_gouraud_shading();
+}
+
 static void                     s_cube_draw(void)
 {
     jo_3d_camera_look_at(&t_camera);
@@ -371,6 +424,7 @@ const jt_step                   t_scene_steps[] =
     {JT_STEP_SCENE, "window_circle", s_window_setup, s_sprites_draw, JO_NULL, s_window_cleanup, 0},
     {JT_STEP_SCENE, "color_filter", s_filter_setup, s_sprites_draw, JO_NULL, s_filter_cleanup, 0},
     {JT_STEP_SCENE, "sprite_blend", s_blend_setup, s_sprites_draw, JO_NULL, s_blend_cleanup, 0},
+    {JT_STEP_SCENE, "shapes", JO_NULL, s_shapes_draw, JO_NULL, JO_NULL, 0},
     {JT_STEP_SCENE, "printf_colors", JO_NULL, s_text_draw, JO_NULL, s_text_cleanup, 0},
     {JT_STEP_SCENE, "hires", s_hires_setup, s_hires_draw, JO_NULL, s_hires_cleanup, 0},
 };

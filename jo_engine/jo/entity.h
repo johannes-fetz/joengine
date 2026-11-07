@@ -161,6 +161,18 @@ typedef void                        (*jo_entity_area_damage_callback)(const jo_p
  */
 void                                jo_entity_register_class(const jo_entity_class * const cls);
 
+/** @brief Let the master CPU draw the entities of a class (its draw callback) while the slave CPU draws others of the same
+ *  class (its draw_slave callback), see jo_entities_draw()
+ *  @param cls Class (registered or not)
+ *  @param parallel true: the 2 callbacks don't share data that they change while they draw (each one only reads the
+ *         class data, or writes the data of its own entity), false (default): the master CPU waits until the slave CPU
+ *         has drawn all its entities with a draw_slave callback before it draws them
+ *  @remarks Without it, the characters of a crowd are drawn one CPU after the other: the master CPU waited 15 ms for the
+ *           slave CPU in front of 9 characters (28 frames per second instead of 30), whatever the share of each CPU
+ *  @remarks The actors of the class "actor" of the engine without bone callback are always drawn in parallel
+ */
+void                                jo_entity_class_set_parallel_draw(const jo_entity_class * const cls, const bool parallel);
+
 /** @brief Create the entities of a level (sections ENTI, PROP, LINK): the previous ones are freed
  *  @param level Level (it can be freed after: what the entities need is copied)
  *  @return Number of entities
@@ -200,7 +212,8 @@ void                                jo_entities_prepare_draw(const int slave_sha
 /** @brief Draw the entities of the master CPU (the camera matrix is the current matrix, see jo_3d_set_depth_bias())
  *  @return Number of entities drawn
  *  @remarks The entities with a draw callback are drawn after the ones of the slave CPU with a draw_slave callback (the
- *  master CPU waits for them: the callbacks of a class share its data, the faces of the characters)
+ *  master CPU waits for them: the callbacks of a class share its data, the faces of the characters), but the ones of a
+ *  class drawn in parallel (see jo_entity_class_set_parallel_draw()): drawn first, while the slave CPU draws
  */
 int                                 jo_entities_draw(void);
 

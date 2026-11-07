@@ -58,9 +58,6 @@ void                    draw_bezier_curve(void)
 
     for (t = JO_FIXED_0; t <= JO_FIXED_1; t += 100)
     {
-        p.x = JO_FIXED_0;
-        p.y = JO_FIXED_0;
-        p.z = JO_FIXED_0;
         jo_vector_fixed_compute_bezier_point(t, p0, p1, p2, p3, &p);
         jo_put_pixel_in_background(jo_fixed2int(p.x), jo_fixed2int(p.y), JO_COLOR_Green);
     }

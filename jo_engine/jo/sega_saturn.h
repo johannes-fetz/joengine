@@ -171,6 +171,12 @@
 # define JO_VDP2_TVSTAT_PAL  (1 << 0)
 /** @brief TVSTAT: odd field of an interlace mode */
 # define JO_VDP2_TVSTAT_ODD  (1 << 1)
+/** @brief TVSTAT: HCNT and VCNT were latched by the external signal (a light gun) since the last read of TVSTAT (the read
+ *  clears it) */
+# define JO_VDP2_TVSTAT_EXLTFG  (1 << 9)
+/** @brief EXTEN: HCNT and VCNT are latched by the external signal (the light sensor of a light gun, see the EXLE register of
+ *  the SMPC) instead of the reads of EXTEN */
+# define JO_VDP2_EXTEN_EXLTEN   (1 << 9)
 
 /* 180006 - r/w - VRSIZE - VRAM Size
  bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\

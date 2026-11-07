@@ -524,6 +524,55 @@ void        jo_sprite_draw_rotated_fixed(const int sprite_id, const jo_fixed x, 
                                          const jo_fixed half_width, const jo_fixed half_height, const int angle);
 
 /*
+** Colored shapes: VDP1 polygons of one color, drawn like the sprites (no texture, no sprite to add)
+*/
+
+/** @brief Draw a rectangle of one color (no texture): a health bar, a frame, a window of text, a fade to black
+ *  @param x Horizontal position of the left edge, from the left of the screen (pixels)
+ *  @param y Vertical position of the top edge, from the top of the screen (pixels)
+ *  @param width Width in pixels (nothing is drawn for 0 or less)
+ *  @param height Height in pixels (nothing is drawn for 0 or less)
+ *  @param color RGB color (JO_COLOR_RGB(), JO_COLOR_Red...). In the 8 bits modes of the screen (640 or 704 pixels wide):
+ *  a color of the palette of the screen (palette id * 256 + index, see jo_core_set_screen_palette(), JO_PALETTE_LIGHT_COLOR())
+ *  @param z Depth like jo_sprite_draw3D() (bigger is farther): the rectangle is sorted with the sprites and the 3D polygons
+ *  by this depth; at the same depth, in the order of the calls (the last one on top)
+ *  @remarks Like a sprite: not drawn when nearer than the near clipping distance of the 3D (half the projection distance:
+ *  80 in 320 x 224) or beyond the depth limit of the window (jo_3d_window()); its position is relative to the current
+ *  3D window (the whole screen by default). In front of all the 3D polygons (a head-up display over a 3D game):
+ *  jo_3d_set_depth_bias(-z) before the rectangles, jo_3d_set_depth_bias(0) after them (see the fighters demo)
+ *  @remarks The effects of the sprites apply (the state set before the call): jo_sprite_enable_half_transparency(),
+ *  jo_sprite_enable_shadow_filter(), jo_sprite_enable_dark_filter(), jo_sprite_enable_screen_doors_filter(),
+ *  jo_sprite_enable_gouraud_shading() (the colors of jo_set_gouraud_shading_colors() on the corners: top left, top right,
+ *  bottom right, bottom left) and jo_sprite_enable_clipping(). The color calculations (half transparency, shadow, dark,
+ *  gouraud) need an RGB color: none in the 8 bits modes. The flips, the scale and the palette of the sprites are not used
+ *  @remarks A health bar at the top left of the screen: a black frame and a green bar in it
+ *  @code
+ *  jo_sprite_draw_rectangle(8, 8, 104, 12, JO_COLOR_Black, 500);
+ *  jo_sprite_draw_rectangle(10, 10, health, 8, JO_COLOR_Green, 500);
+ *  @endcode
+ */
+void        jo_sprite_draw_rectangle(const int x, const int y, const int width, const int height, const jo_color color, const int z);
+
+/** @brief Draw a quadrilateral of one color (no texture) on 4 points: jo_sprite_draw_4p_fixed() with a color instead of a
+ *  sprite
+ *  @param four_points The corners: top left, top right, bottom right, bottom left (pixels, fixed point: jo_int2fixed()).
+ *  The corners are drawn (the corners 0 and 9 cover 10 pixels)
+ *  @param color RGB color, or a color of the palette of the screen in the 8 bits modes (see jo_sprite_draw_rectangle())
+ *  @param z Depth (fixed point, see jo_sprite_draw_rectangle())
+ *  @param centered_style_coordinates true: (0, 0) is the center of the screen, false: the top left of the screen
+ *  @remarks Any quadrilateral (a triangle: the last 2 corners equal). The effects of the sprites apply, its depth and its
+ *  window like a sprite (see jo_sprite_draw_rectangle())
+ *  @remarks A red triangle pointing up in the middle of the screen
+ *  @code
+ *  jo_pos2D_fixed triangle[4] = {{0, jo_int2fixed(-20)}, {jo_int2fixed(20), jo_int2fixed(20)},
+ *                                {jo_int2fixed(-20), jo_int2fixed(20)}, {jo_int2fixed(-20), jo_int2fixed(20)}};
+ *  jo_sprite_draw_color_4p_fixed(triangle, JO_COLOR_Red, jo_int2fixed(500), true);
+ *  @endcode
+ */
+void        jo_sprite_draw_color_4p_fixed(const jo_pos2D_fixed * const four_points, const jo_color color, const jo_fixed z,
+                                          const bool centered_style_coordinates);
+
+/*
  ██████╗██╗     ██╗██████╗ ██████╗ ██╗███╗   ██╗ ██████╗
 ██╔════╝██║     ██║██╔══██╗██╔══██╗██║████╗  ██║██╔════╝
 ██║     ██║     ██║██████╔╝██████╔╝██║██╔██╗ ██║██║  ███╗

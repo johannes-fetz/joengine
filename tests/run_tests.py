@@ -114,7 +114,13 @@ class Run:
         """Layer 5: the sizes of the programs (code, data, RAM)."""
         tol = self.tol.get("size_percent", 2.0)
         sizes = self.budgets.setdefault("sizes", {})
+        # (absolute limits of config.json: the program of JO_MINIMAL = 1 must stay much smaller than the default engine)
+        limits = self.config.get("samples", {}).get("max_bin_size", {})
         for job in jobs:
+            limit = limits.get(job.name)
+            if job.ok and limit is not None and "bin" in job.sizes:
+                self.results.add("5 size", "%s [%s] limit" % (job.name, job.variant), FAIL if job.sizes["bin"] > limit else PASS,
+                                 "%d bytes, at most %d" % (job.sizes["bin"], limit), quiet=job.sizes["bin"] <= limit)
             if not job.ok or job.variant != "default" and job.name != "test rom":
                 continue
             key = "%s [%s]" % (job.name, job.variant)

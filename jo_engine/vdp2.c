@@ -1356,6 +1356,16 @@ static volatile int                 __jo_vdp2_hidden_fields = 0;
 /** @brief VDP2 VBLANK-IN processing (Internal usage)
  *  @remarks Applies the registers and the rotation parameters
  */
+/** @brief Set the latch of the HV counters by the external signal (Internal usage, the light guns: see smpc.c)
+ *  @param enabled true: HCNT and VCNT are latched by the light sensor of a gun (TVSTAT.EXLTFG), false: by the reads of EXTEN
+ *  @remarks Applied at the next VBLANK
+ */
+void                                __jo_vdp2_set_external_latch(const bool enabled)
+{
+    if (((JO_VDP2_GET(JO_VDP2_EXTEN) & JO_VDP2_EXTEN_EXLTEN) != 0) != enabled)
+        JO_VDP2_SET_BITS(JO_VDP2_EXTEN, JO_VDP2_EXTEN_EXLTEN, enabled ? JO_VDP2_EXTEN_EXLTEN : 0);
+}
+
 void                                __jo_vdp2_vblank(void)
 {
     if (__jo_vdp2_hidden_fields > 0 && --__jo_vdp2_hidden_fields == 0)
