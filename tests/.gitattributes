@@ -1,0 +1,2 @@
+rom/cd/* -text
+golden/**/*.png binary
