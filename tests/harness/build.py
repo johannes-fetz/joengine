@@ -48,7 +48,9 @@ def _ignore_build_files(directory, names):
 
 
 def generate_rom_makefile(path, modules, sources):
-    lines = ["%s = %s" % (k, v) for k, v in modules.items()]
+    # (T_* keys are defines of the test ROM itself, as T_FUZZ_LONG: the other keys are variables of the engine's makefile)
+    lines = ["%s = %s" % (k, v) for k, v in modules.items() if not k.startswith("T_")]
+    lines += ["CCFLAGS += -D%s=%s" % (k, v) for k, v in modules.items() if k.startswith("T_")]
     lines.append("SRCS = %s" % " ".join(sources))
     lines.append("include $(COMPILER_DIR)/COMMON/jo_engine_makefile")
     with open(path, "w", newline="\n") as f:

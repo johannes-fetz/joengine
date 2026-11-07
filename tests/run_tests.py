@@ -16,7 +16,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from harness import barcode, build, emulator, media  # noqa: E402
+from harness import barcode, build, emulator, glitch, media  # noqa: E402
 from harness.report import FAIL, NEW, PASS, SKIP, WARN, Results, describe_registers  # noqa: E402
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -165,8 +165,23 @@ class Run:
         self.results.add(layer, name + " checks", status, "%d checks, %d failed" % (report["checks"], report["failures"]),
                          details=failed + report["infos"])
         self.check_values(variant, report)
+        # The anti-glitch views of the 3D (absolute checks, no reference: see harness/glitch.py): the quick ones only in
+        # the quick mode (shown before the report of the checks)
+        hires = int(self.config["rom"]["variants"].get(variant, {}).get("JO_SCREEN_WIDTH", 320)) > 352
+        # (the variants of the long fuzz don't show the views, see t_glitch_steps())
+        fuzz = "T_FUZZ_LONG" in self.config["rom"]["variants"].get(variant, {})
+        if not hires and not fuzz and (self.selected("glitch") or self.selected("rom " + variant)):
+            start = time.time()
+            glitch.run_checks(self, variant, result, self.results, not self.full)
+            print("  (anti-glitch views checked in %.0f s)" % (time.time() - start))
         if not self.full:
             return
+        # (the errors of the engine during the anti-glitch views: their report, stage 2)
+        errors = result.collector.report(2)
+        if errors is not None and (errors["failures"] or errors["infos"]):
+            self.results.add(glitch.LAYER, "glitch %s engine errors" % variant, FAIL, "%d errors of the engine during the views"
+                             % errors["failures"], details=["%s: %s" % (f["group"], f["text"]) for f in errors["failed"]] +
+                             errors["infos"])
         perf = result.collector.report(1)
         if perf is None:
             self.results.add("5 perf", name, FAIL, "no measures (stage 1)")
@@ -239,6 +254,9 @@ class Run:
         golden_dir = os.path.join(GOLDEN, "rom", variant)
         seen = set()
         for scene, last, offset in result.collector.markers:
+            # (the anti-glitch views: checked by harness/glitch.py, no golden image)
+            if scene.startswith("g_"):
+                continue
             seen.add(scene)
             self.check_image("3 image", "rom %s %s" % (variant, scene), result, last + offset,
                              os.path.join(golden_dir, "%s.png" % scene), "rom/%s/%s" % (variant, scene))

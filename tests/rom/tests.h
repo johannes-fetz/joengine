@@ -29,6 +29,9 @@ extern const jt_step    t_leak_steps[];
 /** @brief Count of t_leak_steps */
 extern const int        t_leak_step_count;
 
+/** @brief Fuzz of the parsers of files (JOM, TGA, WAV, MAP, JOL) and random sequences of the APIs (t_fuzz.c) */
+void    t_fuzz(void);
+
 /** @brief The steps of the scenes and of the measures (scenes.c) */
 extern const jt_step    t_scene_steps[];
 
@@ -37,5 +40,10 @@ extern const int        t_scene_step_count;
 
 /** @brief Initialize the resources of the scenes (scenes.c) */
 void    t_scenes_init(void);
+
+/** @brief The views of the anti-glitch checks of the 3D (t_glitch.c): the quick ones (before the report of the checks)
+ *  or the others (after the scenes), each one a JT_STEP_SCENE
+ *  @return The count of steps written */
+int     t_glitch_steps(const bool quick, jt_step * const steps, const int max);
 
 #endif /* !__TESTS_H__ */

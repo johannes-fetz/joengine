@@ -92,6 +92,9 @@ typedef struct
 /** @brief Frame captured by the harness (after the last frame of the marker) */
 # define JT_CAPTURE_FRAME           (20)
 
+/** @brief The step running (JO_NULL after the last one) */
+const jt_step   *jt_current_step(void);
+
 /** @brief Run the steps (calls jo_core_run()) */
 void            jt_run(const jt_step * const steps, const int count);
 

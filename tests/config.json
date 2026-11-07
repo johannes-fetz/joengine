@@ -9,7 +9,9 @@
    "t_stress.c",
    "t_leaks.c",
    "t_state.c",
-   "scenes.c"
+   "scenes.c",
+   "t_fuzz.c",
+   "t_glitch.c"
   ],
   "modules": {
    "JO_COMPILE_WITH_VIDEO_MODULE": "0",
@@ -69,13 +71,20 @@
    },
    "release": {
     "JO_DEBUG": "0"
+   },
+   "fuzz": {
+    "T_FUZZ_LONG": "1"
+   },
+   "fuzz_release": {
+    "T_FUZZ_LONG": "1",
+    "JO_DEBUG": "0"
    }
   },
   "quick_variants": [
    "320x224"
   ],
   "timeout_quick": 120,
-  "timeout_full": 300,
+  "timeout_full": 600,
   "build_only": [
    "all_modules",
    "all_modules_release"

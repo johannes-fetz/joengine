@@ -413,6 +413,11 @@ static void                     jt_tick(void)
     }
 }
 
+const jt_step                   *jt_current_step(void)
+{
+    return (jt_step_index < jt_step_count ? &jt_steps[jt_step_index] : JO_NULL);
+}
+
 void                            jt_run(const jt_step * const steps, const int count)
 {
     jt_steps = steps;

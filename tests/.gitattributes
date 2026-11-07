@@ -1,2 +1,4 @@
 rom/cd/* -text
+rom/cd/** -text
+rom/fuzz_seeds/** -text
 golden/**/*.png binary

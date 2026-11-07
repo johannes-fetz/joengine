@@ -40,6 +40,7 @@ starts `Xvfb`.
 | 4 sound | | yes | the loudness of each sample (blocks of 100 ms) against `golden/samples/<sample>/audio.json` |
 | 5 budgets | sizes: warning only | yes | CPU and VDP1 time of the measures of the test ROM, memory used, sizes of each program (code, data, RAM), against `golden/budgets.json` |
 | 6 samples | | yes | each sample boots in Mednafen; its frames against `golden/samples/<sample>/frame_*.png` |
+| 3 glitch | 9 views | 217 views | the anti-glitch views of the 3D (`rom/t_glitch.c`, `harness/glitch.py`): absolute checks, no reference (see below) |
 
 Layers 1 and 2 have two kinds of checks:
 
@@ -76,6 +77,11 @@ A result without reference is `NEW` (not a failure): a new scene, a new sample, 
    - `t_leaks.c`: each resource (models, meshes, sprites, tints, gouraud tables, fonts, files, sounds, maps, levels...)
      created, used and freed during 8 cycles: the free memory (work RAM, VDP1, sprites, VDP2, color RAM, file handles)
      must be exactly the same after them
+   - `t_fuzz.c`: the parsers of files (JOM, TGA, WAV, MAP, JOL) fed with damaged data (in memory, and the files of
+     `rom/cd/FUZZ`, made by `rom/gen_fuzz.py` from `rom/fuzz_seeds`) and random sequences of the APIs (malloc, VDP2 malloc,
+     sprites, lists); after each input: no crash, the heap walk, no write after the VDP1 textures, no leak. Short in the
+     other variants, long in the variants `fuzz` and `fuzz_release` (`T_FUZZ_LONG`; `rom.variants` keys `T_*` are defines
+     of the test ROM). A failed check gives the iteration: `T_FUZZ_FIRST` / `T_FUZZ_COUNT` replay it alone
 2. the measures (`scenes.c`, `JT_STEP_BENCH`: the averages of the profiler over 32 frames), then a report
 3. the scenes (`JT_STEP_SCENE`): a marker, then a static picture during 24 frames
 
@@ -94,9 +100,39 @@ report.
 
 ## Configuration (`config.json`)
 
-- `rom.modules`, `rom.sources`, `rom.variants`: the makefile of the test ROM and its variants (`JO_SCREEN_WIDTH`, etc)
+- `rom.modules`, `rom.sources`, `rom.variants`: the makefile of the test ROM and its variants (`JO_SCREEN_WIDTH`, etc); the keys
+  `T_*` are defines of the test ROM (`T_FUZZ_LONG`)
 - `samples.skip`: samples not built; `samples.full_variants`: the other builds of the full mode
 - `samples.boot.frames`: the frames of each sample compared (the BIOS takes about 700 frames);
   `samples.boot.per_sample`: other frames or `"audio": false` for a sample; `samples.boot.skip`: samples built but not run
 - `tolerances`: `image_threshold` (difference of a color component, 0 to 255), `image_max_pixels_percent`, `perf_percent`,
   `ram_percent`, `size_percent`, `audio_db`, `audio_max_blocks_percent`
+
+## The anti-glitch views of the 3D
+
+`rom/t_glitch.c` draws known scenes from known cameras over a magenta background that no texture uses (the NBG1 bitmap
+behind the sprites), each view a scene step of 9 frames (the last 3 black: the harness takes the last picture of the
+view before them, a heavy view is shown during a few frames only). `harness/glitch.py` computes what each picture must
+show with the projection of the engine (projection distance 160 pixels, center (160, 120), near plane at 20 units:
+checked by the ROM) and reports, with the parameters of the view, the counts and zoomed crops (`report.html`):
+
+| Check | Scenes | Rule |
+|---|---|---|
+| holes | the room seen from inside (6 faces of 8 x 8 quads sharing their vertices, or 6 big quads; textured with subdivision (the big quads and the single quads with the finer tiles, `jo_3d_set_texture_subdivision_fine()`), without, flat), the ground (24 x 24 quads), cameras from the center to 0.5 unit of a wall, an edge, a corner, 0.75 unit over the ground | a ray per pixel: a pixel whose ray hits the geometry in front of the near plane must be drawn (2 pixels from the edges of that region not checked). Nearer than the near plane, drawing is allowed (the engine draws the parts through the near plane whole) |
+| spurious | the ground | nothing drawn where no ray hits the geometry |
+| deformation, holes | one quad (facing, oblique, edge on, through the near plane, behind the camera, 4000 units wide, 2000 units away) | the quad clipped by the near plane must be drawn; nothing drawn more than 2 pixels out of the quad in front of the camera |
+| hull | a twisted quad, a quad seen exactly edge on | nothing drawn out of the convex hull of the corners |
+| mapping | the textured quads, the room and the ground with subdivision | the texture is a gradient (red = column, green = line, blue = 31 - column): the texel of each pixel against the perspective correct texel; good within 1.5 texels + 10 pixels (the distortion of 8 pixels allowed by the subdivision + 2); 95 % of the pixels; in the room, not the pixels 2 pixels or less from an edge between 2 faces (the polygons are grown by 1 pixel) |
+| mipmaps | the ground with `jo_3d_set_texture_mipmaps()`, also `FLIP_H` | each quad drawn as one command is mapped bilinearly by the VDP1 from its corners: column (flipped or not) and line within 3.5 texels + 1 pixel; 0.2 % of the pixels at most |
+| colors | all | every pixel drawn is a color of the scene (a texel of the gradient or its averages, the flat colors) |
+| slave | the room and the ground drawn by the slave CPU | the same picture as the master CPU |
+
+Views flagged `DEFECT` draw a known defect (a quad missing, a crack of 2 units, a corner moved by 8 units, the ground not
+flipped) and views flagged `CONTROL` a known bad case (a textured quad through the near plane without subdivision): their
+checks must fail, else the check is broken (FAIL). Glitches of the engine known and not fixed are listed in `KNOWN`
+(`harness/glitch.py`): a WARN with the reason and the most pixels of each problem (more: a FAIL). Remove an entry when
+the engine is fixed.
+
+The views are in `rom/t_glitch_views.h`, written by `python3 tests/harness/glitch.py --write-views` from `make_views()`
+(edit the sweeps there, then rebuild the ROM: the checks read the same file). The views need the 320 or 352 pixels modes
+(RGB textures): none in the 704x480 variant.
