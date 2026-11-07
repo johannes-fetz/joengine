@@ -75,13 +75,14 @@ typedef struct
     short                           target;         // -1: free
     short                           source;         // -1: the game
     unsigned short                  action;
-    short                           time;           // Milliseconds left
+    int                             time;           // Milliseconds left
     int                             param;
 }                                   __jo_entity_pending;
 
+/** @brief A model loaded (its name is copied: the program can give a name built in a buffer of the stack) */
 typedef struct
 {
-    const char                      *filename;
+    char                            filename[32];
     jo_3d_model                     *model;
 }                                   __jo_entity_model;
 
@@ -122,6 +123,8 @@ static int                          __jo_entity_depth = 0;
 static jo_pos3D_fixed               __jo_entity_player;
 static jo_entity_area_damage_callback __jo_entity_area_damage = JO_NULL;
 static void                         __jo_entity_register_engine_classes(void);
+static bool                         __jo_entity_engine_classes = false;
+static void                         __jo_entities_forget_draw(void);
 
 /*
 ** Classes, strings, properties
@@ -220,15 +223,15 @@ jo_3d_model                         *jo_entity_get_model(const char * const file
     for (k = 0; k < __jo_entity_model_count; ++k)
         if (jo_strcmp(__jo_entity_models[k].filename, filename) == 0)
             return (__jo_entity_models[k].model);
-    if (__jo_entity_model_count >= JO_ENTITY_MAX_MODELS)
+    if (__jo_entity_model_count >= JO_ENTITY_MAX_MODELS || jo_strlen(filename) >= (int)sizeof(__jo_entity_models[0].filename))
     {
 #ifdef JO_DEBUG
-        jo_core_error("Too many entity models (max=%d)", JO_ENTITY_MAX_MODELS);
+        jo_core_error("Too many entity models (max=%d) or name too long: %s", JO_ENTITY_MAX_MODELS, filename);
 #endif
         return (JO_NULL);
     }
     model = jo_3d_load_model(filename);
-    __jo_entity_models[__jo_entity_model_count].filename = filename;
+    jo_memcpy(__jo_entity_models[__jo_entity_model_count].filename, filename, jo_strlen(filename) + 1);
     __jo_entity_models[__jo_entity_model_count].model = model;
     ++__jo_entity_model_count;
     return (model);
@@ -257,6 +260,7 @@ void                                jo_entity_set_mesh(jo_entity * const entity,
     cx = JO_ABS(jo_fixed2int(center.x));
     cz = JO_ABS(jo_fixed2int(center.z));
     entity->mesh_radius += cx > cz ? cx + cz / 2 : cz + cx / 2;
+    entity->center_dy = center.y;
     entity->center.x = entity->position.x;
     entity->center.y = entity->position.y + center.y;
     entity->center.z = entity->position.z;
@@ -281,7 +285,8 @@ void                                jo_entities_free(void)
         jo_free(__jo_entities_memory);
     __jo_entities_memory = JO_NULL;
     __jo_entities = JO_NULL;
-    for (k = 0; k < __jo_entity_model_count; ++k)
+    // (in the reverse order of their loading: the VRAM of their gouraud tables is given back, see jo_3d_free_gouraud_tables())
+    for (k = __jo_entity_model_count - 1; k >= 0; --k)
         if (__jo_entity_models[k].model != JO_NULL)
             jo_3d_free_model(__jo_entity_models[k].model);
     __jo_entity_model_count = 0;
@@ -299,6 +304,7 @@ void                                jo_entities_free(void)
     __jo_entity_strings_size = 0;
     for (k = 0; k < JO_ENTITY_MAX_PENDING; ++k)
         __jo_entity_pendings[k].target = -1;
+    __jo_entities_forget_draw();
     // (the sprites of the explosions are loaded again with the next level: the program can free their VRAM with the
     // textures of the models, see jo_3d_model_free_textures_from())
     __jo_entities_free_looks();
@@ -328,8 +334,12 @@ int                                 jo_entities_load(jo_level * const level)
     jo_entity                       *e;
 
     jo_entities_free();
-    if (__jo_entity_class_count == 0 || __jo_entity_find_class("entity") == JO_NULL)
+    // (once: a class of the game registered before with the name of a class of the engine replaces it)
+    if (!__jo_entity_engine_classes)
+    {
         __jo_entity_register_engine_classes();
+        __jo_entity_engine_classes = true;
+    }
     // What the entities need after the level is freed: the strings, the properties, the links
     strs = jo_level_find_section(level, JO_LEVEL_SECTION_STRS);
     if (strs != JO_NULL)
@@ -369,6 +379,8 @@ int                                 jo_entities_load(jo_level * const level)
     {
         e = &__jo_entities[k];
         jo_memset(e, 0, sizeof(*e));
+        // (not seen before its first jo_entities_prepare_draw(): woken by the distance only, see jo_entities_set_wake())
+        e->view_distance = -1;
         e->name = __jo_entity_string(er->name);
         e->cls = __jo_entity_find_class(__jo_entity_string(er->cls));
         if (e->cls == JO_NULL)
@@ -458,7 +470,7 @@ static void                         __jo_entity_queue(const int target, const in
             p->target = (short)target;
             p->source = (short)source;
             p->action = (unsigned short)action;
-            p->time = (short)JO_MIN(delay, 32767);
+            p->time = delay;
             p->param = param;
             return;
         }
@@ -557,7 +569,7 @@ void                                jo_entities_damage_area(const jo_pos3D_fixed
     int                             d;
     jo_entity                       *e;
 
-    for (k = 0, e = __jo_entities; k < __jo_entity_count; ++k, ++e)
+    for (k = 0, e = __jo_entities; radius > 0 && k < __jo_entity_count; ++k, ++e)
     {
         if (e == source || e->health <= 0 || (e->flags & (JO_ENTITY_FLAG_DEAD | JO_ENTITY_FLAG_DISABLED)))
             continue;
@@ -605,7 +617,13 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
     {
         if (p->target < 0)
             continue;
-        p->time -= (short)elapsed;
+        // (a slot never used: the table starts at 0, before the first jo_entities_free())
+        if (p->target >= __jo_entity_count || p->source >= __jo_entity_count)
+        {
+            p->target = -1;
+            continue;
+        }
+        p->time -= elapsed;
         if (p->time > 0)
             continue;
         e = &__jo_entities[p->target];
@@ -643,6 +661,7 @@ int                                 jo_entity_view_distance(const jo_entity * co
     int                             dx;
     int                             dz;
     int                             distance;
+    jo_pos3D_fixed                  center;
     jo_pos3D_fixed                  v;
 
     if (entity->mesh == JO_NULL)
@@ -660,9 +679,13 @@ int                                 jo_entity_view_distance(const jo_entity * co
     }
     if (distance > entity->draw_distance)
         return (-1);
-    jo_3d_transform_point(&entity->center, &v);
+    // (the center follows the entity: a walking enemy was tested at its spawn point)
+    center.x = entity->position.x;
+    center.y = entity->position.y + entity->center_dy;
+    center.z = entity->position.z;
+    jo_3d_transform_point(&center, &v);
     if (!jo_3d_is_sphere_visible(&v, jo_int2fixed(entity->mesh_radius),
-                                 jo_int2fixed(entity->draw_distance * __jo_entity_lod_scale + entity->mesh_radius)))
+                                 jo_int2fixed(JO_MIN(entity->draw_distance * __jo_entity_lod_scale + entity->mesh_radius, 32767))))
         return (-1);
     return (distance);
 }
@@ -719,6 +742,15 @@ static int                          __jo_entity_slave_count = 0;
 static int                          __jo_entity_slave_callbacks = 0;    // Of the slave CPU: with a draw_slave callback (first)
 static int                          __jo_entity_draw_base_bias = 0;
 static bool                         __jo_entity_draw_prepared = false;
+
+/** @brief The entities freed: the list of jo_entities_prepare_draw() is no longer valid */
+static void                         __jo_entities_forget_draw(void)
+{
+    __jo_entity_draw_prepared = false;
+    __jo_entity_master_count = 0;
+    __jo_entity_slave_count = 0;
+    __jo_entity_slave_callbacks = 0;
+}
 /** @brief The entities with a draw_slave callback are drawn (written by the slave CPU, read without the cache) */
 static volatile int                 __jo_entity_slave_done = 0;
 static int                          __jo_entity_slave_wait = 0;
@@ -813,7 +845,12 @@ void                                jo_entities_prepare_draw(const int slave_sha
         // (a class that draws it: drawn even without a model or out of the view, the class decides (a sprite, the pieces
         // of a broken thing); the distance for its slave CPU draw, and its share)
         if (e->cls->draw != JO_NULL)
+        {
             distance = jo_entity_view_distance(e);
+            // (drawn by its class without a model: seen, at a distance unknown)
+            if (distance < 0)
+                JO_ZERO(distance);
+        }
         e->view_distance = (short)JO_MIN(distance, 32767);
         // The tint: the light of the lamps on it, changed by the class
         __jo_entity_light(e, &r, &g, &b);
@@ -1686,7 +1723,9 @@ void                                jo_actor_spawn(jo_entity * const entity)
     a->far_model = jo_entity_get_model(jo_entity_get_string(entity, "far_model", ""));
     if (a->model != JO_NULL && a->model->bone_count == 0)
         a->model = JO_NULL;
-    if (a->far_model != JO_NULL && a->far_model->bone_count != a->model->bone_count)
+    // (no far model without a model with a skeleton: its bones and its animations are those of the model)
+    if (a->far_model != JO_NULL && (a->model == JO_NULL || a->far_model->bone_count != a->model->bone_count ||
+                                    a->far_model->animation_count != a->model->animation_count))
         a->far_model = JO_NULL;
     a->animation = -1;
     a->previous = -1;

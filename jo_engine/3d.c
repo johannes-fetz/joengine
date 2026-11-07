@@ -214,6 +214,8 @@ static  __jo_force_inline void              jo_3d_set_vertex(jo_3d_vertex * cons
 */
 static jo_3d_matrix                         __jo_3d_matrix_stack[JO_3D_MATRIX_STACK_DEPTH];
 static int                                  __jo_3d_matrix_level = 0;
+/** @brief jo_3d_push_matrix() calls refused (the stack is full): their jo_3d_pop_matrix() don't pop */
+static int                                  __jo_3d_matrix_overflow = 0;
 /* Light direction in view space */
 static jo_pos3D_fixed                       __jo_3d_light_direction;
 
@@ -319,10 +321,11 @@ typedef struct
     jo_fixed                                ky;
     jo_fixed                                margin_x;
     jo_fixed                                margin_y;
+    int                                     height_2;               // (the height changes alone: 224 to 240 lines)
 }                                           jo_3d_screen_planes;
 
-static jo_3d_screen_planes                  __jo_3d_screen_planes = {0, 0, 0, 0, 0};
-static jo_3d_screen_planes                  __jo_3d_slave_screen_planes = {0, 0, 0, 0, 0};
+static jo_3d_screen_planes                  __jo_3d_screen_planes = {0, 0, 0, 0, 0, 0};
+static jo_3d_screen_planes                  __jo_3d_slave_screen_planes = {0, 0, 0, 0, 0, 0};
 
 /** @brief Smaller copies of a texture (see jo_3d_set_texture_mipmaps()) */
 typedef struct
@@ -478,7 +481,7 @@ static  __jo_force_inline int               jo_3d_tint_component(const int tint,
  *  @remarks Not inlined: its tables on the stack only while a copy is written (not in the frame of jo_3d_draw_polygons(), the
  *           short stack of the slave CPU)
  */
-static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_cache * const c, const int variant, const int tint)
+static __attribute__((noinline)) bool       jo_3d_write_tint(const jo_3d_tint_cache * const c, const int variant, const int tint)
 {
     jo_color                                *colors;
     const jo_color                          *in;
@@ -495,7 +498,7 @@ static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_ca
 
     colors = (jo_color *)jo_malloc(c->count * 4 * sizeof(jo_color));
     if (colors == JO_NULL)
-        return;
+        return (false);
     tr = jo_3d_tint_component(tint, 0);
     tg = jo_3d_tint_component(tint, 5);
     tb = jo_3d_tint_component(tint, 10);
@@ -514,6 +517,7 @@ static __attribute__((noinline)) void       jo_3d_write_tint(const jo_3d_tint_ca
     }
     jo_dma_copy(colors, (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(c->table[variant])), c->count * 4 * sizeof(jo_color));
     jo_free(colors);
+    return (true);
 }
 
 /** @brief Difference of 2 packed tints: the biggest of their components (gouraud units) */
@@ -674,7 +678,9 @@ static unsigned short                       jo_3d_tint_offset(const jo_3d_polygo
         return ((unsigned short)(c->table[v] - c->first));
     }
     // A new tint: the copy used the longest time ago
-    jo_3d_write_tint(c, oldest, __jo_3d_tint);
+    // (out of memory: the copy is not written, not marked as this tint)
+    if (!jo_3d_write_tint(c, oldest, __jo_3d_tint))
+        return (0);
     c->tint[oldest] = __jo_3d_tint;
     c->used[oldest] = __jo_3d_tint_clock;
     return ((unsigned short)(c->table[oldest] - c->first));
@@ -694,13 +700,15 @@ void                                        __jo_3d_forget_sprites_from(const in
     // them too)
     for (JO_ZERO(i); i < JO_MAX_SPRITE; ++i)
     {
-        if (__jo_3d_tiles[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_tiles[i].sprite[0] >= sprite_id))
+        // (the sprites of the last level are the last ones: one of them freed, the tiles are lost)
+        if (__jo_3d_tiles[i].levels != 0 && (i >= sprite_id ||
+                                             (int)__jo_3d_tiles[i].sprite[JO_3D_TILE_LEVEL_COUNT(&__jo_3d_tiles[i]) - 1] >= sprite_id))
         {
             __jo_3d_tiles[i].levels = 0;
             __jo_3d_tiles[i].error = 0;
             __jo_3d_tiles[i].depth = 0;
         }
-        if (__jo_3d_mipmaps[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_mipmaps[i].first >= sprite_id))
+        if (__jo_3d_mipmaps[i].levels != 0 && (i >= sprite_id || (int)__jo_3d_mipmaps[i].first + __jo_3d_mipmaps[i].levels - 1 >= sprite_id))
             __jo_3d_mipmaps[i].levels = 0;
         jo_3d_update_texture_flags(i);
     }
@@ -722,15 +730,36 @@ void                                        __jo_3d_forget_sprites_from(const in
 void                                        __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata)
 {
     int                                     i;
+    int                                     sprite;
 
-    // (the copies stay in the VRAM: a new mesh in the cache gets new copies)
+    // (the copies are given back when they are the last sprite: else they stay in the VRAM, a new mesh in the cache gets
+    // new copies)
     for (JO_ZERO(i); i < JO_3D_TINT_MESHES; ++i)
         if (__jo_3d_tints[i].key == pdata)
         {
+            sprite = __jo_3d_tints[i].first_sprite;
             if (__jo_3d_tints[i].colors != JO_NULL)
                 jo_free(__jo_3d_tints[i].colors);
             jo_memset(&__jo_3d_tints[i], 0, sizeof(__jo_3d_tints[i]));
+            if (sprite > 0 && sprite == jo_get_last_sprite_id())
+                jo_sprite_free_from(sprite);
         }
+}
+
+void                                        __jo_3d_forget_environment(const jo_3d_polygon_data * const pdata)
+{
+    int                                     k;
+    int                                     sprite;
+
+    k = jo_3d_environment_of(pdata);
+    if (k < 0)
+        return;
+    sprite = __jo_3d_environments[k].first_sprite;
+    __jo_3d_environments[k].key = JO_NULL;
+    jo_3d_count_environments();
+    // (its tiles given back when they are the last sprite)
+    if (sprite > 0 && sprite == jo_get_last_sprite_id())
+        jo_sprite_free_from(sprite);
 }
 
 /* Gouraud tables of the clipped polygons: first table of the set of the frame (see JO_3D_CLIP_GOURAUD_SETS) */
@@ -772,6 +801,8 @@ void                                        __jo_3d_end_frame(void)
     JO_ZERO(__jo_3d_displayed_polygon_count);
     JO_ZERO(__jo_3d_master.clip_table_count);
     *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[0]) = 0;
+    // (the tables of the slave CPU too: a frame without jo_3d_slave_begin() lost them)
+    *(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_3d_clip_tables_used[1]) = 0;
     __jo_3d_clip_table_base += JO_3D_CLIP_GOURAUD_TABLES;
     if (__jo_3d_clip_table_base >= JO_3D_CLIP_GOURAUD_TABLES * JO_3D_CLIP_GOURAUD_SETS)
         JO_ZERO(__jo_3d_clip_table_base);
@@ -787,7 +818,9 @@ void                                        __jo_3d_end_frame(void)
  */
 static  __jo_force_inline long long         jo_3d_squared_length(const jo_pos3D_fixed * const v)
 {
-    return (((long long)v->x * v->x + (long long)v->y * v->y + (long long)v->z * v->z) >> 16);
+    // (the sum unsigned: 3 squares of components over 26755.0 overflowed the signed 64 bits)
+    return ((long long)(((unsigned long long)((long long)v->x * v->x) + (unsigned long long)((long long)v->y * v->y) +
+                         (unsigned long long)((long long)v->z * v->z)) >> 16));
 }
 
 /** @brief Component of a normalized vector: x * inverse / 2^shift, rounded toward zero like a division
@@ -817,8 +850,20 @@ static void                                 jo_3d_normalize(jo_pos3D_fixed *v)
     jo_fixed                                inverse;
 
     len2 = jo_3d_squared_length(v);
-    if (len2 <= 0)
+    if (len2 < JO_FIXED_1)
+    {
+        // A vector shorter than 1.0: its squared length has less than 16 bits, the square root was up to 41 % off (the right
+        // axis of a camera that looks almost straight down stretched the picture). 16 times longer, the same direction (x 256
+        // could jump over the range [1.0, 181.0) and loop with the >> 8 below)
+        if ((v->x != 0 || v->y != 0 || v->z != 0) && JO_ABS(v->x) < 0x10000 && JO_ABS(v->y) < 0x10000 && JO_ABS(v->z) < 0x10000)
+        {
+            v->x <<= 4;
+            v->y <<= 4;
+            v->z <<= 4;
+            jo_3d_normalize(v);
+        }
         return;
+    }
     if (len2 > JO_FIXED_MAX)
     {
         v->x >>= 8;
@@ -895,13 +940,13 @@ void                                        jo_3d_push_matrix(void)
 {
 #ifdef JO_DEBUG
     if (__jo_3d_matrix_level >= JO_3D_MATRIX_STACK_DEPTH - 1)
-    {
         jo_core_error("Too many jo_3d_push_matrix()");
-        return;
-    }
 #endif
     if (__jo_3d_matrix_level >= JO_3D_MATRIX_STACK_DEPTH - 1)
+    {
+        ++__jo_3d_matrix_overflow;
         return;
+    }
     jo_3d_copy_matrix(__jo_3d_matrix_stack[__jo_3d_matrix_level + 1], (const jo_fixed (*)[3])__jo_3d_matrix_stack[__jo_3d_matrix_level]);
     ++__jo_3d_matrix_level;
 }
@@ -909,12 +954,18 @@ void                                        jo_3d_push_matrix(void)
 void                                        jo_3d_pop_matrix(void)
 {
 #ifdef JO_DEBUG
-    if (__jo_3d_matrix_level <= 0)
+    if (__jo_3d_matrix_level <= 0 && __jo_3d_matrix_overflow == 0)
     {
         jo_core_error("Too many jo_3d_pop_matrix()");
         return;
     }
 #endif
+    // (the pop of a refused push: the level stays, the stack stays balanced)
+    if (__jo_3d_matrix_overflow > 0)
+    {
+        --__jo_3d_matrix_overflow;
+        return;
+    }
     if (__jo_3d_matrix_level <= 0)
         return;
     --__jo_3d_matrix_level;
@@ -1080,6 +1131,8 @@ static void                                 jo_3d_multiply_current_matrix(jo_3d_
 void                                        jo_3d_reflect_matrix(const jo_pos3D_fixed * const normal, const jo_fixed distance)
 {
     jo_3d_matrix                            r;
+    jo_fixed                                columns[3][3];
+    jo_fixed                                offset[3];
     const jo_fixed                          *n;
     int                                     i;
     int                                     j;
@@ -1090,9 +1143,17 @@ void                                        jo_3d_reflect_matrix(const jo_pos3D_
     {
         for (j = 0; j < 3; ++j)
             r[i][j] = (i == j ? JO_FIXED_1 : 0) - 2 * jo_fixed_mult(n[i], n[j]);
-        r[3][i] = 2 * jo_fixed_mult(distance, n[i]);
+        r[3][i] = jo_fixed_mult(distance, n[i]);
     }
+    // (the translation d n added twice in the view space: 2 d n overflowed for a plane at 16384 units or more from the
+    // origin, the reflection of a mirror of a big level was at a wrong place. The camera is near the plane: its
+    // translation added first, each half fits)
+    jo_3d_get_columns(JO_3D_CURRENT_MATRIX, columns);
+    jo_3d_transform_vector(columns, r[3], offset);
     jo_3d_multiply_current_matrix(r);
+    JO_3D_CURRENT_MATRIX[3][0] += offset[0];
+    JO_3D_CURRENT_MATRIX[3][1] += offset[1];
+    JO_3D_CURRENT_MATRIX[3][2] += offset[2];
 }
 
 void                                        jo_3d_set_mirror(const bool mirror)
@@ -1251,7 +1312,12 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
     long long                               d01;
     long long                               d02;
     long long                               d12;
+    long long                               tolerance;
+    long long                               c[3][3];
+    long long                               biggest;
     jo_fixed                                scale;
+    int                                     i;
+    int                                     j;
 
     m = matrix;
     context->ready = true;
@@ -1262,12 +1328,44 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
     d01 = ((long long)m[0][0] * m[1][0] + (long long)m[0][1] * m[1][1] + (long long)m[0][2] * m[1][2]) >> 16;
     d02 = ((long long)m[0][0] * m[2][0] + (long long)m[0][1] * m[2][1] + (long long)m[0][2] * m[2][2]) >> 16;
     d12 = ((long long)m[1][0] * m[2][0] + (long long)m[1][1] * m[2][1] + (long long)m[1][2] * m[2][2]) >> 16;
+    // (relative to the scale: 1/256 of |row 0|², the absolute tolerance of a scale of 1. A small flattened model (0.06,
+    // 0.03, 0.06) passed as uniform, its normals were lit as the ones of a sphere)
+    tolerance = JO_MAX(s0 >> 8, 1);
     context->uniform_scale = s0 > 0 && s0 <= JO_FIXED_MAX &&
-                             JO_ABS(s1 - s0) <= JO_3D_UNIFORM_SCALE_TOLERANCE && JO_ABS(s2 - s0) <= JO_3D_UNIFORM_SCALE_TOLERANCE &&
-                             JO_ABS(d01) <= JO_3D_UNIFORM_SCALE_TOLERANCE && JO_ABS(d02) <= JO_3D_UNIFORM_SCALE_TOLERANCE &&
-                             JO_ABS(d12) <= JO_3D_UNIFORM_SCALE_TOLERANCE;
+                             JO_ABS(s1 - s0) <= tolerance && JO_ABS(s2 - s0) <= tolerance &&
+                             JO_ABS(d01) <= tolerance && JO_ABS(d02) <= tolerance && JO_ABS(d12) <= tolerance;
     if (!context->uniform_scale)
+    {
+        // A scale that is not uniform: a normal is transformed by the inverse of the transposed matrix, not by the matrix
+        // (a slope of a model flattened 4 times was lit 12 levels off). The cofactors (rows 1 x 2, 2 x 0, 0 x 1): the same
+        // directions, the length doesn't matter (normalized after), the sign of the determinant kept
+        for (JO_ZERO(i); i < 3; ++i)
+        {
+            const jo_fixed *a = m[(i + 1) % 3];
+            const jo_fixed *b = m[(i + 2) % 3];
+
+            c[i][0] = ((long long)a[1] * b[2] - (long long)a[2] * b[1]) >> 16;
+            c[i][1] = ((long long)a[2] * b[0] - (long long)a[0] * b[2]) >> 16;
+            c[i][2] = ((long long)a[0] * b[1] - (long long)a[1] * b[0]) >> 16;
+        }
+        if ((c[0][0] * m[0][0] + c[0][1] * m[0][1] + c[0][2] * m[0][2]) < 0)
+            for (JO_ZERO(i); i < 3; ++i)
+                for (JO_ZERO(j); j < 3; ++j)
+                    c[i][j] = -c[i][j];
+        // (in 32 bits: halved while too big, the directions don't change)
+        for (biggest = 0, i = 0; i < 3; ++i)
+            for (JO_ZERO(j); j < 3; ++j)
+                biggest = JO_MAX(biggest, JO_ABS(c[i][j]));
+        for (; biggest >= (1 << 24); biggest >>= 1)
+            for (JO_ZERO(i); i < 3; ++i)
+                for (JO_ZERO(j); j < 3; ++j)
+                    c[i][j] >>= 1;
+        // (the columns: n' = n.x c[0] + n.y c[1] + n.z c[2], like the rows of the matrix with jo_3d_transform_vector())
+        for (JO_ZERO(i); i < 3; ++i)
+            for (JO_ZERO(j); j < 3; ++j)
+                context->columns[j][i] = (jo_fixed)c[i][j];
         return;
+    }
     scale = jo_fixed_sqrt((jo_fixed)s0);
     if (scale == 0)
     {
@@ -1374,6 +1472,7 @@ static  __jo_force_inline void              jo_3d_apply_light(jo_vdp1_command *c
     jo_fixed                                d;
     int                                     level;
     int                                     color;
+    int                                     mode;
 
     if (!context->ready)
         jo_3d_prepare_light(context, context->matrix);
@@ -1404,10 +1503,20 @@ static  __jo_force_inline void              jo_3d_apply_light(jo_vdp1_command *c
         // Gouraud shading with the same brightness for the 4 vertices (RGB frame buffer only)
         if (__jo_screen.hires)
             return;
-        cmd->pmod = (cmd->pmod & ~JO_VDP1_COLOR_CALC_MASK) | JO_VDP1_COLOR_CALC_GOURAUD;
+        // Gouraud with half transparency (7) or half luminance (6) kept, the shadow (1) is not lit (1 + gouraud is
+        // prohibited)
+        mode = cmd->pmod & JO_VDP1_COLOR_CALC_MASK;
+        if (mode == 1)
+            return;
+        // (the half transparency or luminance of a gouraud polygon too: 7 and 6 became 4)
+        mode &= 3;
+        cmd->pmod = (cmd->pmod & ~JO_VDP1_COLOR_CALC_MASK) | JO_VDP1_COLOR_CALC_GOURAUD | (mode == 2 || mode == 3 ? mode : 0);
         cmd->grda = JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + level;
         return;
     }
+    // A palette color without the palette lighting (jo_3d_set_palette_light()): not lit (its index is not a RGB color)
+    if (!(attribute->color & JO_COLOR_SATURN_MSB))
+        return;
     // Untextured polygon: change the color itself (each component + level - 16, between 0 and 31)
     clamp = jo_3d_light_clamp + level;
     color = attribute->color;
@@ -2086,32 +2195,35 @@ static int                                  jo_3d_clip_plane(const jo_3d_clip_ve
     int                                     next;
     jo_fixed                                k;
 
-    // Signed distance to the plane (positive inside): the plane chosen once, not for each vertex
+    // Signed distance to the plane (positive inside): the plane chosen once, not for each vertex. Divided by 8: the
+    // distances and their differences of 2 vertices far from the camera (more than 16384 units, on both sides)
+    // overflowed, the point of the edge on the plane was wrong (spikes on a sky box or a huge ground). The signs and
+    // the ratios don't change
     switch (plane)
     {
         case 0:
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].z - near_z;
+                d[i] = (in[i].z >> 3) - (near_z >> 3);
             break;
         case 1:
             k = context->planes[0];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].x + jo_fixed_mult(in[i].z, k);
+                d[i] = (in[i].x >> 3) + (jo_fixed_mult(in[i].z, k) >> 3);
             break;
         case 2:
             k = context->planes[1];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = jo_fixed_mult(in[i].z, k) - in[i].x;
+                d[i] = (jo_fixed_mult(in[i].z, k) >> 3) - (in[i].x >> 3);
             break;
         case 3:
             k = context->planes[2];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = in[i].y + jo_fixed_mult(in[i].z, k);
+                d[i] = (in[i].y >> 3) + (jo_fixed_mult(in[i].z, k) >> 3);
             break;
         default:
             k = context->planes[3];
             for (JO_ZERO(i); i < n; ++i)
-                d[i] = jo_fixed_mult(in[i].z, k) - in[i].y;
+                d[i] = (jo_fixed_mult(in[i].z, k) >> 3) - (in[i].y >> 3);
             break;
     }
     JO_ZERO(outside);
@@ -2148,9 +2260,10 @@ static int                                  jo_3d_clip_plane(const jo_3d_clip_ve
             db = dt;
         }
         t = jo_fixed_div(da, da - db);
-        out[count].x = a->x + jo_fixed_mult(b->x - a->x, t);
-        out[count].y = a->y + jo_fixed_mult(b->y - a->y, t);
-        out[count].z = plane == 0 ? near_z : a->z + jo_fixed_mult(b->z - a->z, t);
+        // (the differences of 2 far vertices halved: they overflowed too)
+        out[count].x = a->x + (jo_fixed_mult((b->x >> 1) - (a->x >> 1), t) << 1);
+        out[count].y = a->y + (jo_fixed_mult((b->y >> 1) - (a->y >> 1), t) << 1);
+        out[count].z = plane == 0 ? near_z : a->z + (jo_fixed_mult((b->z >> 1) - (a->z >> 1), t) << 1);
         out[count].u = a->u + jo_fixed_mult(b->u - a->u, t);
         out[count].v = a->v + jo_fixed_mult(b->v - a->v, t);
         ++count;
@@ -3820,6 +3933,7 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
     int                                     pass;
     jo_fixed                                clip_z;
     jo_fixed                                needed_z;
+    long long                               needed;
     bool                                    flip;
     bool                                    result;
 
@@ -3913,8 +4027,12 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
                         (void)jo_fixed_div_result();
                     return (-1);
                 }
-                needed_z = JO_MAX(needed_z, jo_fixed_mult(JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)), __jo_vdp1_projection_distance) /
-                                            JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
+                // (64 bits: the product overflowed above 205 world units to the side with the default view, the tile was
+                // drawn with a vertex far outside of the screen)
+                needed = ((long long)JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)) * __jo_vdp1_projection_distance) >> 16;
+                if (needed > 0x7FFF0000)
+                    needed = 0x7FFF0000;
+                needed_z = JO_MAX(needed_z, (jo_fixed)needed / JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
             }
             jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + x, JO_3D_WINDOW_CY(s->w) + y, out[i].z, 0);
         }
@@ -4360,8 +4478,16 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     // Facing: the normal (cross product of the diagonals) toward the camera (front faces are clockwise on the screen)
     for (JO_ZERO(k); k < 3; ++k)
     {
-        d1[k] = (view[2][k] - view[0][k]) >> 4;
-        d2[k] = (view[3][k] - view[1][k]) >> 4;
+        // (shifted before the difference: 2 corners far on both sides of the camera overflowed)
+        d1[k] = (view[2][k] >> 4) - (view[0][k] >> 4);
+        d2[k] = (view[3][k] >> 4) - (view[1][k] >> 4);
+    }
+    // (a big polygon: its diagonals smaller, the product overflowed 64 bits above about 1300 world units for the size and
+    // the distance. A small polygon keeps all the bits: a back face of a few units was seen as a front face)
+    for (JO_ZERO(k); k < 3 && (JO_ABS(d1[0]) | JO_ABS(d1[1]) | JO_ABS(d1[2]) | JO_ABS(d2[0]) | JO_ABS(d2[1]) | JO_ABS(d2[2])) >= (1 << 18); ++k)
+    {
+        d1[0] >>= 4; d1[1] >>= 4; d1[2] >>= 4;
+        d2[0] >>= 4; d2[1] >>= 4; d2[2] >>= 4;
     }
     facing = (long long)((long long)d1[1] * d2[2] - (long long)d1[2] * d2[1]) * (view[0][0] >> 8) +
              (long long)((long long)d1[2] * d2[0] - (long long)d1[0] * d2[2]) * (view[0][1] >> 8) +
@@ -5061,6 +5187,12 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     if (JO_MOD_POW2(tw, 8) != 0 || tw == 0 || th == 0 || th * tiles * tiles > 0xffff)
         return (false);
     k = jo_3d_environment_of(&mesh->data);
+    // (set again: the tiles of the last map given back when they are the last sprite, else they were lost)
+    if (k >= 0 && __jo_3d_environments[k].first_sprite > 0 && __jo_3d_environments[k].first_sprite == jo_get_last_sprite_id())
+    {
+        jo_sprite_free_from(__jo_3d_environments[k].first_sprite);
+        k = -1;
+    }
     if (k < 0)
         for (JO_ZERO(k); k < JO_3D_ENVIRONMENT_MESHES && __jo_3d_environments[k].key != JO_NULL; ++k)
             ;
@@ -6654,6 +6786,17 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_foot(jo_fixed 
     return (true);
 }
 
+/** @brief A product of the projection of a standing sprite, bounded (a foot near the camera but far to the side gave a
+ *  product over 32767 that wrapped: the test of the screen passed, a sprite was drawn at a wrong place)
+ */
+static  __jo_force_inline jo_fixed          jo_3d_standing_sprite_mult(const jo_fixed a, const jo_fixed b)
+{
+    long long                               r;
+
+    r = ((long long)a * b) >> 16;
+    return ((jo_fixed)(r > 0x3FFFFFFF ? 0x3FFFFFFF : r < -0x3FFFFFFF ? -0x3FFFFFFF : r));
+}
+
 /** @brief Corners of a standing sprite on the screen (see jo_3d_draw_standing_sprite())
  *  @param v Position of the foot in the view space
  *  @param k The projection distance / its depth (see jo_3d_standing_sprite_foot())
@@ -6674,10 +6817,10 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_points(const j
     jo_fixed                                s;
 
     // Projection of the foot, size on the screen
-    h = jo_fixed_mult(height, k);
-    w = jo_fixed_mult(width, k) >> 1;
-    sx = jo_fixed_mult(v->x, k);
-    sy = jo_fixed_mult(v->y, k);
+    h = jo_3d_standing_sprite_mult(height, k);
+    w = jo_3d_standing_sprite_mult(width, k) >> 1;
+    sx = jo_3d_standing_sprite_mult(v->x, k);
+    sy = jo_3d_standing_sprite_mult(v->y, k);
     // Outside of the screen
     if (sx + w < -jo_int2fixed(__jo_screen.width_2) || sx - w > jo_int2fixed(__jo_screen.width_2) ||
         sy < -jo_int2fixed(__jo_screen.height_2) || sy - h > jo_int2fixed(__jo_screen.height_2))
@@ -6876,7 +7019,7 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
     int                                     h;
     int                                     key;
 
-    if (sprite_id < 0 || __jo_3d_slave_command_count >= JO_3D_SLAVE_MAX_COMMANDS)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || __jo_3d_slave_command_count >= JO_3D_SLAVE_MAX_COMMANDS)
         return (false);
     if (!jo_3d_standing_sprite_foot(__jo_3d_slave.matrix, foot, &v, &k) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
@@ -6964,6 +7107,15 @@ void                                        jo_3d_slave_end(void)
     unsigned int                            reserved;
     jo_3d_slave_copy                        *c;
 
+    // (the counts of the slave CPU even without command: all its polygons hidden)
+    __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
+    __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
+    __jo_3d_displayed_polygon_count += __jo_3d_slave_displayed_polygon_count;
+    __jo_3d_slave_last_command_count = __jo_3d_slave_command_count;
+    // (added once: a second jo_3d_slave_end() adds nothing)
+    JO_ZERO(__jo_3d_slave_polygon_count);
+    JO_ZERO(__jo_3d_slave_vertice_count);
+    JO_ZERO(__jo_3d_slave_displayed_polygon_count);
     if (__jo_3d_slave_command_count == 0)
         return;
     // (not the commands kept for what is drawn after, see jo_3d_slave_set_kept_commands())
@@ -6982,10 +7134,6 @@ void                                        jo_3d_slave_end(void)
         __jo_core_add_slave_job(jo_3d_slave_copy_job, c);
         __jo_3d_slave_copy_started = true;
     }
-    __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
-    __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
-    __jo_3d_displayed_polygon_count += __jo_3d_slave_displayed_polygon_count;
-    __jo_3d_slave_last_command_count = __jo_3d_slave_command_count;
     JO_ZERO(__jo_3d_slave_command_count);
 }
 
@@ -7011,6 +7159,7 @@ void                                        jo_3d_init(void)
     register int		                    i;
 
     __jo_3d_matrix_level = 0;
+    __jo_3d_matrix_overflow = 0;
     jo_3d_set_identity(JO_3D_CURRENT_MATRIX);
     __jo_3d_set_perspective(JO_DEG_TO_ANGLE(JO_3D_DEFAULT_PERSPECTIVE_ANGLE));
     __jo_3d_light_direction.x = JO_FIXED_0;
@@ -7252,6 +7401,10 @@ void                        jo_3d_free_mesh(const jo_3d_mesh * const mesh)
         return ;
     }
 #endif
+    // (the caches of the tints and of the environment maps: a new mesh at the same address got the copies of the freed
+    // one, 16 meshes freed and the tints did not work anymore)
+    __jo_3d_forget_tint(&mesh->data);
+    __jo_3d_forget_environment(&mesh->data);
     jo_free(mesh->data.points);
     jo_free(mesh->data.polygons);
     jo_free(mesh->data.attributes);
@@ -7560,6 +7713,11 @@ bool                jo_3d_create_sprite_quad(const int sprite_id)
     int             img_height;
     jo_vertice      *vertices;
 
+    // (created already: kept, a second quad lost the first one)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
+        return (false);
+    if (__jo_sprite_quad[sprite_id] != JO_NULL)
+        return (true);
     if ((__jo_sprite_quad[sprite_id] = (jo_3d_quad *)jo_malloc_with_behaviour(sizeof(*__jo_sprite_quad[sprite_id]), JO_FAST_ALLOCATION)) == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -7629,7 +7787,8 @@ int                                         jo_3d_mesh_get_bounding_sphere(const
     center->x = jo_int2fixed((lo[0] + hi[0]) / 2);
     center->y = jo_int2fixed((lo[1] + hi[1]) / 2);
     center->z = jo_int2fixed((lo[2] + hi[2]) / 2);
-    return (jo_sqrt(JO_SQUARE(hi[0] - lo[0]) + JO_SQUARE(hi[1] - lo[1]) + JO_SQUARE(hi[2] - lo[2])) / 2 + 2);
+    // (the half sizes: 3 x 32767^2 fits in 32 bits, the whole sizes overflowed for the meshes bigger than about 37000)
+    return (jo_sqrt((unsigned int)(JO_SQUARE((hi[0] - lo[0] + 1) / 2) + JO_SQUARE((hi[1] - lo[1] + 1) / 2) + JO_SQUARE((hi[2] - lo[2] + 1) / 2))) + 2);
 }
 
 /** @brief The box of a ray segment (whole units, a margin of 1)
@@ -8082,9 +8241,10 @@ static bool                                 jo_3d_is_sphere_visible_in(const jo_
     if (center->z + radius < JO_FIXED_8 || center->z - radius > max_distance)
         return (false);
     // Side planes |x| = kx * z: the distance to a plane is (|x| - kx * z) / sqrt(1 + kx * kx), and sqrt(1 + a) <= 1 + a / 2
-    if (s->projection_distance != __jo_vdp1_projection_distance)
+    if (s->projection_distance != __jo_vdp1_projection_distance || s->height_2 != __jo_screen.height_2)
     {
         s->projection_distance = __jo_vdp1_projection_distance;
+        s->height_2 = __jo_screen.height_2;
         s->kx = jo_fixed_div(jo_int2fixed(__jo_screen.width_2), s->projection_distance);
         s->ky = jo_fixed_div(jo_int2fixed(__jo_screen.height_2), s->projection_distance);
         s->margin_x = JO_FIXED_1 + jo_fixed_mult(s->kx, s->kx) / 2;
@@ -8127,6 +8287,9 @@ bool                                        jo_3d_draw_standing_sprite(const int
     int                                     w;
     int                                     h;
 
+    // (as the slave CPU version: jo_3d_mipmap() reads the tables of the sprite)
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
+        return (false);
     if (!jo_3d_standing_sprite_foot(JO_3D_CURRENT_MATRIX, foot, &v, &k) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
         return (false);
@@ -8178,6 +8341,32 @@ void                                        __jo_3d_gouraud_pool_freed(const int
         __jo_3d_gouraud_pool_sprite = -1;
 }
 
+void                                        jo_3d_free_gouraud_tables(const unsigned short adr, const unsigned int count)
+{
+    unsigned int                            lines;
+    unsigned int                            base;
+    int                                     id;
+
+    if (adr == 0 || count == 0)
+        return;
+    lines = (count + 1) / 2;
+    // In the shared sprite: the last set given back (the sets of a level freed in the reverse order of their loading)
+    if (__jo_3d_gouraud_pool_sprite >= 0 && lines <= JO_3D_GOURAUD_POOL_LINES / 4)
+    {
+        base = __jo_sprite_def[__jo_3d_gouraud_pool_sprite].adr;
+        if (adr >= base && adr < base + JO_3D_GOURAUD_POOL_LINES * 2)
+        {
+            if (adr + lines * 2 == base + __jo_3d_gouraud_pool_used * 2)
+                __jo_3d_gouraud_pool_used -= lines;
+            return;
+        }
+    }
+    // Its own sprite: given back when it is the last one
+    id = jo_get_last_sprite_id();
+    if (id > 0 && id != __jo_3d_gouraud_pool_sprite && __jo_sprite_def[id].adr == adr)
+        jo_sprite_free_from(id);
+}
+
 unsigned short                              jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count)
 {
     jo_img                                  img;
@@ -8204,16 +8393,19 @@ unsigned short                              jo_3d_add_gouraud_tables(const jo_co
         return (adr);
     }
     zero = JO_NULL;
-    if (tables == JO_NULL)
+    // (no tables, or an odd count: a copy with a full last line, the sprite reads 8 colors per line, 4 after the tables)
+    if (tables == JO_NULL || (count & 1))
     {
         zero = (jo_color *)jo_malloc(((count + 1) / 2) * 8 * sizeof(jo_color));
         if (zero == JO_NULL)
             return (0);
         jo_memset(zero, 0, ((count + 1) / 2) * 8 * sizeof(jo_color));
+        if (tables != JO_NULL)
+            jo_memcpy(zero, tables, count * 4 * sizeof(jo_color));
     }
     img.width = 8;
     img.height = lines;
-    img.data = tables != JO_NULL ? (jo_color *)tables : zero;
+    img.data = zero != JO_NULL ? zero : (jo_color *)tables;
     id = jo_sprite_add(&img);
     if (zero != JO_NULL)
         jo_free(zero);

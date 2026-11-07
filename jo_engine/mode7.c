@@ -65,6 +65,14 @@ static bool     jo_common_init_mode7(jo_mode7 * const params, const unsigned sho
     int         screen_y;
     int         fconst_zy;
 
+    // (a negative horizon wrote before the tables, a scale of 0 divides by 0)
+    if (params->horizon < 0 || params->scale_x == 0)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Wrong horizon (%d) or scale_x (%d)", (int)params->horizon, (int)params->scale_x);
+#endif
+        return (false);
+    }
     if (params->__cache.output_width > JO_MODE7_LINE_BUFFER_SIZE)
     {
 #ifdef JO_DEBUG

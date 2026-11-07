@@ -58,7 +58,8 @@ void                jo_create_palette(jo_palette * const output)
     }
 #endif
     output->data = jo_vdp2_malloc_autosize(JO_VDP2_RAM_COLOR);
-    output->id = __jo_current_palette_id;
+    // (the color RAM full: no id, the sprites used another palette)
+    output->id = output->data != JO_NULL ? __jo_current_palette_id : -1;
 }
 
 void        jo_set_palette_register(const unsigned short palette_index, const jo_color color)
@@ -100,8 +101,9 @@ void                jo_palette_set_light_shades(jo_palette * const palette, cons
 
     for (JO_ZERO(s); s < levels; ++s)
     {
-        // Light level of the shade (0 to 31, 16 = the color itself): from 35 % of the color to 125 %
-        level = JO_DIV_BY_2((JO_MULT_BY_2(s) + 1) * 32 / levels);
+        // Light level of the shade (0 to 31, 16 = the color itself): from 35 % of the color to 125 %. The shade levels / 2
+        // is the level 16 (the light level 16 of jo_3d_apply_light() takes it): the color itself
+        level = s * 32 / levels;
         level = level < 16 ? 90 + level * 166 / 16 : 256 + (level - 16) * 64 / 16;
         for (JO_ZERO(i); i < count; ++i)
         {

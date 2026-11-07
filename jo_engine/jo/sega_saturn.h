@@ -118,9 +118,9 @@
 /** @brief Mode status */
 # define JO_VDP1_MODR               (*(volatile unsigned short *)0x25D00016) // 0x1100
 /** @brief VDP1 user area size */
-# define JO_VDP1_USER_AREA_SIZE             (0x70538)
+# define JO_VDP1_USER_AREA_SIZE             (JO_VDP1_USER_AREA_END_ADDR - (JO_VDP1_VRAM + JO_VDP1_TEXTURE_DEF_BASE_ADDRESS))
 /** @brief VDP1 user area end address */
-# define JO_VDP1_USER_AREA_END_ADDR         (0x25C7E6F8) // Before the gouraud tables of the 3D (JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET)
+# define JO_VDP1_USER_AREA_END_ADDR         (0x25C7E4F8) // Before the gouraud tables of the sprites (jo_set_gouraud_shading_colors()), then of the 3D (JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET)
 /** @brief VDP1 Sprite base address */
 # define JO_VDP1_TEXTURE_DEF_BASE_ADDRESS   (0x10000)
 

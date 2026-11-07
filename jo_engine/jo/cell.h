@@ -86,7 +86,9 @@ typedef struct
  */
 int                                 jo_cells_load(jo_level * const level);
 
-/** @brief Free the cells (and their models) */
+/** @brief Free the cells (and their models)
+ *  @remarks After jo_cells_add_point_light_meshes(): jo_3d_point_lights_clear() too (the lights held the meshes freed)
+ */
 void                                jo_cells_free(void);
 
 /** @brief Number of cells */

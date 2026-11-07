@@ -66,7 +66,12 @@ unsigned short          __jo_sprite_lut[JO_MAX_SPRITE];
 /* Mean color of the pixels of a texture with smaller copies (set by jo_3d_set_texture_mipmaps() in 3d.c), 0: unknown. A
    polygon with the texture seen as a thin line is drawn with it (see jo_3d_emit_sliver()) */
 unsigned short          __jo_sprite_mean_color[JO_MAX_SPRITE];
+/* Gouraud tables of jo_set_gouraud_shading_colors(): after the textures (JO_VDP1_USER_AREA_END_ADDR), 2 sets of
+   JO_SPRITE_GOURAUD_TABLES tables (the VDP1 draws a frame while the CPU prepares the next one: another set) */
+# define JO_SPRITE_GOURAUD_TABLES       (32)
+# define JO_SPRITE_GOURAUD_OFFSET       (JO_VDP1_USER_AREA_END_ADDR - JO_VDP1_VRAM)
 int                     __jo_gouraud_shading_runtime_index = -1;
+static int              __jo_gouraud_shading_set = 0;
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 int				        __jo_hash_table[JO_MAX_SPRITE];
 #endif
@@ -426,14 +431,20 @@ bool                        jo_sprite_add_end_codes(const int sprite_id)
 void                        jo_sprite_free_from(const int sprite_id)
 {
     jo_texture_definition   *texture;
-
-    texture = &__jo_sprite_def[sprite_id];
-#ifdef JO_COMPILE_WITH_3D_SUPPORT
+#if defined(JO_COMPILE_WITH_3D_SUPPORT) || defined(JO_COMPILE_WITH_SPRITE_HASHTABLE)
     register int    i;
-#endif // JO_COMPILE_WITH_3D_SUPPORT
-    if (sprite_id > __jo_sprite_id)
+#endif
+    // (-1: the id of a sprite not added, nothing to free)
+    if (sprite_id < 0 || sprite_id > __jo_sprite_id)
         return ;
+    texture = &__jo_sprite_def[sprite_id];
+#ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
+    for (i = sprite_id; i <= __jo_sprite_id; ++i)
+        JO_ZERO(__jo_hash_table[i]);
+#endif
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
+    // The mipmaps, the tiles and the flags of the textures freed
+    __jo_3d_forget_sprites_from(sprite_id);
     __jo_3d_gouraud_pool_freed(sprite_id);
     // The last sprite is included
     for (i = sprite_id; i <= __jo_sprite_id; ++i)
@@ -459,8 +470,13 @@ void	            jo_set_gouraud_shading_colors(const jo_color topleft_color,
 {
     jo_color        *ptr;
 
-    ++__jo_gouraud_shading_runtime_index;
-    ptr = (jo_color *)(JO_VDP1_VRAM + 0x70000 + JO_MULT_BY_8(__jo_gouraud_shading_runtime_index));
+    // (the first table of a frame: the other set; after JO_SPRITE_GOURAUD_TABLES tables in a frame, the last one again)
+    if (__jo_gouraud_shading_runtime_index < 0)
+        __jo_gouraud_shading_set ^= 1;
+    if (__jo_gouraud_shading_runtime_index < JO_SPRITE_GOURAUD_TABLES - 1)
+        ++__jo_gouraud_shading_runtime_index;
+    ptr = (jo_color *)(JO_VDP1_VRAM + JO_SPRITE_GOURAUD_OFFSET +
+                       JO_MULT_BY_8(__jo_gouraud_shading_set * JO_SPRITE_GOURAUD_TABLES + __jo_gouraud_shading_runtime_index));
     *ptr = topleft_color;
     *(ptr + 1) = topright_color;
     *(ptr + 2) = bottomright_color;
@@ -508,10 +524,14 @@ static  __jo_force_inline void jo_sprite_attributes_of_state(jo_vdp1_sprite_attr
         attr->draw_mode |= JO_VDP1_COLOR_MODE_256_BANK;
         attr->color = state->color_table_index;
     }
-    // (a table given by jo_sprite_set_gouraud_table(), else the last one of jo_set_gouraud_shading_colors())
+    // (a table given by jo_sprite_set_gouraud_table(), else the last one of jo_set_gouraud_shading_colors(), else (none in
+    // this frame) the neutral table of the 3D light)
     if (state->effect & 4)
         attr->gouraud_table = state->gouraud_shading_index != 0 ? (unsigned short)state->gouraud_shading_index :
-                              0xe000 + __jo_gouraud_shading_runtime_index;
+                              __jo_gouraud_shading_runtime_index >= 0 ?
+                              (unsigned short)(JO_DIV_BY_8(JO_SPRITE_GOURAUD_OFFSET) + __jo_gouraud_shading_set * JO_SPRITE_GOURAUD_TABLES +
+                                               __jo_gouraud_shading_runtime_index) :
+                              (unsigned short)(JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + 16);
     attr->texture_id = sprite_id;
 }
 
@@ -567,8 +587,10 @@ void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_po
         __jo_vdp1_draw_sprite_4p(four_points, z, &attr);
         return;
     }
-    delta.x = jo_int2fixed(__jo_screen.width_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width));
-    delta.y = jo_int2fixed(__jo_screen.height_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height));
+    // The 4 corners from the top left of the screen: only the center of the screen moves them (not the size of the
+    // sprite, the corners are given)
+    delta.x = jo_int2fixed(__jo_screen.width_2);
+    delta.y = jo_int2fixed(__jo_screen.height_2);
     for (JO_ZERO(i); i < 4; ++i)
     {
         points[i].x = four_points[i].x - delta.x;

@@ -206,6 +206,7 @@ typedef struct
     unsigned short                          *corner_normals;    // 4 per polygon: index in normals (JO_NULL: none)
     jo_pos3D_fixed                          *vertex_colors;     // r, g, b per point, 1.0 = JO_FIXED_1 (JO_NULL: none)
     unsigned short                          gouraud_tables;     // First gouraud table (polygon k: + k), 0: none
+    unsigned short                          gouraud_table_count;
     unsigned int                            group_count;
     jo_3d_model_group                       *groups;
     unsigned int                            bone_count;         // 0: no skeleton
@@ -379,7 +380,7 @@ void                                        jo_3d_slave_model_draw_pose(const jo
 
 /** @brief Bones not drawn by the next jo_3d_model_draw_pose() (a hat shot off the head of a character: its bone hidden, the hat
  *  drawn alone where it falls: the other bones hidden)
- *  @param mask Bit k: the bone k (and its children) hidden, 0: all drawn
+ *  @param mask Bit k: the polygons of the bone k hidden (its children are drawn), 0: all drawn
  */
 void                                        jo_3d_model_set_hidden_bones(const unsigned int mask);
 

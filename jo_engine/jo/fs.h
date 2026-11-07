@@ -55,8 +55,9 @@ typedef void                                (*jo_fs_async_read_callback)(char *c
 
 /** @brief Change the current directory (equivalent of Unix cd command)
  *  @param sub_dir Sub directory name (use JO_PARENT_DIR for parent directory)
+ *  @return true if the directory is the current one, false if not found or not read (the current directory is kept)
  */
-void                                        jo_fs_cd(const char *const sub_dir);
+bool                                        jo_fs_cd(const char *const sub_dir);
 
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
@@ -68,7 +69,7 @@ char*                                       jo_fs_read_file_in_dir(const char *c
 
 /** @brief Read a file on the CD and put the contents to "buf"
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
- *  @param buf Output buffer
+ *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @param len return the file length
  *  @return The stream
  */
@@ -97,7 +98,7 @@ static  __jo_force_inline char*             jo_fs_read_file(const char *const fi
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param callback Callback called when the file is loaded
  *  @param optional_token User value to identify the file
- *  @param buf Output buffer
+ *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @return true if succeed
  */
 bool                                        jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf);

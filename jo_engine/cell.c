@@ -343,8 +343,8 @@ static int                          __jo_cells_occluder_depth(const int cell, co
                 break;
             zmax = JO_MAX(zmax, v[j].z);
             k = jo_fixed_div(pd, v[j].z);
-            sx[j] = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].x, k)), -10000), 10000);
-            sy[j] = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(v[j].y, k)), -10000), 10000);
+            sx[j] = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed_mult_to_int(v[j].x, k), -10000), 10000);
+            sy[j] = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed_mult_to_int(v[j].y, k), -10000), 10000);
         }
         if (j < 4)
             continue;
@@ -387,10 +387,28 @@ static jo_fixed                     __jo_cell_mirror_distance[JO_CELL_MAX_MIRROR
 
 static bool                         __jo_cell_portal_plane(const jo_cell_portal * const p, jo_pos3D_fixed * const n, jo_fixed * const d);
 
+/** @brief The meshes of the cells are in the point lights (see jo_cells_add_point_light_meshes()) */
+static bool                         __jo_cell_point_light_meshes = false;
+
 void                                jo_cells_free(void)
 {
     int                             k;
 
+    // (the point lights hold the meshes of the cells freed here: their tables and polygons forgotten first)
+    if (__jo_cell_point_light_meshes)
+    {
+        jo_3d_point_lights_clear();
+        __jo_cell_point_light_meshes = false;
+    }
+    // (the models in the reverse order of their loading: the VRAM of their gouraud tables is given back, see
+    // jo_3d_free_gouraud_tables())
+    for (k = __jo_cell_count - 1; k >= 0; --k)
+    {
+        if (__jo_cell_reflection_models[k] != JO_NULL)
+            jo_3d_free_model(__jo_cell_reflection_models[k]);
+        if (__jo_cell_models[k] != JO_NULL)
+            jo_3d_free_model(__jo_cell_models[k]);
+    }
     for (k = 0; k < __jo_cell_count; ++k)
     {
         if (__jo_cell_ray_planes[k] != JO_NULL)
@@ -399,10 +417,11 @@ void                                jo_cells_free(void)
         if (__jo_cell_bounds[k] != JO_NULL)
             jo_free(__jo_cell_bounds[k]);
         __jo_cell_bounds[k] = JO_NULL;
-        if (__jo_cell_models[k] != JO_NULL)
-            jo_3d_free_model(__jo_cell_models[k]);
-        if (__jo_cell_reflection_models[k] != JO_NULL)
-            jo_3d_free_model(__jo_cell_reflection_models[k]);
+        // (the chunks of the polygons of the cell: they leaked at each level loaded)
+        if (__jo_cell_chunks[k] != JO_NULL)
+            jo_free(__jo_cell_chunks[k]);
+        __jo_cell_chunks[k] = JO_NULL;
+        __jo_cell_chunk_count[k] = 0;
     }
     for (k = 0; k < __jo_cell_portal_count; ++k)
         if (__jo_cell_mirror_backs[k] != JO_NULL)
@@ -422,6 +441,13 @@ void                                jo_cells_free(void)
     __jo_cells_x1 = -1;
     __jo_cells_z1 = -1;
     jo_memset(__jo_cell_portal_closed, 0, sizeof(__jo_cell_portal_closed));
+    // (what jo_cells_prepare() kept for the drawing: the meshes freed above)
+    __jo_cell_mesh_count = 0;
+    for (k = 0; k < JO_CELL_MAX_MIRRORS; ++k)
+        __jo_cell_mirror[k] = -1;
+    __jo_cell_mirror_count = 0;
+    __jo_cell_far_window = false;
+    jo_memset(__jo_cell_drawn, 0, sizeof(__jo_cell_drawn));
 }
 
 /** @brief The box of a model (world units, with a margin of 1)
@@ -1083,8 +1109,8 @@ static bool                         __jo_cell_portal_view(const jo_cell_portal *
     {
         k = jo_fixed_div(pd, points[j].z);
         // (far outside of the screen: the rectangle of the cell before it is the limit)
-        sx = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].x, k)), -10000), 10000);
-        sy = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed2int(jo_fixed_mult(points[j].y, k)), -10000), 10000);
+        sx = __jo_screen.width_2 + JO_MIN(JO_MAX(jo_fixed_mult_to_int(points[j].x, k), -10000), 10000);
+        sy = __jo_screen.height_2 + JO_MIN(JO_MAX(jo_fixed_mult_to_int(points[j].y, k), -10000), 10000);
         left = JO_MIN(left, sx);
         right = JO_MAX(right, sx);
         top = JO_MIN(top, sy);
@@ -2221,6 +2247,7 @@ int                                 jo_cells_add_point_light_meshes(const bool s
     int                             count;
 
     count = 0;
+    __jo_cell_point_light_meshes = true;
     for (k = 0; k < __jo_cell_count; ++k)
         if (__jo_cells[k].mesh != JO_NULL && jo_3d_point_lights_add_mesh(__jo_cells[k].mesh))
             ++count;

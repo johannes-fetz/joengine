@@ -92,13 +92,15 @@ void                            jo_get_inputs_vblank(void)
     src += __JO_SECOND_MULTITAP_OFFSET;
     for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
         *dest++ = *src++;
-    // Keys pushed or released since the start of the frame (active low in jo_inputs)
+    // Keys pushed or released since the start of the frame (active low in jo_inputs): kept for the next frame. The frame
+    // sees the keys reported at its start only (a key seen after a VBLANK in the middle of a frame was seen again by the
+    // next frame: a pause toggled twice)
     for (JO_ZERO(i); i < JO_INPUT_MAX_DEVICE; ++i)
     {
         jo_input_push[i] |= (unsigned short)~jo_inputs[i].push;
         jo_input_pull[i] |= (unsigned short)~jo_inputs[i].pull;
-        jo_inputs[i].push = (unsigned short)~jo_input_push[i];
-        jo_inputs[i].pull = (unsigned short)~jo_input_pull[i];
+        jo_inputs[i].push = (unsigned short)~jo_input_reported_push[i];
+        jo_inputs[i].pull = (unsigned short)~jo_input_reported_pull[i];
     }
 }
 

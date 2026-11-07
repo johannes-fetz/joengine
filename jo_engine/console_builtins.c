@@ -101,7 +101,7 @@ static __jo_force_inline void               __jo_console_builtins_background(int
 
 static __jo_force_inline void               __jo_console_builtins_load_sprite(int argc, char **argv, int vertical_output)
 {
-    int                                     result;
+    int                                     result = -1;
     char                                    *subdir;
     jo_color                                color;
 

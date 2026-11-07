@@ -51,7 +51,7 @@
 
 /** @brief Entities at most (they are allocated with their count when a level is loaded) */
 # define JO_ENTITY_MAX                      (1024)
-/** @brief Classes at most (the engine uses 4) */
+/** @brief Classes at most (the engine uses 8) */
 # define JO_ENTITY_MAX_CLASSES              (24)
 /** @brief Actions waiting for their delay at most */
 # define JO_ENTITY_MAX_PENDING              (32)
@@ -123,7 +123,7 @@ struct __jo_entity
     int                             health;         // 0: can't be damaged (or dead: JO_ENTITY_FLAG_DEAD)
     jo_3d_mesh                      *mesh;          // Model drawn (JO_NULL: none)
     jo_3d_mesh                      *far_mesh;      // Model drawn far away (JO_NULL: mesh)
-    jo_pos3D_fixed                  center;         // Bounding sphere of the model (world space)
+    jo_pos3D_fixed                  center;         // Bounding sphere of the model (world space, at jo_entity_set_mesh())
     int                             mesh_radius;
     int                             far_distance;   // The far model is drawn farther (world units, on the ground)
     int                             draw_distance;  // The model is not drawn farther (world units, on the ground)
@@ -143,6 +143,8 @@ struct __jo_entity
     // jo_entity_view_distance(), -1: not drawn), the tint (packed, see jo_3d_get_tint())
     short                           view_distance;
     unsigned short                  tint;
+    // (internal) Height of the center of the bounding sphere above the position (the entity moves: its center follows)
+    jo_fixed                        center_dy;
 } __attribute__((aligned(16)));     // (128 bytes: an entity of the table on 8 lines of the cache, see jo_entities_load())
 
 /** @brief Damage around a point given to the game (the player is not an entity)
@@ -400,7 +402,7 @@ typedef void                        (*jo_actor_bone_callback)(jo_entity * const 
 typedef struct
 {
     jo_3d_model                     *model;
-    jo_3d_model                     *far_model;     // (property far_model, with a skeleton too) JO_NULL: model
+    jo_3d_model                     *far_model;     // (property far_model, the same bones and animations) JO_NULL: model
     short                           animation;      // Index in the model, -1: none
     short                           previous;       // Animation before the change (blended), -1: none
     int                             time;           // Milliseconds from the start of the animation

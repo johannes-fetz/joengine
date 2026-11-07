@@ -92,6 +92,7 @@ void	jo_audio_pause_cd(void);
 
 /** @brief Resume the audio track paused by jo_audio_pause_cd()
  *  @remarks The playback continues from the pause position until the end of the last track given to jo_audio_play_cd_track()
+ *  @remarks Repeated tracks (repeat true): the CD drive then repeats from the pause position, not from the first track
  *  @remarks Nothing happens if the CD audio is not paused
  *  @warning Requires JO_COMPILE_WITH_FS_MODULE
  */

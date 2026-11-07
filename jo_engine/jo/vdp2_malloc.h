@@ -50,7 +50,7 @@
 
 typedef enum
 {
-    /** @brief For user */
+    /** @brief For user (in the bank B1, with the maps and the cells of NBG0, NBG2 and NBG3) */
     JO_VDP2_RAM_USER,
     /** @brief MAP (rotation and normal scroll screen maps) */
     JO_VDP2_RAM_MAP_NBG0,

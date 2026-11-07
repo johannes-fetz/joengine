@@ -58,7 +58,10 @@ extern int  __jo_video_sprite_id;
 bool					        jo_video_open_file(const char *const filename);
 
 /** @brief Play the movie previously loaded
+ *  @param onstop Called when the movie stops, or JO_NULL
  *  @return true if succeeded
+ *  @remarks With onstop, all the sprites are freed when the movie stops (jo_sprite_free_all(): the sprites of the game
+ *  too, load them again in onstop). Without it, the 2 sprites of the movie are kept for the next one
  */
 bool                            jo_video_play(const jo_video_onstop_callback onstop);
 

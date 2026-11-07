@@ -97,7 +97,7 @@ void    jo_nbg2_print(int x, int y, char * str);
  *  @param Y Vertical position from top left screen corner
  *  @param ... Arguments
  */
-# define jo_nbg2_printf(X, Y, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_nbg2_print(X, Y, __jo_sprintf_buf); } while(0)
+# define jo_nbg2_printf(X, Y, ...)		do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_nbg2_print(X, Y, __jo_sprintf_buf); } while(0)
 
 /** @brief Set 8 bits NBG2 font image
  *  @param img 8 bits 255 colors max image. (height must be a multiple of 8). Width must be 8.
@@ -125,7 +125,7 @@ void    jo_nbg3_print(int x, int y, char * str);
  *  @param Y Vertical position from top left screen corner
  *  @param ... Arguments
  */
-# define jo_nbg3_printf(X, Y, ...)		do {jo_sprintf(__jo_sprintf_buf, __VA_ARGS__); jo_nbg3_print(X, Y, __jo_sprintf_buf); } while(0)
+# define jo_nbg3_printf(X, Y, ...)		do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_nbg3_print(X, Y, __jo_sprintf_buf); } while(0)
 
 /** @brief Set 8 bits NBG3 font image
  *  @param img 8 bits 255 colors max image. (height must be a multiple of 8). Width must be 8
@@ -741,8 +741,8 @@ void    jo_vdp2_disable_blend(const jo_scroll_screen screens);
 /** @brief Blur a screen horizontally where it is mixed: under a transparent screen (jo_vdp2_enable_blend()), or where it is
  *  transparent itself (water, glass, heat)
  *  @param screen One screen: JO_NBG0_SCREEN to JO_NBG3_SCREEN, JO_RBG0_SCREEN or JO_SPRITE_SCREEN
- *  @return false if the screen is not supported
- *  @remarks Ratio mode only (JO_VDP2_BLEND_RATIO without JO_VDP2_BLEND_EXTENDED), not in the 640 and 704 pixels modes
+ *  @return false if the screen is not supported, or in the 640 and 704 pixels modes (no blur in these modes)
+ *  @remarks Ratio mode only (JO_VDP2_BLEND_RATIO without JO_VDP2_BLEND_EXTENDED)
  *  @warning The color RAM has 1024 colors while the blur is enabled: the palettes 0 to 3 are displayed, the palettes after
  *  them (the 4th jo_create_palette() and the next ones) are not, and their colors must not be changed (they overwrite
  *  the first ones)
@@ -864,6 +864,17 @@ void    jo_vdp2_enable_mosaic(const jo_scroll_screen screens, const int width, c
 
 /** @brief Disable the mosaic effect (see jo_vdp2_enable_mosaic()) */
 void    jo_vdp2_disable_mosaic(void);
+
+/*
+** Registers
+*/
+
+/** @brief The values the engine gave to the VDP2 registers (most of them can't be read from the VDP2): the next VBLANK
+ *  copies the new values to the VDP2
+ *  @return The registers from 0x25F80000 (TVMD) to 0x25F8011E: index = (address - 0x25F80000) / 2
+ *  @remarks jo_vdp2_get_registers()[(0x25F800E2 - 0x25F80000) / 2]: SDCTL (shadow control)
+ */
+const unsigned short    *jo_vdp2_get_registers(void);
 
 #endif /* !__JO_VDP2_H__ */
 

@@ -199,8 +199,28 @@ inline int			jo_core_add_slave_callback(const jo_event_callback callback)
     return (int)node;
 }
 
+/** @brief The slave CPU runs the callbacks (set by the master CPU, see jo_core_run()): a callback removed then waits */
+volatile bool                       __jo_slave_callbacks_running = false;
+/** @brief The callbacks removed while the slave CPU runs them (written without the cache: by both CPUs) */
+static int                          __jo_slave_callbacks_removed[8];
+static unsigned int                 __jo_slave_callbacks_removed_count = 0;
+# define JO_SLAVE_REMOVED_COUNT     (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_callbacks_removed_count))
+# define JO_SLAVE_REMOVED(INDEX)    (((volatile int *)JO_CACHE_THROUGH(__jo_slave_callbacks_removed))[(INDEX)])
+
+void                                __jo_slave_callbacks_done(void)
+{
+    unsigned int                    i;
+
+    __jo_slave_callbacks_running = false;
+    for (JO_ZERO(i); i < JO_SLAVE_REMOVED_COUNT; ++i)
+        jo_list_remove(&__slave_callbacks, (jo_node *)JO_SLAVE_REMOVED(i));
+    JO_SLAVE_REMOVED_COUNT = 0;
+}
+
 inline void    jo_core_remove_slave_callback(const int event_id)
 {
+    unsigned int                    count;
+
 #ifdef JO_DEBUG
     if (event_id == 0)
     {
@@ -208,6 +228,18 @@ inline void    jo_core_remove_slave_callback(const int event_id)
         return;
     }
 #endif
+    // (the slave CPU reads the list while it runs the callbacks: the node is freed after, see __jo_slave_callbacks_done())
+    if (*(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running))
+    {
+        count = JO_SLAVE_REMOVED_COUNT;
+        if (count < (sizeof(__jo_slave_callbacks_removed) / sizeof(__jo_slave_callbacks_removed[0])))
+        {
+            JO_SLAVE_REMOVED(count) = event_id;
+            JO_SLAVE_REMOVED_COUNT = count + 1;
+            return;
+        }
+        // (more than 8 at once: removed now, as before. Waiting for the slave CPU here would block a slave callback)
+    }
     jo_list_remove(&__slave_callbacks, (jo_node *)event_id);
 }
 

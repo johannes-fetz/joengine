@@ -194,8 +194,11 @@ jo_animation                        *jo_storyboard_create_animation(jo_storyboar
                                                                     const unsigned char frame_skip,
                                                                     const unsigned int duration)
 {
-    jo_animation                    *tmp = (jo_animation *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
+    jo_animation                    *tmp;
 
+    if (storyboard == JO_NULL)
+        return (JO_NULL);
+    tmp = (jo_animation *)jo_malloc_with_behaviour(sizeof(*tmp), JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE);
     if (tmp == JO_NULL)
     {
 #ifdef JO_DEBUG

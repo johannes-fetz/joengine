@@ -64,6 +64,8 @@ jo_keyboard_special_key   jo_keyboard_get_special_key(void)
             return (JO_KEYBOARD_ENTER);
         case 102:
             return (JO_KEYBOARD_BACKSPACE);
+        case 13:
+            return (JO_KEYBOARD_TAB);
         case 133:
             return (JO_KEYBOARD_DELETE);
         case 135:

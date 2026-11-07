@@ -86,7 +86,9 @@ static  __jo_force_inline void    jo_palette_to_cram(unsigned short * restrict d
 static  __jo_force_inline void        jo_create_palette_from(jo_palette * const output, unsigned short *data, unsigned int size)
 {
     jo_create_palette(output);
-    jo_palette_to_cram(data, output->data, size);
+    // (the color RAM full: written at the address 0)
+    if (output->data != JO_NULL)
+        jo_palette_to_cram(data, output->data, size);
 }
 
 /** @brief Set palette index color

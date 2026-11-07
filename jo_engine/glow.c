@@ -533,6 +533,8 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
     int                             dx;
     int                             dy;
     int                             dz;
+    int                             scale;
+    int                             scaled;
 
     glow->tested = true;
     glow->tested_from = *camera;
@@ -541,19 +543,28 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
         glow->seen = true;
         return;
     }
+    // (a far lamp in a big level: the differences halved until the sum of their squares and jo_int2fixed() fit, the sum
+    // overflowed above about 26000 world units, the ray went in another direction)
     dx = jo_fixed2int(glow->position.x - camera->x);
     dy = jo_fixed2int(glow->position.y - camera->y);
     dz = jo_fixed2int(glow->position.z - camera->z);
-    length = (int)jo_sqrt((unsigned int)(dx * dx + dy * dy + dz * dz));
-    if (length <= JO_GLOW_LAMP_SIZE)
+    for (JO_ZERO(scale); JO_ABS(dx) > 16383 || JO_ABS(dy) > 16383 || JO_ABS(dz) > 16383; ++scale)
+    {
+        dx >>= 1;
+        dy >>= 1;
+        dz >>= 1;
+    }
+    scaled = (int)jo_sqrt((unsigned int)(dx * dx) + (unsigned int)(dy * dy) + (unsigned int)(dz * dz));
+    length = scaled << scale;
+    if (length <= JO_GLOW_LAMP_SIZE || scaled == 0)
     {
         glow->seen = true;
         return;
     }
-    dir.x = jo_int2fixed(dx) / length;
-    dir.y = jo_int2fixed(dy) / length;
-    dir.z = jo_int2fixed(dz) / length;
-    glow->seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(length - JO_GLOW_LAMP_SIZE));
+    dir.x = jo_int2fixed(dx) / scaled;
+    dir.y = jo_int2fixed(dy) / scaled;
+    dir.z = jo_int2fixed(dz) / scaled;
+    glow->seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(JO_MIN(length - JO_GLOW_LAMP_SIZE, 32767)));
 }
 
 void                                jo_3d_glows_draw(const jo_pos3D_fixed * const camera)

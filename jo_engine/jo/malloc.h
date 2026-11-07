@@ -123,11 +123,10 @@ static  __jo_force_inline jo_extended_ram_cartridge_type      jo_get_extended_ra
 
 #endif
 
-#ifdef JO_DEBUG
-
 /** @brief Get memory usage percent
  *  @return memory usage percent
  *  @remarks jo_printf(0, 0, "Dynamic memory usage: %d%%  ", jo_memory_usage_percent());
+ *  @remarks Also in the release builds (JO_DEBUG off): it walks the blocks of the memory
  */
 int             jo_memory_usage_percent(void);
 
@@ -136,8 +135,6 @@ int             jo_memory_usage_percent(void);
  *  @remarks jo_printf(0, 0, "Dynamic memory fragmentation count: %d  ", jo_memory_fragmentation());
  */
 int             jo_memory_fragmentation(void);
-
-#endif
 
 #endif /* !__JO_MALLOC_H__ */
 

@@ -127,11 +127,18 @@ extern jo_profile_cpu               __jo_profile_cpu[2];
  */
 static  __jo_force_inline unsigned int  jo_profile_ticks(void)
 {
+    unsigned int                    sr;
     unsigned int                    high;
+    unsigned int                    low;
 
-    // The high byte must be read first (the low byte is latched)
+    // The high byte must be read first (the low byte is latched in the only temporary register of the timer: interrupts
+    // masked, the sampling handler and the VBLANK read the timer)
+    __asm__ volatile ("stc sr, %0" : "=r" (sr) : : "memory");
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr | 0xF0) : "memory");
     high = *(volatile unsigned char *)0xFFFFFE12;
-    return ((high << 8) | *(volatile unsigned char *)0xFFFFFE13);
+    low = *(volatile unsigned char *)0xFFFFFE13;
+    __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
+    return ((high << 8) | low);
 }
 
 /** @brief Measures of the current CPU (Internal usage)

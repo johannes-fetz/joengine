@@ -105,7 +105,7 @@ int                                     jo_map_per_pixel_vertical_collision(cons
                 img_data_8bits = ((unsigned char *)current_pic->data);
                 if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
                 {
-                    for (distance = 1; distance < current_tile->height; ++distance)
+                    for (distance = 1; y + distance < current_tile->height; ++distance)
                     {
                         if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y + distance, current_tile->width) != 0)
                             return distance;
@@ -131,7 +131,7 @@ int                                     jo_map_per_pixel_vertical_collision(cons
                 img_data = ((unsigned short *)current_pic->data);
                 if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
                 {
-                    for (distance = 1; distance < current_tile->height; ++distance)
+                    for (distance = 1; y + distance < current_tile->height; ++distance)
                     {
                         if (!jo_sprite_is_pixel_transparent(img_data, x, y + distance, current_tile->width))
                             return distance;
@@ -260,7 +260,8 @@ void						jo_map_draw_background(const unsigned int layer, const short x, const 
         current_tile = &gl_map[layer][i];
         img.width = current_tile->width;
         img.height =  current_tile->height;
-        img.data = __jo_sprite_pic[current_tile->sprite_or_anim_id].data;
+        // (an animated tile: its animation id, the sprite of its current frame, as jo_map_draw_background_region())
+        img.data = __jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id].data;
         jo_vdp2_set_nbg1_image(&img,
                                  x + current_tile->real_x,
                                  y + current_tile->real_y);
@@ -305,10 +306,13 @@ static void                 jo_map_draw_background_region(const unsigned int lay
     }
 }
 
+/** @brief What jo_map_scroll_background() drew (a map freed or created again: drawn again) */
+static bool                 __jo_map_scroll_drawn = false;
+
 void						jo_map_scroll_background(const unsigned int layer, const short x, const short y, const jo_color clear_color)
 {
-    static bool             drawn = false;
     static unsigned int     drawn_layer;
+    static jo_color         drawn_clear_color;
     static int              view_x;
     static int              view_y;
     int                     new_x;
@@ -321,12 +325,13 @@ void						jo_map_scroll_background(const unsigned int layer, const short x, cons
     new_y = -y;
     dx = new_x - view_x;
     dy = new_y - view_y;
-    if (!drawn || drawn_layer != layer || JO_ABS(dx) > JO_VDP2_WIDTH - __jo_screen.background_width || JO_ABS(dy) > JO_VDP2_HEIGHT - __jo_screen.background_height)
+    if (!__jo_map_scroll_drawn || drawn_layer != layer || drawn_clear_color != clear_color || JO_ABS(dx) > JO_VDP2_WIDTH - __jo_screen.background_width || JO_ABS(dy) > JO_VDP2_HEIGHT - __jo_screen.background_height)
     {
         // First call or too big move: draw the whole screen
         jo_map_draw_background_region(layer, new_x, new_y, __jo_screen.background_width, __jo_screen.background_height, clear_color);
-        drawn = true;
+        __jo_map_scroll_drawn = true;
         drawn_layer = layer;
+        drawn_clear_color = clear_color;
     }
     else
     {
@@ -390,6 +395,7 @@ void					jo_map_free(const unsigned int layer)
     gl_map[layer] = JO_NULL;
     JO_ZERO(gl_map_tile_count[layer]);
     JO_ZERO(gl_map_max_tile_count[layer]);
+    __jo_map_scroll_drawn = false;
 }
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
@@ -484,10 +490,11 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
             y[i] = *stream++;
         }
         JO_ZERO(y[i]);
+        // (the spaces and the tabs after Y, not the end of the line: the next line was read as the attribute)
+        while (*stream == ' ' || *stream == '\t')
+            ++stream;
         if (*stream && *stream != '\r' && *stream != '\n')
         {
-            while (*stream && jo_tools_is_whitespace(*stream))
-                ++stream;
             for (JO_ZERO(i); *stream && !jo_tools_is_whitespace(*stream); ++i)
             {
                 if (i >= JO_MAP_PARSER_BUF_SIZE - 1)
@@ -513,6 +520,10 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
         else
             jo_core_error("%s: Sprite not found", sprite);
 #endif
+#elif defined(JO_DEBUG)
+        // (the tile was dropped without a word: the map drew nothing)
+        else
+            jo_core_error("%s: a sprite name needs JO_COMPILE_WITH_SPRITE_HASHTABLE", sprite);
 #endif
     }
     jo_free(stream_begin);

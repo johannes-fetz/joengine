@@ -1180,7 +1180,8 @@ static  __jo_force_inline void      jo_3d_set_scale_fixed(const jo_fixed x, cons
     __jo_3d_scale(x, y, z);
 }
 
-/** @brief Restore default scale for every 3d model displayed after this call
+/** @brief Scale of 1 (nothing changes): the scale of jo_3d_set_scale() is in the current matrix, jo_3d_pop_matrix()
+ *  restores the matrix before it (jo_3d_push_matrix(), jo_3d_set_scale(), draw, jo_3d_pop_matrix())
  */
 static  __jo_force_inline void	jo_3d_restore_scale(void)
 {
@@ -1257,11 +1258,11 @@ static  __jo_force_inline void      jo_3d_set_windows_apart(const bool apart)
 }
 
 /** @brief Set the perspective angle
- *  @param angle Angle in degree (from 21 to 159)
+ *  @param angle Angle in degree (from 10 to 160)
  */
 static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
 {
-#if JO_DEBUG
+#ifdef JO_DEBUG
     if (angle < 10 || angle > 160)
         jo_core_error("Valid angle range is 10 to 160");
 #endif
@@ -1597,6 +1598,9 @@ void                                __jo_3d_forget_sprites_from(const int sprite
  */
 void                                __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata);
 
+/** @brief Forget the environment map of a mesh freed (Internal usage, see jo_3d_free_mesh()) */
+void                                __jo_3d_forget_environment(const jo_3d_polygon_data * const pdata);
+
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /*
@@ -1610,6 +1614,8 @@ void                                __jo_3d_forget_tint(const jo_3d_polygon_data
 
 /** @brief Prepare the 3D drawing of the slave CPU (call it on the master CPU, before jo_core_exec_on_slave())
  *  @remarks The slave CPU uses a copy of the current matrix, the current depth bias and the current window
+ *  @remarks A second drawing of the slave CPU in a frame (a split screen): after jo_core_wait_for_slave() of the first one
+ *  (this function replaces the matrix and the counters that the slave CPU uses while it draws)
  */
 void                                jo_3d_slave_begin(void);
 
@@ -1668,7 +1674,7 @@ void                                jo_3d_slave_set_scale_fixed(const jo_fixed x
 
 /** @brief Draw some ranges of polygons of a mesh on the slave CPU, without copying them (see jo_3d_mesh_draw_ranges())
  *  @param mesh Mesh
- *  @param point_count Number of points used by these polygons (512 at most)
+ *  @param point_count Number of points used by these polygons (1024 at most)
  *  @param ranges Ranges of polygons
  *  @param range_count Number of ranges
  *  @return false if the command table of the slave CPU is full (960 commands) or a polygon uses a point after point_count
@@ -1677,7 +1683,7 @@ bool                                jo_3d_slave_mesh_draw_ranges(const jo_3d_mes
                                                                  const jo_3d_polygon_range * const ranges, const int range_count);
 
 /** @brief Draw a mesh on the slave CPU (call it on the slave CPU, between jo_3d_slave_begin() and jo_3d_slave_end())
- *  @param mesh Mesh (512 points at most)
+ *  @param mesh Mesh (1024 points at most, JO_3D_SLAVE_MAX_VERTICES)
  *  @return false if the command table of the slave CPU is full (960 commands)
  */
 static  __jo_force_inline bool      jo_3d_slave_mesh_draw(const jo_3d_mesh * const mesh)
@@ -1752,6 +1758,15 @@ unsigned short                      jo_3d_add_gouraud_tables(const jo_color * co
  *  @param sprite_id First sprite freed
  */
 void                                __jo_3d_gouraud_pool_freed(const int sprite_id);
+
+/** @brief Give back gouraud tables of jo_3d_add_gouraud_tables() (jo_3d_free_model() gives back the tables of a model)
+ *  @param adr Address / 8 returned by jo_3d_add_gouraud_tables()
+ *  @param count Table count given to jo_3d_add_gouraud_tables()
+ *  @remarks The memory is given back for the last set of the shared sprite of the small sets, or for a set in its own
+ *  sprite when it is the last sprite: free the sets in the reverse order of their adding. Else it stays used
+ *  (jo_sprite_free_from() of an earlier sprite gives it back)
+ */
+void                                jo_3d_free_gouraud_tables(const unsigned short adr, const unsigned int count);
 
 /** @brief Tint the next meshes drawn by the master CPU: added to the colors of their gouraud tables (the light of a lamp on
  *  a character, see jo_3d_point_lights_sample()), jo_3d_set_tint(0, 0, 0) to stop

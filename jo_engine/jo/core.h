@@ -133,6 +133,8 @@ int     jo_core_add_slave_callback(const jo_event_callback callback);
 
 /** @brief Remove a callback in the game loop from on slave CPU
  *  @param event_id Value returned by jo_core_add_slave_callback()
+ *  @remarks Called while the slave CPU runs its callbacks (from a callback of either CPU), the callback is removed
+ *  after they are done
  */
 void    jo_core_remove_slave_callback(const int event_id);
 
@@ -259,6 +261,8 @@ extern __jo_screen_mode     __jo_screen;
  *  modes and in the interlace modes. The sprites and the 3D are drawn with all the pixels of the screen
  *  @remarks In the 640 and 704 pixels modes, the VDP1 draws 8 bits per pixel: only the palette sprites (8 bits images) and
  *  the colors of a palette (see jo_core_set_screen_palette()) are displayed, not the RGB colors
+ *  @remarks The 3D has one projection distance for the 2 axes (from the width): in the modes 640 x 224 / 240 and 320 x 448 /
+ *  480, whose pixels are not square, the 3D is stretched 2 times vertically or horizontally
  *  @remarks 320 and 640 pixels use the 26.8 MHz clock, 352 and 704 pixels the 28.6 MHz clock: the clock is chosen at the
  *  start by JO_SCREEN_WIDTH (makefile) and the width can only change inside its family (false otherwise)
  *  @remarks The windows (jo_3d_window()) and the VDP2 windows (jo_vdp2_set_window()) are reset to the whole screen
@@ -320,8 +324,8 @@ static  __jo_force_inline void jo_core_exit_to_multiplayer(void)
  */
 static  __jo_force_inline void jo_core_restart_saturn(void)
 {
-    jo_smpc_begin_command();
-    jo_smpc_end_command(SystemReset);
+    // (after the INTBACK of the frame: a command sent during an INTBACK is lost)
+    __jo_smpc_command(SystemReset);
 }
 
 /** @brief Set scroll screen order between them
@@ -336,6 +340,17 @@ static  __jo_force_inline void jo_core_restart_saturn(void)
 /** @brief Stop the execution until someone press Start
  */
 void    jo_core_suspend(void);
+
+/** @brief Function called by jo_core_error() (see jo_core_set_error_handler())
+ *  @param message The error
+ *  @param function The function of the error
+ */
+typedef void    (*jo_core_error_handler)(const char *message, const char *function);
+
+/** @brief Call a function instead of the error screen (JO_DEBUG): automated tests count the errors and go on
+ *  @param handler Function, JO_NULL: the error screen (the default)
+ */
+void    jo_core_set_error_handler(const jo_core_error_handler handler);
 
 /** @brief Get last error
  *  @return Formated error
@@ -352,6 +367,16 @@ void                jo_dump_vdp1_registers(void);
 /** @brief Dump VDP2 registers
  */
 void                jo_dump_vdp2_registers(void);
+
+#else
+
+/** @brief Get last error (without JO_DEBUG, the errors are not recorded)
+ *  @return An empty string
+ */
+static  __jo_force_inline char * jo_get_last_error(void)
+{
+    return ("");
+}
 
 #endif
 

@@ -217,14 +217,16 @@ static  __jo_force_inline void	jo_sprite_disable_screen_doors_filter(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_half_transparency(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x3);
+    // (the color calculation mode of the VDP1: 3, or 7 with the gouraud shading)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x3) | 0x3;
 }
 
 /** @brief Disable half transparency for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_half_transparency(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x3);
+    if ((__jo_sprite_attributes.effect & 0x3) == 0x3)
+        __jo_sprite_attributes.effect &= ~0x3;
 }
 
 /*
@@ -240,14 +242,16 @@ static  __jo_force_inline void	jo_sprite_disable_half_transparency(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_shadow_filter(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x1);
+    // (the mode 1 of the VDP1: no gouraud shading with it)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x7) | 0x1;
 }
 
 /** @brief Disable shadow filter for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_shadow_filter(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x1);
+    if ((__jo_sprite_attributes.effect & 0x7) == 0x1)
+        __jo_sprite_attributes.effect &= ~0x7;
 }
 
 /*
@@ -258,14 +262,16 @@ static  __jo_force_inline void	jo_sprite_disable_shadow_filter(void)
  */
 static  __jo_force_inline void	jo_sprite_enable_dark_filter(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x2);
+    // (the mode 2 of the VDP1, half luminance: 6 with the gouraud shading)
+    __jo_sprite_attributes.effect = (__jo_sprite_attributes.effect & ~0x3) | 0x2;
 }
 
 /** @brief Disable dark filter for every sprite displayed after this call
  */
 static  __jo_force_inline void	jo_sprite_disable_dark_filter(void)
 {
-    JO_REMOVE_FLAG(__jo_sprite_attributes.effect, 0x2);
+    if ((__jo_sprite_attributes.effect & 0x3) == 0x2)
+        __jo_sprite_attributes.effect &= ~0x3;
 }
 
 /*
@@ -280,7 +286,8 @@ static  __jo_force_inline void	jo_sprite_disable_dark_filter(void)
 /** @brief Value used to keep the original color for jo_set_gouraud_shading_colors() */
 # define JO_NO_GOURAUD_COLOR            (0xc210)
 
-/** @brief Change Gouraud Shading colors
+/** @brief Change Gouraud Shading colors (a new table for the sprites displayed after this call with
+ *  jo_sprite_enable_gouraud_shading(): up to 32 tables per frame, the last one is reused after them)
  *  @param topleft_color Top left corner color in sprite
  *  @param topright_color Top right corner color in sprite
  *  @param bottomright_color bottom right corner color in sprite
@@ -295,7 +302,10 @@ void	jo_set_gouraud_shading_colors(const jo_color topleft_color,
  */
 static  __jo_force_inline void	jo_sprite_enable_gouraud_shading(void)
 {
-    JO_ADD_FLAG(__jo_sprite_attributes.effect, 0x4);
+    // (no shadow with it: 5 is prohibited)
+    if ((__jo_sprite_attributes.effect & 0x7) == 0x1)
+        __jo_sprite_attributes.effect &= ~0x7;
+    __jo_sprite_attributes.effect |= 0x4;
 }
 
 /** @brief Disable Gouraud Shading for every sprite displayed after this call
@@ -493,6 +503,12 @@ static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int 
     jo_sprite_draw(sprite_id, &__jo_sprite_pos, false, false);
 }
 
+/** @brief Display a sprite on 4 points (distorted sprite)
+ *  @param sprite_id Sprite Id
+ *  @param four_points The corners: top left, top right, bottom right, bottom left (fixed point)
+ *  @param z Z index (depth)
+ *  @param centered_style_coordinates true: (0, 0) is the center of the screen, false: the top left of the screen
+ */
 void        jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates);
 
 /** @brief Display a sprite turned on the screen (any angle: the 4 corners are computed, the sprite is distorted by the VDP1)

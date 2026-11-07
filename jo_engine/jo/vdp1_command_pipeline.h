@@ -42,6 +42,7 @@
 ** 0x00020 : command table A
 ** 0x08000 : command table B
 ** 0x10000 : textures (JO_VDP1_TEXTURE_DEF_BASE_ADDRESS)
+** 0x7E4F8 : gouraud tables of the sprites, 2 sets of 32 (JO_VDP1_USER_AREA_END_ADDR, jo_set_gouraud_shading_colors())
 ** 0x7E700 : gouraud tables of the clipped and subdivided 3D polygons
 ** 0x7FF00 : gouraud tables used for 3D lighting
 */

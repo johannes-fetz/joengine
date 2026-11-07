@@ -234,6 +234,9 @@ static unsigned int             __jo_fs_data_end_fad = 0;
 # define JO_CD_SKIP_MAX                 (48)
 static jo_fs_dir_entry          __jo_fs_dir[JO_FS_MAX_FILES];
 static int                      __jo_fs_dir_count = 0;
+/** @brief The directory loaded in __jo_fs_dir (loaded again after a failed jo_fs_cd(): the table was half replaced) */
+static unsigned int             __jo_fs_dir_fad = 0;
+static unsigned int             __jo_fs_dir_size = 0;
 static jo_fs_handle             __jo_fs_handles[JO_OPEN_MAX];
 /** @brief The current read of the drive belongs to the stream (__jo_fs_stream_read()) */
 static bool                     __jo_cd_stream_owner = false;
@@ -576,7 +579,8 @@ static unsigned int             jo_cd_track_end_fad(const int track)
     {
         entry = (unsigned int)JO_CD_INFO << 16;
         entry |= (unsigned int)JO_CD_INFO;
-        if (i == (unsigned int)track && entry != 0xFFFFFFFF)
+        // (the entry 99 is the first track, not a track: the end of the track 99 is the lead-out)
+        if (track < 99 && i == (unsigned int)track && entry != 0xFFFFFFFF)
             next = entry & 0xFFFFFF;
         if (i == JO_CD_TOC_ENTRIES - 1)
             lead_out = entry & 0xFFFFFF;
@@ -676,7 +680,9 @@ static int                      jo_fs_load_directory(const unsigned int fad, con
         {
             record = &__jo_cd_sector_buffer[pos];
             record_length = record[JO_ISO9660_RECORD_LENGTH];
-            if (record_length == 0)
+            // (a record never crosses a sector: a damaged one was read after the buffer)
+            if (record_length == 0 || pos + record_length > JO_SECTOR_SIZE ||
+                (unsigned int)JO_ISO9660_RECORD_NAME + record[JO_ISO9660_RECORD_NAME_LENGTH] > record_length)
                 break;
             if (count >= JO_FS_MAX_FILES)
                 return (count);
@@ -728,8 +734,9 @@ static int                      jo_fs_load_root_directory(void)
     // Standard identifier: "CD001"
     if (__jo_cd_sector_buffer[1] != 'C' || __jo_cd_sector_buffer[2] != 'D' || __jo_cd_sector_buffer[3] != '0')
         return (-1);
-    return (jo_fs_load_directory(jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD,
-                                 jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_SIZE])));
+    __jo_fs_dir_fad = jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD;
+    __jo_fs_dir_size = jo_fs_read_le32(&__jo_cd_sector_buffer[JO_ISO9660_PVD_ROOT_RECORD + JO_ISO9660_RECORD_SIZE]);
+    return (jo_fs_load_directory(__jo_fs_dir_fad, __jo_fs_dir_size));
 }
 
 /*
@@ -1035,16 +1042,18 @@ bool                    jo_fs_read_file_async_ptr(const char *const filename, jo
     return (false);
 }
 
-void			        jo_fs_cd(const char *const sub_dir)
+bool			        jo_fs_cd(const char *const sub_dir)
 {
     int			        fid;
     int                 count;
+    unsigned int        fad;
+    unsigned int        size;
 
 #ifdef JO_DEBUG
     if (sub_dir == JO_NULL)
     {
         jo_core_error("sub_dir is null");
-        return ;
+        return (false);
     }
 #endif
     fid = __jo_fs_get_file_id(sub_dir);
@@ -1053,16 +1062,24 @@ void			        jo_fs_cd(const char *const sub_dir)
 #ifdef JO_DEBUG
         jo_core_error("%s: Directory not found", sub_dir);
 #endif
-        return ;
+        return (false);
     }
-    if ((count = jo_fs_load_directory(JO_FS_ENTRY_FAD(&__jo_fs_dir[fid]), __jo_fs_dir[fid].size)) < 0)
+    fad = JO_FS_ENTRY_FAD(&__jo_fs_dir[fid]);
+    size = __jo_fs_dir[fid].size;
+    if ((count = jo_fs_load_directory(fad, size)) < 0)
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: Read failed", sub_dir);
 #endif
-        return ;
+        // (the table was half replaced by the entries read: the current directory is loaded again)
+        count = jo_fs_load_directory(__jo_fs_dir_fad, __jo_fs_dir_size);
+        __jo_fs_dir_count = count < 0 ? 0 : count;
+        return (false);
     }
+    __jo_fs_dir_fad = fad;
+    __jo_fs_dir_size = size;
     __jo_fs_dir_count = count;
+    return (true);
 }
 
 /** @brief Read a whole file
@@ -1156,9 +1173,23 @@ char                    *jo_fs_read_file_ptr(const char *const filename, void *b
 char*					jo_fs_read_file_in_dir(const char *const filename, const char *const sub_dir, int *len)
 {
     char                *stream;
+    int                 fid;
 
+    // (a directory not found: no read in the current directory, and no move to its parent after it)
     if (sub_dir != JO_NULL)
-        jo_fs_cd(sub_dir);
+    {
+        fid = __jo_fs_get_file_id(sub_dir);
+        if (fid < 0 || !(__jo_fs_dir[fid].fad & JO_FS_DIRECTORY_FAD_FLAG))
+        {
+#ifdef JO_DEBUG
+            jo_core_error("%s: Directory not found", sub_dir);
+#endif
+            return (JO_NULL);
+        }
+        // (a failed read: still in the current directory, no move to its parent after)
+        if (!jo_fs_cd(sub_dir))
+            return (JO_NULL);
+    }
     stream = jo_fs_read_file(filename, len);
     if (sub_dir != JO_NULL)
         jo_fs_cd(JO_PARENT_DIR);

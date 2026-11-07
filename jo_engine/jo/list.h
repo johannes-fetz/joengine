@@ -115,7 +115,7 @@ static  __jo_force_inline jo_node   *jo_list_add_ptr(jo_list * const list, void 
 void                                jo_list_remove(jo_list * const list, const jo_node * const node_to_delete);
 
 /** @brief Get node at index
- *  @remarks Returns first or last node if out of bounds
+ *  @remarks Returns the first node for a negative index, JO_NULL for an index after the last node
  *  @param list List
  *  @param index Node index
  */
@@ -218,11 +218,17 @@ static  __jo_force_inline jo_node   *jo_list_last(jo_list * const list)
 /** @brief Iterate on the list
  *  @param list List
  *  @param callback callback for each node
+ *  @remarks The callback can remove its own node (the next node is read before the call), not the next one
  */
 static  __jo_force_inline void	    jo_list_foreach(jo_list * const list, jo_node_callback callback)
 {
     jo_node *tmp;
-    for (tmp = list->first; tmp != JO_NULL; tmp = tmp->next) callback(tmp);
+    jo_node *next;
+    for (tmp = list->first; tmp != JO_NULL; tmp = next)
+    {
+        next = tmp->next;
+        callback(tmp);
+    }
 }
 
 /** @brief Find if any element of the list satisfy the condition (callback)
@@ -234,7 +240,13 @@ static  __jo_force_inline void	    jo_list_foreach(jo_list * const list, jo_node
 static  __jo_force_inline bool	    jo_list_any(jo_list * const list, jo_node_any_callback callback, void *extra)
 {
     jo_node *tmp;
-    for (tmp = list->first; tmp != JO_NULL; tmp = tmp->next) if (callback(tmp, extra)) return true;
+    jo_node *next;
+    for (tmp = list->first; tmp != JO_NULL; tmp = next)
+    {
+        next = tmp->next;
+        if (callback(tmp, extra))
+            return true;
+    }
     return false;
 }
 

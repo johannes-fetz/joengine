@@ -264,8 +264,10 @@ void                                jo_vehicle_drive(jo_entity * const entity, c
     else if (v->lift < -JO_FIXED_1 * 6)
         v->lift = -JO_FIXED_1 * 6;
     entity->position.y = -mean;
-    // The wheels turn: the distance / the radius (radians to degrees)
-    v->wheel_angle = (v->wheel_angle + jo_fixed2int(distance * 573 / 10) / v->wheel_radius + 360) % 360;
+    // The wheels turn: the distance / the radius (radians to degrees: 57.3 in fixed point, distance * 573 overflowed
+    // above 57 world units per update)
+    v->wheel_angle = (v->wheel_angle + (jo_fixed2int(jo_fixed_mult(distance, 3755213)) / v->wheel_radius) % 360 + 360) % 360;
+    entity->center_dy = -jo_int2fixed(30);
     entity->center.x = entity->position.x;
     entity->center.z = entity->position.z;
     entity->center.y = entity->position.y - jo_int2fixed(30);

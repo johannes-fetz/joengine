@@ -504,13 +504,23 @@ static void                             jo_vdp1_make_header(jo_vdp1_command * co
  */
 static void                             jo_vdp1_make_clear(jo_vdp1_command * const c, const jo_vdp1_frame * const frame)
 {
+    int                                 ox;
+    int                                 oy;
+
+    // (sent after the header of the window 0: relative to its local coordinates, the top left corner of a clipped window)
+    ox = frame->windows[0].origin_x;
+    oy = frame->windows[0].origin_y;
     jo_memset(c, 0, sizeof(*c));
     c->ctrl = JO_VDP1_CMD_POLYGON;
     c->pmod = JO_VDP1_CLEAR_POLYGON_MODE;
-    c->xb = frame->system_clip_right;
-    c->xc = frame->system_clip_right;
-    c->yc = frame->system_clip_bottom;
-    c->yd = frame->system_clip_bottom;
+    c->xa = (short)-ox;
+    c->ya = (short)-oy;
+    c->xb = (short)(frame->system_clip_right - ox);
+    c->yb = (short)-oy;
+    c->xc = (short)(frame->system_clip_right - ox);
+    c->yc = (short)(frame->system_clip_bottom - oy);
+    c->xd = (short)-ox;
+    c->yd = (short)(frame->system_clip_bottom - oy);
 }
 
 /*
@@ -950,8 +960,12 @@ static void                             jo_vdp1_send_frame(void *argument)
     unsigned short                      *order;
 
     frame = (const jo_vdp1_frame *)argument;
+    // (the commands of the slave CPU may still be copied by the DMA, see jo_3d_slave_copy_job())
     if (frame->wireframe)
+    {
+        jo_dma_wait();
         jo_vdp1_make_wireframe((jo_vdp1_frame *)argument);
+    }
     // The sort only uses the work RAM: it is done while the VDP1 is still drawing
     jo_profile_begin(JO_PROFILE_VDP1_SORT);
     n = frame->count;
@@ -1316,7 +1330,8 @@ static  __jo_force_inline bool          jo_vdp1_write_attribute(jo_vdp1_command 
     }
     words[0] = JO_VDP1_PACK(ctrl, 0);
     words[1] = JO_VDP1_PACK(attr->draw_mode, attr->color);
-    words[7] = JO_VDP1_PACK(((attr->draw_mode & JO_VDP1_COLOR_CALC_MASK) == JO_VDP1_COLOR_CALC_GOURAUD) ? attr->gouraud_table : 0, 0);
+    // (the gouraud bit: the modes 4, 6 and 7, gouraud with half luminance or half transparency)
+    words[7] = JO_VDP1_PACK((attr->draw_mode & JO_VDP1_COLOR_CALC_GOURAUD) ? attr->gouraud_table : 0, 0);
     return (textured);
 }
 

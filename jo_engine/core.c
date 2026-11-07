@@ -72,6 +72,8 @@ extern void                                 jo_main(void);
 void                                        __jo_init_vdp2(const jo_color back_color);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 extern jo_list                              __slave_callbacks;
+extern volatile bool                        __jo_slave_callbacks_running;
+void                                        __jo_slave_callbacks_done(void);
 void                                        jo_core_slave_init(void);
 void                                        jo_core_exec_on_slave(jo_slave_callback callback);
 #endif
@@ -105,6 +107,7 @@ void                                        __jo_smpc_init(void);
 void                                        __jo_smpc_vblank_in(void);
 void                                        __jo_vdp2_init_registers(void);
 void                                        __jo_vdp2_vblank(void);
+void                                        __jo_time_vblank(void);
 void                                        __jo_vdp2_set_tv_display(const bool on);
 void                                        __jo_vdp2_set_priority(const jo_scroll_screen screen, const unsigned short priority);
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
@@ -392,6 +395,7 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     divisor = JO_SH2_DVSR;
     high = JO_SH2_DVDNTH;
     ++__jo_core_vblank_count;
+    __jo_time_vblank();
     __jo_vdp2_vblank();
     __jo_vdp1_vblank();
     if (__jo_core_music_vblank != JO_NULL)
@@ -671,10 +675,10 @@ inline void    jo_core_remove_callback(const int event_id)
 
 void            jo_goto_boot_menu(void)
 {
+    // Back to the boot ROM (multiplayer screen). After the INTBACK of the frame (see __jo_smpc_command(): a command sent
+    // during an INTBACK is lost), then the interrupts masked until the reset
+    __jo_smpc_command(SystemReset);
     __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
-    // Back to the boot ROM (multiplayer screen)
-    jo_smpc_begin_command();
-    jo_smpc_end_command(SystemReset);
     for (;;)
         ;
 }
@@ -686,15 +690,30 @@ void            __jo_core_errorf(const char *function, const char *format, ...)
     va_list     args;
 
     va_start(args, format);
-    jo_vsprintf(__jo_last_error, format, args);
+    jo_vsnprintf(__jo_last_error, sizeof(__jo_last_error), format, args);
     va_end(args);
     __jo_core_error(__jo_last_error, function);
+}
+
+static jo_core_error_handler                 __jo_core_error_handler = JO_NULL;
+
+void            jo_core_set_error_handler(const jo_core_error_handler handler)
+{
+    __jo_core_error_handler = handler;
 }
 
 void            __jo_core_error(char *message, const char *function)
 {
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     int         usage;
+#endif
+
+    if (__jo_core_error_handler != JO_NULL)
+    {
+        __jo_core_error_handler(message, function);
+        return;
+    }
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
     // (the NBG1 bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap(): the back color, the text stays on NBG0)
     if (__jo_vdp2_reserve_nbg1_bitmap())
@@ -718,7 +737,7 @@ void            __jo_core_error(char *message, const char *function)
     else
         jo_printf_with_color(0, 18, JO_COLOR_INDEX_Green, "Sprite memory usage:  %d%%  ", usage);
     jo_printf_with_color(0, 21, JO_COLOR_INDEX_Red, "In %s():", function);
-    jo_printf_with_color(0, 23, JO_COLOR_INDEX_Red, message);
+    jo_printf_with_color(0, 23, JO_COLOR_INDEX_Red, "%s", message);
     jo_set_printf_color_index(0);
     jo_printf(2, 27, "Press [START] to continue...");
     jo_core_suspend();
@@ -798,6 +817,9 @@ void    jo_core_set_cd_tray_open_callback(const jo_event_callback callback)
 /** @brief Frames A+B+C+Start are held before the restart (see jo_core_check_system_keys()) */
 # define JO_CORE_RESET_KEYS_FRAMES          (4)
 static int                                  __jo_core_reset_keys_frames = 0;
+/** @brief A disc was in the drive, the opening of the tray was reported (see jo_core_check_system_keys()) */
+static bool                                 __jo_core_cd_disc_seen = false;
+static bool                                 __jo_core_cd_tray_reported = false;
 
 static void                                 jo_core_check_system_keys(void)
 {
@@ -810,22 +832,38 @@ static void                                 jo_core_check_system_keys(void)
     if (status == JO_CORE_CD_STATUS_OPEN || status == JO_CORE_CD_STATUS_NO_DISC || (JO_CORE_CD_HIRQ & JO_CORE_CD_HIRQ_DCHG))
     {
         JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
-        if (__jo_cd_tray_open_callback != JO_NULL)
-            __jo_cd_tray_open_callback();
-        else
-            jo_core_exit_to_multiplayer();
+        // Once when the tray opens (not at each frame while it is open), and only after a disc was seen: a program started
+        // without a disc (a cartridge, a program loaded in the memory) does not leave at its first frame
+        if (__jo_core_cd_disc_seen && !__jo_core_cd_tray_reported)
+        {
+            __jo_core_cd_tray_reported = true;
+            if (__jo_cd_tray_open_callback != JO_NULL)
+                __jo_cd_tray_open_callback();
+            else
+                jo_core_exit_to_multiplayer();
+        }
+    }
+    else if (status != 0)
+    {
+        __jo_core_cd_disc_seen = true;
+        __jo_core_cd_tray_reported = false;
     }
     // (held during JO_CORE_RESET_KEYS_FRAMES frames: the first reports of the pad after the boot can read all the keys
     // pressed for 1 or 2 frames)
     if (jo_is_pad1_available() && jo_is_pad1_key_pressed(JO_KEY_A) && jo_is_pad1_key_pressed(JO_KEY_B) &&
             jo_is_pad1_key_pressed(JO_KEY_C) && jo_is_pad1_key_pressed(JO_KEY_START))
     {
+        // (once: the callback restarted the game at each frame while the keys were held)
         if (__jo_core_reset_keys_frames < JO_CORE_RESET_KEYS_FRAMES)
             ++__jo_core_reset_keys_frames;
-        else if (__jo_restart_game_callback != JO_NULL)
-            __jo_restart_game_callback();
-        else
-            jo_core_exit_to_multiplayer();
+        else if (__jo_core_reset_keys_frames == JO_CORE_RESET_KEYS_FRAMES)
+        {
+            ++__jo_core_reset_keys_frames;
+            if (__jo_restart_game_callback != JO_NULL)
+                __jo_restart_game_callback();
+            else
+                jo_core_exit_to_multiplayer();
+        }
     }
     else
         JO_ZERO(__jo_core_reset_keys_frames);
@@ -871,7 +909,10 @@ void			        jo_core_run(void)
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
         if (__slave_callbacks.count)
+        {
+            *(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running) = true;
             jo_core_exec_on_slave(jo_slave_callbacks);
+        }
 #endif
         jo_core_check_system_keys();
 #ifdef JO_DEBUG
@@ -887,8 +928,11 @@ void			        jo_core_run(void)
         jo_list_foreach(&__callbacks, __jo_call_event);
         jo_profile_end(JO_PROFILE_CALLBACKS);
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
-        if (__slave_callbacks.count)
+        if (*(volatile bool *)JO_CACHE_THROUGH(&__jo_slave_callbacks_running))
+        {
             jo_core_wait_for_slave();
+            __jo_slave_callbacks_done();
+        }
 #endif
 
         __jo_core_synch();

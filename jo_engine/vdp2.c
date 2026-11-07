@@ -313,7 +313,13 @@ static void                         jo_vdp2_shadow_set(const unsigned int index,
  */
 static void                         jo_vdp2_shadow_set_bits(const unsigned int index, const unsigned short mask, const unsigned short value)
 {
-    jo_vdp2_shadow_set(index, (__jo_vdp2_shadow[index] & ~mask) | (value & mask));
+    unsigned int                    sr;
+
+    // (the read and the write with the interrupts masked: a VBLANK callback changing the same register in between)
+    sr = __jo_core_disable_interrupts();
+    __jo_vdp2_shadow[index] = (__jo_vdp2_shadow[index] & ~mask) | (value & mask);
+    __jo_vdp2_dirty[index >> 5] |= (1u << (index & 31));
+    __jo_core_restore_interrupts(sr);
 }
 
 /** @brief Copy the modified registers to the VDP2
@@ -757,7 +763,8 @@ static void                         jo_vdp2_update_cycle_patterns(void)
  */
 static void                         jo_vdp2_set_displayed_screens(const unsigned int flags)
 {
-    __jo_vdp2_displayed_screens = flags & JO_VDP2_BGON_DISPLAY_MASK;
+    // (bit 5 of BGON is RBG1, not the back screen: JO_BACK_SCREEN, (1 << 5) in the flags, turned RBG1 on)
+    __jo_vdp2_displayed_screens = flags & JO_VDP2_SCROLL_SCREENS_MASK;
     JO_VDP2_SET_BITS(JO_VDP2_BGON, JO_VDP2_BGON_DISPLAY_MASK, (unsigned short)__jo_vdp2_displayed_screens);
     jo_vdp2_update_cycle_patterns();
 }
@@ -1799,7 +1806,12 @@ static void                     __jo_create_map_blank(const jo_img_8bits * const
     for (JO_ZERO(i); i < MAP_LENGTH; ++i)
     {
         if (i != 0 && JO_MOD_POW2(i, CELL_COUNT_PER_ROW) == 0)
+        {
             ++x2;
+            // (each row of the map starts with the first cell of a row of the image: the images whose cells count doesn't
+            // divide 64 were displayed scrambled)
+            JO_ZERO(y2);
+        }
         if (x2 >= x)
             JO_ZERO(x2);
         if (blank_cell >= 0 && (i / CELL_COUNT_PER_ROW >= x || JO_MOD_POW2(i, CELL_COUNT_PER_ROW) >= y))
@@ -1967,6 +1979,8 @@ void                            jo_vdp2_disable_rbg0(void)
     jo_vdp2_set_displayed_screens(screen_flags);
     JO_VDP2_SET(JO_VDP2_RPMD, JO_VDP2_ROTATION_PARAMETER_A);
 
+    // (the VDP2 reads the tables until the registers are written: now, not at the next VBLANK)
+    jo_vdp2_flush_now();
     if (rbg0_ktable != JO_NULL)
     {
         jo_vdp2_free(rbg0_ktable);
@@ -2033,10 +2047,11 @@ void			                jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palet
 
 void                            jo_vdp2_disable_nbg0_line_scroll(void)
 {
-    // The VDP2 must stop reading the table before it is freed
+    // The VDP2 must stop reading the table before it is freed (the registers: written now, not at the next VBLANK)
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK, 0);
     if (nbg0_scroll_table != JO_NULL)
     {
+        jo_vdp2_flush_now();
         jo_vdp2_free(nbg0_scroll_table);
         nbg0_scroll_table = JO_NULL;
     }
@@ -2118,10 +2133,15 @@ void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, in
 
 void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
 {
+    unsigned short              back;
+
     if (!jo_vdp2_nbg1_bitmap_ready())
         return;
-    // The whole bitmap (JO_VDP2_WIDTH x JO_VDP2_HEIGHT pixels) is filled by the DMA controller (2 pixels per transfer)
+    // The whole bitmap (JO_VDP2_WIDTH x JO_VDP2_HEIGHT pixels) is filled by the DMA controller (2 pixels per transfer), but
+    // its last pixel: the back screen color is there (see JO_VDP2_RAM_BACK_COLOR)
+    back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
     jo_dma_fill32((void *)JO_VDP2_VRAM_A0, ((unsigned int)color << 16) | color, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(color));
+    *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
     jo_vdp2_display_nbg1();
 }
 
@@ -2233,6 +2253,8 @@ void                            jo_vdp2_draw_bitmap_nbg1_8bits_image(const jo_im
 
 bool                            __jo_vdp2_reserve_nbg1_bitmap(void)
 {
+    unsigned short              back;
+
     if (__jo_vdp2_nbg1_bitmap_reserved)
         return (true);
     // The bitmap replaces the 8 bits image of NBG1 (see jo_vdp2_set_nbg1_8bits_image())
@@ -2254,8 +2276,11 @@ bool                            __jo_vdp2_reserve_nbg1_bitmap(void)
     if (nbg1_bitmap == JO_NULL)
         return (false);
     __jo_vdp2_nbg1_bitmap_reserved = true;
-    // Transparent, as the VRAM at the start (the bank may have held the cells of a screen freed since)
+    // Transparent, as the VRAM at the start (the bank may have held the cells of a screen freed since), but the back screen
+    // color in the last pixel
+    back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
     jo_dma_fill32((void *)JO_VDP2_VRAM_A0, 0, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
+    *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
     jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, nbg1_bitmap);
     JO_ADD_FLAG(screen_flags, JO_NBG1_SCREEN);
     jo_vdp2_set_displayed_screens(screen_flags);
@@ -2455,26 +2480,25 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, short lef
     height = JO_MIN(img->height, y + JO_VDP2_HEIGHT - top);
     for (; y < height; ++y)
     {
+        // (clipped to the width of the bitmap: an image wider than it wrote the next rows, then the bank B0)
         if (left > 0)
         {
-            vram_ptr += left;
             right = left + img->width;
-            if (right >= JO_VDP2_WIDTH)
-                len = img->width - (right - JO_VDP2_WIDTH);
-            else
-                len = img->width;
-            jo_dma_copy(img_ptr, vram_ptr, len * sizeof(*img_ptr));
-            vram_ptr += JO_VDP2_WIDTH - left;
+            len = right > JO_VDP2_WIDTH ? JO_VDP2_WIDTH - left : img->width;
+            if (len > 0)
+                jo_dma_copy(img_ptr, vram_ptr + left, len * sizeof(*img_ptr));
+            vram_ptr += JO_VDP2_WIDTH;
         }
         else if (left < 0)
         {
-            len = img->width + left;
-            jo_dma_copy(img_ptr - left, vram_ptr, len * sizeof(*img_ptr));
+            len = JO_MIN(img->width + left, JO_VDP2_WIDTH);
+            if (len > 0)
+                jo_dma_copy(img_ptr - left, vram_ptr, len * sizeof(*img_ptr));
             vram_ptr += JO_VDP2_WIDTH;
         }
         else
         {
-            jo_dma_copy(img_ptr, vram_ptr, img->width * sizeof(*img_ptr));
+            jo_dma_copy(img_ptr, vram_ptr, JO_MIN(img->width, JO_VDP2_WIDTH) * sizeof(*img_ptr));
             vram_ptr += JO_VDP2_WIDTH;
         }
         img_ptr += img->width;
@@ -2485,10 +2509,11 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, short lef
 
 void                            jo_vdp2_disable_nbg1_line_scroll(void)
 {
-    // The VDP2 must stop reading the table before it is freed
+    // The VDP2 must stop reading the table before it is freed (the registers: written now, not at the next VBLANK)
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK << JO_VDP2_SCRCTL_NBG1_SHIFT, 0);
     if (nbg1_scroll_table != JO_NULL)
     {
+        jo_vdp2_flush_now();
         jo_vdp2_free(nbg1_scroll_table);
         nbg1_scroll_table = JO_NULL;
     }
@@ -2554,12 +2579,16 @@ int                             *jo_vdp2_enable_nbg1_vertical_cell_scroll(void)
 
 void                            jo_vdp2_disable_nbg1_vertical_cell_scroll(void)
 {
+    void                        *table;
+
     if (nbg1_vertical_cell_scroll_table == JO_NULL)
         return;
-    // (the effect and its slot are removed in the same VBLANK, like the line scroll)
-    jo_vdp2_free(nbg1_vertical_cell_scroll_table);
+    // (the effect and its slot are removed, written now: the VDP2 stops reading the table before it is freed)
+    table = nbg1_vertical_cell_scroll_table;
     nbg1_vertical_cell_scroll_table = JO_NULL;
     jo_vdp2_update_cycle_patterns();
+    jo_vdp2_flush_now();
+    jo_vdp2_free(table);
 }
 
 
@@ -3062,7 +3091,8 @@ void                            jo_fade_screens(const jo_scroll_screen screens, 
 
     for (k = 0; k <= frames; ++k)
     {
-        level = (short)(from + (to - from) * k / JO_MAX(1, frames));
+        // (0 frames: to at once)
+        level = frames <= 0 ? to : (short)(from + (to - from) * k / frames);
         jo_set_screen_color_filter_a(screens, level, level, level);
         vblank = jo_core_get_vblank_count();
         while (jo_core_get_vblank_count() == vblank)
@@ -3197,10 +3227,12 @@ bool                                    jo_vdp2_set_window_lines(const int windo
     for (JO_ZERO(line); line < JO_VDP2_LINE_WINDOW_LINES; ++line)
     {
         i = line - top;
-        if (i >= 0 && i < count && left[i] <= right[i])
+        // (in the screen: a right end after the screen was wrapped by the 10 bits of the coordinate, a line out of the
+        // screen at the left was shown as a column of 1 pixel)
+        if (i >= 0 && i < count && left[i] <= right[i] && right[i] >= 0 && left[i] < __jo_screen.width)
         {
             table[line * 2] = jo_vdp2_window_x(JO_MAX(left[i], 0));
-            table[line * 2 + 1] = jo_vdp2_window_x(JO_MAX(right[i], 0));
+            table[line * 2 + 1] = jo_vdp2_window_x(JO_MIN(right[i], __jo_screen.width - 1));
         }
         else
         {
@@ -3278,6 +3310,9 @@ bool                                    jo_vdp2_enable_blur(const jo_scroll_scre
 {
     unsigned short                      source;
 
+    // (no blur in the 640 and 704 pixels modes: the color RAM keeps its 2048 colors)
+    if (__jo_screen.hires)
+        return (false);
     switch (screen)
     {
         case JO_SPRITE_SCREEN: source = 0; break;
@@ -3414,6 +3449,11 @@ void                                    jo_vdp2_enable_mosaic(const jo_scroll_sc
 void                                    jo_vdp2_disable_mosaic(void)
 {
     jo_disable_all_screen_mozaic();
+}
+
+const unsigned short                    *jo_vdp2_get_registers(void)
+{
+    return (__jo_vdp2_shadow);
 }
 
 void                                    jo_vdp2_set_hires_sprite_mode(const jo_vdp2_hires_sprite_mode mode)

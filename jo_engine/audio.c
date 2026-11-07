@@ -124,6 +124,9 @@ typedef struct
     bool                            active;
     bool                            stereo;
     bool                            tone;       // A tone (jo_audio_play_tone()): its second slot is the FM modulator
+    bool                            loop;
+    unsigned int                    rate;       // Sample rate played (see jo_audio_set_channel_sample_rate())
+    const jo_sound                  *sound;     // The sound played (see jo_audio_stop_sound())
 }                                   jo_audio_channel;
 
 static jo_audio_cache_entry         __jo_audio_cache[JO_AUDIO_CACHE_ENTRIES];
@@ -467,7 +470,8 @@ static unsigned int                 jo_audio_place_pcm(const unsigned int size)
         if (!moved && offset + size <= JO_AUDIO_PCM_AREA_END)
             return (offset);
     }
-    return (__jo_audio_alloc_next + size > JO_AUDIO_PCM_AREA_END ? JO_AUDIO_PCM_AREA_START : __jo_audio_alloc_next);
+    // (before the resident sounds and the music, like the places tried above: the copy overwrote them)
+    return (__jo_audio_alloc_next + size > __jo_audio_resident_start ? JO_AUDIO_PCM_AREA_START : __jo_audio_alloc_next);
 }
 
 static unsigned int                 jo_audio_upload_pcm(const void *data, unsigned int size)
@@ -656,6 +660,7 @@ static void                         jo_audio_channel_on(const unsigned int chann
     unsigned int                    samples;
     unsigned int                    rate;
     unsigned int                    bytes_per_channel;
+    unsigned int                    length;
     unsigned short                  pitch;
     bool                            bits8;
     bool                            stereo;
@@ -668,8 +673,16 @@ static void                         jo_audio_channel_on(const unsigned int chann
     rate = sound->sample_rate ? sound->sample_rate : JO_SCSP_BASE_SAMPLING_RATE;
     pitch = __jo_scsp_pitch(rate);
     offset = sound->resident != 0 ? sound->resident - 1 : jo_audio_upload_pcm(sound->data, sound->data_length);
+    // (the bytes copied: less than the sound when the resident sounds take the sound RAM, the rest played the next data)
+    length = sound->data_length;
+    if (sound->resident == 0 && length > __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START)
+    {
+        length = __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START;
+        // (a stereo sound cut: its right channel was not copied, the left one only)
+        stereo = false;
+    }
     // Stereo data: left channel samples, then right channel samples
-    bytes_per_channel = stereo ? JO_DIV_BY_2(sound->data_length) : sound->data_length;
+    bytes_per_channel = stereo ? JO_DIV_BY_2(length) : length;
     samples = bits8 ? bytes_per_channel : JO_DIV_BY_2(bytes_per_channel);
     if (samples > JO_AUDIO_MAX_SAMPLES)
         samples = JO_AUDIO_MAX_SAMPLES;
@@ -688,8 +701,11 @@ static void                         jo_audio_channel_on(const unsigned int chann
     __jo_audio_channels[channel].active = true;
     __jo_audio_channels[channel].stereo = stereo;
     __jo_audio_channels[channel].tone = false;
+    __jo_audio_channels[channel].sound = sound;
     __jo_audio_channels[channel].offset = offset;
     __jo_audio_channels[channel].size = JO_AUDIO_ALIGN(sound->data_length);
+    __jo_audio_channels[channel].loop = loop;
+    __jo_audio_channels[channel].rate = rate;
     // A loop plays until the channel is stopped
     __jo_audio_channels[channel].end_vblank = __jo_core_vblank_count +
                                               (loop ? JO_AUDIO_LOOP_VBLANKS : ((samples * jo_core_get_refresh_rate()) / rate) + 1);
@@ -747,7 +763,8 @@ void	            jo_audio_play_sound_on_channel(jo_sound * const sound, const un
         return;
     }
 #endif
-    if (jo_audio_channel_status(channel))
+    // (checked in all the builds: the slot of a channel after the last one is the common registers of the SCSP)
+    if (channel >= JO_SOUND_MAX_CHANNEL || jo_audio_channel_status(channel))
         return ;
     sound->current_playing_channel = channel;
     jo_audio_channel_on(channel, sound, false);
@@ -762,7 +779,7 @@ void	            jo_audio_play_sound_loop_on_channel(jo_sound * const sound, con
         return;
     }
 #endif
-    if (jo_audio_channel_status(channel))
+    if (channel >= JO_SOUND_MAX_CHANNEL || jo_audio_channel_status(channel))
         return ;
     sound->current_playing_channel = channel;
     jo_audio_channel_on(channel, sound, true);
@@ -774,10 +791,22 @@ void	            jo_audio_set_channel_sample_rate(const unsigned char channel, c
 
     if (channel >= JO_SOUND_MAX_CHANNEL || !jo_audio_channel_status(channel))
         return;
+    jo_audio_channel                *c;
+    int                             left;
+
     pitch = __jo_scsp_pitch(sample_rate);
     jo_audio_slot_write(jo_audio_channel_slot(channel), JO_SCSP_SLOT_PITCH, pitch);
-    if (__jo_audio_channels[channel].stereo)
+    c = &__jo_audio_channels[channel];
+    if (c->stereo)
         jo_audio_slot_write(jo_audio_channel_slot(channel) + 1, JO_SCSP_SLOT_PITCH, pitch);
+    // (the end of a sound played once: at another rate, the channel was free while its sound played, a new sound
+    // overwrote it, or busy after it)
+    if (c->tone || c->loop || c->rate == 0 || sample_rate == 0)
+        return;
+    left = (int)(c->end_vblank - __jo_core_vblank_count);
+    if (left > 0)
+        c->end_vblank = __jo_core_vblank_count + (unsigned int)left * c->rate / sample_rate + 1;
+    c->rate = sample_rate;
 }
 
 void	            jo_audio_set_channel_volume(const unsigned char channel, const unsigned char volume)
@@ -1044,6 +1073,7 @@ void                                jo_audio_play_tone(const jo_audio_tone * con
     __jo_audio_channels[channel].active = true;
     __jo_audio_channels[channel].stereo = false;
     __jo_audio_channels[channel].tone = fm;
+    __jo_audio_channels[channel].sound = JO_NULL;
     // (no sound in the sound RAM to keep)
     __jo_audio_channels[channel].offset = JO_AUDIO_PCM_AREA_END;
     JO_ZERO(__jo_audio_channels[channel].size);
@@ -1169,7 +1199,9 @@ void	            jo_audio_stop_sound(const jo_sound * const sound)
         return;
     }
 #endif
-    if (!jo_audio_channel_status(sound->current_playing_channel))
+    // (only if the channel still plays this sound: another sound may play on it now)
+    if (sound->current_playing_channel >= JO_SOUND_MAX_CHANNEL || !jo_audio_channel_status(sound->current_playing_channel) ||
+        __jo_audio_channels[sound->current_playing_channel].sound != sound)
         return ;
     jo_audio_channel_off(sound->current_playing_channel);
 }
@@ -1198,6 +1230,8 @@ static void         __jo_audio_load_pcm_async_callback(char *contents, int lengt
     sound->data_length = length;
     sound->data = contents;
     sound->volume = JO_MAX_AUDIO_VOLUME;
+    // (a new sound: not the resident copy of the sound loaded before in this structure, see jo_audio_load_pcm())
+    JO_ZERO(sound->resident);
 }
 
 bool                jo_audio_load_pcm_async(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
@@ -1276,7 +1310,7 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         jo_free(file);
         return (false);
     }
-    for (p = file + 12; p + 8 <= end; p += 8 + ((jo_audio_wav_value(p + 4, 4) + 1) & ~1U))
+    for (p = file + 12; end - p >= 8; p += 8 + ((size + 1) & ~1U))
     {
         size = jo_audio_wav_value(p + 4, 4);
         if (p[0] == 'f' && p[1] == 'm' && p[2] == 't' && p + 24 <= end && jo_audio_wav_value(p + 8, 2) == 1)
@@ -1288,10 +1322,14 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         else if (p[0] == 'd' && p[1] == 'a' && p[2] == 't' && p[3] == 'a')
         {
             data = p + 8;
-            if (data + size > end)
+            // (compared as sizes: a size of 0xFFFFFFFF, written by the encoders of streams, wrapped the pointer around)
+            if (size > (unsigned int)(end - data))
                 size = (unsigned int)(end - data);
             break;
         }
+        // (a chunk after the end of the file: the end, the next chunk would be out of the file or before it)
+        if (size > (unsigned int)(end - p) - 8)
+            break;
     }
     if (data == JO_NULL || (bits != 8 && bits != 16) || (channels != 1 && channels != 2) || rate == 0)
     {
@@ -1766,9 +1804,14 @@ static bool                         jo_audio_music_header(const unsigned char * 
         else if (p[0] == 'd' && p[1] == 'a' && p[2] == 't' && p[3] == 'a')
         {
             __jo_audio_music.data_start = (unsigned int)(p + 8 - header);
-            __jo_audio_music.data_end = __jo_audio_music.data_start + chunk;
+            // (a size of 0xFFFFFFFF: to the end of the file, see jo_audio_play_music())
+            __jo_audio_music.data_end = chunk > 0xFFFFFFFFu - __jo_audio_music.data_start ? 0xFFFFFFFFu :
+                                        __jo_audio_music.data_start + chunk;
             break;
         }
+        // (a chunk after the end of the header read: the end, not a pointer wrapped around)
+        if (chunk > (unsigned int)(end - p) - 8)
+            break;
     }
     if (__jo_audio_music.data_end == 0 || (__jo_audio_music.channels != 1 && __jo_audio_music.channels != 2) ||
         __jo_audio_music.rate == 0 || __jo_audio_music.rate > JO_SCSP_BASE_SAMPLING_RATE)
@@ -1913,6 +1956,9 @@ void                                jo_audio_resume_music(void)
     if (__jo_audio_music.end_written != 0)
         __jo_audio_music.end_written = __jo_audio_music.end_written > start ? __jo_audio_music.end_written - start : 1;
     __jo_audio_music.written = count;
+    // (the samples kept are at the start of the ring again: the blocks played count from 0, as jo_audio_music_key_on()
+    // will set them, before the decoding (with the count of the pause, the decoding wrote silence for a long time)
+    JO_ZERO(__jo_audio_music.played_blocks);
     jo_audio_music_decode(JO_AUDIO_MUSIC_AHEAD);
     jo_audio_music_key_on();
     __jo_audio_music.paused = false;
