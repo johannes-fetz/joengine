@@ -299,8 +299,14 @@ void                                guards_draw_blood(void);
 #ifdef DEMO_BENCH
 /** @brief The benchmark: count persons (the scientists first) in rows in front of a point (x, z, the yaw of the view);
  *  scientists: the guards become scientists */
-void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int yaw, const int count,
+void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int view_yaw, const int count,
                                                         const bool scientists);
+# ifdef DEMO_BENCH_CHECK
+/** @brief The check of the benchmark: the persons in the view of a frame (one per person and per frame), the ones of them
+ *  not drawn in that frame (see check_persons() in guards.c) */
+extern int                          guards_check_seen;
+extern int                          guards_check_missed;
+# endif
 #endif
 
 /*

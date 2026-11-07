@@ -5,6 +5,7 @@
   run_tests.py --full       + build variants, the scenes of the test ROM (golden images), the measures (perf and RAM
                             budgets), the samples run in Mednafen (golden images and sound)
   run_tests.py --approve    record the current results as the references (tests/golden), to commit
+  run_tests.py --only shooter   + the checks of that sample (config.json "samples.checks"), also in the quick mode
 """
 
 import argparse
@@ -88,6 +89,13 @@ class Run:
                 for v, variables in sample_variants.items():
                     jobs.append(build.BuildJob(name, v, os.path.join(samples_dir, name),
                                                os.path.join(self.work, "build", build.slug(name), v), variables))
+                # (the checks of the sample: in the full mode, or when --only names it)
+                if self.full or self.args.only:
+                    for check in samples_cfg.get("checks", {}).get(name, []):
+                        v = "check " + check["name"]
+                        jobs.append(build.BuildJob(name, v, os.path.join(samples_dir, name),
+                                                   os.path.join(self.work, "build", build.slug(name), build.slug(v)),
+                                                   check.get("variables", {})))
         return jobs
 
     def run_builds(self, jobs):
@@ -355,6 +363,58 @@ class Run:
         if sound and wav:
             self.check_audio(job.name, slug, wav, last, shift)
 
+    # Layer 7: the checks of the samples (config.json "samples.checks")
+
+    @staticmethod
+    def verdict_of(image):
+        """The verdict shown by a check of a sample: the whole screen green (PASS) or red (FAIL), None: not yet. (A pixel
+        of 16: most of the screen of that color, the text of the summary and the sprites on it)"""
+        green = red = total = 0
+        data = image.data
+        for y in range(0, image.height, 4):
+            for i in range(y * image.width * 3, (y + 1) * image.width * 3, 12):
+                r, g, b = data[i], data[i + 1], data[i + 2]
+                total += 1
+                if g > 192 and r < 64 and b < 64:
+                    green += 1
+                elif r > 192 and g < 64 and b < 64:
+                    red += 1
+        if green * 10 > total * 7:
+            return PASS
+        if red * 10 > total * 7:
+            return FAIL
+        return None
+
+    def run_check(self, med, job):
+        name = job.variant[len("check "):]
+        check = next(c for c in self.config["samples"]["checks"][job.name] if c["name"] == name)
+        last = check.get("max_frames", 3000)
+        movie = os.path.join(self.work, "run", "%s.mov" % build.slug(job.name + " " + job.variant))
+        state = {"seen": 0, "verdict": None, "frame": None}
+
+        def stop(r):
+            # (the last frame only, read once per call: the verdict stays on the screen)
+            if r.frames > max(state["seen"], check.get("first_frame", 0)):
+                state["seen"] = r.frames
+                verdict = self.verdict_of(r.reader.frame(r.frames - 1))
+                if verdict is not None:
+                    state["verdict"], state["frame"] = verdict, r.frames - 1
+                    return True
+            return r.frames > last
+
+        result = med.run(job.cue, movie, stop, last / FPS * 3 + 60, decode_barcodes=False)
+        layer = "7 check"
+        key = "%s: %s" % (job.name, name)
+        if state["verdict"] is None:
+            images = self.save_frame(result, result.frames - 1, "checks/%s/last_frame.png" % build.slug(key))
+            self.results.add(layer, key, FAIL, "no verdict after %d frames (%s)" % (result.frames, "timeout" if result.timed_out
+                             else "exited" if result.exited else "too long"), details=result.log.splitlines()[-8:], images=images)
+            return
+        images = self.save_frame(result, state["frame"], "checks/%s/verdict.png" % build.slug(key))
+        self.results.add(layer, key, state["verdict"], "%s at frame %d (the counts on the picture)" % (
+                         "passed" if state["verdict"] == PASS else "failed", state["frame"]), details=[check.get("what", "")],
+                         images=images)
+
     def check_audio(self, name, slug, wav, last_frame, max_shift=0):
         layer = "4 audio"
         try:
@@ -432,8 +492,9 @@ def main():
     rom_jobs = [j for j in jobs if j.name == "test rom" and j.ok and j.variant not in run.config["rom"].get("build_only", [])]
     sample_jobs = [j for j in jobs if j.name != "test rom" and j.ok and j.variant == "default"
                    and j.name not in run.config.get("samples", {}).get("boot", {}).get("skip", [])]
+    check_jobs = [j for j in jobs if j.name != "test rom" and j.ok and j.variant.startswith("check ")]
     exe = emulator.find_mednafen(REPO, args.mednafen)
-    if rom_jobs or (run.full and sample_jobs):
+    if rom_jobs or (run.full and sample_jobs) or check_jobs:
         firmware = emulator.find_firmware(REPO, exe) if exe else None
         if exe is None or firmware is None:
             run.results.add("1-2 rom", "mednafen", FAIL, "Mednafen not found (Emulators/mednafen/mednafen.exe, option --mednafen)"
@@ -447,6 +508,10 @@ def main():
                     print("\n[6] Samples in Mednafen (%d%s)" % (len(sample_jobs), ", with sound: real time" if not args.no_audio else ""))
                     for job in sample_jobs:
                         run.run_sample(med, job)
+                if check_jobs:
+                    print("\n[7] Checks of the samples (%d)" % len(check_jobs))
+                    for job in check_jobs:
+                        run.run_check(med, job)
 
     if args.approve:
         save_json(run.values_path, run.values)

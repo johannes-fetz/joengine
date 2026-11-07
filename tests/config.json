@@ -130,6 +130,28 @@
     }
    },
    "max_shift_frames": 30
+  },
+  "checks": {
+   "demo - first person shooter": [
+    {
+     "name": "persons drawn on the walkway",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 6: the guard of the walkway vanished, the ones out of the view below took the VDP1 budget)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=6 -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
+    },
+    {
+     "name": "persons drawn in the laboratory",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 1: 2 scientists and 2 guards)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=1 -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
+    }
+   ]
   }
  },
  "tolerances": {

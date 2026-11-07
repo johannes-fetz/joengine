@@ -40,6 +40,7 @@ starts `Xvfb`.
 | 4 sound | | yes | the loudness of each sample (blocks of 100 ms) against `golden/samples/<sample>/audio.json` |
 | 5 budgets | sizes: warning only | yes | CPU and VDP1 time of the measures of the test ROM, memory used, sizes of each program (code, data, RAM), against `golden/budgets.json`; the absolute limits of `samples.max_bin_size` (`demo - minimal`, built with `JO_MINIMAL = 1`: a failure in both modes) |
 | 6 samples | | yes | each sample boots in Mednafen; its frames against `golden/samples/<sample>/frame_*.png` |
+| 7 checks | with `--only <sample>` | yes | builds of a sample with defines that run a scripted scene and judge it (`samples.checks`, see below) |
 | 3 glitch | 9 views | 217 views | the anti-glitch views of the 3D (`rom/t_glitch.c`, `harness/glitch.py`): absolute checks, no reference (see below) |
 
 Layers 1 and 2 have two kinds of checks:
@@ -107,8 +108,26 @@ report.
   engine reduced by `JO_MINIMAL = 1` must stay much smaller than the default engine, 29 KB for the same program)
 - `samples.boot.frames`: the frames of each sample compared (the BIOS takes about 700 frames);
   `samples.boot.per_sample`: other frames or `"audio": false` for a sample; `samples.boot.skip`: samples built but not run
+- `samples.checks`: the checks of a sample (layer 7): `name`, `what` (shown in the report), `variables` (of make, e.g.
+  `_CCFLAGS` with the defines of the check), `first_frame` (the verdict is looked for from this frame), `max_frames`
 - `tolerances`: `image_threshold` (difference of a color component, 0 to 255), `image_max_pixels_percent`, `perf_percent`,
   `ram_percent`, `size_percent`, `audio_db`, `audio_max_blocks_percent`
+
+## The checks of the samples
+
+A check builds a sample with the defines of `samples.checks` (a scripted scene, no input) and runs it until the sample
+shows its verdict: the whole screen green (PASS) or red (FAIL), with its counts as text (in the report). They run in the
+full mode, and in the quick mode when `--only` names the sample (`run_tests.bat --only "first person"`, about 2 minutes).
+
+| Sample | Check | Defines | Rule |
+|---|---|---|---|
+| `demo - first person shooter` | persons drawn on the walkway | `DEMO_BENCH DEMO_BENCH_VIEW=6 DEMO_BENCH_CHECK` | each person in the view of a frame is drawn in it, over 192 frames (the guard of the walkway vanished and came back: the persons out of the view in the bottling room below took the VDP1 budget of the persons, 83 missed before the fix of `plan_draw()`, 0 after) |
+| `demo - first person shooter` | persons drawn in the laboratory | `DEMO_BENCH DEMO_BENCH_VIEW=1 DEMO_BENCH_CHECK` | the same rule with 2 scientists and 2 guards |
+
+To add a check to a sample: a mode of the sample (a define) that plays a scene without input and counts what must hold
+in each frame, then shows the verdict with `jo_set_default_background_color(JO_COLOR_Green)` or `JO_COLOR_Red` over the
+whole screen (the 3D no longer drawn: `jo_3d_set_frame_clear(true)`), and an entry in `samples.checks`. Prove it: it must
+fail on the code with the bug.
 
 ## The anti-glitch views of the 3D
 

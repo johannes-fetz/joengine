@@ -252,9 +252,14 @@ typedef struct
     int                             moved;          // Distance walked in the last frame (1/256 units): the time of his steps
     int                             gait_speed;     // Speed of the animation of his steps (walk or run), 0: not walking
     int                             draw_mode;      // In this frame (see guard_tint()): 0 his models by the distance, 1 his far
-                                                    // model, -1 not drawn (the table of the VDP1 nearly full)
+                                                    // model, -1 not drawn (out of the view, the table of the VDP1 nearly full)
     int                             commands;       // VDP1 commands of his last drawing (written by the CPU that drew him)
     bool                            commands_far;   // ... with his far model
+#ifdef DEMO_BENCH_CHECK
+    int                             check_seen;     // The check of the benchmark (see check_persons()): the frame in which he
+                                                    // was in the view, -1: not in the view
+    int                             check_drawn;    // ... drawn in it (written by the CPU that drew him, without its cache)
+#endif
     bool                            run;            // He runs to the agent (from another room, from far)
     int                             door_wait;      // Milliseconds blocked by a door (open: he goes around its panel)
     int                             detour_time;    // Milliseconds left walking around a piece of furniture
@@ -2033,6 +2038,31 @@ static void                         add_master_copy(const jo_3d_model * const mo
     master_copies[master_copy_count++] = copy;
 }
 
+#ifdef DEMO_BENCH_CHECK
+int                                 guards_check_seen = 0;
+int                                 guards_check_missed = 0;
+
+/** @brief The check of the benchmark (DEMO_BENCH_CHECK, see main.c): the persons in the view in the last frame, the ones not
+ *  drawn in it (none in a still scene with the VDP1 table far from full: a person who vanishes from a frame to the next).
+ *  Called once per frame by the master CPU before the plan of the persons (the drawing of the last frame is over) */
+static void                         check_persons(void)
+{
+    jo_entity                       *e;
+    guard                           *g;
+    int                             k;
+
+    for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+    {
+        if (!is_person(e) || (g = (guard *)e->data) == JO_NULL || g->check_seen != frame_counter - 1)
+            continue;
+        ++guards_check_seen;
+        if (*(volatile int *)JO_CACHE_THROUGH(&g->check_drawn) != g->check_seen)
+            ++guards_check_missed;
+        g->check_seen = -1;
+    }
+}
+#endif
+
 /** @brief The VDP1 commands left for the persons in this frame (see plan_draw()), the frame of the plan */
 static int                          persons_commands_left = 0;
 static int                          persons_plan_frame = -1;
@@ -2054,6 +2084,25 @@ static void                         plan_draw(const jo_entity * const e, guard *
         // entities)
         persons_plan_frame = frame_counter;
         persons_commands_left = jo_vdp1_command_max() - GUARD_RESERVE_COMMANDS - jo_cells_prepared_polygon_count();
+#ifdef DEMO_BENCH_CHECK
+        check_persons();
+#endif
+    }
+#ifdef DEMO_BENCH_CHECK
+    // (in the view of the camera: he must be drawn in this frame)
+    g->check_seen = jo_entity_view_distance(e) >= 0 ? frame_counter : -1;
+#endif
+    // Out of the view: not drawn, nothing taken from the budget. (jo_entities_prepare_draw() calls the tint of every
+    // entity of a seen cell and gives the distance 0 to the ones out of the view: the guards of the bottling room below the
+    // walkway, drawn last with 0 commands, were counted for 2/3 of their near model (141 commands each) and the guard in
+    // front of the agent on the walkway, planned after them, vanished: 83 persons in the view not drawn in 192 frames
+    // (DEMO_BENCH_CHECK, view 6), the far guard and him, 0 after.
+    // jo_actor_draw() draws nothing out of the view either; jo_actor_draw_slave() only checks the distance: it posed and
+    // projected them for nothing)
+    if (e->view_distance == 0 && jo_entity_view_distance(e) < 0)
+    {
+        g->draw_mode = -1;
+        return;
     }
     if (persons_commands_left < GUARD_FAR_COMMANDS)
     {
@@ -2105,6 +2154,9 @@ static void                         guard_draw(jo_entity * const e)
         if (g->draw_mode < 0 || jo_vdp1_command_max() - __jo_vdp1_frame_command_count() - GUARD_RESERVE_COMMANDS < GUARD_FAR_COMMANDS)
             return;
         e->far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
+#ifdef DEMO_BENCH_CHECK
+        *(volatile int *)JO_CACHE_THROUGH(&g->check_drawn) = g->check_seen;
+#endif
         commands = __jo_vdp1_frame_command_count();
         // (the copies of the models of the master CPU: only this CPU writes their faces)
         model = g->actor.model;
@@ -2145,6 +2197,9 @@ static void                         guard_draw_slave(jo_entity * const e)
             GUARD_FAR_COMMANDS)
             return;
         far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
+#ifdef DEMO_BENCH_CHECK
+        *(volatile int *)JO_CACHE_THROUGH(&g->check_drawn) = *(volatile int *)JO_CACHE_THROUGH(&g->check_seen);
+#endif
         set_face(g->actor.model, g->face, false);
         set_face(g->actor.far_model, g->face, false);
         commands = jo_3d_slave_get_current_command_count();
@@ -2164,7 +2219,7 @@ static const jo_entity_class        scientist_class = {"scientist", sizeof(guard
                                                        guard_draw, guard_draw_slave, guard_tint};
 
 #ifdef DEMO_BENCH
-void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int yaw, const int count,
+void                                guards_bench_gather(const jo_fixed x, const jo_fixed z, const int view_yaw, const int count,
                                                         const bool scientists)
 {
     int                             k;
@@ -2200,14 +2255,14 @@ void                                guards_bench_gather(const jo_fixed x, const 
         }
         forward = 170 + (n / 3) * 120;
         side = ((n % 3) - 1) * 120 + ((n / 3) & 1) * 50;
-        e->position.x = x + jo_sin(yaw) * forward + jo_cos(yaw) * side;
-        e->position.z = z + jo_cos(yaw) * forward - jo_sin(yaw) * side;
-        e->yaw = (yaw + 180) % 360;
+        e->position.x = x + jo_sin(view_yaw) * forward + jo_cos(view_yaw) * side;
+        e->position.z = z + jo_cos(view_yaw) * forward - jo_sin(view_yaw) * side;
+        e->yaw = (view_yaw + 180) % 360;
         g->home_x = e->position.x;
         g->home_z = e->position.z;
         g->home_yaw = e->yaw;
-        g->patrol_x = e->position.x + jo_cos(yaw) * 70;
-        g->patrol_z = e->position.z - jo_sin(yaw) * 70;
+        g->patrol_x = e->position.x + jo_cos(view_yaw) * 70;
+        g->patrol_z = e->position.z - jo_sin(view_yaw) * 70;
         ++n;
     }
 }

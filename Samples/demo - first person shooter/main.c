@@ -493,6 +493,11 @@ static void                     place_player(void)
 **   DEMO_BENCH_SHARE=S        the share of the entities of the slave CPU fixed (0 to 1024)
 **   DEMO_BENCH_FREEZE=F       the game paused at the frame F (the same picture in every run, to compare them)
 **   DEMO_BENCH_PCPROF         the program counter sampling during the measures (tools/pcprof_report.py on a save state)
+**   DEMO_BENCH_CHECK          a check (tests/run_tests.py, config.json "samples.checks"): each person in the view of a frame
+**                             must be drawn in it; the summary on a green screen (PASS) or a red one (FAIL), with the persons
+**                             in the view (one per person and per frame) and the ones missed. View 6, 7/11/2026: 83 missed
+**                             of 384 (the guard of the walkway vanished: the ones out of the view in the bottling room
+**                             below took the VDP1 budget of the persons, see plan_draw() in guards.c), 0 after the fix
 ** Measured (Mednafen, 7/11/2026, 9 scientists, view 4): 37 late frames out of 384 before the parallel drawing of the persons
 ** (see guards_register()) and their models in the high work RAM (see guards_reserve_fast_memory()), 0 after
 */
@@ -513,6 +518,8 @@ static const int                bench_views[][4] =
     {1720, 1640, 270, 0},
     // 5: the bottling room from the walkway (its guards below)
     {3480, 1480, 180, 15},
+    // 6: the walkway from the door of the airlock (its guard in front of the agent)
+    {3300, 1480, 90, 0},
 };
 
 static void                     bench_place(void)
@@ -569,6 +576,10 @@ static void                     bench_print(void)
     static int                  samples = 0;
     static int                  min_share = 1024;
     static int                  max_share = 0;
+# ifdef DEMO_BENCH_CHECK
+    static int                  check_seen = 0;
+    static int                  check_missed = 0;
+# endif
     int                         k;
 
 # ifdef DEMO_BENCH_PCPROF
@@ -586,6 +597,10 @@ static void                     bench_print(void)
 # endif
     if (frame_counter == DEMO_BENCH_START)
     {
+# ifdef DEMO_BENCH_CHECK
+        check_seen = guards_check_seen;
+        check_missed = guards_check_missed;
+# endif
         first_late = jo_core_get_late_frame_count();
         first_vblank = jo_core_get_vblank_count();
     }
@@ -612,6 +627,10 @@ static void                     bench_print(void)
 #endif
     if (frame_counter == DEMO_BENCH_END)
     {
+# ifdef DEMO_BENCH_CHECK
+        check_seen = guards_check_seen - check_seen;
+        check_missed = guards_check_missed - check_missed;
+# endif
         late = jo_core_get_late_frame_count() - first_late;
         vblanks = jo_core_get_vblank_count() - first_vblank;
         // (the summary on a black screen: the 3D is no longer drawn)
@@ -624,6 +643,12 @@ static void                     bench_print(void)
         jo_printf(1, 2, "SHARE %d TO %d", min_share, max_share);
         for (k = 0; k < BENCH_SLOTS && samples > 0; ++k)
             jo_printf(1, 4 + k, "%s %d MAX %d", bench_names[k], (int)(sums[k] / samples), (int)maxs[k]);
+# ifdef DEMO_BENCH_CHECK
+        // (the verdict: the color of the whole screen, read by the tests; none in the view: the scene is broken, a failure)
+        jo_printf(1, 15, "PERSONS SEEN %d MISSED %d", check_seen, check_missed);
+        jo_printf(1, 16, "CHECK %s", check_seen > 0 && check_missed == 0 ? "PASS" : "FAIL");
+        jo_set_default_background_color(check_seen > 0 && check_missed == 0 ? JO_COLOR_Green : JO_COLOR_Red);
+# endif
     }
 }
 #endif
