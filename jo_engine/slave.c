@@ -41,6 +41,8 @@
 #include "jo/list.h"
 #include "jo/time.h"
 #include "jo/profile.h"
+#include "internal/core.h"
+#include "internal/profile.h"
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 

@@ -65,6 +65,7 @@
 #include "jo/cell.h"
 #include "jo/light.h"
 #include "jo/time.h"
+#include "internal/vehicle.h"
 
 /** @brief Events and actions sent at once in a row at most (then they wait for the next update: no endless loop) */
 #define JO_ENTITY_MAX_DEPTH                 (8)

@@ -39,6 +39,8 @@
 #include "jo/math.h"
 #include "jo/time.h"
 #include "jo/profile.h"
+#include "internal/core.h"
+#include "internal/profile.h"
 
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
 

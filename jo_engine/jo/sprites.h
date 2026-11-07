@@ -57,8 +57,6 @@ extern jo_texture_definition        __jo_sprite_def[JO_MAX_SPRITE];
  *  @warning MC Hammer: don't touch this
  */
 extern jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
-/** @brief (internal engine usage) Color lookup table of a 16 colors texture (VRAM address / 8), 0: none */
-extern unsigned short           __jo_sprite_lut[JO_MAX_SPRITE];
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
@@ -123,30 +121,12 @@ int     jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsign
  */
 int     jo_sprite_add_image_4bits_lut(const jo_img * const img);
 
-/** @brief Add a 16 colors texture that uses the color lookup table of another one (internal engine usage: smaller copies,
- *  tiles, see 3d.c)
- *  @param pixels 2 pixels per byte
- *  @param width Width (multiple of 8)
- *  @param height Height
- *  @param lut Table (VRAM address / 8, see __jo_sprite_lut)
- *  @return Sprite Id or -1 if failed
- */
-int     __jo_sprite_add_4bits(const void * const pixels, const unsigned short width, const unsigned short height, const unsigned short lut);
-
 /** @brief Replace a sprite
  *  @param img Pointer to a image struct
  *  @param sprite_id Sprite ID to replace
  *  @return sprite_id
  */
 int     jo_sprite_replace(const jo_img * const img, const int sprite_id);
-
-/** @brief Replace a sprite (internal usage)
- *  @param img Pointer to a image struct
- *  @param sprite_id Sprite ID to replace
- *  @param async true: the copy is done by the DMA controller in the background (see jo_dma_wait())
- *  @return sprite_id
- */
-int     __jo_sprite_replace(const jo_img * const img, const int sprite_id, const bool async);
 
 /** @brief Write the VDP1 end codes after the last visible pixel of each line of a sprite (RGB sprites)
  *  @param sprite_id Sprite Id

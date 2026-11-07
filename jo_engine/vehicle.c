@@ -56,6 +56,7 @@
 #include "jo/effects.h"
 #include "jo/entity.h"
 #include "jo/vehicle.h"
+#include "internal/vehicle.h"
 
 /** @brief The front wheels turn this fast (degrees per second), and come back */
 #define JO_VEHICLE_STEER_SPEED              (140)

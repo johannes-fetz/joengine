@@ -53,6 +53,7 @@
 #include "jo/3d.h"
 #include "jo/vdp2_malloc.h"
 #include "jo/glow.h"
+#include "internal/vdp1_command_pipeline.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 

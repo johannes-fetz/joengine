@@ -161,6 +161,7 @@ static jo_fixed                 last_ray_distance = 0;
 void                            weapon_load(void)
 {
     int                         k;
+    jo_3d_quad                  *quad;
 
     for (k = 0; k < jo_weapons_count() && k < MAX_WEAPONS; ++k)
     {
@@ -185,7 +186,7 @@ void                            weapon_load(void)
     tex_impact = jo_sprite_add_bin_4bits_lut(JO_ROOT_DIR, "IMPACT.BIN", JO_COLOR_Transparent);
     // (the quad of the impacts (the marks on the doors) and their mesh (the marks on the walls) with a neutral gouraud
     // table: the light of the lamps on them, a tint, see impacts_draw())
-    if (tex_impact >= 0 && jo_3d_create_sprite_quad(tex_impact))
+    if (tex_impact >= 0 && (quad = jo_3d_get_sprite_quad(tex_impact)) != JO_NULL)
     {
         static const jo_color   neutral[4] = {0xC210, 0xC210, 0xC210, 0xC210};
         unsigned short          table;
@@ -193,8 +194,8 @@ void                            weapon_load(void)
         table = jo_3d_add_gouraud_tables(neutral, 1);
         if (table != 0)
         {
-            __jo_sprite_quad[tex_impact]->data.attributes[0].draw_mode |= JO_VDP1_COLOR_CALC_GOURAUD;
-            __jo_sprite_quad[tex_impact]->data.attributes[0].gouraud_table = table;
+            quad->data.attributes[0].draw_mode |= JO_VDP1_COLOR_CALC_GOURAUD;
+            quad->data.attributes[0].gouraud_table = table;
         }
         impact_mesh_make(table);
     }

@@ -491,13 +491,16 @@ static void                     place_player(void)
 **   DEMO_BENCH_CROWD=N        N persons gathered in rows in front of the agent (view 4: the laboratory), the scientists first
 **   DEMO_BENCH_SCIENTISTS     with DEMO_BENCH_CROWD: the guards become scientists
 **   DEMO_BENCH_SHARE=S        the share of the entities of the slave CPU fixed (0 to 1024)
+**   DEMO_BENCH_DOORS_OPEN     all the doors open at the start and kept open (view 7: the walkway seen through the airlock)
 **   DEMO_BENCH_FREEZE=F       the game paused at the frame F (the same picture in every run, to compare them)
 **   DEMO_BENCH_PCPROF         the program counter sampling during the measures (tools/pcprof_report.py on a save state)
 **   DEMO_BENCH_CHECK          a check (tests/run_tests.py, config.json "samples.checks"): each person in the view of a frame
 **                             must be drawn in it; the summary on a green screen (PASS) or a red one (FAIL), with the persons
 **                             in the view (one per person and per frame) and the ones missed. View 6, 7/11/2026: 83 missed
 **                             of 384 (the guard of the walkway vanished: the ones out of the view in the bottling room
-**                             below took the VDP1 budget of the persons, see plan_draw() in guards.c), 0 after the fix
+**                             below took the VDP1 budget of the persons, see plan_draw() in guards.c), 0 after the fix.
+**                             View 7 (with DEMO_BENCH_DOORS_OPEN): the guard of the walkway, far away through the airlock,
+**                             vanished (all the polygons of the cells found counted as commands), 0 missed of 576 after
 ** Measured (Mednafen, 7/11/2026, 9 scientists, view 4): 37 late frames out of 384 before the parallel drawing of the persons
 ** (see guards_register()) and their models in the high work RAM (see guards_reserve_fast_memory()), 0 after
 */
@@ -520,6 +523,8 @@ static const int                bench_views[][4] =
     {3480, 1480, 180, 15},
     // 6: the walkway from the door of the airlock (its guard in front of the agent)
     {3300, 1480, 90, 0},
+    // 7: the walkway from the gallery, through the 2 doors of the airlock (with DEMO_BENCH_DOORS_OPEN: its guard far away)
+    {3100, 1430, 90, 0},
 };
 
 static void                     bench_place(void)
@@ -529,6 +534,9 @@ static void                     bench_place(void)
     player_z = jo_int2fixed(bench_views[DEMO_BENCH_VIEW][1]);
     yaw = bench_views[DEMO_BENCH_VIEW][2];
     pitch = bench_views[DEMO_BENCH_VIEW][3];
+# ifdef DEMO_BENCH_DOORS_OPEN
+    doors_bench_open();
+# endif
 # ifdef DEMO_BENCH_CROWD
     // (DEMO_BENCH_CROWD persons in rows in front of the agent; DEMO_BENCH_SCIENTISTS: all of them scientists)
 #  ifdef DEMO_BENCH_SCIENTISTS

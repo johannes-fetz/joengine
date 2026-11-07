@@ -150,6 +150,15 @@
      },
      "first_frame": 2000,
      "max_frames": 3000
+    },
+{
+     "name": "persons drawn through the airlock",
+     "what": "each person in the view of a frame is drawn in it (DEMO_BENCH_CHECK, view 7: the guard of the walkway far away through the 2 open doors of the airlock, he vanished: the polygons of the cells found took the VDP1 budget of the persons)",
+     "variables": {
+      "_CCFLAGS": "-DDEMO_BENCH -DDEMO_BENCH_VIEW=7 -DDEMO_BENCH_DOORS_OPEN -DDEMO_BENCH_HIDDEN -DDEMO_BENCH_CHECK -DDEMO_BENCH_END=256"
+     },
+     "first_frame": 2000,
+     "max_frames": 3000
     }
    ]
   }

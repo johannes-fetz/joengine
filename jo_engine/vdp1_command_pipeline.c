@@ -46,6 +46,9 @@
 #include "jo/sprites.h"
 #include "jo/3d.h"
 #include "jo/profile.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/profile.h"
 
 /*
 ** Commands are collected in work RAM during the frame with a depth value.
@@ -422,6 +425,11 @@ int                                     __jo_vdp1_frame_command_count(void)
     // (read without the cache: the slave CPU calls it too, see jo_3d_subdivision_level())
     frame = *(jo_vdp1_frame * volatile *)JO_CACHE_THROUGH(&__jo_vdp1_frame);
     return ((int)*(volatile unsigned int *)JO_CACHE_THROUGH(&frame->count));
+}
+
+int                                     jo_vdp1_frame_command_count(void)
+{
+    return (__jo_vdp1_frame_command_count());
 }
 
 int                                     jo_vdp1_command_max(void)

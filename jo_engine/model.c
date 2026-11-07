@@ -50,6 +50,8 @@
 #include "jo/tga.h"
 #include "jo/3d.h"
 #include "jo/model.h"
+#include "internal/3d.h"
+#include "internal/model.h"
 
 /** @brief Size of the header of a JOM file */
 # define JO_3D_MODEL_HEADER_SIZE                (24)

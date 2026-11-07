@@ -54,6 +54,7 @@
 #include "jo/light.h"
 #include "jo/level.h"
 #include "jo/cell.h"
+#include "internal/model.h"
 
 /** @brief The reflected room in a mirror is not drawn farther (world units) */
 #define JO_CELL_MIRROR_FAR                  (4000)

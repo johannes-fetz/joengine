@@ -45,6 +45,7 @@
 #include "jo/list.h"
 #include "jo/3d.h"
 #include "jo/light.h"
+#include "internal/3d.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 

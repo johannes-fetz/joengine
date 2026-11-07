@@ -296,6 +296,10 @@ void                                guards_hear_shot(const jo_pos3D_fixed * cons
 void                                guards_update_blood(const int elapsed);
 void                                guards_draw_blood(void);
 
+#ifdef DEMO_BENCH_DOORS_OPEN
+/** @brief The benchmark: open all the doors (kept open, see DEMO_BENCH_DOORS_OPEN in main.c) */
+void                                doors_bench_open(void);
+#endif
 #ifdef DEMO_BENCH
 /** @brief The benchmark: count persons (the scientists first) in rows in front of a point (x, z, the yaw of the view);
  *  scientists: the guards become scientists */

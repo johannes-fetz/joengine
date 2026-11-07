@@ -731,37 +731,6 @@ extern unsigned int                             _jo_work_start;
  */
 # define JO_SCSP_TOTAL_LEVEL(VOLUME)        (((127 - ((VOLUME) & 127)) << 1) & 0xFF)
 
-/** @brief Pitch register value for a sampling rate (Internal usage)
- *  @param rate Sampling rate in Hz (0 means JO_SCSP_BASE_SAMPLING_RATE)
- *  @return Octave and frequency number (JO_SCSP_PITCH())
- *  @remarks frequency = 44100 * 2^OCT * (1 + FNS / 1024)
- */
-static  __jo_force_inline unsigned short __jo_scsp_pitch(unsigned int rate)
-{
-    int                 oct;
-    unsigned int        base;
-    unsigned int        fns;
-
-    if (rate == 0)
-        rate = JO_SCSP_BASE_SAMPLING_RATE;
-    oct = 0;
-    base = JO_SCSP_BASE_SAMPLING_RATE;
-    while (rate < base && oct > -8)
-    {
-        base >>= 1;
-        --oct;
-    }
-    while (rate >= (base << 1) && oct < 7)
-    {
-        base <<= 1;
-        ++oct;
-    }
-    fns = ((rate - base) * JO_SCSP_FNS_PER_OCTAVE) / base;
-    if (fns > JO_SCSP_FNS_MAX)
-        fns = JO_SCSP_FNS_MAX;
-    return ((unsigned short)JO_SCSP_PITCH(oct, fns));
-}
-
 /*
 ** JO_SCSP_SLOT_MIXER fields
 */

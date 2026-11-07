@@ -268,28 +268,6 @@ bool    __jo_vdp2_reserve_nbg1_bitmap(void);
  */
 void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
 
-/** @brief Fill a rectangle in the NBG1 bitmap (Internal usage)
- *  @param x Horizontal position in the bitmap (wrapped around JO_VDP2_WIDTH)
- *  @param y Vertical position in the bitmap (wrapped around JO_VDP2_HEIGHT)
- *  @param width Rectangle width
- *  @param height Rectangle height
- *  @param color Fill color
- *  @remarks The rectangle wraps around the borders of the bitmap like the NBG1 scroll
- */
-void    __jo_vdp2_nbg1_bitmap_fill(const int x, const int y, int width, int height, const jo_color color);
-
-/** @brief Copy a part of an image in the NBG1 bitmap (Internal usage)
- *  @param img Image
- *  @param src_x Horizontal position of the part in the image
- *  @param src_y Vertical position of the part in the image
- *  @param width Part width (must be inside the image)
- *  @param height Part height (must be inside the image)
- *  @param x Horizontal position in the bitmap (wrapped around JO_VDP2_WIDTH)
- *  @param y Vertical position in the bitmap (wrapped around JO_VDP2_HEIGHT)
- *  @remarks The part wraps around the borders of the bitmap like the NBG1 scroll
- */
-void    __jo_vdp2_nbg1_bitmap_blit(const jo_img * const img, const int src_x, const int src_y, int width, int height, const int x, const int y);
-
 /*
 ███╗   ███╗ ██████╗ ██╗   ██╗███████╗       ██╗       ███████╗ ██████╗  ██████╗ ███╗   ███╗
 ████╗ ████║██╔═══██╗██║   ██║██╔════╝       ██║       ╚══███╔╝██╔═══██╗██╔═══██╗████╗ ████║

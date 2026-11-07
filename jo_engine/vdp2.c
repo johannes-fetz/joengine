@@ -48,6 +48,9 @@
 #include "jo/vdp2_malloc.h"
 #include "jo/list.h"
 #include "jo/3d.h"
+#include "internal/core.h"
+#include "internal/vdp2_malloc.h"
+#include "internal/vdp2.h"
 
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 void                                jo_init_nbg0_printf(void);

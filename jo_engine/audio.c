@@ -40,6 +40,8 @@
 #include "jo/malloc.h"
 #include "jo/fs.h"
 #include "jo/math.h"
+#include "internal/sega_saturn.h"
+#include "internal/fs.h"
 
 #ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
 

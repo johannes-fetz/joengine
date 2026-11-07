@@ -46,6 +46,7 @@
 #include "jo/vdp2.h"
 #include "jo/palette.h"
 #include "jo/vdp2_malloc.h"
+#include "internal/vdp2_malloc.h"
 
 typedef struct
 {

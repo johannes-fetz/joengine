@@ -258,13 +258,6 @@ jo_3d_model                                 *jo_3d_create_model_in_place(const u
  */
 jo_3d_model                                 *jo_3d_load_model(const char * const filename);
 
-/** @brief Load a model with a gouraud table per polygon (Internal usage: the cells, lit by the point lights, see
- *  jo_3d_point_lights_add_mesh()). jo_3d_load_model() gives one table to the polygons with the same colors
- *  @param filename File name
- *  @return The model, JO_NULL if not loaded
- */
-jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename);
-
 /** @brief The next models created or loaded get a gouraud table per polygon, in the order of the polygons (default: the
  *  polygons with the same 4 colors share a table): for a model whose tables the game writes again polygon by polygon (the
  *  light on a car)

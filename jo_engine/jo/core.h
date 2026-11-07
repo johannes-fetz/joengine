@@ -41,7 +41,6 @@
  *  @warning MC Hammer: don't touch this
  */
 extern char		__jo_last_error[JO_PRINTF_BUF_SIZE];
-void    __jo_core_error(char *message, const char *function);
 /** @brief The message formatted, then __jo_core_error() (Internal usage): one call at each of the hundreds of
  *  jo_core_error() (the formatting at each of them was about 4 KB of code), out of the hot code (cold) */
 void    __jo_core_errorf(const char *function, const char *format, ...) __attribute__((cold, noinline));
@@ -60,23 +59,6 @@ typedef void	(*jo_event_callback)(void);
 
 /** @brief Function prototype for interrupt handlers (Internal usage) */
 typedef void	(*jo_interrupt_handler)(void);
-
-/** @brief A pause in a busy wait loop (Internal usage): a division of the CPU (39 cycles), waited for
- *  @remarks Used where a CPU has nothing to do (the slave CPU waiting for a job, the master CPU for the VBLANK): an
- *           emulator runs 3 instructions for the 39 cycles instead of about 15 of a loop on the flag (Mednafen emulates
- *           the wait of the division unit: a game emulated 186 -> 193 % of the real time), and no bus access.
- *           Not in the waits of the master CPU for the VDP1 (__jo_vdp1_end_frame()): a view of a level went from 30 to
- *           25 frames per second (measured, not explained)
- *  @warning The division unit is changed: never between the start of a division and the read of its quotient (the
- *           interrupts save and restore it)
- */
-static  __jo_force_inline void      __jo_core_pause(void)
-{
-    JO_SH2_DVSR = 1;
-    // (writing the dividend starts the division, reading the quotient waits for its end)
-    JO_SH2_DVDNT = 0;
-    (void)JO_SH2_DVDNT;
-}
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
@@ -188,20 +170,6 @@ int     jo_core_master_wait_time(void);
 
 /** @brief Function of a job of the slave CPU (Internal usage) */
 typedef void	(*jo_slave_job_function)(void *argument);
-
-/** @brief Check if the slave CPU started (Internal usage)
- *  @return false if the slave CPU didn't start (the jobs are executed by the master CPU)
- */
-bool    __jo_core_is_slave_running(void);
-
-/** @brief Add a job to the queue of the slave CPU (Internal usage)
- *  @param function Function executed by the slave CPU
- *  @param argument Argument of the function
- *  @remarks The jobs are executed in order. The master CPU waits only if the queue is full.
- *           If the slave CPU didn't start, the function is executed now by the master CPU
- *  @remarks The slave CPU purges its cache before each job: the job reads the data written by the master CPU before this call
- */
-void    __jo_core_add_slave_job(const jo_slave_job_function function, void *argument);
 
 #endif
 
@@ -423,67 +391,6 @@ static  __jo_force_inline int       jo_core_get_fps(void)
 static  __jo_force_inline unsigned int  jo_core_get_late_frame_count(void)
 {
     return (__jo_core_late_frames);
-}
-
-/** @brief Wait for the end of the current frame (Internal usage)
- *  @remarks Send the VDP1 commands and wait for JO_FRAMERATE VBLANK
- */
-void                                __jo_core_synch(void);
-
-/** @brief Set an interrupt handler in the vector table (Internal usage)
- *  @param vector Interrupt vector number (JO_VECTOR_VBLANK_IN, etc)
- *  @param handler Function declared with __attribute__((interrupt_handler))
- */
-void                                __jo_core_set_interrupt_handler(const unsigned int vector, jo_interrupt_handler handler);
-
-/** @brief Unmask SCU interrupts (Internal usage)
- *  @param mask Interrupts (JO_SCU_INT_VBLANK_IN, etc)
- */
-void                                __jo_core_enable_scu_interrupts(const unsigned int mask);
-
-/** @brief Write the SCU interrupt mask again at the end of a SCU interrupt handler (Internal usage)
- *  @remarks When the CPU takes a SCU interrupt, the SCU masks all its interrupts (JO_SCU_IMS = JO_SCU_INT_ALL):
- *           without this call, no other SCU interrupt happens (the BIOS handlers do the same)
- */
-void                                __jo_core_restore_scu_mask(void);
-
-/** @brief Get CPU status register (Internal usage)
- *  @return Status register value
- */
-static  __jo_force_inline unsigned int  __jo_core_get_sr(void)
-{
-    unsigned int                    sr;
-
-    __asm__ volatile ("stc sr, %0" : "=r" (sr));
-    return (sr);
-}
-
-/** @brief Set CPU status register (Internal usage)
- *  @param sr Status register value (JO_SH2_SR_INTERRUPT_MASK bits: interrupt mask level)
- */
-static  __jo_force_inline void      __jo_core_set_sr(const unsigned int sr)
-{
-    __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
-}
-
-/** @brief Mask all interrupts (Internal usage)
- *  @return Previous status register for __jo_core_restore_interrupts()
- */
-static  __jo_force_inline unsigned int  __jo_core_disable_interrupts(void)
-{
-    unsigned int                    sr;
-
-    sr = __jo_core_get_sr();
-    __jo_core_set_sr(sr | JO_SH2_SR_INTERRUPT_MASK);
-    return (sr);
-}
-
-/** @brief Restore interrupts masked by __jo_core_disable_interrupts() (Internal usage)
- *  @param sr Value returned by __jo_core_disable_interrupts()
- */
-static  __jo_force_inline void      __jo_core_restore_interrupts(const unsigned int sr)
-{
-    __jo_core_set_sr(sr);
 }
 
 #endif /* !__JO_CORE_H__ */

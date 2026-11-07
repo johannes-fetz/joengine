@@ -505,6 +505,10 @@ static void                     door_update(jo_entity * const entity, const int 
             // (it closes after a while, not while someone is near it)
             if (someone_near(entity))
                 d->wait = DOOR_OPEN_TIME;
+#ifdef DEMO_BENCH_DOORS_OPEN
+            // (the benchmark: kept open, see doors_bench_open())
+            d->wait = DOOR_OPEN_TIME;
+#endif
             d->wait -= elapsed;
             if (d->wait <= 0)
                 door_start_closing(entity, d);
@@ -602,6 +606,18 @@ static bool                     door_action(jo_entity * const entity, const int 
     }
     return (true);
 }
+
+#ifdef DEMO_BENCH_DOORS_OPEN
+void                            doors_bench_open(void)
+{
+    jo_entity                   *e;
+    int                         k;
+
+    for (k = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+        if (e->cls == &door_class && e->state == DOOR_CLOSED)
+            door_action(e, JO_LEVEL_ACTION_TRIGGER, 0, JO_NULL);
+}
+#endif
 
 int                             doors_depth_bias(const jo_entity * const entity)
 {

@@ -37,6 +37,8 @@
 #include "jo/math.h"
 #include "jo/core.h"
 #include "jo/input.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
 
 /*
 ** The SMPC system status and the peripheral data are requested once per frame

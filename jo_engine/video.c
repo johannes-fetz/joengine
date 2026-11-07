@@ -43,6 +43,9 @@
 #include "jo/image.h"
 #include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
+#include "internal/sega_saturn.h"
+#include "internal/fs.h"
+#include "internal/sprites.h"
 
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 

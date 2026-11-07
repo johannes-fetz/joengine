@@ -295,18 +295,10 @@ typedef struct
     unsigned int        smpc_memory;
 }                       jo_smpc_status;
 
-/** @brief SMPC status, refreshed every frame (Internal usage) */
-extern jo_smpc_status   __jo_smpc_status;
-
 /** @brief Send a command to the SMPC and wait for the end of the command (Internal usage)
  *  @param command SMPC command
  */
 void                    __jo_smpc_command(const jo_smpc_command command);
-
-/** @brief Read the light guns (Internal usage): called first in the VBLANK-IN interrupt (before any other read of TVSTAT,
- *  which clears the flag of the latch)
- */
-void                    __jo_smpc_gun_vblank(void);
 
 /** @brief Enable or disable the reset button, nested calls (Internal usage, see jo_core_disable_reset())
  *  @param enabled false: disable (once more), true: enable when every disable has its enable

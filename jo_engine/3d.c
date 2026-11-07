@@ -47,6 +47,11 @@
 #include "jo/profile.h"
 #include "jo/dsp.h"
 #include "dsp_xform.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/sprites.h"
+#include "internal/3d.h"
+#include "internal/profile.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
@@ -471,7 +476,7 @@ void                                        jo_3d_slave_set_tint(const unsigned 
     __jo_3d_slave_tint = tint;
 }
 
-void                                        __jo_3d_tint_new_frame(void)
+static void                                 __jo_3d_tint_new_frame(void)
 {
     __jo_3d_tint_frame_first_clock = __jo_3d_tint_clock + 1;
 }

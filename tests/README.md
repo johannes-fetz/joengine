@@ -123,6 +123,7 @@ full mode, and in the quick mode when `--only` names the sample (`run_tests.bat 
 |---|---|---|---|
 | `demo - first person shooter` | persons drawn on the walkway | `DEMO_BENCH DEMO_BENCH_VIEW=6 DEMO_BENCH_CHECK` | each person in the view of a frame is drawn in it, over 192 frames (the guard of the walkway vanished and came back: the persons out of the view in the bottling room below took the VDP1 budget of the persons, 83 missed before the fix of `plan_draw()`, 0 after) |
 | `demo - first person shooter` | persons drawn in the laboratory | `DEMO_BENCH DEMO_BENCH_VIEW=1 DEMO_BENCH_CHECK` | the same rule with 2 scientists and 2 guards |
+| `demo - first person shooter` | persons drawn through the airlock | `DEMO_BENCH DEMO_BENCH_VIEW=7 DEMO_BENCH_DOORS_OPEN DEMO_BENCH_HIDDEN DEMO_BENCH_CHECK` | the same rule from the gallery, the guard of the walkway far away through the 2 open doors of the airlock (he vanished: all the polygons of the cells found counted as VDP1 commands; failed before the fix of `plan_draw()`, 0 missed of 576 after) |
 
 To add a check to a sample: a mode of the sample (a define) that plays a scene without input and counts what must hold
 in each frame, then shows the verdict with `jo_set_default_background_color(JO_COLOR_Green)` or `JO_COLOR_Red` over the

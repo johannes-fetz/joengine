@@ -255,6 +255,7 @@ typedef struct
                                                     // model, -1 not drawn (out of the view, the table of the VDP1 nearly full)
     int                             commands;       // VDP1 commands of his last drawing (written by the CPU that drew him)
     bool                            commands_far;   // ... with his far model
+    int                             drawn_frame;    // The frame of his last drawing (written by the CPU that drew him)
 #ifdef DEMO_BENCH_CHECK
     int                             check_seen;     // The check of the benchmark (see check_persons()): the frame in which he
                                                     // was in the view, -1: not in the view
@@ -2063,9 +2064,25 @@ static void                         check_persons(void)
 }
 #endif
 
-/** @brief The VDP1 commands left for the persons in this frame (see plan_draw()), the frame of the plan */
+/** @brief The VDP1 commands left for the persons in this frame (see plan_draw()), the frame of the plan, the polygons of
+ *  the cells found in the frame before */
 static int                          persons_commands_left = 0;
 static int                          persons_plan_frame = -1;
+static int                          persons_cells_before = 0;
+
+/** @brief The VDP1 commands of the persons drawn in a frame (by both CPUs) */
+static int                          persons_commands_of(const int frame)
+{
+    const jo_entity                 *e;
+    const guard                     *g;
+    int                             total;
+    int                             k;
+
+    for (k = 0, total = 0; (e = jo_entity_get(k)) != JO_NULL; ++k)
+        if (is_person(e) && (g = (const guard *)e->data) != JO_NULL && *(volatile int *)JO_CACHE_THROUGH(&g->drawn_frame) == frame)
+            total += *(volatile int *)JO_CACHE_THROUGH(&g->commands);
+    return (total);
+}
 
 /** @brief How a person is drawn in this frame (his far model, or not at all when the table of the VDP1 is nearly full),
  *  decided by the master CPU before the drawing (jo_entities_prepare_draw() calls the tint of the class), in the order of
@@ -2080,10 +2097,22 @@ static void                         plan_draw(const jo_entity * const e, guard *
 
     if (persons_plan_frame != frame_counter)
     {
-        // (the polygons of the cells found: all of them, even the ones that will face away: a margin for the other
-        // entities)
+        int                         others;
+        int                         cells;
+
+        // The commands of everything else in the frame before (the cells, the other entities, the weapon, the HUD): the
+        // commands of the frame (both CPUs) without the ones of the persons. More cells found than in the frame before:
+        // all their polygons added (a margin: some of them will face away).
+        // (with all the polygons of the cells found, as if each one became a command, the budget was far too small: from
+        // the gallery through the 2 doors of the airlock, 750 to 850 polygons of cells for about 400 commands in the
+        // frame, nothing left for the guard on the walkway (3 to 54 commands for the 60 of his far model): he vanished and
+        // came back as the agent moved. DEMO_BENCH_CHECK, view 7, 7/11/2026: FAIL before this budget, 576 persons in the view
+        // and 0 missed after, 0 late frame)
         persons_plan_frame = frame_counter;
-        persons_commands_left = jo_vdp1_command_max() - GUARD_RESERVE_COMMANDS - jo_cells_prepared_polygon_count();
+        cells = jo_cells_prepared_polygon_count();
+        others = jo_vdp1_command_count() - persons_commands_of(frame_counter - 1) + JO_MAX(cells - persons_cells_before, 0);
+        persons_cells_before = cells;
+        persons_commands_left = jo_vdp1_command_max() - GUARD_RESERVE_COMMANDS - others;
 #ifdef DEMO_BENCH_CHECK
         check_persons();
 #endif
@@ -2151,13 +2180,14 @@ static void                         guard_draw(jo_entity * const e)
     if (g != JO_NULL)
     {
         // (planned in jo_entities_prepare_draw(), see plan_draw(); the table of the master CPU nearly full: not drawn)
-        if (g->draw_mode < 0 || jo_vdp1_command_max() - __jo_vdp1_frame_command_count() - GUARD_RESERVE_COMMANDS < GUARD_FAR_COMMANDS)
+        if (g->draw_mode < 0 || jo_vdp1_command_max() - jo_vdp1_frame_command_count() - GUARD_RESERVE_COMMANDS < GUARD_FAR_COMMANDS)
             return;
         e->far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
+        g->drawn_frame = frame_counter;
 #ifdef DEMO_BENCH_CHECK
         *(volatile int *)JO_CACHE_THROUGH(&g->check_drawn) = g->check_seen;
 #endif
-        commands = __jo_vdp1_frame_command_count();
+        commands = jo_vdp1_frame_command_count();
         // (the copies of the models of the master CPU: only this CPU writes their faces)
         model = g->actor.model;
         far_model = g->actor.far_model;
@@ -2174,7 +2204,7 @@ static void                         guard_draw(jo_entity * const e)
     {
         g->actor.model = model;
         g->actor.far_model = far_model;
-        g->commands = __jo_vdp1_frame_command_count() - commands;
+        g->commands = jo_vdp1_frame_command_count() - commands;
         g->commands_far = far_model != JO_NULL && e->view_distance > e->far_distance;
     }
 }
@@ -2197,6 +2227,7 @@ static void                         guard_draw_slave(jo_entity * const e)
             GUARD_FAR_COMMANDS)
             return;
         far_distance = g->draw_mode == 1 ? 0 : g->far_distance;
+        *(volatile int *)JO_CACHE_THROUGH(&g->drawn_frame) = frame_counter;
 #ifdef DEMO_BENCH_CHECK
         *(volatile int *)JO_CACHE_THROUGH(&g->check_drawn) = *(volatile int *)JO_CACHE_THROUGH(&g->check_seen);
 #endif

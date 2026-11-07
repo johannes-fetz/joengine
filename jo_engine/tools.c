@@ -42,6 +42,9 @@
 #include "jo/colors.h"
 #include "jo/image.h"
 #include "jo/vdp2.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
+#include "internal/tools.h"
 
 /*
 ** GLOBALS

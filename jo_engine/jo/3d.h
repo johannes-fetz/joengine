@@ -300,20 +300,6 @@ typedef struct
     unsigned short                  count;          // Number of points
 }                                   jo_3d_part;
 
-/** @brief Draw polygons whose points are in parts, each one transformed by its own matrix: the bones of a skeleton
- *  (one draw for the whole model, see jo_3d_model_draw_pose()) (Internal usage)
- *  @param pdata Polygon data (vertices, polygons and attributes)
- *  @param parts Parts (the points not in a part are not transformed: the polygons must not use them)
- *  @param part_count Number of parts
- *  @return false if the VDP1 command table is full
- */
-bool                                __jo_3d_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
-                                                       const int part_count);
-
-/** @brief Draw the parts of a mesh on the slave CPU (see __jo_3d_draw_parts(), internal usage) */
-bool                                __jo_3d_slave_draw_parts(const jo_3d_polygon_data * const pdata, const jo_3d_part * const parts,
-                                                       const int part_count);
-
 /** @brief Draw polygons using the current matrix (Internal usage)
  *  @param pdata Polygon data (vertices, polygons and attributes)
  *  @param point_count Number of points transformed (the first ones of pdata)
@@ -1370,27 +1356,11 @@ void                                jo_3d_transform_point(const jo_pos3D_fixed *
 void                                jo_3d_transform_point_by(const jo_fixed (* const m)[3], const jo_pos3D_fixed * const in,
                                                              jo_pos3D_fixed * const out);
 
-/** @brief The matrix of a bone (Internal usage, see jo_3d_model_draw_pose()): the matrix of its parent turned around its
- *  joint (the same operations as jo_3d_translate_matrix_fixed() and __jo_3d_rotate() on the current matrix)
- *  @param out Matrix of the bone (output)
- *  @param parent Matrix of its parent
- *  @param pivot Joint
- *  @param angles Around X, Y and Z
- */
-void                                __jo_3d_bone_matrix(jo_fixed (* const out)[3], const jo_fixed (* const parent)[3],
-                                                        const jo_pos3D_fixed * const pivot, const jo_angle * const angles);
-
-/** @brief The current matrix (Internal usage): 4 rows of 3 */
-jo_fixed                            (*__jo_3d_current_matrix(void))[3];
-
 /** @brief Select the window of the next drawings of the slave CPU (call it on the slave CPU; jo_3d_slave_begin() selects
  *  the window of the master CPU, see jo_3d_select_window())
  *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
  */
 void                                jo_3d_slave_select_window(const int window);
-
-/** @brief The current matrix of the slave CPU (Internal usage): 4 rows of 3 */
-jo_fixed                            (*__jo_3d_slave_current_matrix(void))[3];
 
 /** @brief Copy the current matrix
  *  @param m Output: 12 values, 4 rows of 3 values. Rows 0 to 2: the rotation (m[2], m[5], m[8] is the direction of the
@@ -1602,21 +1572,6 @@ void                                jo_3d_set_texture_subdivision_error(const in
  */
 bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
 
-/** @brief Forget the tiles and the smaller copies of the textures freed from a sprite (Internal usage, see
- *  jo_3d_model_free_textures_from())
- *  @param sprite_id First sprite freed
- */
-void                                __jo_3d_forget_sprites_from(const int sprite_id);
-
-/** @brief Forget the tinted copies of the gouraud tables of a mesh: its polygons got other tables (Internal usage, see
- *  jo_3d_point_lights_add_mesh())
- *  @param pdata Polygons of the mesh
- */
-void                                __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata);
-
-/** @brief Forget the environment map of a mesh freed (Internal usage, see jo_3d_free_mesh()) */
-void                                __jo_3d_forget_environment(const jo_3d_polygon_data * const pdata);
-
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /*
@@ -1769,12 +1724,6 @@ void                                jo_3d_slave_set_kept_commands(const int coun
  */
 unsigned short                      jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count);
 
-/** @brief Sprites freed from a sprite (see jo_sprite_free_from()): the shared sprite of the gouraud tables is dropped
- *  if it is among them
- *  @param sprite_id First sprite freed
- */
-void                                __jo_3d_gouraud_pool_freed(const int sprite_id);
-
 /** @brief Give back gouraud tables of jo_3d_add_gouraud_tables() (jo_3d_free_model() gives back the tables of a model)
  *  @param adr Address / 8 returned by jo_3d_add_gouraud_tables()
  *  @param count Table count given to jo_3d_add_gouraud_tables()
@@ -1818,9 +1767,6 @@ void                                jo_3d_slave_set_tint(const unsigned short ti
  *  @param mesh Mesh
  */
 void                                jo_3d_prepare_tint(const jo_3d_mesh * const mesh);
-
-/** @brief Start the frame of the tints (internal usage, see jo_3d_set_tint()) */
-void                                __jo_3d_tint_new_frame(void);
 
 /** @brief Environment map of a mesh (a reflection, like the paint of a car): its polygons set by
  *  jo_3d_set_mesh_polygon_environment() show a tile of a picture of the surroundings, the tile of the direction of their

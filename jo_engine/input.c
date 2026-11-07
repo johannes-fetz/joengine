@@ -39,6 +39,7 @@
 #include "jo/tools.h"
 #include "jo/malloc.h"
 #include "jo/input.h"
+#include "internal/core.h"
 
 # define JO_INPUT_SPIN_WAIT     (16)
 

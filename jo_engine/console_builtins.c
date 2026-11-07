@@ -49,7 +49,7 @@
 #include "jo/vdp1_command_pipeline.h"
 #include "jo/sprites.h"
 #include "jo/vdp2.h"
-#include "jo/console_builtins.h"
+#include "internal/console_builtins.h"
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
 #ifndef JO_COMPILE_NO_CONSOLE_BUILTINS

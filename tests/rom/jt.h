@@ -9,6 +9,11 @@
 # define __JT_H__
 
 # include <jo/jo.h>
+/* (white-box tests: the internal functions and variables of the engine, not in jo/jo.h) */
+# include "internal/core.h"
+# include "internal/vdp1_command_pipeline.h"
+# include "internal/3d.h"
+# include "internal/fs.h"
 
 /** @brief Count of the elements of an array */
 # define JT_COUNT(ARRAY)            ((int)(sizeof(ARRAY) / sizeof((ARRAY)[0])))

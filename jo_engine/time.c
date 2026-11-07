@@ -37,6 +37,7 @@
 #include "jo/time.h"
 #include "jo/core.h"
 #include "jo/time.h"
+#include "internal/core.h"
 
 void                                    jo_time_init(unsigned char mode)
 {

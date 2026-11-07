@@ -54,6 +54,10 @@
 #include "jo/keyboard.h"
 #include "jo/3d.h"
 #include "jo/profile.h"
+#include "internal/smpc.h"
+#include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/profile.h"
 
 /*
 ** DEFINITIONS

@@ -246,13 +246,6 @@ void            jo_dma_copy(const void * const src, void * const dest, const uns
   */
 void            jo_dma_fill32(void * const dest, const unsigned int value, const unsigned int size);
 
-/** @brief Read a 32 bits I/O port into memory with the DMA controller of the current CPU (Internal usage)
-  * @param port Port address (the address doesn't change)
-  * @param dest Destination (4 bytes aligned)
-  * @param size Size in bytes (multiple of 4)
-  */
-void            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size);
-
 /** @brief NULL implementation
  */
 # define JO_NULL                            ((void *)0)

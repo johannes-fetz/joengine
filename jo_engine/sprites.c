@@ -45,6 +45,9 @@
 #include "jo/math.h"
 #include "jo/list.h"
 #include "jo/3d.h"
+#include "internal/vdp1_command_pipeline.h"
+#include "internal/sprites.h"
+#include "internal/3d.h"
 
 /*
 ** MACROS

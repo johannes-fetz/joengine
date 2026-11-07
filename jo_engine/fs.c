@@ -39,6 +39,8 @@
 #include "jo/fs.h"
 #include "jo/tools.h"
 #include "jo/malloc.h"
+#include "internal/tools.h"
+#include "internal/fs.h"
 
 /** @brief Read retry
  */
@@ -811,7 +813,7 @@ int                             __jo_fs_get_file_size(void *handle)
     return (((jo_fs_handle *)handle)->size);
 }
 
-int                             __jo_fs_get_sector_count(void *handle)
+static int                      __jo_fs_get_sector_count(void *handle)
 {
     return (((jo_fs_handle *)handle)->sector_count);
 }

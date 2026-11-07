@@ -97,12 +97,6 @@ static  __jo_force_inline void  *jo_vdp2_malloc_autosize(const jo_vdp2_ram_usage
     return (jo_vdp2_malloc(usage, ~0));
 }
 
-/** @brief Whether jo_vdp2_malloc() would return the start of the bank A0 for n bytes (bitmap, line scroll, cells)
- *  @param n Size in bytes
- *  @return true if the next allocation of n bytes there is at JO_VDP2_VRAM_A0
- */
-bool                            __jo_vdp2_a0_start_is_free(const unsigned int n);
-
 /** @brief function frees VDP2 memory space pointed to by p
  *  @param p pointer that must have been returned by a previous call to jo_vdp2_malloc()
  */

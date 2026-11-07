@@ -216,8 +216,6 @@ unsigned int                        jo_profile_vdp1_last(void);
  *  @param enabled true to count them (about 2 microseconds more per polygon), false by default
  */
 void                                jo_profile_count_pixels(const bool enabled);
-/** @brief The pixels of the polygons are counted (see jo_profile_count_pixels()) */
-extern bool                         __jo_profile_pixels;
 
 /** @brief Give a name to a measure of the program (shown by jo_profile_print())
  *  @param slot Measure (JO_PROFILE_USER(N))
@@ -257,18 +255,6 @@ void                                        jo_profile_sampling_stop(void);
  */
 void                                jo_profile_sampling_start(unsigned int *master_histogram, unsigned int *slave_histogram);
 
-/** @brief A job of the slave CPU starts (Internal usage, called by the slave CPU): its maximums are reset if the master CPU
- *  asked for it (see __jo_profile_end_frame()) */
-void                                __jo_profile_slave_job(void);
-
-/** @brief Initialize the profiler (Internal usage, called by jo_core_init()) */
-void                                __jo_profile_init(void);
-
-/** @brief End of a frame (Internal usage, called by jo_core_run()) */
-void                                __jo_profile_end_frame(void);
-
-/** @brief The VDP1 starts drawing a new command table (Internal usage, called during the VBLANK) */
-void                                __jo_profile_vdp1_start(void);
 
 #else
 
@@ -279,7 +265,6 @@ void                                __jo_profile_vdp1_start(void);
 # define jo_profile_print(X, Y)                 do {} while (0)
 # define jo_profile_count_pixels(ENABLED)       do {} while (0)
 # define jo_profile_sampling_start(M, S)        do {} while (0)
-# define __jo_profile_slave_job()               do {} while (0)
 
 #endif /* !JO_COMPILE_WITH_PROFILER_SUPPORT */
 

@@ -42,8 +42,9 @@
 #include "jo/tools.h"
 #include "jo/malloc.h"
 #include "jo/list.h"
-#include "jo/console_builtins.h"
+#include "internal/console_builtins.h"
 #include "jo/console.h"
+#include "internal/core.h"
 
 #ifdef JO_COMPILE_WITH_CONSOLE_SUPPORT
 

@@ -48,6 +48,7 @@
 #include "jo/sprite_animator.h"
 #include "jo/list.h"
 #include "jo/3d.h"
+#include "internal/vdp2.h"
 
 #define JO_MAP_PARSER_BUF_SIZE	(8)
 
