@@ -193,6 +193,15 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
     void                        *ptr;
     unsigned char               *start;
 
+    // (a size bigger than the whole VRAM must not wrap the tests of the ends of the banks: start + n)
+    if (n > 0x80000 && usage != JO_VDP2_RAM_BACK_COLOR && usage != JO_VDP2_RAM_RTABLE && usage != JO_VDP2_RAM_KTABLE &&
+        usage != JO_VDP2_RAM_COLOR)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of VDP2 memory");
+#endif
+        return (JO_NULL);
+    }
     switch (usage)
     {
         case JO_VDP2_RAM_BACK_COLOR:

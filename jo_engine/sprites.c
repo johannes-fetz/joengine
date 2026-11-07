@@ -242,8 +242,10 @@ static int                  __internal_jo_sprite_add_prefix(void * const data, c
                            texture->height,
                            picture->color_mode);
     }
-    // Not enough VDP1 VRAM for the texture
-    if (JO_VDP1_VRAM + __jo_get_next_sprite_address(__jo_sprite_addr + prefix, width, height, cmode) > JO_VDP1_USER_AREA_END_ADDR)
+    // Not enough VDP1 VRAM for the texture (the size in 64 bits: __jo_get_next_sprite_address() masks it to the 512 KB of the
+    // VRAM, so a texture of 512 KB or more would pass as a small one and its copy would overwrite what follows)
+    if (JO_VDP1_VRAM + __jo_get_next_sprite_address(__jo_sprite_addr + prefix, width, height, cmode) > JO_VDP1_USER_AREA_END_ADDR ||
+        ((unsigned long long)width * height * 4 >> cmode) > (unsigned long long)(JO_VDP1_USER_AREA_END_ADDR - (JO_VDP1_VRAM + __jo_sprite_addr + prefix)))
     {
 #ifdef JO_DEBUG
         jo_core_error("Out of sprite memory (%dx%d)", width, height);

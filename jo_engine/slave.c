@@ -337,7 +337,10 @@ void                                jo_core_slave_init(void)
     JO_SLAVE_QUEUE_TAIL = 0;
     JO_SLAVE_USER_DONE = 0;
     JO_SLAVE_IDLE_TICKS = 0;
-    JO_SLAVE_MASTER_WAITING = 0;
+    // (as after a jo_core_wait_for_slave(): the slave CPU counts its idle time from the first jo_core_exec_on_slave(). At 0,
+    // the waits of the jobs of the engine (3D) were added until then: after 2.6 s of idle time, the first
+    // jo_core_slave_idle_time() overflowed (ticks x 1000), a big negative time)
+    JO_SLAVE_MASTER_WAITING = 1;
     JO_SLAVE_USER_ADDED = 0;
     JO_ZERO(__jo_slave_last_idle_ticks);
     JO_ZERO(__jo_slave_idle_time);

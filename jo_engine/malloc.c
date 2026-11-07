@@ -152,7 +152,9 @@ static jo_memory_block  *jo_malloc_new_block(const int zone, const unsigned int 
     jo_memory_block     *block;
 
     block = (jo_memory_block *)memory_zones[zone].high;
-    if (((unsigned char *)block + n) > memory_zones[zone].end)
+    // (the room left, not block + n: a huge n (jo_malloc(-100000)) wrapped the address around, the block was accepted
+    // and the top of the zone went back over the blocks in use)
+    if (n > (unsigned int)(memory_zones[zone].end - (unsigned char *)block))
         return (JO_NULL);
     memory_zones[zone].high += n;
     block->zone = zone;

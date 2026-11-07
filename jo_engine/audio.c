@@ -725,6 +725,21 @@ static void                         jo_audio_channel_off(const unsigned int chan
     __jo_audio_channels[channel].active = false;
 }
 
+/** @brief Stop the channels that play a sound copied in an area of the sound RAM taken now by a resident sound or by the
+ *  music (the copy is overwritten: a loop, the engine of a vehicle, played the new data, a strident noise)
+ *  @param start Start of the area (offset in sound RAM)
+ *  @param end End of the area (excluded)
+ */
+static void                         jo_audio_stop_channels_in(const unsigned int start, const unsigned int end)
+{
+    register unsigned int           c;
+
+    for (JO_ZERO(c); c < JO_SOUND_MAX_CHANNEL; ++c)
+        if (jo_audio_channel_status(c) && __jo_audio_channels[c].offset < end &&
+            __jo_audio_channels[c].offset + __jo_audio_channels[c].size > start)
+            jo_audio_channel_off(c);
+}
+
 bool                jo_audio_is_channel_playing(const unsigned char channel)
 {
 #ifdef JO_DEBUG
@@ -1171,6 +1186,7 @@ bool                jo_audio_make_resident(jo_sound *sound)
             __jo_audio_cache[i].data = JO_NULL;
     if (__jo_audio_alloc_next > start)
         __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
+    jo_audio_stop_channels_in(start, __jo_audio_resident_start);
     __jo_audio_resident_start = start;
     jo_dma_copy(sound->data, (void *)(JO_SOUND_RAM + start), size);
     jo_audio_forget_pcm(sound->data);
@@ -1880,6 +1896,7 @@ bool                                jo_audio_play_music(const char * const filen
                 __jo_audio_cache[len].data = JO_NULL;
         if (__jo_audio_alloc_next > __jo_audio_music_sound_ram)
             __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
+        jo_audio_stop_channels_in(__jo_audio_music_sound_ram, __jo_audio_resident_start);
         __jo_audio_resident_start = __jo_audio_music_sound_ram;
     }
     if ((__jo_audio_music.buffer = (unsigned char *)jo_malloc(JO_AUDIO_MUSIC_BUFFER_SIZE)) == JO_NULL)

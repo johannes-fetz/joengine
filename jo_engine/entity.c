@@ -75,6 +75,7 @@ typedef struct
     short                           target;         // -1: free
     short                           source;         // -1: the game
     unsigned short                  action;
+    unsigned short                  update;         // The update that queued it (see __jo_entity_update_count)
     int                             time;           // Milliseconds left
     int                             param;
 }                                   __jo_entity_pending;
@@ -120,6 +121,8 @@ static __jo_entity_pending          __jo_entity_pendings[JO_ENTITY_MAX_PENDING];
 static __jo_entity_model            __jo_entity_models[JO_ENTITY_MAX_MODELS];
 static int                          __jo_entity_model_count = 0;
 static int                          __jo_entity_depth = 0;
+/** @brief Number of jo_entities_update(): an action queued during an update waits for the next one (its delay counts from it) */
+static unsigned short               __jo_entity_update_count = 0;
 static jo_pos3D_fixed               __jo_entity_player;
 static jo_entity_area_damage_callback __jo_entity_area_damage = JO_NULL;
 static void                         __jo_entity_register_engine_classes(void);
@@ -470,6 +473,7 @@ static void                         __jo_entity_queue(const int target, const in
             p->target = (short)target;
             p->source = (short)source;
             p->action = (unsigned short)action;
+            p->update = __jo_entity_update_count;
             p->time = delay;
             p->param = param;
             return;
@@ -610,12 +614,15 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
     jo_entity                       *e;
 
     __jo_entity_player = *player;
+    ++__jo_entity_update_count;
     // (the flags set directly since the last update)
     __jo_entities_list_solids();
     // The delayed actions (the ones added now wait for the next update)
     for (k = 0, p = __jo_entity_pendings; k < JO_ENTITY_MAX_PENDING; ++k, ++p)
     {
-        if (p->target < 0)
+        // (an action queued by an action of this loop in a slot after it: its delay counted from the next update, the
+        // same as the ones queued by the classes. Its time went down at once, a delay shorter than the update was none)
+        if (p->target < 0 || p->update == __jo_entity_update_count)
             continue;
         // (a slot never used: the table starts at 0, before the first jo_entities_free())
         if (p->target >= __jo_entity_count || p->source >= __jo_entity_count)
@@ -635,10 +642,12 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
     {
         if (e->cls->update == JO_NULL || (e->flags & JO_ENTITY_FLAG_DISABLED))
             continue;
-        dx = JO_ABS(jo_fixed2int(e->position.x - player->x));
-        dz = JO_ABS(jo_fixed2int(e->position.z - player->z));
+        // (from the edge of its cylinder: a trigger zone wider than a short wake distance missed the player who went in it
+        // near its edge, and his exit)
+        dx = JO_ABS(jo_fixed2int(e->position.x - player->x)) - e->radius;
+        dz = JO_ABS(jo_fixed2int(e->position.z - player->z)) - e->radius;
         // (seen: drawn in the last frame, see jo_entities_prepare_draw())
-        if (e->timer > 0 || (dx < __jo_entity_wake_distance && dz < __jo_entity_wake_distance) ||
+        if (e->timer > 0 || (__jo_entity_wake_distance > 0 && dx < __jo_entity_wake_distance && dz < __jo_entity_wake_distance) ||
                 (__jo_entity_wake_when_seen && e->view_distance >= 0))
             e->cls->update(e, elapsed);
     }
@@ -1194,7 +1203,10 @@ jo_entity                           *jo_entities_ray_hit(const jo_pos3D_fixed * 
             continue;
         px = jo_fixed2int(e->position.x - origin->x);
         pz = jo_fixed2int(e->position.z - origin->z);
-        if (JO_ABS(px) > range + e->radius || JO_ABS(pz) > range + e->radius)
+        // (a turned box: in the square of half side box_x + box_z around its center, see __jo_entity_blocks(). Its radius
+        // was used: a long box with a small radius was missed by a short ray toward its end, a bullet stopped by the wall behind)
+        b = e->box_z > 0 ? e->box_x + e->box_z + 1 : e->radius;
+        if (JO_ABS(px) > range + b || JO_ABS(pz) > range + b)
             continue;
         if (e->box_z > 0)
         {
@@ -1213,8 +1225,9 @@ jo_entity                           *jo_entities_ray_hit(const jo_pos3D_fixed * 
         }
         b = px * (dir->x >> 1) + pz * (dir->z >> 1);
         c = px * px + pz * pz - e->radius * e->radius;
-        // Away from the ray, or the origin in the cylinder
-        if (b <= 0 || c <= 0)
+        // Away from the ray, or the origin in the cylinder (a cylinder without radius: nothing to hit, its normal was divided
+        // by 0 when a ray went through its axis)
+        if (b <= 0 || c <= 0 || e->radius <= 0)
             continue;
         // (b is b / 2 in Q16: no overflow up to 30000 world units)
         disc = (long long)b * b * 4 - (long long)a * ((long long)c << 16);

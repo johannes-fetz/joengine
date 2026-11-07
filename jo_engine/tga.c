@@ -121,10 +121,13 @@ static  __jo_force_inline jo_color          jo_tga_get_pixel(const char * const 
 t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const char * const sub_dir, const char * const filename, char **restrict stream, int *bits)
 {
     __jo_tga_header                         *header;
+    int                                     len;
 
+    // (the length of the file read here: 0 for a stream of the caller, its length is not known)
+    JO_ZERO(len);
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
-        *stream = jo_fs_read_file_in_dir(filename, sub_dir, JO_NULL);
+        *stream = jo_fs_read_file_in_dir(filename, sub_dir, &len);
 #else
     JO_UNUSED_ARG(sub_dir);
     if (*stream == JO_NULL)
@@ -138,7 +141,12 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     *bits = header->image_pixel_size;
     // (not compressed: 1 color mapped, 2 true color, 3 gray. The RLE images (9 to 11) are not supported: read as raw, the
     // pixels were wrong and read after the end of the file)
-    if (!JO_TGA_SUPPORTED_FORMAT(*bits) || header->image_type < 1 || header->image_type > 3)
+    // (a file shorter than its header says, or than a header: the pixels were read after its end)
+    if (!JO_TGA_SUPPORTED_FORMAT(*bits) || header->image_type < 1 || header->image_type > 3 ||
+        (len > 0 && ((unsigned int)len < sizeof(*header) ||
+                     (unsigned long long)len < sizeof(*header) + header->id_length +
+                     (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth) : 0) +
+                     (unsigned long long)img->width * img->height * JO_DIV_BY_8(*bits))))
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: Unsupported TGA (%d bits, type %d)", filename, *bits, header->image_type);
@@ -147,7 +155,9 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
             jo_free(*stream);
         return (JO_TGA_UNSUPPORTED_FORMAT);
     }
-    if (img->data == JO_NULL)
+    // (the size in 64 bits: a damaged header must not wrap it to a small block, then filled with the whole picture)
+    if (img->data == JO_NULL &&
+        (unsigned long long)img->height * img->width * (*bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)) < 0x01000000ull)
         img->data = jo_malloc_with_behaviour(img->height * img->width * (*bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)), JO_MALLOC_TRY_REUSE_BLOCK);
     if (img->data == JO_NULL)
     {
@@ -334,6 +344,17 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
             return (JO_TGA_UNSUPPORTED_FORMAT);
         }
 #endif
+        // (a tile out of the image: read before or after the pixels of the file, as jo_sprite_add_bin_tileset())
+        if (tileset[i].x < 0 || tileset[i].y < 0 || tileset[i].x + tileset[i].width > full_image.width ||
+            tileset[i].y + tileset[i].height > full_image.height)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("%s: tile %d out of the image", filename, i);
+#endif
+            jo_tga_free_allocated_tiles(output_tiles, allocated, i);
+            jo_free(stream_begin);
+            return (JO_TGA_UNSUPPORTED_FORMAT);
+        }
         output_tiles[i].width = tileset[i].width;
         output_tiles[i].height = tileset[i].height;
         if (output_tiles[i].data == JO_NULL)
@@ -409,6 +430,18 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
             return (-1);
         }
 #endif
+        // (a tile out of the image: read before or after the pixels of the file, as jo_sprite_add_bin_tileset())
+        if (tileset[i].x < 0 || tileset[i].y < 0 || tileset[i].x + tileset[i].width > full_image.width ||
+            tileset[i].y + tileset[i].height > full_image.height)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("%s: tile %d out of the image", filename, i);
+#endif
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
+            jo_free(stream_begin);
+            return (-1);
+        }
         tile_image.width = tileset[i].width;
         tile_image.height = tileset[i].height;
         tile_image.data = jo_malloc_with_behaviour(tile_image.height * tile_image.width * (bits == JO_TGA_8_BITS ? sizeof(unsigned char) : sizeof(jo_color)), JO_FAST_ALLOCATION);
@@ -445,6 +478,14 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
         }
         x = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&tile_image) : jo_sprite_add((jo_img *)&tile_image));
         jo_free(tile_image.data);
+        // (the sprites full: the ids after the last one added were given to the font, the tiles were missing)
+        if (x < 0)
+        {
+            if (first_id >= 0)
+                jo_sprite_free_from(first_id);
+            jo_free(stream_begin);
+            return (-1);
+        }
         if (first_id < 0)
             first_id = x;
     }

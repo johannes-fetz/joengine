@@ -214,6 +214,14 @@ static void             __internal_jo_map_add_tile(const unsigned int layer, con
 #endif
         return ;
     }
+    // (an id of a damaged map file ("@N") must not read after the tables of the animations or of the sprites)
+    if (sprite_or_anim_id >= (is_animated ? JO_MAX_SPRITE_ANIM : JO_MAX_SPRITE))
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Tile: wrong %s id %d", is_animated ? "animation" : "sprite", sprite_or_anim_id);
+#endif
+        return ;
+    }
     new_tile = &gl_map[layer][gl_map_tile_count[layer]];
     new_tile->pos.z = gl_map_depth_fixed[layer];
     new_tile->is_visible_on_screen = false;
@@ -511,8 +519,11 @@ bool                    jo_map_load_from_file(const unsigned int layer, const sh
             JO_ZERO(attribute[i]);
             attribute_value = (unsigned char)jo_tools_atoi(attribute);
         }
+        // (the id checked before it is cut to the type of the tiles)
         if (sprite[0] == '@')
-            __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), jo_tools_atoi(sprite + 1), true, attribute_value);
+            __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y),
+                                       (unsigned int)jo_tools_atoi(sprite + 1) < JO_MAX_SPRITE_ANIM ? jo_tools_atoi(sprite + 1) : JO_MAX_SPRITE_ANIM,
+                                       true, attribute_value);
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
         else if ((sprite_id = jo_sprite_name2id(sprite)) >= 0)
             __internal_jo_map_add_tile(layer, jo_tools_atoi(x), jo_tools_atoi(y), sprite_id, false, attribute_value);

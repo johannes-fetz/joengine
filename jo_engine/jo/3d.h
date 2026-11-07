@@ -1546,8 +1546,24 @@ jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned in
  *  vertex, or when it crosses the near plane
  *  @remarks The tiles are new sprites (copies of the texture: about twice the VRAM of the texture). Call it once, after the
  *  texture was added (jo_sprite_add(), jo_sprite_add_bin(), etc)
+ *  @remarks A texture magnified near the camera (a few texels on a big quad): see jo_3d_set_texture_subdivision_fine()
  */
 bool                                jo_3d_set_texture_subdivision(const int sprite_id);
+
+/** @brief Add finer tiles to the tiles of a texture (see jo_3d_set_texture_subdivision()): 8 x 8 and 16 x 16 tiles, for the parts
+ *  of its polygons cut in 4 x 4 parts that cross the near plane, go very far outside of the screen, are big and partly out
+ *  of the screen, or still distorted by the perspective. The last tile of a part through the near plane, or with its lines
+ *  pulled in to the screen (VDP1 time), is drawn whole on what is seen of it (the VDP1 can't start a texture at any column):
+ *  its texture is squeezed by up to a tile, 8 texels of a 32 x 32 texture with the 4 x 4 tiles, 2 with the 16 x 16 tiles.
+ *  For a texture magnified near the camera (texels of more than about 10 pixels: a texture of a few texels on a big wall,
+ *  a big floor)
+ *  @param sprite_id Texture (RGB or 16 colors sprite, width and height multiples of 16)
+ *  @return true if the tiles were created (with the 2 x 2 and 4 x 4 tiles if they were not)
+ *  @remarks One more sprite, the tiles one under the other, 1/8 of the width of the texture and at least 8 pixels wide (16 for
+ *  16 colors: a narrower tile has its texels repeated): 3 times the VRAM of the texture (64 pixels wide and more, RGB; 128,
+ *  16 colors), 6 times for a 32 x 32 RGB texture. More parts near the camera (CPU time, VDP1 commands)
+ */
+bool                                jo_3d_set_texture_subdivision_fine(const int sprite_id);
 
 /** @brief Like jo_3d_set_texture_subdivision(), but only the polygons that cross the near plane (or go very far outside of
  *  the screen) are drawn in parts: a model already cut in small quads when it was made keeps its quads as they are,

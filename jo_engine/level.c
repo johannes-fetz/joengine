@@ -112,10 +112,11 @@ jo_level                            *jo_level_load(const char * const filename)
     level->section_count = header->section_count;
     for (k = 0, e = level->directory; k < level->section_count; ++k, ++e)
     {
-        // (records read in place: aligned on 4 bytes for the SH-2)
+        // (records read in place: aligned on 4 bytes for the SH-2. Records of 0 bytes: any count passed, the copy of an
+        // older version (count x the size of the engine) wrapped around 32 bits, a small block written past its end)
         if (((e->offset | e->header_size | e->record_size) & 3) != 0 || e->offset > level->size ||
             e->size > level->size - e->offset || e->header_size > e->size ||
-            (e->record_count != 0 && e->record_size > (e->size - e->header_size) / e->record_count))
+            (e->record_count != 0 && (e->record_size == 0 || e->record_size > (e->size - e->header_size) / e->record_count)))
             return (jo_level_refuse(level, filename, "invalid section", e->id));
         // A required section: this engine must know it, in this version or an older one
         known = false;
@@ -186,6 +187,9 @@ static void                         *jo_level_copy_items(jo_level * const level,
 #endif
         return (JO_NULL);
     }
+    // (a count of a damaged file must not wrap the size of the copy)
+    if (size == 0 || count > 0xFFFFFFFFu / size)
+        return (JO_NULL);
     copy = (unsigned char *)jo_malloc(size * JO_MAX(count, 1));
     if (copy == JO_NULL)
         return (JO_NULL);

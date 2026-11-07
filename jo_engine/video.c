@@ -760,6 +760,7 @@ static void                     jo_video_task(void)
 void                            jo_video_stop(void)
 {
     jo_video_movie              *m;
+    jo_video_onstop_callback    onstop;
 
     m = &__jo_video_movie;
     m->playing = false;
@@ -797,8 +798,11 @@ void                            jo_video_stop(void)
         // The sprites must be created again by jo_video_open_file()
         __jo_video_sprite_id = -1;
         __jo_video_back_sprite_id = -1;
-        m->onstop();
+        // (forgotten before the call: a callback that opens the next movie stopped it again and called itself without end,
+        // and the callback given to jo_video_play() for the next movie was cleared after)
+        onstop = m->onstop;
         m->onstop = JO_NULL;
+        onstop();
     }
 }
 
@@ -984,8 +988,10 @@ bool                            jo_video_play(const jo_video_onstop_callback ons
     if (__jo_video_movie.event_id < 0)
     {
         __jo_video_movie.event_id = jo_core_add_callback(jo_video_callback);
-        if (__jo_video_movie.event_id < 0)
+        // (0 when it fails, not a negative id: the movie never played and jo_video_stop() removed the callback 0)
+        if (__jo_video_movie.event_id == 0)
         {
+            __jo_video_movie.event_id = -1;
 #ifdef JO_DEBUG
             jo_core_error("Fail to create video callback");
 #endif

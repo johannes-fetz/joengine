@@ -2692,7 +2692,9 @@ void                            jo_nbg2_print(int x, int y, char * str)
     }
 #endif
     x += JO_MULT_BY_64(y);
-    while (*str != '\0')
+    // (in the map of 64 x 64 cells, as __jo_vdp2_print(): a text at a line over 63 or near the end of the map was written
+    // after the map in the VRAM, over the data after it)
+    while (*str != '\0' && x < MAP_LENGTH)
     {
         JO_ZERO(cell);
         for (JO_ZERO(c); nbg2_font_str[c] != '\0'; ++c)
@@ -2703,7 +2705,8 @@ void                            jo_nbg2_print(int x, int y, char * str)
                 break;
             }
         }
-        nbg2_map[x] = (JO_MULT_BY_2(cell) | nbg2_font_paloff) + nbg2_font_map_offset;
+        if (x >= 0)
+            nbg2_map[x] = (JO_MULT_BY_2(cell) | nbg2_font_paloff) + nbg2_font_map_offset;
         ++str;
         ++x;
     }
@@ -2769,7 +2772,9 @@ void                            jo_nbg3_print(int x, int y, char * str)
     }
 #endif
     x += JO_MULT_BY_64(y);
-    while (*str != '\0')
+    // (in the map of 64 x 64 cells, as __jo_vdp2_print(): a text at a line over 63 or near the end of the map was written
+    // after the map in the VRAM, over the data after it)
+    while (*str != '\0' && x < MAP_LENGTH)
     {
         JO_ZERO(cell);
         for (JO_ZERO(c); nbg3_font_str[c] != '\0'; ++c)
@@ -2780,7 +2785,8 @@ void                            jo_nbg3_print(int x, int y, char * str)
                 break;
             }
         }
-        nbg3_map[x] = (JO_MULT_BY_2(cell) | nbg3_font_paloff) + nbg3_font_map_offset;
+        if (x >= 0)
+            nbg3_map[x] = (JO_MULT_BY_2(cell) | nbg3_font_paloff) + nbg3_font_map_offset;
         ++str;
         ++x;
     }

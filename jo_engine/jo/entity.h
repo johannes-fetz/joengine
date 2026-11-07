@@ -180,7 +180,8 @@ void                                jo_entities_update(const jo_pos3D_fixed * co
 
 /** @brief The entities updated by jo_entities_update(): the ones that wait for something (timer > 0), the ones near the
  *  player, and the ones seen
- *  @param distance Nearer than it on X and Z (world units, JO_ENTITY_WAKE_DISTANCE by default; 0: none by the distance)
+ *  @param distance Nearer than it on X and Z, from the edge of their cylinder (world units, JO_ENTITY_WAKE_DISTANCE by
+ *  default; 0: none by the distance)
  *  @param when_seen true: also the ones drawn in the last frame (in a cell seen, in the view: see jo_entities_prepare_draw()),
  *  false by default. With a short distance, the entities behind the walls sleep (less CPU): their class wakes them by
  *  their timer (a noise, an alarm)

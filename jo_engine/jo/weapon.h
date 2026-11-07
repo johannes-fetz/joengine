@@ -132,7 +132,7 @@ int                                 jo_weapons_lowered(void);
 
 /** @brief Give ammunition (a pickup)
  *  @param ammo_type Type of ammunition
- *  @param count Bullets (the reserve doesn't go over ammo_max)
+ *  @param count Bullets (the reserve doesn't go over ammo_max, nor under 0; a reserve already over it stays)
  */
 void                                jo_weapons_give_ammo(const int ammo_type, const int count);
 

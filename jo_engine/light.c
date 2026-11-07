@@ -82,6 +82,7 @@ typedef struct
     bool                            used;
     bool                            enabled;
     bool                            computed;       // The entries are up to date with the position
+    bool                            partial;        // Without shadows: meshes in its reach skipped (not seen), computed when seen
     jo_pos3D_fixed                  position;
     int                             r;
     int                             g;
@@ -504,10 +505,17 @@ bool                                jo_3d_point_lights_add_mesh(jo_3d_mesh * con
 void                                jo_3d_point_lights_set_mesh_seen(const jo_3d_mesh * const mesh, const bool seen)
 {
     int                             m;
+    int                             k;
 
     for (m = 0; m < __jo_point_light_mesh_count; ++m)
         if (__jo_point_light_meshes[m] == mesh)
         {
+            // (seen again: the lights without shadows that skipped it are computed again (a lamp that doesn't move never
+            // lit the rooms not seen at its first update))
+            if (seen && !__jo_point_light_mesh_seen[m])
+                for (k = 0; k < JO_MAX_POINT_LIGHTS; ++k)
+                    if (__jo_point_lights[k].used && __jo_point_lights[k].partial)
+                        __jo_point_lights[k].computed = false;
             __jo_point_light_mesh_seen[m] = seen;
             return;
         }
@@ -741,6 +749,7 @@ static void                         jo_point_light_compute(jo_point_light * cons
     l->entries = JO_NULL;
     l->entry_count = 0;
     l->computed = true;
+    l->partial = false;
     capacity = 0;
     range = l->radius * JO_POINT_LIGHT_RANGE;
     // (all the meshes first: out of memory, the loop stops and the next meshes kept the entries of the last compute)
@@ -756,15 +765,19 @@ static void                         jo_point_light_compute(jo_point_light * cons
         l->mesh_first[m] = (unsigned short)l->entry_count;
         l->mesh_entries[m] = 0;
         mesh = __jo_point_light_meshes[m];
-        // (a light without shadows moves at each frame, a flash: only on the meshes seen)
-        if (!l->shadows && !__jo_point_light_mesh_seen[m])
-            continue;
         // (the meshes out of reach of the light)
         reach = __jo_point_light_mesh_radius[m] + l->radius * JO_POINT_LIGHT_RANGE;
         if (JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].x - l->position.x)) > reach ||
             JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].y - l->position.y)) > reach ||
             JO_ABS(jo_fixed2int(__jo_point_light_mesh_center[m].z - l->position.z)) > reach)
             continue;
+        // (a light without shadows moves at each frame, a flash: only on the meshes seen. The others when they are seen, see
+        // jo_3d_point_lights_set_mesh_seen())
+        if (!l->shadows && !__jo_point_light_mesh_seen[m])
+        {
+            l->partial = true;
+            continue;
+        }
         // The rays of the shadows of each corner, shot once (a corner is shared by about 4 polygons): -1, not shot yet
         seen = l->shadows && __jo_point_light_hit != JO_NULL ? (signed char *)jo_malloc(mesh->data.point_count) : JO_NULL;
         if (seen != JO_NULL)

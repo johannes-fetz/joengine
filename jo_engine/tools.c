@@ -299,6 +299,9 @@ static unsigned int             jo_bcd_to_int(unsigned int bcd)
 
 void                    jo_getdate(jo_datetime *now)
 {
+    jo_smpc_status      status;
+    unsigned int        sr;
+
 #ifdef JO_DEBUG
    if (now == JO_NULL)
    {
@@ -306,14 +309,18 @@ void                    jo_getdate(jo_datetime *now)
 	 	return;
    }
 #endif
-    // The SMPC status is refreshed every frame
-    now->year = (unsigned short)jo_bcd_to_int(__jo_smpc_status.year);
-    now->month = (unsigned char)(__jo_smpc_status.month & 0x0f);
-    now->week = (unsigned char)(__jo_smpc_status.month >> 4);
-    now->day = (unsigned char)jo_bcd_to_int(__jo_smpc_status.day);
-    now->hour = (unsigned char)jo_bcd_to_int(__jo_smpc_status.hour);
-    now->minute = (unsigned char)jo_bcd_to_int(__jo_smpc_status.minute);
-    now->second = (unsigned char)jo_bcd_to_int(__jo_smpc_status.second);
+    // The SMPC status is refreshed every frame (by the SMPC interrupt: copied at once, a refresh between the reads of the
+    // fields gave 10:05:00 for 10:05:59 -> 10:06:00, 23:00:00 at midnight)
+    sr = __jo_core_disable_interrupts();
+    status = __jo_smpc_status;
+    __jo_core_restore_interrupts(sr);
+    now->year = (unsigned short)jo_bcd_to_int(status.year);
+    now->month = (unsigned char)(status.month & 0x0f);
+    now->week = (unsigned char)(status.month >> 4);
+    now->day = (unsigned char)jo_bcd_to_int(status.day);
+    now->hour = (unsigned char)jo_bcd_to_int(status.hour);
+    now->minute = (unsigned char)jo_bcd_to_int(status.minute);
+    now->second = (unsigned char)jo_bcd_to_int(status.second);
 }
 
 

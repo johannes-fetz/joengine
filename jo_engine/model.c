@@ -127,7 +127,8 @@ static bool                                 jo_3d_model_animations_fit(const jo_
     for (JO_ZERO(i); i < model->animation_count; ++i)
     {
         a = &model->animations[i];
-        if (a->key_count == 0 || a->key_ticks == 0 || a->offset > size || a->key_count > (size - a->offset) / key_size)
+        // (the keys aligned on 4 bytes: their root is read as 32 bits values, an odd offset was an address error of the CPU)
+        if (a->key_count == 0 || a->key_ticks == 0 || (a->offset & 3) || a->offset > size || a->key_count > (size - a->offset) / key_size)
         {
 #ifdef JO_DEBUG
             jo_core_error("Wrong animation %d", (int)i);
@@ -302,6 +303,9 @@ static  __jo_force_inline unsigned int      jo_3d_model_texture_size(const unsig
     unsigned int                            pixels;
 
     pixels = (unsigned int)*(const unsigned short *)(entry + 16) * *(const unsigned short *)(entry + 18);
+    // (a damaged size must not wrap: the callers then refuse a size bigger than their data)
+    if (pixels > 0x7FFFFFF0u)
+        return (0xFFFFFFFCu);
     if (*(const unsigned short *)(entry + 20) == JO_3D_MODEL_TEXTURE_16_COLORS)
         return ((16 * 2 + pixels / 2 + 3) & ~3);
     return ((pixels * 2 + 3) & ~3);
@@ -756,9 +760,35 @@ int                                         jo_3d_model_animation_duration(const
     return ((a->flags & JO_3D_ANIMATION_LOOP ? a->key_count : a->key_count - 1) * a->key_ticks);
 }
 
+/** @brief The key of a time of an animation and the fraction to the next key
+ *  @param time Time (0 or more)
+ *  @param ticks Time between 2 keys (1 to 65535)
+ *  @param frac The fraction (0 to 255)
+ *  @return The key
+ */
+static  __jo_force_inline int               jo_3d_model_key_of(const int time, const int ticks, int * const frac)
+{
+    int                                     key;
+
+    // (one division: (time x 256) / ticks = key x 256 + frac, 0 <= frac < 256. Positive: a logical shift, not the routine of
+    // the library of the compiler)
+    if (time < 0x800000)
+    {
+        *frac = jo_int_div(time << 8, ticks);
+        key = (int)((unsigned int)*frac >> 8);
+        *frac &= 0xFF;
+        return (key);
+    }
+    // (from 2^23 ticks, time x 256 overflows: the key, then the fraction of the rest, under 2^24)
+    key = jo_int_div(time, ticks);
+    *frac = jo_int_div((time - key * ticks) << 8, ticks);
+    return (key);
+}
+
 void                                        jo_3d_model_get_pose(const jo_3d_model * const model, const int animation, int time,
                                                                  jo_3d_pose * const pose)
 {
+    unsigned int                            total;
     const jo_3d_animation                   *a;
     const unsigned char                     *k0;
     const unsigned char                     *k1;
@@ -789,25 +819,22 @@ void                                        jo_3d_model_get_pose(const jo_3d_mod
         time = 0;
     if (a->flags & JO_3D_ANIMATION_LOOP)
     {
-        // (the divisions by the division unit of the CPU, see jo_int_div(): several poses per character and per frame)
-        time -= jo_int_div(time, a->key_count * a->key_ticks) * (a->key_count * a->key_ticks);
-        // (one division: (time x 256) / ticks = key x 256 + frac, 0 <= frac < 256. Positive: a logical shift, not the
-        // routine of the library of the compiler)
-        frac = jo_int_div(time << 8, a->key_ticks);
-        key = (int)((unsigned int)frac >> 8);
-        frac &= 0xFF;
+        // (the divisions by the division unit of the CPU, see jo_int_div(): several poses per character and per frame. The
+        // duration unsigned: 65535 keys of 65535 ticks overflow an int; from 2^31, any time is under it)
+        total = (unsigned int)a->key_count * a->key_ticks;
+        if (total <= 0x7FFFFFFFu)
+            time -= jo_int_div(time, (int)total) * (int)total;
+        key = jo_3d_model_key_of(time, a->key_ticks, &frac);
         next = key + 1 < a->key_count ? key + 1 : 0;
     }
-    else if (time >= (a->key_count - 1) * a->key_ticks)
+    else if ((unsigned int)time >= (unsigned int)(a->key_count - 1) * a->key_ticks)
     {
         key = next = a->key_count - 1;
         frac = 0;
     }
     else
     {
-        frac = jo_int_div(time << 8, a->key_ticks);
-        key = (int)((unsigned int)frac >> 8);
-        frac &= 0xFF;
+        key = jo_3d_model_key_of(time, a->key_ticks, &frac);
         next = key + 1;
     }
     k0 = model->animation_data + a->offset + key * key_size;
@@ -1017,6 +1044,7 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     unsigned int                            chunk;
     unsigned int                            count;
     unsigned int                            storage_polygons;
+    unsigned int                            storage_textures;
     unsigned int                            qmat_count;
     unsigned int                            gouraud_size;
     unsigned int                            anim_size;
@@ -1036,8 +1064,10 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
 #endif
         return (JO_NULL);
     }
-    // (the polygons of the block: the texture ids are after their attributes)
+    // (the polygons of the block: the texture ids are after their attributes. The texture ids the block holds: the count
+    // of the last "TEXT" chunk, as jo_3d_create_model_in_place() counted them)
     JO_ZERO(storage_polygons);
+    JO_ZERO(storage_textures);
     if (storage != JO_NULL)
         for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
         {
@@ -1046,6 +1076,8 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
                 break;
             if (jo_3d_model_is_tag(p, "QUAD"))
                 storage_polygons = *(const unsigned int *)(p + 8);
+            else if (jo_3d_model_is_tag(p, "TEXT"))
+                storage_textures = *(const unsigned int *)(p + 8);
         }
     model = storage != JO_NULL ? (jo_3d_model *)storage : (jo_3d_model *)jo_malloc(sizeof(*model));
     if (model == JO_NULL)
@@ -1108,7 +1140,9 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         {
             const unsigned char             *entry;
 
-            for (JO_ZERO(k), entry = p + 12; k < count && entry + 24 <= p + 8 + chunk; ++k)
+            // (the pixels of each texture in the chunk too: a wrong size read them after the data of the file)
+            for (JO_ZERO(k), entry = p + 12; k < count && entry + 24 <= p + 8 + chunk &&
+                 jo_3d_model_texture_size(entry) <= (unsigned int)(p + 8 + chunk - (entry + 24)); ++k)
             {
                 jo_3d_model_add_embedded_texture(entry, (const jo_color *)(entry + 24));
                 entry += 24 + jo_3d_model_texture_size(entry);
@@ -1116,6 +1150,13 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         }
         else if (jo_3d_model_is_tag(p, "TEXT"))
         {
+            // (in one block: more ids than the block holds is a wrong file. A first "TEXT" bigger than a second one wrote
+            // its ids after the block, before the second one was found)
+            if (storage != JO_NULL && count > storage_textures)
+            {
+                wrong = true;
+                break;
+            }
             model->texture_count = count;
             model->textures = storage != JO_NULL ? (int *)(storage + JO_3D_MODEL_BLOCK_TEXTURES(storage_polygons)) :
                               (int *)jo_malloc((count > 0 ? count : 1) * sizeof(int));

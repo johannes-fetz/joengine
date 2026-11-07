@@ -201,9 +201,21 @@ void                                jo_vehicle_drive(jo_entity * const entity, c
         v->speed = v->speed > 0 ? JO_MAX(v->speed - step, 0) : JO_MIN(v->speed + step, 0);
     }
     else if (throttle > 0)
-        v->speed += jo_fixed_mult(step * throttle / 256, JO_FIXED_1 - v->speed / v->max_speed);
+    {
+        // (step x throttle overflowed from a frame of 457 ms (acceleration 280): the vehicle went backward. A long frame
+        // went past the top speed, then the speed swung around it, wider and wider: the top speed at most)
+        target = v->speed;
+        v->speed += jo_fixed_mult(jo_fixed_mult(step, throttle << 8), JO_FIXED_1 - v->speed / v->max_speed);
+        if (target <= jo_int2fixed(v->max_speed) && v->speed > jo_int2fixed(v->max_speed))
+            v->speed = jo_int2fixed(v->max_speed);
+    }
     else if (throttle < 0)
-        v->speed += jo_fixed_mult(step * throttle / 256, JO_FIXED_1 + v->speed / (v->max_speed / 3));
+    {
+        target = v->speed;
+        v->speed += jo_fixed_mult(jo_fixed_mult(step, throttle << 8), JO_FIXED_1 + v->speed / (v->max_speed / 3));
+        if (target >= -jo_int2fixed(v->max_speed / 3) && v->speed < -jo_int2fixed(v->max_speed / 3))
+            v->speed = -jo_int2fixed(v->max_speed / 3);
+    }
     else
     {
         step = jo_int2fixed(JO_VEHICLE_DRAG) / 1000 * elapsed;

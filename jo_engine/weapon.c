@@ -196,6 +196,7 @@ void                                jo_weapons_give_ammo(const int ammo_type, co
 {
     int                             k;
     int                             max;
+    int                             reserve;
 
     if (ammo_type < 0 || ammo_type >= JO_WEAPON_MAX_AMMO_TYPES)
         return;
@@ -203,7 +204,16 @@ void                                jo_weapons_give_ammo(const int ammo_type, co
     for (k = 0; k < __jo_weapon_count; ++k)
         if (__jo_weapon_defs[k].ammo_type == ammo_type)
             max = JO_MAX(max, __jo_weapon_defs[k].ammo_max);
-    __jo_weapon_reserve[ammo_type] = JO_MIN(__jo_weapon_reserve[ammo_type] + count, max);
+    // (a reserve over the most (an ammo_start over ammo_max) is not cut by a pickup; reserve + count overflowed with a big
+    // count (all the ammunition): the reserve became negative)
+    reserve = __jo_weapon_reserve[ammo_type];
+    if (count > 0)
+    {
+        if (reserve < max)
+            __jo_weapon_reserve[ammo_type] = count >= max - reserve ? max : reserve + count;
+    }
+    else if (count < 0)
+        __jo_weapon_reserve[ammo_type] = count <= -reserve ? 0 : reserve + count;
 }
 
 void                                jo_weapons_select(const int index)
