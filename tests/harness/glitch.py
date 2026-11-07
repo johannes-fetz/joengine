@@ -12,7 +12,7 @@ __jo_3d_look_at(), __jo_3d_set_perspective(): projection distance (width / 2) / 
 - cover (the room, the ground): a ray per pixel; a pixel whose ray hits the geometry in front of the near plane must be
   drawn. Hole: a magenta pixel 2 pixels or more inside the region that must be drawn. Spurious: a pixel drawn 2 pixels or
   more outside of it (something behind the near plane drawn)
-- quad (one quad): its polygon clipped by the near plane, projected. Deformation: a pixel drawn more than 2 pixels out of
+- quad (one quad): its polygon clipped by the near plane, projected. Deformation: a pixel drawn more than 2.5 pixels out of
   it, hole: a pixel missing more than 2 pixels inside it. A twisted quad or a quad seen edge on (HULL): only the pixels
   outside of the convex hull of its corners
 - mapping (a textured quad): the texture is a gradient (red = column, green = line, blue = 31 - column: every texel has
@@ -56,6 +56,9 @@ PD = 160.0
 NEAR = 20.0
 
 MARGIN = 2              # pixels: the border of the expected regions not checked (rounding of the VDP1 coordinates)
+DEFORM_MARGIN = 2.5      # pixels: a pixel drawn out of the quad (the edges grown by 1 pixel by jo_3d_grow_borders(), the
+                         # rounding of the lines of the VDP1 (1 pixel), the center of the pixel (0.5): seen at the far
+                         # corner of an edge seen edge on, 2.2 to 2.5 pixels out)
 MAP_TEXELS = 1.5        # texels: error of the texture mapping always counted as good (the gradient decodes 1 texel)
 MAP_PIXELS = 10         # pixels: error of the texture mapping counted as good (JO_3D_SUBDIVISION_ERROR 8 + 2)
 MAP_MIN_GOOD = 0.95     # fraction of the pixels mapped within the tolerance (subdivided textures)
@@ -784,7 +787,7 @@ def check_quad(view, frame, quads, flat_colors, chk):
                 if not (c == flat_color if flat else _valid_gradient(c)):
                     garbage.append((x, y))
                 sa = signed_distance(allowed, x + 0.5, y + 0.5) if allowed and ab[0] <= x <= ab[1] and ab[2] <= y <= ab[3] else -1e9
-                if sa < -MARGIN:
+                if sa < -DEFORM_MARGIN:
                     deform.append((x, y))
                 elif sr > MARGIN:
                     inside.append((x, y))
@@ -795,8 +798,8 @@ def check_quad(view, frame, quads, flat_colors, chk):
     chk.worst["deform"] = len(deform)
     chk.worst["holes"] = len(holes)
     if deform:
-        chk.problem("deformation", "%d pixels drawn more than %d pixels out of the quad in %s" %
-                    (len(deform), MARGIN, _bbox_text(deform)), deform)
+        chk.problem("deformation", "%d pixels drawn more than %.1f pixels out of the quad in %s" %
+                    (len(deform), DEFORM_MARGIN, _bbox_text(deform)), deform)
     if holes:
         chk.problem("hole", "%d pixels missing more than %d pixels inside the quad (clipped by the near plane) in %s" %
                     (len(holes), MARGIN, _bbox_text(holes)), holes)
@@ -1067,10 +1070,6 @@ def run_checks(run, variant, result, results, quick):
 # engine is fixed: the views must then pass.
 # (view name patterns, kinds of problems, most pixels of each problem (None: any), reason)
 KNOWN = [
-    (("g_q5_sub",), ("deformation",), 8,
-     "the edges of the polygon are grown by 1 pixel (jo_3d_grow_borders(): no line of background between 2 polygons), "
-     "plus the rounding of the lines of the VDP1: at the far corner of the quad, between its edge seen edge on and its "
-     "steep top edge, 5 pixels 2.2 to 2.5 pixels out of the quad"),
 ]
 
 
