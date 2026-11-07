@@ -1,0 +1,497 @@
+{
+ "rom:320x224": {
+  "perf.cubes_40.3d_polygons": 11566,
+  "perf.cubes_40.3d_vertices": 7409,
+  "perf.cubes_40.callbacks": 24718,
+  "perf.cubes_40.frame": 24811,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 13641,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 7,
+  "perf.empty.frame": 16733,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1438,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 8986,
+  "perf.nbg1_pattern.frame": 9067,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1441,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 660,
+  "perf.printf_12.frame": 16733,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1438,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3934,
+  "perf.sprites_200.frame": 16733,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13458,
+  "ram.heap_fragments": 8,
+  "ram.heap_percent": 9,
+  "ram.sprite_count": 54,
+  "ram.sprite_percent": 32
+ },
+ "rom:704x480": {
+  "perf.cubes_40.3d_polygons": 17652,
+  "perf.cubes_40.3d_vertices": 7770,
+  "perf.cubes_40.callbacks": 31594,
+  "perf.cubes_40.frame": 33364,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 0,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16680,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1406,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 16309,
+  "perf.nbg1_pattern.frame": 16387,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1408,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 619,
+  "perf.printf_12.frame": 16681,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1405,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3693,
+  "perf.sprites_200.frame": 16680,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 12016,
+  "ram.heap_fragments": 8,
+  "ram.heap_percent": 9,
+  "ram.sprite_count": 54,
+  "ram.sprite_percent": 32
+ },
+ "rom:release": {
+  "perf.cubes_40.3d_polygons": 11574,
+  "perf.cubes_40.3d_vertices": 7353,
+  "perf.cubes_40.callbacks": 24672,
+  "perf.cubes_40.frame": 24763,
+  "perf.cubes_40.vdp1_commands": 240,
+  "perf.cubes_40.vdp1_draw": 13640,
+  "perf.empty.3d_polygons": 0,
+  "perf.empty.3d_vertices": 0,
+  "perf.empty.callbacks": 6,
+  "perf.empty.frame": 16733,
+  "perf.empty.vdp1_commands": 0,
+  "perf.empty.vdp1_draw": 1439,
+  "perf.nbg1_pattern.3d_polygons": 0,
+  "perf.nbg1_pattern.3d_vertices": 0,
+  "perf.nbg1_pattern.callbacks": 14797,
+  "perf.nbg1_pattern.frame": 14875,
+  "perf.nbg1_pattern.vdp1_commands": 0,
+  "perf.nbg1_pattern.vdp1_draw": 1442,
+  "perf.printf_12.3d_polygons": 0,
+  "perf.printf_12.3d_vertices": 0,
+  "perf.printf_12.callbacks": 661,
+  "perf.printf_12.frame": 16733,
+  "perf.printf_12.vdp1_commands": 0,
+  "perf.printf_12.vdp1_draw": 1439,
+  "perf.sprites_200.3d_polygons": 0,
+  "perf.sprites_200.3d_vertices": 0,
+  "perf.sprites_200.callbacks": 3935,
+  "perf.sprites_200.frame": 16733,
+  "perf.sprites_200.vdp1_commands": 200,
+  "perf.sprites_200.vdp1_draw": 13459,
+  "ram.heap_fragments": 0,
+  "ram.heap_percent": 0,
+  "ram.sprite_count": 54,
+  "ram.sprite_percent": 32
+ },
+ "sizes": {
+  "demo - 2D storyboard [default]": {
+   "bin": 33164,
+   "bss": 409940,
+   "data": 44,
+   "rodata": 6611,
+   "text": 26388
+  },
+  "demo - 3D - programmatically [default]": {
+   "bin": 64476,
+   "bss": 419304,
+   "data": 140,
+   "rodata": 7240,
+   "text": 56984
+  },
+  "demo - 3D [default]": {
+   "bin": 66728,
+   "bss": 421080,
+   "data": 504,
+   "rodata": 7460,
+   "text": 58648
+  },
+  "demo - 3D camera [default]": {
+   "bin": 66180,
+   "bss": 419308,
+   "data": 148,
+   "rodata": 7216,
+   "text": 58712
+  },
+  "demo - 3D map [default]": {
+   "bin": 68272,
+   "bss": 420952,
+   "data": 160,
+   "rodata": 7759,
+   "text": 60232
+  },
+  "demo - 3D model [default]": {
+   "bin": 80012,
+   "bss": 427508,
+   "data": 140,
+   "rodata": 7934,
+   "text": 71840
+  },
+  "demo - 8bits tga [default]": {
+   "bin": 28904,
+   "bss": 409724,
+   "data": 72,
+   "rodata": 6523,
+   "text": 22204
+  },
+  "demo - advanced 3D [default]": {
+   "bin": 75850,
+   "bss": 419844,
+   "data": 7482,
+   "rodata": 7553,
+   "text": 60692
+  },
+  "demo - analog - mission stick [default]": {
+   "bin": 30636,
+   "bss": 409880,
+   "data": 44,
+   "rodata": 6515,
+   "text": 23960
+  },
+  "demo - analog - wheel [default]": {
+   "bin": 30412,
+   "bss": 409864,
+   "data": 44,
+   "rodata": 6491,
+   "text": 23756
+  },
+  "demo - analog [default]": {
+   "bin": 30892,
+   "bss": 409884,
+   "data": 44,
+   "rodata": 6587,
+   "text": 24156
+  },
+  "demo - audio [default]": {
+   "bin": 25860,
+   "bss": 410496,
+   "data": 36,
+   "rodata": 2195,
+   "text": 23492
+  },
+  "demo - background [default]": {
+   "bin": 24588,
+   "bss": 409368,
+   "data": 28,
+   "rodata": 2183,
+   "text": 22244
+  },
+  "demo - backup [default]": {
+   "bin": 26012,
+   "bss": 409720,
+   "data": 28,
+   "rodata": 2558,
+   "text": 23300
+  },
+  "demo - benchmark [default]": {
+   "bin": 77472,
+   "bss": 493972,
+   "data": 144,
+   "rodata": 8171,
+   "text": 69028
+  },
+  "demo - bullet [default]": {
+   "bin": 29676,
+   "bss": 409724,
+   "data": 44,
+   "rodata": 6555,
+   "text": 22968
+  },
+  "demo - debug console [default]": {
+   "bin": 38268,
+   "bss": 409884,
+   "data": 44,
+   "rodata": 8043,
+   "text": 30076
+  },
+  "demo - display modes [default]": {
+   "bin": 75296,
+   "bss": 421432,
+   "data": 192,
+   "rodata": 7832,
+   "text": 67168
+  },
+  "demo - environment mapping [default]": {
+   "bin": 72744,
+   "bss": 421892,
+   "data": 168,
+   "rodata": 7672,
+   "text": 64796
+  },
+  "demo - everydaycute [default]": {
+   "bin": 33072,
+   "bss": 410072,
+   "data": 48,
+   "rodata": 6747,
+   "text": 26168
+  },
+  "demo - fighters [default]": {
+   "bin": 90376,
+   "bss": 601012,
+   "data": 248,
+   "rodata": 7747,
+   "text": 82252
+  },
+  "demo - filesystem [default]": {
+   "bin": 24012,
+   "bss": 409332,
+   "data": 28,
+   "rodata": 2223,
+   "text": 21644
+  },
+  "demo - first person shooter [default]": {
+   "bin": 223896,
+   "bss": 536176,
+   "data": 472,
+   "rodata": 11511,
+   "text": 211788
+  },
+  "demo - gamepad [default]": {
+   "bin": 30364,
+   "bss": 409864,
+   "data": 44,
+   "rodata": 6447,
+   "text": 23776
+  },
+  "demo - gouraud shading [default]": {
+   "bin": 31688,
+   "bss": 409872,
+   "data": 72,
+   "rodata": 6583,
+   "text": 24924
+  },
+  "demo - hardcoded image [default]": {
+   "bin": 29096,
+   "bss": 271376,
+   "data": 328,
+   "rodata": 10675,
+   "text": 17964
+  },
+  "demo - homing laser [default]": {
+   "bin": 30192,
+   "bss": 409788,
+   "data": 48,
+   "rodata": 6547,
+   "text": 23476
+  },
+  "demo - line scroll [default]": {
+   "bin": 30240,
+   "bss": 409364,
+   "data": 32,
+   "rodata": 6463,
+   "text": 23640
+  },
+  "demo - map [default]": {
+   "bin": 35824,
+   "bss": 409996,
+   "data": 48,
+   "rodata": 7005,
+   "text": 28648
+  },
+  "demo - mode7 [default]": {
+   "bin": 206748,
+   "bss": 409436,
+   "data": 28,
+   "rodata": 183511,
+   "text": 23076
+  },
+  "demo - mouse [default]": {
+   "bin": 30944,
+   "bss": 409900,
+   "data": 48,
+   "rodata": 6635,
+   "text": 24140
+  },
+  "demo - multitap [default]": {
+   "bin": 30780,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6503,
+   "text": 24108
+  },
+  "demo - nbg2 font [default]": {
+   "bin": 21292,
+   "bss": 409208,
+   "data": 28,
+   "rodata": 1059,
+   "text": 20072
+  },
+  "demo - paint [default]": {
+   "bin": 31604,
+   "bss": 409860,
+   "data": 52,
+   "rodata": 6559,
+   "text": 24868
+  },
+  "demo - printf [default]": {
+   "bin": 34804,
+   "bss": 409860,
+   "data": 68,
+   "rodata": 7088,
+   "text": 27532
+  },
+  "demo - render to image [default]": {
+   "bin": 68276,
+   "bss": 421264,
+   "data": 740,
+   "rodata": 7564,
+   "text": 59852
+  },
+  "demo - serial link [default]": {
+   "bin": 31388,
+   "bss": 409916,
+   "data": 44,
+   "rodata": 6723,
+   "text": 24504
+  },
+  "demo - shooter [default]": {
+   "bin": 299520,
+   "bss": 279120,
+   "data": 80,
+   "rodata": 269027,
+   "text": 30292
+  },
+  "demo - simple water effect [default]": {
+   "bin": 32596,
+   "bss": 409876,
+   "data": 68,
+   "rodata": 6635,
+   "text": 25788
+  },
+  "demo - software rendering [default]": {
+   "bin": 36700,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6599,
+   "text": 29932
+  },
+  "demo - sonic [default]": {
+   "bin": 41904,
+   "bss": 410256,
+   "data": 80,
+   "rodata": 7417,
+   "text": 34296
+  },
+  "demo - sprite animation [default]": {
+   "bin": 32496,
+   "bss": 410064,
+   "data": 48,
+   "rodata": 6707,
+   "text": 25628
+  },
+  "demo - tileset [default]": {
+   "bin": 31444,
+   "bss": 409864,
+   "data": 84,
+   "rodata": 6519,
+   "text": 24724
+  },
+  "demo - vcd card [default]": {
+   "bin": 30428,
+   "bss": 409868,
+   "data": 44,
+   "rodata": 6511,
+   "text": 23756
+  },
+  "demo - vdp2 map [default]": {
+   "bin": 30604,
+   "bss": 409496,
+   "data": 28,
+   "rodata": 2693,
+   "text": 27776
+  },
+  "demo - vdp2 plane [default]": {
+   "bin": 70508,
+   "bss": 418696,
+   "data": 44,
+   "rodata": 7445,
+   "text": 62908
+  },
+  "demo - video [default]": {
+   "bin": 35820,
+   "bss": 507552,
+   "data": 44,
+   "rodata": 7127,
+   "text": 28544
+  },
+  "demo - visual novel [default]": {
+   "bin": 114032,
+   "bss": 421132,
+   "data": 48,
+   "rodata": 22739,
+   "text": 91116
+  },
+  "demo - voxel [default]": {
+   "bin": 33464,
+   "bss": 543080,
+   "data": 72,
+   "rodata": 6635,
+   "text": 26628
+  },
+  "demo1 [default]": {
+   "bin": 27900,
+   "bss": 409700,
+   "data": 44,
+   "rodata": 6511,
+   "text": 21232
+  },
+  "test rom [320x224]": {
+   "bin": 219284,
+   "bss": 543540,
+   "data": 1316,
+   "rodata": 26917,
+   "text": 190944
+  },
+  "test rom [704x480]": {
+   "bin": 219316,
+   "bss": 543540,
+   "data": 1316,
+   "rodata": 26917,
+   "text": 190948
+  },
+  "test rom [all_modules]": {
+   "bin": 229384,
+   "bss": 543764,
+   "data": 1320,
+   "rodata": 29589,
+   "text": 198344
+  },
+  "test rom [all_modules_release]": {
+   "bin": 213960,
+   "bss": 543672,
+   "data": 1320,
+   "rodata": 25597,
+   "text": 186920
+  },
+  "test rom [release]": {
+   "bin": 203876,
+   "bss": 543444,
+   "data": 1316,
+   "rodata": 23101,
+   "text": 179332
+  }
+ }
+}
