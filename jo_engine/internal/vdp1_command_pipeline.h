@@ -49,8 +49,12 @@ void                        __jo_vdp1_end_frame(void);
  *  frame is sent in its last field at the earliest (JO_FRAMERATE > 1, see __jo_vdp1_end_frame()) */
 void                        __jo_vdp1_frame_start(void);
 
-/** @brief Display the last complete command table (internal usage, called during VBLANK-IN) */
+/** @brief Display the last complete command table (internal usage, called during VBLANK-IN, as early as possible: the
+ *  VBLANK erase of the manual change mode must be requested in the first line of the VBLANK) */
 void                        __jo_vdp1_vblank(void);
+
+/** @brief End of the VBLANK erase requested by __jo_vdp1_vblank() (internal usage, called during VBLANK-OUT) */
+void                        __jo_vdp1_vblank_out(void);
 
 /** @brief Number of the frame being built (internal usage): the VDP2 changes that must match the image of this frame are
  *  kept with this number and applied when it is displayed (see __jo_vdp1_displayed_frame_changed())

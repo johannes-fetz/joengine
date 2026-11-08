@@ -405,9 +405,10 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     ++__jo_core_vblank_count;
     // (first: the light guns read TVSTAT, other reads would clear the flag of the latch)
     __jo_smpc_gun_vblank();
+    // (then the VDP1: the VBLANK erase of the manual change mode is requested in the first line of the VBLANK)
+    __jo_vdp1_vblank();
     __jo_time_vblank();
     __jo_vdp2_vblank();
-    __jo_vdp1_vblank();
     if (__jo_core_music_vblank != JO_NULL)
         __jo_core_music_vblank();
     if (__vblank_callbacks.count)
@@ -423,6 +424,16 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     // Remainder (or high part of a dividend not yet complete) and divisor
     JO_SH2_DVDNTH = high;
     JO_SH2_DVSR = divisor;
+    // The SCU masked its interrupts when this one was taken
+    __jo_core_restore_scu_mask();
+}
+
+/** @brief VBLANK-OUT interrupt handler
+ *  @remarks Ends the VBLANK erase of the VDP1 (see __jo_vdp1_vblank_out())
+ */
+static void __attribute__((interrupt_handler)) jo_core_vblank_out_handler(void)
+{
+    __jo_vdp1_vblank_out();
     // The SCU masked its interrupts when this one was taken
     __jo_core_restore_scu_mask();
 }
@@ -445,7 +456,8 @@ static void                                 jo_core_init_system(void)
     // (the "disc changed" flag of the boot: only a tray opened from now on, see jo_core_check_system_keys())
     JO_CORE_CD_HIRQ = (unsigned short)~JO_CORE_CD_HIRQ_DCHG;
     __jo_core_set_interrupt_handler(JO_VECTOR_VBLANK_IN, jo_core_vblank_in_handler);
-    __jo_core_enable_scu_interrupts(JO_SCU_INT_VBLANK_IN | JO_SCU_INT_SMPC);
+    __jo_core_set_interrupt_handler(JO_VECTOR_VBLANK_OUT, jo_core_vblank_out_handler);
+    __jo_core_enable_scu_interrupts(JO_SCU_INT_VBLANK_IN | JO_SCU_INT_VBLANK_OUT | JO_SCU_INT_SMPC);
     JO_ZERO(__jo_core_vblank_count);
     JO_ZERO(__jo_core_last_synch_vblank);
     __jo_core_set_sr(JO_SH2_SR_INTERRUPTS_ON);
