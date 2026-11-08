@@ -924,6 +924,43 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
     __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
 }
 
+/** @brief Rotate 3D matrix using jo_angle (0x10000 = 360 degrees: a fraction of degree, no float)
+ *  @param x X Angle
+ *  @param y Y Angle
+ *  @param z Z Angle
+ *  @remarks Same order as jo_3d_rotate_matrix(): X, then Y, then Z
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle(const jo_angle x, const jo_angle y, const jo_angle z)
+{
+    __jo_3d_rotate(JO_3D_AXIS_X, x);
+    __jo_3d_rotate(JO_3D_AXIS_Y, y);
+    __jo_3d_rotate(JO_3D_AXIS_Z, z);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (X axis)
+ *  @param x X Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_x(const jo_angle x)
+{
+    __jo_3d_rotate(JO_3D_AXIS_X, x);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (Y axis)
+ *  @param y Y Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_y(const jo_angle y)
+{
+    __jo_3d_rotate(JO_3D_AXIS_Y, y);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (Z axis)
+ *  @param z Z Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_z(const jo_angle z)
+{
+    __jo_3d_rotate(JO_3D_AXIS_Z, z);
+}
+
 /*
 ███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗    ████████╗██████╗  █████╗ ███╗   ██╗███████╗██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
 ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝    ╚══██╔══╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
@@ -1253,6 +1290,19 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
         jo_core_error("Valid angle range is 10 to 160");
 #endif
     __jo_3d_set_perspective(jo_DEGtoANG_int(angle));
+}
+
+/** @brief Set the perspective angle using jo_angle (a fraction of degree, as slPerspective() of the SGL)
+ *  @param angle Angle (0x10000 = 360 degrees) from JO_DEG_TO_ANGLE(10) to JO_DEG_TO_ANGLE(160)
+ *  @remarks Same as jo_3d_perspective_angle() for a whole degree
+ */
+static  __jo_force_inline void      jo_3d_set_perspective(const jo_angle angle)
+{
+#ifdef JO_DEBUG
+    if (angle < JO_DEG_TO_ANGLE(10) || angle > JO_DEG_TO_ANGLE(160))
+        jo_core_error("Valid angle range is 10 to 160 degrees");
+#endif
+    __jo_3d_set_perspective(angle);
 }
 
 /** @brief Set the display level of the viewing volume

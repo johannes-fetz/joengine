@@ -1172,6 +1172,22 @@ static __jo_force_inline jo_fixed    jo_tan(const int deg)
     return jo_fixed_div(sin_value, cos_value);
 }
 
+/** @brief Fast tangent of a jo_angle (table lookup and the division unit)
+ *  @param angle jo_angle (0x10000 = 360 degrees, it wraps)
+ *  @return Fixed Tan(angle): JO_FIXED_MAX at 90 degrees, JO_FIXED_MIN at 270 degrees (the cosinus is 0)
+ *  @remarks Same values as jo_sin_angle() / jo_cos_angle()
+ */
+static __jo_force_inline jo_fixed    jo_tan_angle(const jo_angle angle)
+{
+    jo_fixed                         sin_value;
+    jo_fixed                         cos_value;
+
+    jo_sincos_angle(angle, &sin_value, &cos_value);
+    if (cos_value == 0)
+        return (sin_value > 0 ? JO_FIXED_MAX : JO_FIXED_MIN);
+    return jo_fixed_div(sin_value, cos_value);
+}
+
 /** @brief Tangent computation
  *  @param deg Angle in degree
  *  @return Tan(deg) using floating number (slow)

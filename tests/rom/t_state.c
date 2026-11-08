@@ -20,6 +20,9 @@
 #define T_CRAOFB                (0x25F800E6)
 #define T_CCCTL                 (0x25F800EC)
 #define T_CCRNA                 (0x25F80108)
+#define T_LCTAU                 (0x25F800A8)
+#define T_LNCLEN                (0x25F800E8)
+#define T_CCRLB                 (0x25F8010E)
 
 static unsigned short           t_base[T_VDP2_REGS];
 
@@ -200,6 +203,89 @@ static void                     t_vdp2_effects(void)
     jo_set_screen_color_filter_a(JO_NBG1_SCREEN, 10, -10, 20);
     t_diff("vdp2.color_filter_a");
     jo_set_screen_color_filter_a(JO_NBG1_SCREEN, 0, 0, 0);
+
+    jt_group("vdp2.line_color");
+    t_snapshot();
+    {
+        unsigned short          colors[JO_TV_HEIGHT];
+        int                     line;
+
+        for (line = 0; line < JO_TV_HEIGHT; ++line)
+            colors[line] = JO_VDP2_LINE_COLOR(1, line & 63);
+        JT_TRUE(jo_vdp2_set_line_colors(colors, JO_TV_HEIGHT));
+        JT_EQ(T_REG(T_LCTAU) >> 15, 1);
+        // (the 2 tables: the second call takes the other one)
+        JT_TRUE(jo_vdp2_set_line_colors(colors, 1));
+        JT_EQ(T_REG(T_LCTAU) >> 15, 1);
+        JT_TRUE(jo_vdp2_set_line_color(JO_VDP2_LINE_COLOR(1, 5)));
+        JT_EQ(T_REG(T_LCTAU) >> 15, 0);
+    }
+    jo_vdp2_enable_line_color(JO_RBG0_SCREEN | JO_NBG1_SCREEN | JO_SPRITE_SCREEN);
+    JT_EQ(T_REG(T_LNCLEN) & 0x3F, 0x32);
+    jo_vdp2_disable_line_color(JO_NBG1_SCREEN | JO_SPRITE_SCREEN);
+    JT_EQ(T_REG(T_LNCLEN) & 0x3F, 0x10);
+    jo_vdp2_disable_line_color(JO_RBG0_SCREEN);
+    JT_EQ(T_REG(T_LNCLEN) & 0x3F, 0);
+    jo_vdp2_enable_blend(JO_LNCL_SCREEN, 9);
+    JT_EQ(T_REG(T_CCRLB) & 31, 9);
+    JT_EQ((T_REG(T_CCRLB) >> 8) & 31, 9);
+    jo_vdp2_enable_blend(JO_LNCL_SCREEN, (unsigned char)(t_base[(T_CCRLB - 0x25F80000) / 2] & 31));
+    jo_vdp2_disable_blend(JO_LNCL_SCREEN);
+    JT_EQ((T_REG(T_CCCTL) >> 5) & 1, 0);
+}
+
+/*
+** 3D: rotations and perspective in jo_angle (fractions of degree)
+*/
+
+static bool                     t_same_matrix(const jo_fixed * const a, const jo_fixed * const b)
+{
+    int                         i;
+
+    for (i = 0; i < 12; ++i)
+        if (a[i] != b[i])
+            return (false);
+    return (true);
+}
+
+static void                     t_3d_angles(void)
+{
+    jo_fixed                    a[12];
+    jo_fixed                    b[12];
+    jo_fixed                    distance;
+
+    jt_group("3d.angles");
+    jo_3d_push_matrix();
+    jo_3d_rotate_matrix(30, -45, 100);
+    jo_3d_get_matrix(a);
+    jo_3d_pop_matrix();
+    jo_3d_push_matrix();
+    jo_3d_rotate_matrix_angle(jo_DEGtoANG_int(30), jo_DEGtoANG_int(-45), jo_DEGtoANG_int(100));
+    jo_3d_get_matrix(b);
+    jo_3d_pop_matrix();
+    JT_TRUE(t_same_matrix(a, b));
+    jo_3d_push_matrix();
+    jo_3d_rotate_matrix_y(-45);
+    jo_3d_get_matrix(a);
+    jo_3d_pop_matrix();
+    jo_3d_push_matrix();
+    jo_3d_rotate_matrix_angle_y(jo_DEGtoANG_int(-45));
+    jo_3d_get_matrix(b);
+    jo_3d_pop_matrix();
+    JT_TRUE(t_same_matrix(a, b));
+    // (half a degree more: another matrix)
+    jo_3d_push_matrix();
+    jo_3d_rotate_matrix_angle_y((jo_angle)(jo_DEGtoANG_int(-45) + JO_DEG_TO_ANGLE(0.5)));
+    jo_3d_get_matrix(b);
+    jo_3d_pop_matrix();
+    JT_TRUE(!t_same_matrix(a, b));
+    jo_3d_perspective_angle(60);
+    distance = jo_3d_get_projection_distance();
+    jo_3d_set_perspective(jo_DEGtoANG_int(60));
+    JT_EQ(jo_3d_get_projection_distance(), distance);
+    jo_3d_set_perspective(JO_DEG_TO_ANGLE(60.5));
+    JT_TRUE(jo_3d_get_projection_distance() < distance);
+    jo_3d_perspective_angle(JO_3D_DEFAULT_PERSPECTIVE_ANGLE);
 }
 
 /*
@@ -437,6 +523,7 @@ void                            t_state(void)
 {
     t_screen_modes();
     t_vdp2_effects();
+    t_3d_angles();
     t_palettes();
     t_sprites();
     t_sprite_shapes();

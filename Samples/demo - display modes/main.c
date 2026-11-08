@@ -35,6 +35,9 @@
 **
 ** Special colors: the yellow stripes (colors 2 and 3 of their palette) of NBG2 are over the NBG1 bitmap or transparent.
 **
+** Line color: the checker (NBG1) is mixed with a color per line (a palette of 64 colors), a fog that thickens toward the
+** bottom of the screen.
+**
 ** A: next resolution    B: next effect    C: automatic tour on/off    L/R: blend ratio
 */
 
@@ -59,13 +62,14 @@ typedef enum
     EFFECT_SPECIAL_BLEND,
     EFFECT_NATIVE_BITMAP,
     EFFECT_SPRITE_PRIORITY,
+    EFFECT_LINE_COLOR,
     EFFECT_COUNT
 }                       demo_effect;
 
 static const char       *effect_names[EFFECT_COUNT] =
 {
     "none", "window", "circle window", "blend (ratio)", "blend (add)", "shadow", "mosaic", "blend 3 screens", "blur",
-    "special priority", "special blend", "8 bits bitmap", "sprite priority"
+    "special priority", "special blend", "8 bits bitmap", "sprite priority", "line color (fog)"
 };
 
 # define SHADES             (8)
@@ -88,6 +92,7 @@ static jo_camera        camera;
 static jo_palette       palette;
 static jo_palette       stripes_palette;
 static jo_palette       bitmap_palette;
+static jo_palette       fog_palette;
 static bool             native_bitmap = false;
 static jo_3d_mesh       *cube;
 static jo_3d_mesh       *shadow;
@@ -101,6 +106,21 @@ static int              angle = 0;
 static void             draw_background(void);
 static void             draw_native_bitmap(void);
 
+# define FOG_COLORS         (64)
+
+/** @brief One color per line: the color k of fog_palette (from transparent black at the top to the fog at the bottom) */
+static void             set_fog_lines(void)
+{
+    static unsigned short   lines[JO_VDP2_LINE_COLOR_LINES];
+    int                     h;
+    int                     y;
+
+    h = jo_core_get_screen_height();
+    for (JO_ZERO(y); y < h; ++y)
+        lines[y] = JO_VDP2_LINE_COLOR(fog_palette.id, 1 + y * FOG_COLORS / h);
+    jo_vdp2_set_line_colors(lines, h);
+}
+
 static void             set_effect(const int e)
 {
     int                 w;
@@ -112,6 +132,7 @@ static void             set_effect(const int e)
     jo_vdp2_disable_window(JO_ALL_SCROLL_SCREEN | JO_SPRITE_SCREEN);
     jo_vdp2_disable_blend(JO_ALL_SCROLL_SCREEN | JO_SPRITE_SCREEN);
     jo_vdp2_set_blend_mode(JO_VDP2_BLEND_RATIO);
+    jo_vdp2_disable_line_color(JO_ALL_SCROLL_SCREEN | JO_SPRITE_SCREEN);
     jo_vdp2_disable_shadow();
     jo_vdp2_disable_mosaic();
     jo_vdp2_disable_blur();
@@ -166,6 +187,13 @@ static void             set_effect(const int e)
         case EFFECT_SPRITE_PRIORITY:
             jo_vdp2_set_hires_sprite_mode(JO_VDP2_HIRES_SPRITES_PRIORITY);
             jo_vdp2_set_sprite_priorities(6, 6, 6, 3);
+            break;
+        case EFFECT_LINE_COLOR:
+            // (added to the checker: the colors of the lines from black, nothing added, to the fog)
+            set_fog_lines();
+            jo_vdp2_set_blend_mode(JO_VDP2_BLEND_ADD);
+            jo_vdp2_enable_line_color(JO_NBG1_SCREEN);
+            jo_vdp2_enable_blend(JO_NBG1_SCREEN, 0);
             break;
     }
 }
@@ -332,6 +360,7 @@ void                    jo_main(void)
     {
         JO_COLOR_Red, JO_COLOR_Green, JO_COLOR_Yellow, JO_COLOR_Cyan, JO_COLOR_Purple, JO_COLOR_White
     };
+    int                     i;
 
     jo_core_init(JO_COLOR_Black);
     for (resolution = 0; modes[MODE_FAMILY][resolution][0] != JO_TV_WIDTH || modes[MODE_FAMILY][resolution][1] != JO_TV_HEIGHT;
@@ -346,6 +375,9 @@ void                    jo_main(void)
     bitmap_palette.data[0] = JO_COLOR_DarkBlue;
     bitmap_palette.data[1] = JO_COLOR_Gray;
     bitmap_palette.data[2] = JO_COLOR_White;
+    jo_create_palette(&fog_palette);
+    for (JO_ZERO(i); i < FOG_COLORS; ++i)
+        fog_palette.data[i] = JO_COLOR_RGB(i * 200 / FOG_COLORS, i * 180 / FOG_COLORS, i * 140 / FOG_COLORS);
     jo_3d_camera_init(&camera);
     cube = create_cube(40);
     shadow = jo_3d_create_mesh(1);

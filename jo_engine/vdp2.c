@@ -3470,8 +3470,9 @@ void                                    jo_vdp2_enable_blend(const jo_scroll_scr
         JO_VDP2_SET_BITS(JO_VDP2_CCRNB, JO_VDP2_COLOR_RATE_HIGH_MASK, ratio << 8);
     if (screens & JO_RBG0_SCREEN)
         JO_VDP2_SET_BITS(JO_VDP2_CCRR, JO_VDP2_COLOR_RATE_LOW_MASK, ratio);
+    // (JO_BACK_SCREEN is also JO_LNCL_SCREEN: the ratio of the back screen and of the line color screen)
     if (screens & JO_BACK_SCREEN)
-        JO_VDP2_SET_BITS(JO_VDP2_CCRLB, JO_VDP2_COLOR_RATE_HIGH_MASK, ratio << 8);
+        JO_VDP2_SET(JO_VDP2_CCRLB, both);
     if (screens & JO_SPRITE_SCREEN)
     {
         JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, JO_VDP2_SPCTL_COLOR_CALC_ALL);
@@ -3488,6 +3489,94 @@ void                                    jo_vdp2_disable_blend(const jo_scroll_sc
     JO_VDP2_SET_BITS(JO_VDP2_CCCTL, screens & JO_VDP2_CCCTL_SCREENS_MASK, 0);
     if (screens & JO_SPRITE_SCREEN)
         JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, 0);
+}
+
+/*
+** Line color screen
+*/
+
+/** @brief LCTAU: one color per line (0: one color for the whole screen) */
+# define JO_VDP2_LCTAU_LINE_MODE            (1 << 15)
+/** @brief LNCLEN: the line color screen inserted under NBG0 to NBG3 and RBG0 (bits 0 to 4) and the sprites (bit 5) */
+# define JO_VDP2_LNCLEN_SCREENS_MASK        (0x001F)
+# define JO_VDP2_LNCLEN_SPRITE              (1 << 5)
+/** @brief A line color: an index of the color RAM (11 bits) */
+# define JO_VDP2_LINE_COLOR_MASK            (0x07FF)
+
+/** @brief Line color tables (2: the table displayed is not changed during the display), and the single color */
+static unsigned short                   *__jo_vdp2_line_colors[2] = {JO_NULL, JO_NULL};
+static int                              __jo_vdp2_line_colors_index = 0;
+static unsigned short                   *__jo_vdp2_line_color = JO_NULL;
+
+static void                             jo_vdp2_set_line_color_table(const unsigned short * const table, const bool per_line)
+{
+    unsigned int                        offset;
+
+    offset = jo_vdp2_vram_offset(table) >> 1;
+    JO_VDP2_SET(JO_VDP2_LCTAU, (per_line ? JO_VDP2_LCTAU_LINE_MODE : 0) | ((offset >> 16) & JO_VDP2_TABLE_ADDRESS_HIGH_MASK));
+    JO_VDP2_SET(JO_VDP2_LCTAL, offset & JO_VDP2_TABLE_ADDRESS_LOW_16BITS_MASK);
+}
+
+bool                                    jo_vdp2_set_line_colors(const unsigned short * const colors, const int count)
+{
+    unsigned short                      *table;
+    int                                 line;
+
+#ifdef JO_DEBUG
+    if (colors == JO_NULL || count <= 0)
+    {
+        jo_core_error("colors is null or count <= 0");
+        return (false);
+    }
+#endif
+    __jo_vdp2_line_colors_index ^= 1;
+    if ((table = __jo_vdp2_line_colors[__jo_vdp2_line_colors_index]) == JO_NULL &&
+        (table = __jo_vdp2_line_colors[__jo_vdp2_line_colors_index] =
+         (unsigned short *)jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_VDP2_LINE_COLOR_LINES * sizeof(unsigned short))) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of VDP2 memory");
+#endif
+        return (false);
+    }
+    // (the lines after count: the last color)
+    for (JO_ZERO(line); line < JO_VDP2_LINE_COLOR_LINES; ++line)
+        table[line] = colors[line < count ? line : count - 1] & JO_VDP2_LINE_COLOR_MASK;
+    jo_vdp2_set_line_color_table(table, true);
+    return (true);
+}
+
+bool                                    jo_vdp2_set_line_color(const unsigned short color)
+{
+    if (__jo_vdp2_line_color == JO_NULL &&
+        (__jo_vdp2_line_color = (unsigned short *)jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, sizeof(unsigned short))) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of VDP2 memory");
+#endif
+        return (false);
+    }
+    *__jo_vdp2_line_color = color & JO_VDP2_LINE_COLOR_MASK;
+    jo_vdp2_set_line_color_table(__jo_vdp2_line_color, false);
+    return (true);
+}
+
+static unsigned short                   jo_vdp2_line_color_bits(const jo_scroll_screen screens)
+{
+    return ((unsigned short)((screens & JO_VDP2_LNCLEN_SCREENS_MASK) | (screens & JO_SPRITE_SCREEN ? JO_VDP2_LNCLEN_SPRITE : 0)));
+}
+
+void                                    jo_vdp2_enable_line_color(const jo_scroll_screen screens)
+{
+    unsigned short                      bits;
+
+    bits = jo_vdp2_line_color_bits(screens);
+    JO_VDP2_SET_BITS(JO_VDP2_LNCLEN, bits, bits);
+}
+
+void                                    jo_vdp2_disable_line_color(const jo_scroll_screen screens)
+{
+    JO_VDP2_SET_BITS(JO_VDP2_LNCLEN, jo_vdp2_line_color_bits(screens), 0);
 }
 
 void                                    jo_vdp2_enable_shadow(const jo_scroll_screen screens)

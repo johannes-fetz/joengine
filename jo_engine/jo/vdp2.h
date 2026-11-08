@@ -716,6 +716,50 @@ void    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio
  */
 void    jo_vdp2_disable_blend(const jo_scroll_screen screens);
 
+/*
+** Line color screen: a color for each line, mixed with a screen instead of the image under it (fog that thickens toward
+** the horizon, a gradient over a floor or a sea)
+*/
+
+/** @brief Lines of a line color table (the most lines of a screen, see jo_vdp2_set_line_colors()) */
+# define JO_VDP2_LINE_COLOR_LINES           (512)
+
+/** @brief Color code of a line color: the color INDEX of the palette PALETTE_ID (jo_create_palette(): its color
+ *  palette.data[k] is the index k + 1)
+ *  @remarks The line colors are colors of the color RAM, not RGB colors: write them in a palette first
+ */
+# define JO_VDP2_LINE_COLOR(PALETTE_ID, INDEX)  ((unsigned short)((PALETTE_ID) * 256 + (INDEX)))
+
+/** @brief Set one color for each line of the line color screen
+ *  @param colors Color codes (JO_VDP2_LINE_COLOR()) of the lines, from the top of the screen
+ *  @param count Colors count (up to JO_VDP2_LINE_COLOR_LINES; the lines after them take the last color). In the
+ *  interlaced modes: 2 colors per line of a field (the lines of the frame)
+ *  @return true if succeed, false if the VDP2 memory is full (1 KB per table, 2 tables)
+ *  @remarks The colors are copied: the function can be called every frame (as slLineColTable() of the SGL)
+ */
+bool    jo_vdp2_set_line_colors(const unsigned short * const colors, const int count);
+
+/** @brief Set one color for the whole line color screen
+ *  @param color Color code (JO_VDP2_LINE_COLOR())
+ *  @return true if succeed, false if the VDP2 memory is full
+ */
+bool    jo_vdp2_set_line_color(const unsigned short color);
+
+/** @brief Mix screens with the line color screen instead of the image under them (as slLineColDisp() of the SGL)
+ *  @param screens Screens (example: JO_RBG0_SCREEN): NBG0 to NBG3, RBG0 and the sprites
+ *  @remarks Where one of these screens is on top and mixed (jo_vdp2_enable_blend(), with its ratio: 0 = the screen
+ *  only, 31 = almost only the line color), its pixels are mixed with the color of their line. Example, a fog on RBG0:
+ *  jo_vdp2_set_line_colors(fog, JO_TV_HEIGHT); jo_vdp2_enable_line_color(JO_RBG0_SCREEN); jo_vdp2_enable_blend(JO_RBG0_SCREEN, 12)
+ *  @remarks The ratio is the same on all the lines. A fog that thickens toward the horizon: the JO_VDP2_BLEND_ADD mode
+ *  (jo_vdp2_set_blend_mode(), for all the screens) with line colors from black (near, no fog) to the fog color (far)
+ */
+void    jo_vdp2_enable_line_color(const jo_scroll_screen screens);
+
+/** @brief The screens are no longer mixed with the line color screen (see jo_vdp2_enable_line_color())
+ *  @param screens Screens
+ */
+void    jo_vdp2_disable_line_color(const jo_scroll_screen screens);
+
 /** @brief Blur a screen horizontally where it is mixed: under a transparent screen (jo_vdp2_enable_blend()), or where it is
  *  transparent itself (water, glass, heat)
  *  @param screen One screen: JO_NBG0_SCREEN to JO_NBG3_SCREEN, JO_RBG0_SCREEN or JO_SPRITE_SCREEN
