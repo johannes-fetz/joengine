@@ -234,6 +234,7 @@ static void                                 jo_profile_sampling_install(jo_inter
     JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT | JO_SH2_FRT_TIER_OCIAE;
 }
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 /** @brief Slave CPU: start its sampling (jo_core_exec_on_slave() callback)
  *  @remarks The slave CPU runs with all its interrupts masked (its blanking interrupts are useless): level 14 lets the
  *           sampling (level 15) through
@@ -243,6 +244,7 @@ static void                                 jo_profile_sampling_slave_start(void
     jo_profile_sampling_install(__jo_profile_sampling_slave_handler);
     __jo_core_set_sr(0xE0);
 }
+#endif
 
 #ifdef JO_PROFILE_CALLS
 /*
@@ -292,15 +294,20 @@ void                                        jo_profile_sampling_start(unsigned i
     if (slave_histogram == JO_NULL)
         return;
     jo_memset(slave_histogram, 0, JO_PROFILE_SAMPLING_BINS * sizeof(*slave_histogram));
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     __jo_profile_sampling_histogram[1] = slave_histogram;
     jo_core_exec_on_slave(jo_profile_sampling_slave_start);
+#endif
+    // (without the dual CPU support the slave CPU runs no job: its histogram stays zeroed)
 }
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 /** @brief Slave CPU: stop its sampling (jo_core_exec_on_slave() callback) */
 static void                                 jo_profile_sampling_slave_stop(void)
 {
     JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
 }
+#endif
 
 void                                        jo_profile_sampling_stop(void)
 {
@@ -310,8 +317,10 @@ void                                        jo_profile_sampling_stop(void)
     return;
 #endif
     JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_profile_sampling_histogram[1] != JO_NULL)
         jo_core_exec_on_slave(jo_profile_sampling_slave_stop);
+#endif
 }
 
 void                                        __jo_profile_end_frame(void)
