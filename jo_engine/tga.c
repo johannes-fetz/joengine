@@ -108,7 +108,9 @@ static  __jo_force_inline jo_color          jo_tga_get_pixel(const char * const 
     switch (bits)
     {
     case JO_TGA_8_BITS:
-        return (jo_color)(*(stream + (x + (y * width))) + 1 /* +1 Because 0 means transparent in the Saturn. So 1 means index 0 in the palette*/);
+        // (+1 because 0 is transparent on the Saturn: 1 is the index 0 of the palette. The index 255 is 0 in the 8 bits
+        // images, so always transparent; a transparent color of a 8 bits TGA has the same + 1: JO_TGA_TRANSPARENT_INDEX())
+        return (jo_color)(*(stream + (x + (y * width))) + 1);
     case JO_TGA_32_BITS:
         if (JO_TGA_CONVERT_COLOR(stream, (JO_MULT_BY_4(x) + 3) + ((y) * JO_MULT_BY_4(width))) <= 0)
             return (JO_COLOR_Transparent);
@@ -145,7 +147,7 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     if (!JO_TGA_SUPPORTED_FORMAT(*bits) || header->image_type < 1 || header->image_type > 3 ||
         (len > 0 && ((unsigned int)len < sizeof(*header) ||
                      (unsigned long long)len < sizeof(*header) + header->id_length +
-                     (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth) : 0) +
+                     (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth + 1) : 0) +
                      (unsigned long long)img->width * img->height * JO_DIV_BY_8(*bits))))
     {
 #ifdef JO_DEBUG
@@ -176,6 +178,7 @@ static char                             *__jo_tga_read_header(char * restrict st
     __jo_tga_header                     *header;
     register int		                idx;
     register int                        palette_length;
+    register int                        entry_size;
 
     header = (__jo_tga_header *)stream;
     *row_top = (header->image_descriptor & TGA_IMAGEDESCRIPTOR_ROW_TOP) == TGA_IMAGEDESCRIPTOR_ROW_TOP;
@@ -184,23 +187,34 @@ static char                             *__jo_tga_read_header(char * restrict st
     if (bits == JO_TGA_8_BITS)
     {
         jo_palette                      *palette;
+        unsigned short                  color;
 
         palette = __jo_tga_default_palette;
         palette_length = jo_swap_endian_short(header->color_map_length);
+        // (the size of a color of the palette: 3 bytes for 24 bits, 4 for 32 bits, 2 for 15 or 16 bits. The colors were
+        // read as 3 bytes: the other sizes gave wrong colors and moved the pixels)
+        entry_size = JO_DIV_BY_8(header->color_map_entry_depth + 1);
         // palette->data is JO_NULL when the color RAM is full (see jo_create_palette())
         if ((palette != JO_NULL || (__jo_tga_palette_handling != JO_NULL && (palette = __jo_tga_palette_handling()) != JO_NULL)) && palette->data != JO_NULL)
         {
             for (JO_ZERO(idx); idx < palette_length && idx < JO_PALETTE_MAX_COLORS; ++idx)
             {
-                palette->data[idx] = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
-                stream += 3;
+                if (entry_size == 2)
+                {
+                    // (A RRRRR GGGGG BBBBB, little endian)
+                    color = (unsigned short)((unsigned char)stream[0] | ((unsigned char)stream[1] << 8));
+                    palette->data[idx] = JO_COLOR_SATURN_RGB((color >> 10) & 0x1f, (color >> 5) & 0x1f, color & 0x1f);
+                }
+                else
+                    palette->data[idx] = JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(stream, 2), JO_TGA_CONVERT_COLOR(stream, 1), JO_TGA_CONVERT_COLOR(stream, 0));
+                stream += entry_size;
             }
             // (the colors not read: the 256th one of a palette of 256 colors, the palette has 255 colors and the transparent
             // color 0. Not one more: the pixels of a palette of less than 255 colors were moved by 3 bytes)
-            stream += (palette_length - idx) * 3;
+            stream += (palette_length - idx) * entry_size;
         }
         else
-            stream += palette_length * JO_DIV_BY_8(header->color_map_entry_depth);
+            stream += palette_length * entry_size;
     }
     return (stream);
 }
