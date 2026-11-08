@@ -267,6 +267,8 @@ applied atomically between two frames.
 # define JO_VDP2_SPCTL_COLOR_CALC_MASK      (0x3700)
 /** @brief SPCTL: color calculation when the sprite priority is <= 7 (all sprites) */
 # define JO_VDP2_SPCTL_COLOR_CALC_ALL       (7 << 8)
+/** @brief SPCTL: color calculation when the MSB of the color is 1 (the RGB pixels only) */
+# define JO_VDP2_SPCTL_COLOR_CALC_MSB       (3 << 12)
 
 /** @brief SCRCTL: NBG0 line scroll bits (the bit 0, the vertical cell scroll, is set apart) */
 # define JO_VDP2_SCRCTL_NBG0_MASK           (0x003e)
@@ -3453,6 +3455,16 @@ void                                    jo_vdp2_disable_special_blend(const jo_s
     jo_vdp2_update_special_functions();
 }
 
+/** @brief Condition of the color calculation of the sprites (jo_vdp2_blend_rgb_sprites_only()) */
+static unsigned short                   __jo_vdp2_sprite_blend_condition = JO_VDP2_SPCTL_COLOR_CALC_ALL;
+
+void                                    jo_vdp2_blend_rgb_sprites_only(const bool rgb_only)
+{
+    __jo_vdp2_sprite_blend_condition = rgb_only ? JO_VDP2_SPCTL_COLOR_CALC_MSB : JO_VDP2_SPCTL_COLOR_CALC_ALL;
+    if (JO_VDP2_GET(JO_VDP2_CCCTL) & JO_SPRITE_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, __jo_vdp2_sprite_blend_condition);
+}
+
 void                                    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio)
 {
     unsigned short                      both;
@@ -3475,7 +3487,7 @@ void                                    jo_vdp2_enable_blend(const jo_scroll_scr
         JO_VDP2_SET(JO_VDP2_CCRLB, both);
     if (screens & JO_SPRITE_SCREEN)
     {
-        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, JO_VDP2_SPCTL_COLOR_CALC_ALL);
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, __jo_vdp2_sprite_blend_condition);
         JO_VDP2_SET(JO_VDP2_CCRSA, both);
         JO_VDP2_SET(JO_VDP2_CCRSB, both);
         JO_VDP2_SET(JO_VDP2_CCRSC, both);

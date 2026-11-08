@@ -711,6 +711,13 @@ void    jo_vdp2_set_blend_mode(const jo_vdp2_blend_mode mode);
  */
 void    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio);
 
+/** @brief Mix only the RGB pixels of the sprites (jo_vdp2_enable_blend(JO_SPRITE_SCREEN, ratio)): the palette pixels stay
+ *  opaque (example: see-through RGB water with opaque objects in palette colors over it)
+ *  @param rgb_only true: the RGB pixels only (RGB textures and colors, gouraud), false: all the pixels (default)
+ *  @remarks The condition of the color calculation of the sprites is the MSB of their color (1 for the RGB pixels)
+ */
+void    jo_vdp2_blend_rgb_sprites_only(const bool rgb_only);
+
 /** @brief The screens are opaque again (see jo_vdp2_enable_blend())
  *  @param screens Screens
  */
