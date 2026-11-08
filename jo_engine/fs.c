@@ -764,6 +764,11 @@ int                             __jo_fs_get_file_id(const char * const filename)
     return (-1);
 }
 
+bool                            jo_fs_file_exists(const char *const filename)
+{
+    return (__jo_fs_get_file_id(filename) >= 0);
+}
+
 #ifdef JO_FS_TRACE
 /* Test: the files opened, in their order (JO_FS_TRACE: the count kept), see jo_fs_trace_name() */
 static short                    __jo_fs_trace[JO_FS_TRACE] __attribute__((used));

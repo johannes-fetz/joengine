@@ -59,6 +59,12 @@ typedef void                                (*jo_fs_async_read_callback)(char *c
  */
 bool                                        jo_fs_cd(const char *const sub_dir);
 
+/** @brief Check if a file is in the current directory of the CD (no error printed when it is not: an optional file)
+ *  @param filename File name (example: "LEVEL.BIN")
+ *  @return true if the file exists
+ */
+bool                                        jo_fs_file_exists(const char *const filename);
+
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)

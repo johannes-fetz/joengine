@@ -1473,6 +1473,8 @@ The 16 colors palettes 0 to 7 are in the first 256 colors of the color RAM, whic
 
 /** @brief Glyph pixel color (in the 16 colors palette) */
 # define JO_VDP2_PRINTF_GLYPH_COLOR     (1)
+/** @brief Outline pixel color (in the 16 colors palette, see jo_set_printf_outline()) */
+# define JO_VDP2_PRINTF_OUTLINE_COLOR   (2)
 
 # define JO_VDP2_PRINTF_MAP             ((volatile unsigned short *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_MAP_OFFSET))
 # define JO_VDP2_PRINTF_CHARACTER_BASE  ((JO_VDP2_PRINTF_CELL_OFFSET >> 5) & JO_VDP2_CHARACTER_NUMBER_MASK)
@@ -1549,27 +1551,65 @@ static const unsigned char          __jo_vdp2_printf_font[128 * 8] =
 
 };
 
-/** @brief Load the printf font and set NBG0 for jo_printf() */
-static void                         jo_vdp2_init_printf_font(void)
+/** @brief The color of a pixel of a printf character (0: transparent, the glyph color, the outline color)
+ *  @param c Character
+ *  @param x Column (0: left)
+ *  @param y Row (0: top)
+ *  @param outline The pixels around the glyph in the outline color (inside the 8x8 cell)
+ */
+static unsigned char                jo_vdp2_printf_pixel(const unsigned int c, const int x, const int y, const bool outline)
+{
+    int                             dx;
+    int                             dy;
+
+    if (c >= 128)
+        return (0);
+    if (__jo_vdp2_printf_font[JO_MULT_BY_8(c) + y] & (0x80 >> x))
+        return (JO_VDP2_PRINTF_GLYPH_COLOR);
+    if (!outline)
+        return (0);
+    for (dy = -1; dy <= 1; ++dy)
+        for (dx = -1; dx <= 1; ++dx)
+            if (x + dx >= 0 && x + dx < 8 && y + dy >= 0 && y + dy < 8 &&
+                (__jo_vdp2_printf_font[JO_MULT_BY_8(c) + y + dy] & (0x80 >> (x + dx))))
+                return (JO_VDP2_PRINTF_OUTLINE_COLOR);
+    return (0);
+}
+
+/** @brief Write the characters of the printf font in VRAM
+ *  @param outline With the outline (see jo_set_printf_outline())
+ */
+static void                         jo_vdp2_write_printf_font(const bool outline)
 {
     volatile unsigned char          *cell;
     register unsigned int           c;
-    register unsigned int           y;
-    register unsigned int           x;
-    unsigned char                   bits;
+    register int                    y;
+    register int                    x;
 
     // Characters: 256 cells of 8x8 pixels at 4 bits per pixel (2 pixels per byte, left pixel in the high nibble)
     cell = (volatile unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_CELL_OFFSET);
     for (JO_ZERO(c); c < 256; ++c)
-    {
         for (JO_ZERO(y); y < 8; ++y)
-        {
-            bits = (c < 128) ? __jo_vdp2_printf_font[JO_MULT_BY_8(c) + y] : 0;
             for (JO_ZERO(x); x < 8; x += 2)
-                *cell++ = ((bits & (0x80 >> x)) ? (JO_VDP2_PRINTF_GLYPH_COLOR << 4) : 0) |
-                          ((bits & (0x40 >> x)) ? JO_VDP2_PRINTF_GLYPH_COLOR : 0);
-        }
-    }
+                *cell++ = (unsigned char)((jo_vdp2_printf_pixel(c, x, y, outline) << 4) | jo_vdp2_printf_pixel(c, x + 1, y, outline));
+}
+
+void                                jo_set_printf_outline(const bool enabled, const jo_color color)
+{
+    register int                    k;
+
+    // (the outline color in the 8 palettes of the printf: the color 2 of each one)
+    for (JO_ZERO(k); k < 8; ++k)
+        jo_set_palette_register((unsigned short)(JO_VDP2_PRINTF_OUTLINE_COLOR + JO_MULT_BY_16(k)), color);
+    jo_vdp2_write_printf_font(enabled);
+}
+
+/** @brief Load the printf font and set NBG0 for jo_printf() */
+static void                         jo_vdp2_init_printf_font(void)
+{
+    register unsigned int           c;
+
+    jo_vdp2_write_printf_font(false);
     // Map filled with spaces (a 16 colors cell is 32 bytes: 1 character number)
     for (JO_ZERO(c); c < 64 * 64; ++c)
         JO_VDP2_PRINTF_MAP[c] = JO_VDP2_PRINTF_CHARACTER_BASE + ' ';
