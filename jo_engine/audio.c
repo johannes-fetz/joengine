@@ -1307,6 +1307,7 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
     unsigned int    bits;
     unsigned int    frames;
     unsigned int    k;
+    unsigned int    w;
     int             len;
     unsigned char   c;
 
@@ -1389,16 +1390,29 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         jo_memcpy(file + (size >> 1), p, size >> 1);
         jo_free(p);
     }
+    // (4 bytes at once: file is the start of a block of jo_malloc(), aligned on 4 bytes; byte by byte, 1.4 % of the loading
+    // of the rally demo)
     if (bits == 16)
-        for (JO_ZERO(k); k + 1 < size; k += 2)
+    {
+        for (JO_ZERO(k); k + 3 < size; k += 4)
+        {
+            w = *(unsigned int *)(file + k);
+            *(unsigned int *)(file + k) = ((w >> 8) & 0x00FF00FFu) | ((w & 0x00FF00FFu) << 8);
+        }
+        for (; k + 1 < size; k += 2)
         {
             c = file[k];
             file[k] = file[k + 1];
             file[k + 1] = c;
         }
+    }
     else
-        for (JO_ZERO(k); k < size; ++k)
+    {
+        for (JO_ZERO(k); k + 3 < size; k += 4)
+            *(unsigned int *)(file + k) ^= 0x80808080u;
+        for (; k < size; ++k)
             file[k] ^= 0x80;
+    }
     sound->mode = channels == 2 ? (bits == 8 ? JoSoundStereo8Bit : JoSoundStereo16Bit) : (bits == 8 ? JoSoundMono8Bit : JoSoundMono16Bit);
     sound->data = (char *)file;
     sound->data_length = size;

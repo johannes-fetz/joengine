@@ -620,6 +620,18 @@ static void                     jo_dma_purge_cache(const void * const addr, cons
     // Only the cache area (0x00000000 to 0x1FFFFFFF) uses the cache
     if (a >= 0x20000000)
         return;
+    // As big as the cache (4 KB) or more: the whole cache purged at once (a write per line of 16 bytes: the sectors of the
+    // CD read by the DMA, 1.2 % of the loading of the rally demo). The cache disabled while it is purged
+    if (size >= 4096)
+    {
+        unsigned char           ccr;
+
+        ccr = JO_SH2_CCR;
+        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE);
+        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE;
+        JO_SH2_CCR = ccr;
+        return;
+    }
     end = a + size;
     for (a &= ~(JO_SH2_CACHE_LINE_SIZE - 1); a < end; a += JO_SH2_CACHE_LINE_SIZE)
         *(volatile unsigned int *)(JO_SH2_CACHE_PURGE_AREA | a) = 0;

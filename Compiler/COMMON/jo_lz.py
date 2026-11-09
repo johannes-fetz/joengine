@@ -4,6 +4,11 @@ of 3 to 18 bytes from 1 to 4096 bytes before (2 bytes: 12 bits distance - 1, 4 b
 
     python3 jo_lz.py IN OUT
     import jo_lz; data = jo_lz.compress(raw)
+
+A compressed file of the CD (compress_file(), or -f): "JOLZ" then the same data. jo_fs_read_file() and jo_fs_open() of
+the Jo Engine read it decompressed (fewer sectors read on the CD: a loading about as much faster as the file is smaller):
+
+    python3 jo_lz.py -f IN OUT
 """
 import struct
 import sys
@@ -81,6 +86,18 @@ def decompress(data):
     return bytes(out)
 
 
+MAGIC = b'JOLZ'
+
+
+def compress_file(raw):
+    """A file of the CD read decompressed by jo_fs_read_file() and jo_fs_open() (the magic, then compress())"""
+    return MAGIC + compress(raw)
+
+
 if __name__ == '__main__':
-    data = open(sys.argv[1], 'rb').read()
-    open(sys.argv[2], 'wb').write(compress(data))
+    args = sys.argv[1:]
+    as_file = args[0] == '-f'
+    if as_file:
+        args = args[1:]
+    data = open(args[0], 'rb').read()
+    open(args[1], 'wb').write(compress_file(data) if as_file else compress(data))
