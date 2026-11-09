@@ -439,6 +439,11 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
 
 /** @brief A gouraud table per polygon (the cells, lit by the point lights, see __jo_3d_load_model_for_lights()) */
 static bool                                 __jo_3d_model_unique_gouraud_tables = false;
+/** @brief The polygons whose gouraud table leaves the texels as they are: drawn without gouraud (see
+ *  jo_3d_set_neutral_gouraud_skipped()) */
+static bool                                 __jo_3d_model_skip_neutral_gouraud = false;
+/** @brief A gouraud color that leaves the texel as it is (16, 16, 16) */
+#define JO_3D_MODEL_NEUTRAL_GOURAUD         (0xC210)
 
 /** @brief A hash of the 4 colors of a gouraud table */
 static  __jo_force_inline unsigned int      jo_3d_model_gouraud_hash(const unsigned short * const t)
@@ -476,6 +481,19 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
 
     attributes = model->mesh->data.attributes;
     n = model->mesh->data.polygon_count;
+    // (the polygons whose 4 colors leave the texels as they are: without gouraud, the same picture; Mednafen emulates a
+    // pixel of gouraud slower: the gouraud of all the polygons of a split screen cost 6 % of its time)
+    if (__jo_3d_model_skip_neutral_gouraud && !__jo_3d_model_unique_gouraud_tables)
+        for (JO_ZERO(k); k < n; ++k)
+            if (attributes[k].gouraud_table != 0 &&
+                (gouraud[k * 4] | 0x8000) == JO_3D_MODEL_NEUTRAL_GOURAUD &&
+                (gouraud[k * 4 + 1] | 0x8000) == JO_3D_MODEL_NEUTRAL_GOURAUD &&
+                (gouraud[k * 4 + 2] | 0x8000) == JO_3D_MODEL_NEUTRAL_GOURAUD &&
+                (gouraud[k * 4 + 3] | 0x8000) == JO_3D_MODEL_NEUTRAL_GOURAUD)
+            {
+                attributes[k].gouraud_table = 0;
+                attributes[k].draw_mode &= ~JO_VDP1_COLOR_CALC_GOURAUD;
+            }
     for (JO_ZERO(k), JO_ZERO(used); k < n; ++k)
         if (attributes[k].gouraud_table != 0)
             ++used;
@@ -584,6 +602,11 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
 void                                        jo_3d_set_unique_gouraud_tables(const bool unique)
 {
     __jo_3d_model_unique_gouraud_tables = unique;
+}
+
+void                                        jo_3d_set_neutral_gouraud_skipped(const bool skipped)
+{
+    __jo_3d_model_skip_neutral_gouraud = skipped;
 }
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT

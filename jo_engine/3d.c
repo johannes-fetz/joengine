@@ -386,6 +386,9 @@ typedef struct
     int                                     sprite;             // The tiles (one under the other)
     int                                     tiles;              // Tiles on a side
     int                                     first_sprite;       // Its first sprite (forgotten when it is freed)
+    unsigned int                            tile_step;          // The address of a tile after the previous one (/ 8)
+    unsigned int                            tile_size;          // The width / 8 and the height of a tile (low word of the
+                                                                // texture words of a command)
 }                                           jo_3d_environment;
 
 static jo_3d_environment                    __jo_3d_environments[JO_3D_ENVIRONMENT_MESHES];
@@ -779,6 +782,8 @@ static unsigned int                         __jo_3d_clip_table_base = 0;
 
 /* Clipping: the polygons are clipped when they go further than this distance outside of the screen (see jo_3d_set_guard_band()) */
 int                                         __jo_3d_guard_band = JO_3D_DEFAULT_GUARD_BAND;
+/** @brief See jo_3d_set_fewer_parts() (read by both CPUs: through the cache-through address) */
+static volatile bool                        __jo_3d_fewer_parts = false;
 #ifdef JO_TEST_SPAN
 /* Test (JO_TEST_SPAN, read by the game): the vertices transformed by the master CPU, its polygons, the points of their meshes */
 unsigned int                                __jo_3d_test_span[3];
@@ -3222,8 +3227,9 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
     // texture: the texture broke along the cuts). All the textures with tiles, not only JO_3D_TILES_NEAR_ONLY: a big wall
     // facing the camera 25 units away (no perspective to correct) was cut by the edges of the screen and got its whole
     // texture on the screen (tests/harness/glitch.py, the room)
+    // (fewer parts, see jo_3d_set_fewer_parts(): clipped by the CPU at the edges of the screen)
     if (any & JO_3D_CODE_GUARD)
-        return (JO_3D_TILE_LEVEL_COUNT(tiles) >= 2 ? 4 : 2);
+        return (*(volatile bool *)JO_CACHE_THROUGH(&__jo_3d_fewer_parts) ? 0 : (JO_3D_TILE_LEVEL_COUNT(tiles) >= 2 ? 4 : 2));
     // Size on the screen (the vertices are projected)
     // (each position read once)
     for (k = 0; k < 4; ++k)
@@ -3239,7 +3245,9 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
     // spends a lot of time on each half transparent pixel, out of the screen too: it reads the frame buffer)
     // The same for a big polygon of a model cut in small quads when it was made (a wall next to the camera: its parts out of the
     // screen cost VDP1 time too, 3 times more in a stairwell)
-    if ((any & JO_3D_CODE_SCREEN) && ((a->draw_mode & JO_VDP1_COLOR_CALC_HALF_TRANSPARENT) == JO_VDP1_COLOR_CALC_HALF_TRANSPARENT ||
+    // (not with fewer parts, see jo_3d_set_fewer_parts(): the VDP1 draws their pixels out of the screen)
+    if (!*(volatile bool *)JO_CACHE_THROUGH(&__jo_3d_fewer_parts) && (any & JO_3D_CODE_SCREEN) &&
+        ((a->draw_mode & JO_VDP1_COLOR_CALC_HALF_TRANSPARENT) == JO_VDP1_COLOR_CALC_HALF_TRANSPARENT ||
                                       (tiles->levels & JO_3D_TILES_NEAR_ONLY)) &&
         jo_3d_is_mostly_out_of_screen(xmin, ymin, xmax, ymax, __jo_vdp1_system_clip_right, __jo_vdp1_system_clip_bottom))
         // (2 x 2 parts for an opaque polygon: the parts cost CPU time)
@@ -3251,6 +3259,9 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
         JO_SUB_REASON(1);
         return (0);
     }
+    // (fewer parts: not for the perspective of the texture)
+    if (*(volatile bool *)JO_CACHE_THROUGH(&__jo_3d_fewer_parts))
+        return (0);
     size = JO_MAX(xmax - xmin, ymax - ymin);
     // (the distortion allowed: the one of the texture, else the default)
     limit = tiles->error != 0 ? tiles->error : JO_3D_SUBDIVISION_ERROR;
@@ -5329,6 +5340,11 @@ void                                        jo_3d_set_texture_subdivision_depth(
         __jo_3d_tiles[sprite_id].depth = depth;
 }
 
+void                                        jo_3d_set_fewer_parts(const bool enabled)
+{
+    *(volatile bool *)JO_CACHE_THROUGH(&__jo_3d_fewer_parts) = enabled;
+}
+
 void                                        jo_3d_set_texture_subdivision_error(const int sprite_id, const int pixels)
 {
     if (sprite_id >= 0 && sprite_id < JO_MAX_SPRITE)
@@ -5644,14 +5660,12 @@ static bool                                 jo_3d_draw_polygon_general(const jo_
 static unsigned int                         jo_3d_environment_tile(jo_3d_draw_state * const s, const jo_3d_polygon * const p)
 {
     const jo_3d_environment                 *e;
-    const jo_texture_definition             *texture;
     jo_fixed                                (*m)[3];
     jo_fixed                                length;
     jo_fixed                                u;
     jo_fixed                                v;
     int                                     i;
     int                                     j;
-    int                                     th;
     int                                     k;
 
     e = &__jo_3d_environments[s->ctx->environment];
@@ -5685,10 +5699,9 @@ static unsigned int                         jo_3d_environment_tile(jo_3d_draw_st
     j = (int)(((long long)(v + JO_FIXED_1) * e->tiles) >> 17);
     i = JO_MIN(JO_MAX(i, 0), e->tiles - 1);
     j = JO_MIN(JO_MAX(j, 0), e->tiles - 1);
-    texture = &__jo_sprite_def[e->sprite];
-    th = texture->height / (e->tiles * e->tiles);
-    return (((unsigned int)(texture->adr + JO_DIV_BY_8((j * e->tiles + i) * th * JO_MULT_BY_2(texture->width))) << 16) |
-            ((unsigned int)JO_DIV_BY_8(texture->width) << 8) | (unsigned int)th);
+    // (the step and the size of a tile: computed once, a division per polygon was 6 % of the time of the CPU in the
+    // environment mapping demo)
+    return (((__jo_sprite_def[e->sprite].adr + (unsigned int)(j * e->tiles + i) * e->tile_step) << 16) | e->tile_size);
 }
 
 /** @brief The normal of each polygon of a mesh (unit vectors: the cross product of its diagonals) */
@@ -5800,6 +5813,9 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     e->sprite = id;
     e->tiles = tiles;
     e->first_sprite = id;
+    // (tw is a multiple of 8: the step of the tiles in units of 8 bytes is exact)
+    e->tile_step = (unsigned int)JO_DIV_BY_8(th * JO_MULT_BY_2(tw));
+    e->tile_size = ((unsigned int)JO_DIV_BY_8(tw) << 8) | (unsigned int)th;
     jo_3d_count_environments();
     // The normals of the polygons: the tiles
     jo_3d_compute_mesh_normals(mesh);
@@ -5895,6 +5911,46 @@ bool __attribute__((noinline, used, externally_visible)) __jo_3d_draw_polygon_sl
     ctx = k->state->ctx;
     if (ctx->environment < 0 || !(a->sort & JO_3D_USE_TEXTURE) || a->texture_id != __jo_3d_environments[ctx->environment].sprite)
         return (jo_3d_draw_polygon_general(k, p, a));
+    // A polygon that would not be drawn: skipped before its tile (the back faces of a closed mesh, half of its polygons: the
+    // tile, the upright vertices and the general path cost about 3 times the drawing of the front faces in the environment
+    // mapping demo). Back face: both of its triangles face away, for both of its diagonals (the vertices of the upright copy
+    // are rotated: the general path splits it along one or the other)
+    if (a->plane == JO_3D_SINGLE_PLANE && !ctx->mirror && p->vertices[0] < k->count && p->vertices[1] < k->count &&
+        p->vertices[2] < k->count && p->vertices[3] < k->count)
+    {
+        const jo_3d_vertex                  *v[4];
+        int                                 x[4];
+        int                                 y[4];
+        int                                 cross;
+        int                                 tri;
+        int                                 i;
+
+        for (JO_ZERO(i); i < 4; ++i)
+            v[i] = &k->vertices[p->vertices[i]];
+        if ((v[0]->zc & v[1]->zc & v[2]->zc & v[3]->zc) & (JO_3D_CODE_SCREEN | JO_3D_CODE_NEAR))
+            return (true);
+        if (((v[0]->zc | v[1]->zc | v[2]->zc | v[3]->zc) & JO_3D_CODE_MASK) == 0)
+        {
+            for (JO_ZERO(i); i < 4; ++i)
+            {
+                x[i] = JO_3D_VERTEX_X(v[i]);
+                y[i] = JO_3D_VERTEX_Y(v[i]);
+            }
+            // (the cross product of the diagonals: the sum of the areas x 2 of the triangles of either diagonal, clockwise,
+            // front, positive; then the triangles 0 1 2 and 1 2 3: the others are the sum minus them)
+            cross = (x[2] - x[0]) * (y[3] - y[1]) - (x[3] - x[1]) * (y[2] - y[0]);
+            if (cross < 0)
+            {
+                tri = (x[1] - x[0]) * (y[2] - y[0]) - (y[1] - y[0]) * (x[2] - x[0]);
+                if (tri < 0 && cross - tri < 0)
+                {
+                    tri = (x[2] - x[1]) * (y[3] - y[1]) - (y[2] - y[1]) * (x[3] - x[1]);
+                    if (tri < 0 && cross - tri < 0)
+                        return (true);
+                }
+            }
+        }
+    }
     ctx->texture_words = jo_3d_environment_tile(k->state, p);
     // The tile kept upright on the screen (a reflection doesn't turn with the polygon): its vertices rotated
     result = jo_3d_draw_polygon_general(k, jo_3d_environment_upright(k, p, a, &upright), a);
