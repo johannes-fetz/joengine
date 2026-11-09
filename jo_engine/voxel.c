@@ -170,6 +170,74 @@ static __jo_force_inline int    jo_voxel_draw_column(const jo_voxel * const voxe
     return (maxheight);
 }
 
+/** @brief camera.height - the height of each index of the height map (the palette read once, not for each sample) */
+static jo_fixed             __jo_voxel_above[256];
+
+/** @brief The columns drawn by a CPU (see __jo_voxel_redraw()) */
+typedef struct
+{
+    const jo_voxel          *voxel_data;
+    int                     first;
+    int                     end;
+    int                     count;
+    bool                    clear;
+}                           jo_voxel_columns;
+
+/** @brief The columns of the slave CPU (read through its cache: it is purged before each job) */
+static jo_voxel_columns     __jo_voxel_slave_columns;
+
+/** @brief Draw the columns from c->first to c->end (excluded)
+ *  @param c Columns
+ */
+static void                 jo_voxel_draw_columns(const jo_voxel_columns * const c)
+{
+    const jo_voxel * const  voxel_data = c->voxel_data;
+    jo_color * const        color_buffer = voxel_data->gfx->color_buffer;
+    const int               pitch = voxel_data->gfx->vram_size.width;
+    jo_fixed                deltax;
+    jo_fixed                deltay;
+    jo_color                *pixel;
+    int                     maxheight;
+    int                     x;
+    int                     y;
+
+    deltax = voxel_data->__cache.deltax_0 + c->first * voxel_data->__cache.deltax_incr;
+    deltay = voxel_data->__cache.deltay_0 + c->first * voxel_data->__cache.deltay_incr;
+    for (x = c->first; x < c->end; ++x)
+    {
+        if (c->count <= JO_VOXEL_SCALE_TABLE_SIZE)
+            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, __jo_voxel_above,
+                                             __jo_voxel_scales, c->count, c->clear);
+        else
+            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, __jo_voxel_above,
+                                             JO_NULL, c->count, c->clear);
+        // (instead of clearing the whole buffer first: the pixels of the column above the terrain)
+        if (c->clear)
+            for (JO_ZERO(y), pixel = color_buffer + x; y < maxheight; ++y, pixel += pitch)
+                *pixel = JO_COLOR_Black;
+        deltax += voxel_data->__cache.deltax_incr;
+        deltay += voxel_data->__cache.deltay_incr;
+    }
+}
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+/** @brief Check if the code runs on the slave CPU (its stack is in the first 16 KB of the high work RAM, see
+ *  __jo_profile_current_cpu()) */
+static  __jo_force_inline bool  jo_voxel_on_slave_cpu(void)
+{
+    unsigned int                sp;
+
+    __asm__ volatile ("mov r15, %0" : "=r" (sp));
+    return ((sp & 0x000FFFFF) < 0x4000);
+}
+
+/** @brief The columns of the slave CPU (jo_core_exec_on_slave() callback) */
+static void                 jo_voxel_slave_draw_columns(void)
+{
+    jo_voxel_draw_columns(&__jo_voxel_slave_columns);
+}
+#endif
+
 void                        __jo_voxel_redraw(const jo_voxel * const voxel_data, const bool clear)
 {
     jo_software_renderer_gfx * const gfx = voxel_data->gfx;
@@ -181,20 +249,16 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
     const jo_fixed          camera_height = voxel_data->camera.height;
     const jo_fixed          camera_scale = voxel_data->camera.scale;
     const jo_fixed          zfar = voxel_data->camera.zfar;
-    jo_fixed                deltax = voxel_data->__cache.deltax_0;
-    jo_fixed                deltay = voxel_data->__cache.deltay_0;
-    // camera.height - height of each index of the height map (the palette is read once, not for each sample)
-    jo_fixed                above[256];
+    jo_voxel_columns        columns;
     jo_fixed                z;
     jo_color                *pixel;
     int                     count;
-    int                     maxheight;
     int                     x;
     int                     y;
 
     for (JO_ZERO(x); x < 256; ++x)
         // JO_COLOR_SATURN_GET_R: we use the red component arbitrary because it's a grayscale image
-        above[x] = camera_height - jo_int2fixed(JO_COLOR_SATURN_GET_R(height_pal[x - 1]));
+        __jo_voxel_above[x] = camera_height - jo_int2fixed(JO_COLOR_SATURN_GET_R(height_pal[x - 1]));
     // The samples: z = 1, 2, 3... while z < zfar
     for (JO_ZERO(count), z = JO_FIXED_1; z < zfar; z += JO_FIXED_1)
         ++count;
@@ -202,21 +266,27 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
     if (count <= JO_VOXEL_SCALE_TABLE_SIZE)
         for (JO_ZERO(x); x < count; ++x)
             __jo_voxel_scales[x] = jo_fixed_div(camera_scale, jo_int2fixed(x + 1));
-    for (JO_ZERO(x); x < width; ++x)
+    columns.voxel_data = voxel_data;
+    columns.count = count;
+    columns.clear = clear;
+    JO_ZERO(columns.first);
+    columns.end = width;
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    // The columns shared by the 2 CPUs (each column on its own: the same picture), the left half on the slave CPU (the
+    // voxel demo: 21 frames per second on the master CPU alone, 34 with half of the columns on each CPU; 9/16 on the slave
+    // CPU: 32). Not when the redraw is a job of the slave CPU itself
+    if (!jo_voxel_on_slave_cpu() && width >= 16)
     {
-        if (count <= JO_VOXEL_SCALE_TABLE_SIZE)
-            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, above,
-                                             __jo_voxel_scales, count, clear);
-        else
-            maxheight = jo_voxel_draw_column(voxel_data, x, voxel_data->camera.x, voxel_data->camera.y, deltax, deltay, above,
-                                             JO_NULL, count, clear);
-        // (instead of clearing the whole buffer first: the pixels of the column above the terrain)
-        if (clear)
-            for (JO_ZERO(y), pixel = color_buffer + x; y < maxheight; ++y, pixel += pitch)
-                *pixel = JO_COLOR_Black;
-        deltax += voxel_data->__cache.deltax_incr;
-        deltay += voxel_data->__cache.deltay_incr;
+        __jo_voxel_slave_columns = columns;
+        __jo_voxel_slave_columns.end = JO_DIV_BY_2(width) & ~7;
+        columns.first = __jo_voxel_slave_columns.end;
+        jo_core_exec_on_slave(jo_voxel_slave_draw_columns);
+        jo_voxel_draw_columns(&columns);
+        jo_core_wait_for_slave();
     }
+    else
+#endif
+        jo_voxel_draw_columns(&columns);
     // (the rest of the buffer, outside of the clipping rectangle: cleared like jo_software_renderer_clear() does)
     if (clear && pitch > width)
         for (JO_ZERO(y); y < height; ++y)

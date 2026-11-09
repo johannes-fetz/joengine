@@ -74,7 +74,8 @@ void                    jo_add_memory_zone(unsigned char *ptr, const unsigned in
     memory_zones[__jo_memory_zone_index].high = ptr;
     memory_zones[__jo_memory_zone_index].first_free = ptr;
     memory_zones[__jo_memory_zone_index].end = ptr + size_in_bytes;
-    jo_memset(ptr, 0, size_in_bytes);
+    // (not cleared: a block given again after jo_free() kept its content anyway. The samples and the test ROM give the
+    // same results with zones filled with 0xA5 at start; clearing the low work RAM took time at each boot)
     ++__jo_memory_zone_index;
 }
 
