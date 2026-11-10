@@ -99,6 +99,7 @@ typedef struct
     int                             cos_outer;
     jo_point_light_entry            *entries;       // By mesh (see mesh_first)
     int                             entry_count;
+    int                             entry_capacity; // Entries allocated (kept: a light that moves is computed at each frame)
     unsigned short                  mesh_first[JO_MAX_POINT_LIGHT_MESHES];      // The entries of each mesh
     unsigned short                  mesh_entries[JO_MAX_POINT_LIGHT_MESHES];
     short                           applied[JO_MAX_POINT_LIGHT_MESHES];         // Intensity in the sums of the polygons of each mesh
@@ -526,11 +527,19 @@ void                                jo_3d_point_lights_set_mesh_seen(const jo_3d
 static void                         jo_point_light_normal(const jo_pos3D_fixed * const a, const jo_pos3D_fixed * const b,
                                                           const jo_pos3D_fixed * const c, int * const n)
 {
+    // (x 2^(16 - shift): a shift right by a count in a variable (the SH-2 shifts by 1, 2, 8 or 16 bits) by a product)
+    static const int                scales[17] =
+    {
+        65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1
+    };
     int                             u[3];
     int                             v[3];
     int                             w[3];
     int                             length;
+    int                             high;
+    int                             low;
     int                             shift;
+    int                             k;
 
     // (the sides in fixed point, halved: the whole units only gave a normal 25 degrees off for a side of 1.9 units, the
     // floor normal for sides under 1 unit)
@@ -540,12 +549,32 @@ static void                         jo_point_light_normal(const jo_pos3D_fixed *
     v[0] = (c->x >> 1) - (a->x >> 1);
     v[1] = (c->y >> 1) - (a->y >> 1);
     v[2] = (c->z >> 1) - (a->z >> 1);
-    // (the sides scaled down first, the squares stay in 32 bits)
-    for (shift = 0; JO_MAX(JO_MAX(JO_ABS(u[0]), JO_ABS(u[1])), JO_MAX(JO_ABS(u[2]), JO_MAX(JO_ABS(v[0]), JO_MAX(JO_ABS(v[1]), JO_ABS(v[2]))))) > 128; ++shift)
+    // (the sides scaled down first, the squares stay in 32 bits: shifted right until they are in -128..128. The count from
+    // the highest and the lowest of the 6 values (a shift keeps their order): the same count as the 6 values shifted by 1
+    // bit until then, 1.6 % of the master CPU with a light that moves at each frame)
+    high = JO_MAX(JO_MAX(JO_MAX(u[0], u[1]), JO_MAX(u[2], v[0])), JO_MAX(v[1], v[2]));
+    low = JO_MIN(JO_MIN(JO_MIN(u[0], u[1]), JO_MIN(u[2], v[0])), JO_MIN(v[1], v[2]));
+    for (shift = 0; high > 128 || low < -128; ++shift)
     {
-        u[0] >>= 1; u[1] >>= 1; u[2] >>= 1;
-        v[0] >>= 1; v[1] >>= 1; v[2] >>= 1;
+        high >>= 1;
+        low >>= 1;
     }
+    if (shift > 16)
+    {
+        for (k = 0; k < 3; ++k)
+        {
+            // (an arithmetic shift by 16 bits: the high half, signed)
+            u[k] = (short)((unsigned int)u[k] >> 16);
+            v[k] = (short)((unsigned int)v[k] >> 16);
+        }
+        shift -= 16;
+    }
+    if (shift > 0)
+        for (k = 0; k < 3; ++k)
+        {
+            u[k] = (int)(((long long)u[k] * scales[shift]) >> 16);
+            v[k] = (int)(((long long)v[k] * scales[shift]) >> 16);
+        }
     w[0] = u[1] * v[2] - u[2] * v[1];
     w[1] = u[2] * v[0] - u[0] * v[2];
     w[2] = u[0] * v[1] - u[1] * v[0];
@@ -557,10 +586,10 @@ static void                         jo_point_light_normal(const jo_pos3D_fixed *
         n[2] = 0;
         return;
     }
-    // (x 256)
-    n[0] = w[0] * 256 / length;
-    n[1] = w[1] * 256 / length;
-    n[2] = w[2] * 256 / length;
+    // (x 256; by the division unit: the same quotient, without the routine of the library of the compiler)
+    n[0] = jo_int_div(w[0] * 256, length);
+    n[1] = jo_int_div(w[1] * 256, length);
+    n[2] = jo_int_div(w[2] * 256, length);
 }
 
 /** @brief The light of a light on a corner (gouraud units x 64 at the intensity 256), 0: not lit */
@@ -745,15 +774,14 @@ static void                         jo_point_light_compute(jo_point_light * cons
     int                             range;
     signed char                     *seen;
 
-    if (l->entries != JO_NULL)
-        jo_free(l->entries);
-    l->entries = JO_NULL;
+    // (the entries of the last compute: their memory used again. Freed and grown by 128 at each compute, a light that moves
+    // at each frame copied its entries again and again)
     l->entry_count = 0;
     l->computed = true;
     l->partial = false;
-    capacity = 0;
+    capacity = l->entry_capacity;
     range = l->radius * JO_POINT_LIGHT_RANGE;
-    // (all the meshes first: out of memory, the loop stops and the next meshes kept the entries of the last compute)
+    // (all the meshes first: out of memory, the loop stops, the next meshes have no entries)
     for (m = 0; m < __jo_point_light_mesh_count; ++m)
     {
         l->applied[m] = 0;
@@ -807,7 +835,7 @@ static void                         jo_point_light_compute(jo_point_light * cons
             entry.polygon = (unsigned short)index;
             if (l->entry_count >= capacity)
             {
-                capacity += 128;
+                capacity = JO_MAX(128, capacity * 2);
                 entries = (jo_point_light_entry *)jo_malloc(capacity * (int)sizeof(*entries));
                 if (entries == JO_NULL)
                 {
@@ -821,6 +849,7 @@ static void                         jo_point_light_compute(jo_point_light * cons
                     jo_free(l->entries);
                 }
                 l->entries = entries;
+                l->entry_capacity = capacity;
             }
             l->entries[l->entry_count++] = entry;
             ++l->mesh_entries[m];
@@ -963,6 +992,7 @@ void                                jo_3d_point_lights_clear(void)
         if (__jo_point_lights[k].entries != JO_NULL)
             jo_free(__jo_point_lights[k].entries);
         __jo_point_lights[k].entries = JO_NULL;
+        __jo_point_lights[k].entry_capacity = 0;
         __jo_point_lights[k].used = false;
     }
     jo_point_light_changed();
