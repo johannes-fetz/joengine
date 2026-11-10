@@ -273,13 +273,16 @@ bool     jo_audio_load_pcm_async(const char * const filename, const jo_sound_mod
  *  @remarks The samples are converted for the SCSP (16 bits: big endian; 8 bits: signed; stereo: the left samples then
  *  the right ones). A WAV file can be listened to on a computer: export them with any audio tool (16 bits recommended:
  *  8 bits samples hiss in the quiet parts, the end of an echo)
+ *  @remarks A sound plays 65535 samples per channel at most (the SCSP: 1.5 s at 44100 Hz, 3 s at 22050 Hz): a longer one is
+ *  cut. Longer: jo_audio_play_music()
  *  @return true if succeed otherwise false
  */
 bool     jo_audio_load_wav(const char * const filename, jo_sound *sound);
 
 /** @brief Play a music streamed from a WAV file of the CD (only a few seconds of it in memory)
  *  @param filename WAV filename (example: MUSIC.WAV): PCM 8 or 16 bits, or IMA ADPCM (4 times smaller: recommended),
- *  mono or stereo, up to 44100 Hz
+ *  mono or stereo, up to 88200 Hz (48000 Hz: resampled to 44100 Hz by the SCSP; in 16 bits stereo, the buffer is too short
+ *  to wait for the drive: underruns, use IMA ADPCM or CCFLAGS += -DJO_AUDIO_MUSIC_BUFFER_SIZE=131072)
  *  @param loop The music starts again at its end
  *  @remarks The music goes on while the files are loaded (jo_fs_read_file()...): the drive reads it again when its buffer
  *  is low, then goes back to the file. It uses 64 KB of work RAM (JO_AUDIO_MUSIC_BUFFER_SIZE) and 64 KB of sound RAM

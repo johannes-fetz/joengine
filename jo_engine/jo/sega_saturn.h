@@ -768,6 +768,13 @@ extern unsigned int                             _jo_work_start;
 /** @brief Monitor register: the slot monitored (MSLC, bits 15-11, written) and the 4096 samples block it plays (CA, bits
  *  10-7, read) */
 # define JO_SCSP_COMMON_MONITOR             (0x08)
+/** @brief The interrupts of the SCSP pending for the main CPU (MCIPD; the bits are set even when the interrupt isn't
+ *  enabled) */
+# define JO_SCSP_COMMON_MAIN_INTERRUPT_PENDING  (0x2C)
+/** @brief Reset of the interrupts of the SCSP pending for the main CPU (MCIRE: a bit written to 1 clears it in MCIPD) */
+# define JO_SCSP_COMMON_MAIN_INTERRUPT_RESET    (0x2E)
+/** @brief Interrupt of the SCSP at each sample (44.1 kHz; bit of MCIPD and MCIRE) */
+# define JO_SCSP_INTERRUPT_SAMPLE           (1 << 10)
 /** @brief The slot monitored (JO_SCSP_COMMON_MONITOR) */
 # define JO_SCSP_MONITOR_SLOT(SLOT)         ((unsigned short)((SLOT) << 11))
 /** @brief The 4096 samples block played by the slot monitored (JO_SCSP_COMMON_MONITOR) */
