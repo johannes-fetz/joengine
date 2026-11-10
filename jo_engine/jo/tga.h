@@ -29,6 +29,7 @@
  *  @author Johannes Fetz
  *
  *  @brief Jo Engine Truevision Targa format support
+ *  @remarks 8 bits (color mapped), 24 and 32 bits (true color), raw or compressed (RLE), rows from the bottom or the top
  *  @bug jo_tga_tileset_loader is not tested
  */
 

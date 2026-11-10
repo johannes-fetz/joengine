@@ -61,13 +61,8 @@
 
 #define JO_TGA_CONVERT_COLOR(TGA, IDX)		        JO_COLOR_SATURN(*((unsigned char *)(TGA + IDX)))
 
-#define JO_TGA_24BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 2) + ((Y) * (WIDTH * 3))), \
-                                                                JO_TGA_CONVERT_COLOR(TGA, (((X) * 3) + 1) + ((Y) * (WIDTH * 3))), \
-                                                                JO_TGA_CONVERT_COLOR(TGA, (((X) * 3)) + ((Y) * (WIDTH * 3))))
-
-#define JO_TGA_32BITS_GET_PIXEL(TGA, X, Y, WIDTH)	JO_COLOR_SATURN_RGB(JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 2) + ((Y) * JO_MULT_BY_4(WIDTH))), \
-                                                                JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 1) + ((Y) * JO_MULT_BY_4(WIDTH))), \
-                                                                JO_TGA_CONVERT_COLOR(TGA, (JO_MULT_BY_4(X) + 0) + ((Y) * JO_MULT_BY_4(WIDTH))))
+/** @brief Image types: 1 color mapped, 2 true color, 3 gray; + 8: compressed (RLE) */
+#define JO_TGA_RLE                                  (8)
 
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 extern int      __jo_hash_table[JO_MAX_SPRITE];
@@ -75,6 +70,17 @@ extern int      __jo_hash_table[JO_MAX_SPRITE];
 
 static jo_tga_palette_handling_callback __jo_tga_palette_handling = JO_NULL;
 static jo_palette *__jo_tga_default_palette = JO_NULL;
+/** @brief End of the file loaded by __jo_tga_load() (JO_NULL: a stream of the caller, its length is not known) */
+static const unsigned char *__jo_tga_end;
+
+/** @brief Reader of the pixels of a compressed (RLE) TGA image: packets of a header byte (bit 7: a run of one pixel
+ *  repeated, else raw pixels; bits 0 to 6: count - 1) then the pixels. A packet can go on in the next row */
+typedef struct
+{
+    const unsigned char *src;
+    unsigned int        count;
+    bool                run;
+}                       jo_tga_rle;
 
 typedef struct
 {
@@ -103,20 +109,106 @@ void                                        jo_set_tga_palette_handling(jo_tga_p
     __jo_tga_palette_handling = callback;
 }
 
-static  __jo_force_inline jo_color          jo_tga_get_pixel(const char * const restrict stream, const int x, const int y, const int width, const int bits)
+/** @brief Read pixels of a row of a TGA image (the transparent color replaced)
+ *  @param dest Output (jo_color, unsigned char for 8 bits)
+ *  @param src First pixel in the file
+ *  @param count Pixel count
+ *  @param bits Bits per pixel of the file
+ *  @param transparent_color Color (index) replaced by the transparent one (JO_COLOR_Transparent: none)
+ *  @remarks A row at a time: a function per pixel computed its place (2 products) and tested its format (8 bits: the index
+ *  + 1, 0 is transparent on the Saturn and 1 the index 0 of the palette; the index 255 is 0, so always transparent; a
+ *  transparent index of a 8 bits TGA has the same + 1: JO_TGA_TRANSPARENT_INDEX())
+ */
+static void                                 jo_tga_read_row(void * const dest, const unsigned char *src, const int count, const int bits,
+                                                            const jo_color transparent_color)
 {
-    switch (bits)
+    unsigned char                           *d8;
+    jo_color                                *d;
+    jo_color                                c;
+    register int                            x;
+
+    if (bits == JO_TGA_8_BITS)
     {
-    case JO_TGA_8_BITS:
-        // (+1 because 0 is transparent on the Saturn: 1 is the index 0 of the palette. The index 255 is 0 in the 8 bits
-        // images, so always transparent; a transparent color of a 8 bits TGA has the same + 1: JO_TGA_TRANSPARENT_INDEX())
-        return (jo_color)(*(stream + (x + (y * width))) + 1);
-    case JO_TGA_32_BITS:
-        if (JO_TGA_CONVERT_COLOR(stream, (JO_MULT_BY_4(x) + 3) + ((y) * JO_MULT_BY_4(width))) <= 0)
-            return (JO_COLOR_Transparent);
-        return (JO_TGA_32BITS_GET_PIXEL(stream, x, y, width));
-    default:
-        return (JO_TGA_24BITS_GET_PIXEL(stream, x, y, width));
+        d8 = (unsigned char *)dest;
+        for (JO_ZERO(x); x < count; ++x)
+        {
+            d8[x] = (unsigned char)(src[x] + 1);
+            if (transparent_color != JO_COLOR_Transparent && d8[x] == (unsigned char)transparent_color)
+                JO_ZERO(d8[x]);
+        }
+        return;
+    }
+    d = (jo_color *)dest;
+    // (B, G, R: JO_COLOR_SATURN_RGB() of the 5 high bits of each, by masks: the SH-2 shifts by 1, 2, 8 or 16 bits only)
+    if (bits == JO_TGA_32_BITS)
+    {
+        for (JO_ZERO(x); x < count; ++x, src += 4)
+        {
+            // (an alpha under 8 is transparent)
+            c = src[3] < 8 ? JO_COLOR_Transparent :
+                (jo_color)(0x8000 | ((src[0] & 0xF8) << 7) | ((src[1] & 0xF8) << 2) | (src[2] >> 3));
+            if (c == transparent_color)
+                c = JO_COLOR_Transparent;
+            d[x] = c;
+        }
+        return;
+    }
+    for (JO_ZERO(x); x < count; ++x, src += 3)
+    {
+        c = (jo_color)(0x8000 | ((src[0] & 0xF8) << 7) | ((src[1] & 0xF8) << 2) | (src[2] >> 3));
+        if (c == transparent_color)
+            c = JO_COLOR_Transparent;
+        d[x] = c;
+    }
+}
+
+/** @brief Unpack the next pixels of a compressed (RLE) TGA image, as in a raw image
+ *  @param r Reader
+ *  @param dest Output (the bytes of the pixels of the file)
+ *  @param pixels Pixel count
+ *  @param size Bytes per pixel
+ *  @remarks A damaged or short file: the pixels after the end of the file are 0
+ */
+static void                                 jo_tga_rle_unpack(jo_tga_rle * const r, unsigned char *dest, unsigned int pixels, const int size)
+{
+    unsigned int                            n;
+    int                                     k;
+
+    while (pixels > 0)
+    {
+        if (r->count == 0)
+        {
+            if (__jo_tga_end != JO_NULL && r->src + 1 + size > __jo_tga_end)
+            {
+                jo_memset(dest, 0, pixels * size);
+                return;
+            }
+            // (the header byte read once, in a variable: with 2 reads, GCC 8.2 read the count after the header, one byte
+            // too far (the write of r->run made it read the byte again, from the pointer already moved on))
+            k = *r->src++;
+            r->run = (k & 0x80) != 0;
+            r->count = (unsigned int)(k & 0x7F) + 1;
+        }
+        n = JO_MIN(r->count, pixels);
+        r->count -= n;
+        pixels -= n;
+        if (r->run)
+        {
+            for (; n > 0; --n)
+                for (k = 0; k < size; ++k)
+                    *dest++ = r->src[k];
+            if (r->count == 0)
+                r->src += size;
+            continue;
+        }
+        if (__jo_tga_end != JO_NULL && r->src + n * size > __jo_tga_end)
+        {
+            jo_memset(dest, 0, (n + pixels) * size);
+            return;
+        }
+        jo_memcpy(dest, r->src, n * size);
+        dest += n * size;
+        r->src += n * size;
     }
 }
 
@@ -141,14 +233,15 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     img->width = jo_swap_endian_short(header->width);
     img->height = jo_swap_endian_short(header->height);
     *bits = header->image_pixel_size;
-    // (not compressed: 1 color mapped, 2 true color, 3 gray. The RLE images (9 to 11) are not supported: read as raw, the
-    // pixels were wrong and read after the end of the file)
-    // (a file shorter than its header says, or than a header: the pixels were read after its end)
-    if (!JO_TGA_SUPPORTED_FORMAT(*bits) || header->image_type < 1 || header->image_type > 3 ||
+    __jo_tga_end = len > 0 ? (const unsigned char *)*stream + len : JO_NULL;
+    // (1 color mapped, 2 true color, 3 gray; 9 to 11: the same compressed (RLE), see jo_tga_rle_unpack())
+    // (a file shorter than its header says, or than a header: the pixels were read after its end. Compressed: the pixels
+    // stop at the end of the file)
+    if (!JO_TGA_SUPPORTED_FORMAT(*bits) || (header->image_type & ~JO_TGA_RLE) < 1 || (header->image_type & ~JO_TGA_RLE) > 3 ||
         (len > 0 && ((unsigned int)len < sizeof(*header) ||
                      (unsigned long long)len < sizeof(*header) + header->id_length +
                      (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth + 1) : 0) +
-                     (unsigned long long)img->width * img->height * JO_DIV_BY_8(*bits))))
+                     ((header->image_type & JO_TGA_RLE) ? 0 : (unsigned long long)img->width * img->height * JO_DIV_BY_8(*bits)))))
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: Unsupported TGA (%d bits, type %d)", filename, *bits, header->image_type);
@@ -222,34 +315,72 @@ static char                             *__jo_tga_read_header(char * restrict st
 static void                             __jo_tga_read_contents(jo_raw_img *img, char * restrict stream, const jo_color transparent_color, const int bits)
 {
     char                                *image;
+    unsigned char                       *row;
     register int		                idx;
-    register int		                x;
     register int		                y;
     register int                        delta;
     bool                                row_top;
+    jo_tga_rle                          rle;
 
+    row = JO_NULL;
+    rle.src = JO_NULL;
+    JO_ZERO(rle.count);
+    rle.run = false;
     image = __jo_tga_read_header(stream, &row_top, bits);
+    // Compressed: each row unpacked in a buffer (out of memory: the image is transparent)
+    if (((__jo_tga_header *)stream)->image_type & JO_TGA_RLE)
+    {
+        if ((row = (unsigned char *)jo_malloc(img->width * JO_DIV_BY_8(bits))) == JO_NULL)
+        {
+            jo_memset(img->data, 0, img->width * img->height * (bits == JO_TGA_8_BITS ? 1 : sizeof(jo_color)));
+            return;
+        }
+        rle.src = (const unsigned char *)image;
+        JO_ZERO(rle.count);
+    }
     for (JO_ZERO(y); y < img->height; ++y)
     {
-        for (JO_ZERO(x); x < img->width; ++x)
-        {
-            delta = row_top ? y : (img->height - 1 - y);
-            idx = x + delta * img->width;
-            if (bits == JO_TGA_8_BITS)
-            {
-                ((jo_img_8bits *)img)->data[idx] = jo_tga_get_pixel(image, x, y, img->width, bits);
-                if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)img)->data[idx] == (unsigned char)transparent_color)
-                    JO_ZERO(((jo_img_8bits *)img)->data[idx]);
-            }
-            else
-            {
-                ((jo_img *)img)->data[idx] = jo_tga_get_pixel(image, x, y, img->width, bits);
-                if (transparent_color != JO_COLOR_Transparent && ((jo_img *)img)->data[idx] == transparent_color)
-                    ((jo_img *)img)->data[idx] = JO_COLOR_Transparent;
-            }
-        }
+        delta = row_top ? y : (img->height - 1 - y);
+        idx = delta * img->width;
+        if (row != JO_NULL)
+            jo_tga_rle_unpack(&rle, row, img->width, JO_DIV_BY_8(bits));
+        jo_tga_read_row(bits == JO_TGA_8_BITS ? (void *)(((jo_img_8bits *)img)->data + idx) : (void *)(((jo_img *)img)->data + idx),
+                        row != JO_NULL ? row : (const unsigned char *)image + y * img->width * JO_DIV_BY_8(bits), img->width, bits, transparent_color);
     }
+    if (row != JO_NULL)
+        jo_free(row);
 }
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+/** @brief The pixels of a tileset (the tiles are read anywhere in the image): a compressed image unpacked
+ *  @param file The file (freed when unpacked)
+ *  @param pixels The pixels in the file (after the header and the palette)
+ *  @param img Size of the image
+ *  @param bits Bits per pixel
+ *  @param block The block to free with the pixels (output: the file, or the unpacked pixels)
+ *  @return The pixels, as in a raw image (JO_NULL: out of memory, the file freed)
+ */
+static char                             *jo_tga_tileset_pixels(char * const file, char * const pixels, const jo_raw_img * const img,
+                                                               const int bits, char ** const block)
+{
+    jo_tga_rle                          rle;
+    char                                *unpacked;
+
+    *block = file;
+    if (!(((__jo_tga_header *)file)->image_type & JO_TGA_RLE))
+        return (pixels);
+    unpacked = (char *)jo_malloc(img->width * img->height * JO_DIV_BY_8(bits));
+    if (unpacked != JO_NULL)
+    {
+        rle.src = (const unsigned char *)pixels;
+        JO_ZERO(rle.count);
+        jo_tga_rle_unpack(&rle, (unsigned char *)unpacked, img->width * img->height, JO_DIV_BY_8(bits));
+    }
+    jo_free(file);
+    *block = unpacked;
+    return (unpacked);
+}
+#endif
 
 t_tga_error_code		__jo_tga_any_loader_from_stream(jo_raw_img *img, char *stream, const jo_color transparent_color, int *bits)
 {
@@ -343,7 +474,6 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
     char                    *stream;
     char                    *stream_begin;
     jo_raw_img              full_image;
-    register int		    x;
     register int		    y;
     register int		    idx;
     register unsigned int   i;
@@ -358,8 +488,9 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
     response = __jo_tga_load(&full_image, sub_dir, filename, &stream, &bits);
     if (response != JO_TGA_OK)
         return (response);
-    stream_begin = stream;
-    stream = __jo_tga_read_header(stream, &row_top, bits);
+    stream = jo_tga_tileset_pixels(stream, __jo_tga_read_header(stream, &row_top, bits), &full_image, bits, &stream_begin);
+    if (stream == JO_NULL)
+        return (JO_TGA_OUT_OF_MEMORY);
     for (JO_ZERO(i); i < tile_count; ++i)
     {
 #ifdef JO_DEBUG
@@ -398,25 +529,14 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
             }
             allocated[JO_DIV_BY_8(i)] |= (1 << JO_MOD_POW2(i, 8));
         }
+        // (a row at a time, see jo_tga_read_row(); the row of the file of the row y of the tile)
         for (JO_ZERO(y); y < output_tiles[i].height; ++y)
         {
-            for (JO_ZERO(x); x < output_tiles[i].width; ++x)
-            {
-                delta = y; // (the source row follows the order of the rows of the file)
-                idx = x + delta * output_tiles[i].width;
-                if (bits == JO_TGA_8_BITS)
-                {
-                    ((jo_img_8bits *)&output_tiles[i])->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1)), full_image.width, bits);
-                    if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)&output_tiles[i])->data[idx] == (unsigned char)transparent_color)
-                        JO_ZERO(((jo_img_8bits *)&output_tiles[i])->data[idx]);
-                }
-                else
-                {
-                    ((jo_img *)&output_tiles[i])->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1)), full_image.width, bits);
-                    if (transparent_color != JO_COLOR_Transparent && ((jo_img *)&output_tiles[i])->data[idx] == transparent_color)
-                        ((jo_img *)&output_tiles[i])->data[idx] = JO_COLOR_Transparent;
-                }
-            }
+            delta = row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1);
+            idx = y * output_tiles[i].width;
+            jo_tga_read_row(bits == JO_TGA_8_BITS ? (void *)(((jo_img_8bits *)&output_tiles[i])->data + idx) : (void *)(((jo_img *)&output_tiles[i])->data + idx),
+                            (const unsigned char *)stream + (delta * full_image.width + tileset[i].x) * JO_DIV_BY_8(bits),
+                            output_tiles[i].width, bits, transparent_color);
         }
     }
     jo_free(stream_begin);
@@ -442,8 +562,9 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
     full_image.data = (unsigned short *)-1;/* Disable allocation in __jo_tga_load() */
     if (__jo_tga_load(&full_image, sub_dir, filename, &stream, &bits) != JO_TGA_OK)
         return (-1);
-    stream_begin = stream;
-    stream = __jo_tga_read_header(stream, &row_top, bits);
+    stream = jo_tga_tileset_pixels(stream, __jo_tga_read_header(stream, &row_top, bits), &full_image, bits, &stream_begin);
+    if (stream == JO_NULL)
+        return (-1);
     first_id = -1;
     for (JO_ZERO(i); i < tile_count; ++i)
     {
@@ -483,25 +604,14 @@ int		                    jo_sprite_add_tga_tileset(const char * const sub_dir, c
             jo_free(stream_begin);
             return (-1);
         }
+        // (a row at a time, see jo_tga_read_row(); the row of the file of the row y of the tile)
         for (JO_ZERO(y); y < tile_image.height; ++y)
         {
-            for (JO_ZERO(x); x < tile_image.width; ++x)
-            {
-                delta = y; // (the source row follows the order of the rows of the file)
-                idx = x + delta * tile_image.width;
-                if (bits == JO_TGA_8_BITS)
-                {
-                    ((jo_img_8bits *)&tile_image)->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1)), full_image.width, bits);
-                    if (transparent_color != JO_COLOR_Transparent && ((jo_img_8bits *)&tile_image)->data[idx] == (unsigned char)transparent_color)
-                        JO_ZERO(((jo_img_8bits *)&tile_image)->data[idx]);
-                }
-                else
-                {
-                    ((jo_img *)&tile_image)->data[idx] = jo_tga_get_pixel(stream, x + tileset[i].x, (row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1)), full_image.width, bits);
-                    if (transparent_color != JO_COLOR_Transparent && ((jo_img *)&tile_image)->data[idx] == transparent_color)
-                        ((jo_img *)&tile_image)->data[idx] = JO_COLOR_Transparent;
-                }
-            }
+            delta = row_top ? (y + tileset[i].y) : (full_image.height - (y + tileset[i].y) - 1);
+            idx = y * tile_image.width;
+            jo_tga_read_row(bits == JO_TGA_8_BITS ? (void *)(((jo_img_8bits *)&tile_image)->data + idx) : (void *)(((jo_img *)&tile_image)->data + idx),
+                            (const unsigned char *)stream + (delta * full_image.width + tileset[i].x) * JO_DIV_BY_8(bits),
+                            tile_image.width, bits, transparent_color);
         }
         x = (bits == JO_TGA_8_BITS ? jo_sprite_add_8bits_image((jo_img_8bits *)&tile_image) : jo_sprite_add((jo_img *)&tile_image));
         jo_free(tile_image.data);
