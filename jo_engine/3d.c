@@ -708,6 +708,18 @@ void                                        jo_3d_prepare_tint(const jo_3d_mesh 
         jo_3d_tint_offset(&mesh->data);
 }
 
+/** @brief The sprites that fade with the distance, at most (see jo_3d_set_sprite_fade()) */
+# define JO_3D_FADE_SPRITES                 (16)
+
+typedef struct
+{
+    short                                   sprite;     // Sprite (its smaller copies too)
+    unsigned short                          bank;       // Color code of its color 0 (multiple of 16)
+}                                           jo_3d_fade_sprite;
+
+static jo_3d_fade_sprite                    __jo_3d_fade_sprites[JO_3D_FADE_SPRITES];
+static int                                  __jo_3d_fade_sprite_count = 0;
+
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
 {
     int                                     i;
@@ -727,6 +739,10 @@ void                                        __jo_3d_forget_sprites_from(const in
             __jo_3d_mipmaps[i].levels = 0;
         jo_3d_update_texture_flags(i);
     }
+    // The sprites that fade (see jo_3d_set_sprite_fade())
+    for (i = __jo_3d_fade_sprite_count - 1; i >= 0; --i)
+        if (__jo_3d_fade_sprites[i].sprite >= sprite_id)
+            __jo_3d_fade_sprites[i] = __jo_3d_fade_sprites[--__jo_3d_fade_sprite_count];
     // The environment maps
     for (JO_ZERO(i); i < JO_3D_ENVIRONMENT_MESHES; ++i)
         if (__jo_3d_environments[i].key != JO_NULL && __jo_3d_environments[i].first_sprite >= sprite_id)
@@ -7515,6 +7531,94 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_points(const j
     return (true);
 }
 
+/*
+** Fade of the far standing sprites (see jo_3d_set_sprite_fade()): their 16 colors in a bank of the color RAM, the color
+** calculation bits of the sprites (bits 12 and 11 of a palette pixel, sprite type 3) give the ratio of their mix with the
+** screens of the VDP2 under them, by distance. The VDP2 mixes each pixel once, at the display: no edge, no line drawn twice
+*/
+
+/** @brief The distances of the fade: its start and the step of a level (jo_fixed, the step 0: no fade) */
+typedef struct
+{
+    jo_fixed                                start;
+    jo_fixed                                levels_per_unit;
+}                                           jo_3d_fade;
+
+static jo_3d_fade                           __jo_3d_fade = {0, 0};
+
+/** @brief The fade of a range of distances (see jo_3d_set_fade_distances()) */
+static void                                 jo_3d_fade_set(jo_3d_fade * const fade, const jo_fixed start, const jo_fixed end)
+{
+    fade->start = start;
+    // (JO_3D_FADE_LEVELS levels from start to end: the level of a depth is 1 + its distance after start times this)
+    fade->levels_per_unit = end > start ? jo_fixed_div(jo_int2fixed(JO_3D_FADE_LEVELS), end - start) : 0;
+}
+
+void                                        jo_3d_set_fade_distances(const jo_fixed start, const jo_fixed end)
+{
+    jo_3d_fade_set(&__jo_3d_fade, start, end);
+}
+
+bool                                        jo_3d_set_sprite_fade(const int sprite_id, const jo_palette * const palette, const int bank)
+{
+    int                                     k;
+    int                                     n;
+    const unsigned short                    *lut;
+
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
+        return (false);
+    // (the sprite forgotten: its bank 0)
+    for (JO_ZERO(k); k < __jo_3d_fade_sprite_count && __jo_3d_fade_sprites[k].sprite != sprite_id; ++k)
+        ;
+    if (palette == JO_NULL || palette->data == JO_NULL || bank <= 0)
+    {
+        if (k < __jo_3d_fade_sprite_count)
+            __jo_3d_fade_sprites[k] = __jo_3d_fade_sprites[--__jo_3d_fade_sprite_count];
+        return (true);
+    }
+    // A 16 colors texture with its table only (its colors copied in the bank)
+    if (__jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS || __jo_sprite_lut[sprite_id] == 0 ||
+        bank >= 16 || (k >= __jo_3d_fade_sprite_count && __jo_3d_fade_sprite_count >= JO_3D_FADE_SPRITES))
+        return (false);
+    // (the color c of the bank is the color index bank * 16 + c of the palette: its data[bank * 16 + c - 1], see
+    // jo_create_palette(); the color 0 is transparent, not written)
+    lut = (const unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[sprite_id]));
+    for (n = 1; n < 16; ++n)
+        palette->data[bank * 16 + n - 1] = lut[n];
+    if (k >= __jo_3d_fade_sprite_count)
+        ++__jo_3d_fade_sprite_count;
+    __jo_3d_fade_sprites[k].sprite = (short)sprite_id;
+    __jo_3d_fade_sprites[k].bank = (unsigned short)(palette->id * 256 + bank * 16);
+    return (true);
+}
+
+/** @brief The attribute of a standing sprite that fades: its colors in their bank, the level of its depth (see
+ *  jo_3d_set_sprite_fade())
+ *  @param sprite_id The sprite (not its smaller copy: the attribute has its texture)
+ *  @param z Depth of the sprite
+ */
+static  __jo_force_inline void              jo_3d_fade_attribute(jo_vdp1_sprite_attribute * const attr, const jo_3d_fade * const fade,
+                                                                 const int sprite_id, const jo_fixed z)
+{
+    int                                     k;
+    int                                     level;
+
+    if (fade->levels_per_unit == 0 || z <= fade->start || __jo_3d_fade_sprite_count == 0 || __jo_screen.hires)
+        return;
+    for (JO_ZERO(k); k < __jo_3d_fade_sprite_count; ++k)
+        if (__jo_3d_fade_sprites[k].sprite == sprite_id)
+            break;
+    if (k >= __jo_3d_fade_sprite_count)
+        return;
+    level = 1 + jo_fixed2int(jo_fixed_mult(z - fade->start, fade->levels_per_unit));
+    if (level > JO_3D_FADE_LEVELS)
+        level = JO_3D_FADE_LEVELS;
+    // (a palette pixel: no gouraud, the VDP1 shades the RGB pixels only)
+    attr->draw_mode = (unsigned short)((attr->draw_mode & ~(JO_VDP1_COLOR_MODE_MASK | JO_VDP1_COLOR_CALC_GOURAUD)) |
+                                       JO_VDP1_COLOR_MODE_16_BANK);
+    attr->color = (unsigned short)(__jo_3d_fade_sprites[k].bank | (level << JO_3D_FADE_LEVEL_SHIFT));
+}
+
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
 /*
@@ -7544,6 +7648,8 @@ static unsigned short                       __jo_3d_slave_vertice_count;
 static unsigned short                       __jo_3d_slave_displayed_polygon_count;
 /** @brief The sprite attributes of the master CPU at jo_3d_slave_begin() (it changes them while the slave CPU draws) */
 static jo_sprite_attributes                 __jo_3d_slave_sprite_attributes;
+/** @brief The fade of the standing sprites of the slave CPU (the one of the master CPU at jo_3d_slave_begin()) */
+static jo_3d_fade                           __jo_3d_slave_fade;
 static jo_3d_cpu_context                    __jo_3d_slave = {__jo_3d_slave_vertices, JO_3D_SLAVE_MAX_VERTICES, __jo_3d_slave_view, __jo_3d_slave_matrix[0], 0, -1,
                                                              &__jo_3d_slave_depth_bias, 0, 0, JO_3D_CLIP_GOURAUD_TABLES,
                                                              &__jo_3d_slave_polygon_count, &__jo_3d_slave_vertice_count,
@@ -7575,6 +7681,7 @@ void                                        jo_3d_slave_begin(void)
     __jo_3d_slave_window = __jo_vdp1_current_window;
     __jo_3d_slave_view_rect = __jo_3d_view_rect;
     __jo_3d_slave_sprite_attributes = __jo_sprite_attributes;
+    __jo_3d_slave_fade = __jo_3d_fade;
     __jo_3d_slave.previous_polygon_z = 0;
     __jo_3d_slave.forced_key = -1;
     __jo_3d_slave_tint = 0;
@@ -7605,6 +7712,11 @@ void                                        jo_3d_slave_select_window(const int 
 void                                        jo_3d_slave_set_depth_bias(const int bias)
 {
     __jo_3d_slave_depth_bias = bias;
+}
+
+void                                        jo_3d_slave_set_fade_distances(const jo_fixed start, const jo_fixed end)
+{
+    jo_3d_fade_set(&__jo_3d_slave_fade, start, end);
 }
 
 void                                        jo_3d_slave_set_guard_band(const int pixels)
@@ -7706,6 +7818,7 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
     // Far away: a smaller copy of the texture. The command of jo_3d_draw_standing_sprite() (the sprite attributes of the
     // master CPU at jo_3d_slave_begin()), with the window and the depth bias of the slave CPU
     __jo_sprite_attributes_of(&attr, jo_3d_mipmap(sprite_id, w, h), &__jo_3d_slave_sprite_attributes);
+    jo_3d_fade_attribute(&attr, &__jo_3d_slave_fade, sprite_id, v.z);
     if (!__jo_vdp1_write_sprite_4p(&__jo_3d_slave_commands[__jo_3d_slave_command_count], points, v.z, &attr, __jo_3d_slave_window))
         return (false);
     key = JO_FIXED_TO_INT(v.z) + __jo_3d_slave_depth_bias;
@@ -8979,6 +9092,7 @@ bool                                        jo_3d_draw_standing_sprite(const int
 {
     jo_pos3D_fixed                          v;
     jo_pos2D_fixed                          points[4];
+    jo_vdp1_sprite_attribute                attr;
     jo_fixed                                k;
     int                                     w;
     int                                     h;
@@ -8989,8 +9103,10 @@ bool                                        jo_3d_draw_standing_sprite(const int
     if (!jo_3d_standing_sprite_foot(JO_3D_CURRENT_MATRIX, foot, &v, &k) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
         return (false);
-    // Far away: a smaller copy of the texture
-    jo_sprite_draw_4p_fixed(jo_3d_mipmap(sprite_id, w, h), points, v.z, true);
+    // Far away: a smaller copy of the texture (the command of jo_sprite_draw_4p_fixed(), its colors in their bank when it fades)
+    __jo_sprite_attributes_of(&attr, jo_3d_mipmap(sprite_id, w, h), &__jo_sprite_attributes);
+    jo_3d_fade_attribute(&attr, &__jo_3d_fade, sprite_id, v.z);
+    __jo_vdp1_draw_sprite_4p(points, v.z, &attr);
     return (true);
 }
 

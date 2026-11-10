@@ -1554,6 +1554,43 @@ bool                                jo_3d_mesh_ray_hit_with_planes(const jo_3d_m
 bool                                jo_3d_draw_standing_sprite(const int sprite_id, const jo_pos3D_fixed * const foot, const jo_fixed width,
                                                                const jo_fixed height, const jo_fixed sway, const bool flip);
 
+/*
+** Fade of the far standing sprites: they appear little by little instead of all at once (the trees at the end of the view).
+** Their pixels are mixed with the screens of the VDP2 under them (the sky) by the color calculation of the sprites: each
+** pixel once, at the display (a half transparent polygon of the VDP1 can't be mixed with the VDP2, and its pixels drawn
+** twice by the lines of a quad were mixed twice). A sprite that fades is drawn with its 16 colors in a bank of the color
+** RAM: the color calculation bits of the palette pixels (sprite type 3: bits 12 and 11) choose one of the 4 ratios of the
+** sprites, the bits 0 (near: opaque) to JO_3D_FADE_LEVELS (far: the most transparent).
+** The VDP2: jo_vdp2_set_blend_mode(JO_VDP2_BLEND_RATIO); jo_vdp2_enable_blend(JO_SPRITE_SCREEN, 0);
+** jo_vdp2_set_sprite_blend_ratios(0, 8, 16, 24) (ratio 0: the other sprites stay opaque)
+*/
+
+/** @brief Levels of the fade (the color calculation ratios 1 to 3 of the sprites, see jo_vdp2_set_sprite_blend_ratios()) */
+# define JO_3D_FADE_LEVELS                  (3)
+/** @brief Bit of the level in the color code of a sprite (sprite type 3: its color calculation bits 12 and 11) */
+# define JO_3D_FADE_LEVEL_SHIFT             (11)
+
+/** @brief A standing sprite that fades with the distance (see jo_3d_set_fade_distances()): its 16 colors copied in a bank of
+ *  a palette, used beyond the start of the fade
+ *  @param sprite_id A 16 colors texture with its color lookup table (jo_sprite_add_image_4bits_lut()); its smaller copies too
+ *  @param palette Palette of the bank (jo_create_palette()); JO_NULL: the sprite no longer fades
+ *  @param bank Bank of 16 colors in the palette: 1 to 15 (its colors bank * 16 + 1 to bank * 16 + 15 of the palette)
+ *  @return false if the sprite is not a 16 colors texture with its table, or if 16 sprites already fade
+ *  @remarks Freed sprites are forgotten (jo_sprite_free_from()). A palette pixel is not shaded (gouraud) by the VDP1
+ *  @remarks The color calculation mode is the same for all the screens: not with the additive sprites
+ *  (jo_enable_additive_sprites()) or the glows (jo/glow.h) at the same time, stop the fade then (jo_3d_set_fade_distances(0, 0))
+ *  @remarks Not in the 640 and 704 pixels modes
+ */
+bool                                jo_3d_set_sprite_fade(const int sprite_id, const jo_palette * const palette, const int bank);
+
+/** @brief The distances of the fade of the standing sprites (see jo_3d_set_sprite_fade()): opaque up to start, then
+ *  JO_3D_FADE_LEVELS levels more and more transparent up to end (beyond: the most transparent; don't draw them)
+ *  @param start Depth of the start (world units, Q16.16)
+ *  @param end Depth of the end (world units, Q16.16); end <= start: no fade (the default)
+ *  @remarks The slave CPU takes them at jo_3d_slave_begin() (see jo_3d_slave_set_fade_distances())
+ */
+void                                jo_3d_set_fade_distances(const jo_fixed start, const jo_fixed end);
+
 /** @brief Create an empty mesh made of shared points and polygons (indexes of the points)
  *  @param point_count Point count
  *  @param polygon_count Polygon count
@@ -1757,6 +1794,13 @@ int                                 jo_3d_slave_get_command_count(void);
 bool                                jo_3d_slave_draw_standing_sprite(const int sprite_id, const jo_pos3D_fixed * const foot,
                                                                      const jo_fixed width, const jo_fixed height,
                                                                      const jo_fixed sway, const bool flip);
+
+/** @brief The distances of the fade of the standing sprites of the slave CPU (see jo_3d_set_fade_distances()), until the
+ *  next jo_3d_slave_begin() (call it on the slave CPU)
+ *  @param start Depth of the start (world units, Q16.16)
+ *  @param end Depth of the end (world units, Q16.16); end <= start: no fade
+ */
+void                                jo_3d_slave_set_fade_distances(const jo_fixed start, const jo_fixed end);
 
 /** @brief Commands drawn by the slave CPU since jo_3d_slave_begin() (0 after jo_3d_slave_end())
  *  @return Command count
