@@ -308,6 +308,14 @@ typedef struct
  *  @return false if the VDP1 command table is full
  *  @remarks Hidden polygons (behind the camera, outside the window or seen from the back) are skipped
  */
+/** @brief Draw some ranges of polygons whose points are known: only the points from first_point to point_count - 1 are
+ *  transformed (see jo_3d_mesh_draw_ranges(); the chunks of the cells)
+ *  @param first_point First point used by the polygons of the ranges (none before it)
+ */
+bool                                __jo_3d_draw_ranges_from(const jo_3d_polygon_data * const pdata, const unsigned int first_point,
+                                                             const unsigned int point_count,
+                                                             const jo_3d_polygon_range * const ranges, const int range_count);
+
 bool                                __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
                                                         const jo_3d_polygon_range * const ranges, const int range_count);
 
@@ -924,6 +932,43 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
     __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
 }
 
+/** @brief Rotate 3D matrix using jo_angle (0x10000 = 360 degrees: a fraction of degree, no float)
+ *  @param x X Angle
+ *  @param y Y Angle
+ *  @param z Z Angle
+ *  @remarks Same order as jo_3d_rotate_matrix(): X, then Y, then Z
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle(const jo_angle x, const jo_angle y, const jo_angle z)
+{
+    __jo_3d_rotate(JO_3D_AXIS_X, x);
+    __jo_3d_rotate(JO_3D_AXIS_Y, y);
+    __jo_3d_rotate(JO_3D_AXIS_Z, z);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (X axis)
+ *  @param x X Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_x(const jo_angle x)
+{
+    __jo_3d_rotate(JO_3D_AXIS_X, x);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (Y axis)
+ *  @param y Y Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_y(const jo_angle y)
+{
+    __jo_3d_rotate(JO_3D_AXIS_Y, y);
+}
+
+/** @brief Rotate 3D matrix using jo_angle (Z axis)
+ *  @param z Z Angle (0x10000 = 360 degrees)
+ */
+static  __jo_force_inline void      jo_3d_rotate_matrix_angle_z(const jo_angle z)
+{
+    __jo_3d_rotate(JO_3D_AXIS_Z, z);
+}
+
 /*
 ███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗    ████████╗██████╗  █████╗ ███╗   ██╗███████╗██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
 ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝    ╚══██╔══╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
@@ -1255,6 +1300,19 @@ static  __jo_force_inline void      jo_3d_perspective_angle(const int angle)
     __jo_3d_set_perspective(jo_DEGtoANG_int(angle));
 }
 
+/** @brief Set the perspective angle using jo_angle (a fraction of degree, as slPerspective() of the SGL)
+ *  @param angle Angle (0x10000 = 360 degrees) from JO_DEG_TO_ANGLE(10) to JO_DEG_TO_ANGLE(160)
+ *  @remarks Same as jo_3d_perspective_angle() for a whole degree
+ */
+static  __jo_force_inline void      jo_3d_set_perspective(const jo_angle angle)
+{
+#ifdef JO_DEBUG
+    if (angle < JO_DEG_TO_ANGLE(10) || angle > JO_DEG_TO_ANGLE(160))
+        jo_core_error("Valid angle range is 10 to 160 degrees");
+#endif
+    __jo_3d_set_perspective(angle);
+}
+
 /** @brief Set the display level of the viewing volume
  *  @param level Distance from the viewpoint and the projection surface
  */
@@ -1559,6 +1617,17 @@ void                                jo_3d_set_texture_subdivision_depth(const in
  */
 void                                jo_3d_set_texture_subdivision_error(const int sprite_id, const int pixels);
 
+/** @brief Draw the polygons in parts only where it is needed to draw them at all (see jo_3d_set_texture_subdivision()): the
+ *  polygons that cross the near plane (or go very far outside of the view); not for the perspective of their texture, nor
+ *  beyond the guard band (clipped by the CPU at the edges of the screen, see jo_3d_set_guard_band(): their texture is
+ *  distorted, a bigger guard band keeps them few), nor the big ones mostly out of the screen (the VDP1 draws their pixels
+ *  out of the screen too)
+ *  @param enabled true: fewer parts (the CPU time of the parts saved), false: the default
+ *  @remarks For both CPUs. A split screen (2 views per frame, each one half as high: the texture slides less, the VDP1 has
+ *  time to spare): about 10 % of the time of the CPUs (Mednafen emulated the split screen of the rally demo 10 % faster)
+ */
+void                                jo_3d_set_fewer_parts(const bool enabled);
+
 /** @brief Create smaller copies of a texture (half and quarter size, "mipmaps") used when the texture is drawn small
  *  @param sprite_id Texture (RGB sprite, width multiple of 16: half size, of 32: quarter size too)
  *  @return true if the copies were created
@@ -1652,6 +1721,11 @@ void                                jo_3d_slave_set_scale_fixed(const jo_fixed x
  */
 bool                                jo_3d_slave_mesh_draw_ranges(const jo_3d_mesh * const mesh, const unsigned int point_count,
                                                                  const jo_3d_polygon_range * const ranges, const int range_count);
+
+/** @brief jo_3d_slave_mesh_draw_ranges() with the points of the ranges known (see __jo_3d_draw_ranges_from()) */
+bool                                __jo_3d_slave_draw_ranges_from(const jo_3d_mesh * const mesh, const unsigned int first_point,
+                                                                   const unsigned int point_count,
+                                                                   const jo_3d_polygon_range * const ranges, const int range_count);
 
 /** @brief Draw a mesh on the slave CPU (call it on the slave CPU, between jo_3d_slave_begin() and jo_3d_slave_end())
  *  @param mesh Mesh (1024 points at most, JO_3D_SLAVE_MAX_VERTICES)

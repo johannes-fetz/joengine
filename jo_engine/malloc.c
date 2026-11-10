@@ -54,6 +54,9 @@ typedef struct
     unsigned char       *begin;
     unsigned char       *high;
     unsigned char       *end;
+    unsigned char       *first_free;    // A block at or before the first free block of the zone (the search of a free
+                                        // block starts there: from the start, it went through all the blocks in use, about
+                                        // 2 % of the loading of a track of the rally demo)
 }                       jo_memory_zone;
 
 static jo_memory_zone   memory_zones[JO_MALLOC_MAX_MEMORY_ZONE];
@@ -69,8 +72,10 @@ void                    jo_add_memory_zone(unsigned char *ptr, const unsigned in
 #endif
     memory_zones[__jo_memory_zone_index].begin = ptr;
     memory_zones[__jo_memory_zone_index].high = ptr;
+    memory_zones[__jo_memory_zone_index].first_free = ptr;
     memory_zones[__jo_memory_zone_index].end = ptr + size_in_bytes;
-    jo_memset(ptr, 0, size_in_bytes);
+    // (not cleared: a block given again after jo_free() kept its content anyway. The samples and the test ROM give the
+    // same results with zones filled with 0xA5 at start; clearing the low work RAM took time at each boot)
     ++__jo_memory_zone_index;
 }
 
@@ -108,8 +113,11 @@ static jo_memory_block  *jo_malloc_find_free_block(const int zone, const unsigne
 {
     jo_memory_block     *block;
     jo_memory_block     *remaining;
+    jo_memory_block     *first;
 
-    block = (jo_memory_block *)memory_zones[zone].begin;
+    // (the blocks before first_free are in use: the same block found as a search from the start)
+    first = JO_NULL;
+    block = (jo_memory_block *)memory_zones[zone].first_free;
     while ((unsigned char *)block < memory_zones[zone].high)
     {
 #ifdef JO_DEBUG
@@ -121,10 +129,19 @@ static jo_memory_block  *jo_malloc_find_free_block(const int zone, const unsigne
 #endif
         if (block->zone == JO_BLOCK_FREE)
         {
+            if (first == JO_NULL)
+                first = block;
             if (!jo_malloc_merge_free_blocks(&memory_zones[zone], block))
+            {
+                // (given back to the zone: no free block after it)
+                memory_zones[zone].first_free = first == block ? memory_zones[zone].high : (unsigned char *)first;
                 return (JO_NULL);
+            }
             if (block->size == n || (!same_size && block->size >= n))
             {
+                // (the first free block is this one or its remaining part)
+                if (first == block)
+                    memory_zones[zone].first_free = (unsigned char *)block;
                 // Split the block if the remaining part can hold another block
                 if (block->size >= n + sizeof(*block) + sizeof(int))
                 {
@@ -139,6 +156,7 @@ static jo_memory_block  *jo_malloc_find_free_block(const int zone, const unsigne
         }
         block = (jo_memory_block *)(((unsigned char *)block) + block->size);
     }
+    memory_zones[zone].first_free = first != JO_NULL ? (unsigned char *)first : memory_zones[zone].high;
     return (JO_NULL);
 }
 
@@ -221,6 +239,8 @@ void                            jo_reduce_memory_fragmentation(void)
         }
         if (last_free_block != JO_NULL)
             memory_zones[zone].high = (unsigned char *)last_free_block;
+        if (memory_zones[zone].first_free > memory_zones[zone].high)
+            memory_zones[zone].first_free = memory_zones[zone].high;
     }
 }
 
@@ -251,6 +271,8 @@ inline void                     jo_free(const void * const p)
 #endif
     zone = &memory_zones[block->zone];
     block->zone = JO_BLOCK_FREE;
+    if ((unsigned char *)block < zone->first_free)
+        zone->first_free = (unsigned char *)block;
     // Merged with the next free blocks, or given back to the zone if it's the last block
     jo_malloc_merge_free_blocks(zone, block);
 }

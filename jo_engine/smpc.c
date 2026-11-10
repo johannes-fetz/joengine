@@ -272,6 +272,18 @@ static void                             jo_smpc_fill_peripheral(const int index,
             k = (jo_peripheral_keyboard *)p;
             k->condition = size > 2 ? data[2] : 0;
             k->code = size > 3 ? data[3] : 0;
+#ifdef JO_COMPILE_WITH_KEYBOARD_SUPPORT
+            // The shift keys held: from their make and their break (a key event per report: kept between the reports)
+            if (k->code == JO_PERIPHERAL_KEYBOARD_CODE_LEFT_SHIFT || k->code == JO_PERIPHERAL_KEYBOARD_CODE_RIGHT_SHIFT)
+            {
+                buttons = k->code == JO_PERIPHERAL_KEYBOARD_CODE_LEFT_SHIFT ? JO_PERIPHERAL_KEYBOARD_LEFT_SHIFT :
+                          JO_PERIPHERAL_KEYBOARD_RIGHT_SHIFT;
+                if (k->condition & JO_PERIPHERAL_KEYBOARD_MAKE)
+                    k->modifiers |= (unsigned char)buttons;
+                else if (k->condition & JO_PERIPHERAL_KEYBOARD_BREAK)
+                    k->modifiers &= (unsigned char)~buttons;
+            }
+#endif
             break;
         default: // Digital devices
             if (size >= 2)

@@ -29,6 +29,7 @@
  *  @author Johannes Fetz
  *
  *  @brief Jo Engine Truevision Targa format support
+ *  @remarks 8 bits (color mapped), 24 and 32 bits (true color), raw or compressed (RLE), rows from the bottom or the top
  *  @bug jo_tga_tileset_loader is not tested
  */
 
@@ -52,6 +53,15 @@ typedef enum
     JO_TGA_OUT_OF_MEMORY = 3
 }					t_tga_error_code;
 
+/** @brief The transparent_color of a 8 bits TGA to make a color of its palette transparent
+ *  @param INDEX Index of the color in the palette of the TGA file (0 to 254)
+ *  @details The pixels of a 8 bits TGA are stored with their index + 1 (the value 0 is transparent on the Saturn), so the
+ *  transparent color is given with the same + 1. 0 (JO_COLOR_Transparent) adds no transparent color.
+ *  Example: jo_sprite_add_tga("TEX", "SON8.TGA", JO_TGA_TRANSPARENT_INDEX(0)) (the color 0 of the palette transparent)
+ *  @warning The index 255 is always transparent (255 + 1 is 0 in 8 bits) and its color is not loaded
+ */
+# define JO_TGA_TRANSPARENT_INDEX(INDEX)     ((INDEX) + 1)
+
 /** @brief Set the callback to handle TGA palette for 8 bits image
  *  @param callback The callback
  *  @warning This function is mandatory if you use 8 bits TGA (but you can use jo_set_tga_default_palette() instead)
@@ -69,15 +79,17 @@ void                    jo_set_tga_default_palette(jo_palette *palette);
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param stream Raw TGA contents
  *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color);
 
 /** @brief Add a sprite from a TGA stream
  *  @param stream Raw TGA contents
- *  @param transparent_color Transparent color (see colors.h). Use JO_COLOR_Transparent by default
+ *  @param transparent_color Transparent color (see colors.h), or JO_TGA_TRANSPARENT_INDEX(index in the palette) for a 8
+ *  bits image. Use JO_COLOR_Transparent by default
  *  @return Sprite Id or -1 if failed
  */
 int     jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_color);
@@ -88,8 +100,9 @@ int     jo_sprite_add_tga_from_stream(char *stream, const jo_color transparent_c
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
  *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return Sprite Id or -1 if failed
  */
 int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, const jo_color transparent_color);
@@ -99,8 +112,9 @@ int		jo_sprite_add_tga(const char * const sub_dir, const char * const filename, 
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
  *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color);
@@ -119,9 +133,11 @@ bool                    jo_set_background_tga(const char * const sub_dir, const 
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
  *  @param filename Filename (upper case and shorter as possible like "A.TGA")
- *  @param transparent_color_index_in_palette Transparent color in palette index. Use 0 by default
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @param transparent_color_index_in_palette JO_TGA_TRANSPARENT_INDEX(index in the palette of the TGA file), or 0 for no
+ *  transparent color
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return t_tga_error_code
  */
 t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * const sub_dir, const char * const filename, const int transparent_color_index_in_palette);
@@ -129,9 +145,11 @@ t_tga_error_code        jo_tga_8bits_loader(jo_img_8bits *img, const char * cons
 /** @brief Load a 8 bits 255 colors max TGA image
  *  @param img Image (set data to NULL for dynamic allocation)
  *  @param stream Raw TGA contents
- *  @param transparent_color_index_in_palette Transparent color in palette index. Use 0 by default
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @param transparent_color_index_in_palette JO_TGA_TRANSPARENT_INDEX(index in the palette of the TGA file), or 0 for no
+ *  transparent color
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return t_tga_error_code
  */
 t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *stream, const int transparent_color_index_in_palette);
@@ -143,8 +161,9 @@ t_tga_error_code		jo_tga_8bits_loader_from_stream(jo_img_8bits *img, char *strea
  *  @param tileset Tileset definition
  *  @param tile_count Number of tile in the entire image
  *  @param output_tiles an array of tile_count * jo_raw_img.
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return t_tga_error_code
  */
 t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count, jo_raw_img *output_tiles);
@@ -155,8 +174,9 @@ t_tga_error_code            jo_tga_8bits_tileset_loader(const char * const sub_d
  *  @param transparent_color Transparent color or palette index for 8 bits image. Use JO_COLOR_Transparent by default
  *  @param tileset Tileset definition
  *  @param tile_count Number of tile in the entire image
- *  @warning The first index of the palette is 1 not 0. 0 (or JO_COLOR_Transparent) means no transparency.
- *  @warning The palette of 8 bits TGA must be 255 colors max not 256
+ *  @warning 8 bits TGA: pass JO_TGA_TRANSPARENT_INDEX(index), the index in the palette of the TGA file + 1, not
+ *  the index itself (the first color is 1 not 0); 0 (JO_COLOR_Transparent) adds no transparent color
+ *  @warning 8 bits TGA: 255 colors max (index 0 to 254), the index 255 is always transparent
  *  @return Sprite Id of the first image or -1 if failed
  */
 int		jo_sprite_add_tga_tileset(const char * const sub_dir, const char * const filename, const jo_color transparent_color, const jo_tile * const tileset, const unsigned int tile_count);

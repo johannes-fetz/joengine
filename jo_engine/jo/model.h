@@ -267,6 +267,15 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
  */
 void                                        jo_3d_set_unique_gouraud_tables(const bool unique);
 
+/** @brief The next models created or loaded draw without gouraud the polygons whose 4 gouraud colors leave the
+ *  texels as they are (16, 16, 16 each): the same picture (default: off)
+ *  @param skipped true: those polygons without gouraud
+ *  @remarks Mednafen emulates a pixel with gouraud slower than one without (the gouraud of every polygon of a split
+ *  screen: 6 % of its time). Not for a model whose tables the game writes again (a light, a tint): those polygons have
+ *  no table any more. Not with jo_3d_set_unique_gouraud_tables()
+ */
+void                                        jo_3d_set_neutral_gouraud_skipped(const bool skipped);
+
 /** @brief Get the sprite id of a texture of the models (loaded the first time: a texture shared by several models,
  *         or by the program, is loaded once)
  *  @param filename File name on the CD (.BIN: jo_sprite_add_bin(), .TGA: jo_sprite_add_tga())

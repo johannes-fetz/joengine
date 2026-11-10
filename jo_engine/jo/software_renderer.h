@@ -30,7 +30,7 @@
  *
  *  @brief Fast Triangle based software renderer using fixed number
  *  @bug No known bugs.
- *  @todo Lights, Texture mapping, 8 bits mode, etc.
+ *  @todo Lights, 8 bits mode, etc.
  */
 
 #ifndef __JO_SOFTWARE_RENDERER_H__
@@ -63,7 +63,11 @@
 /** @brief Draw mode */
 typedef enum
 {
+    /** Texture of the sprite of the triangle (sprite_id: 32K colors, or 16 colors with a color table), perspective
+     *  correct, repeated outside of 0..1 (uv_texture_mapping, 1 = the whole width or height), its transparent texels
+     *  not drawn. A sprite that can't be a texture: the colors of the vertices */
     JO_SR_DRAW_TEXTURED     = (1 << 0),
+    /** Colors of the vertices (gouraud) */
     JO_SR_DRAW_FLAT         = (1 << 1),
     JO_SR_DRAW_WIREFRAME    = (1 << 2)
 }                                           jo_software_renderer_draw_mode;
@@ -102,6 +106,10 @@ typedef struct
     jo_software_renderer_depth_mode         depth_mode_testing;
     jo_software_renderer_draw_mode          draw_mode;
     jo_software_renderer_face_culling_mode  face_culling_mode;
+    jo_color                                *__texture_cache[4];    // (internal) the textures of the frame copied in RAM
+    unsigned int                            __texture_cache_size[4];// (internal) their blocks (texels)
+    short                                   __texture_cache_id[4];  // (internal) their sprites (-1: none)
+    int                                     __texture_cache_next;   // (internal) the next entry replaced
 }                                           jo_software_renderer_gfx;
 
 /** @brief Vertex */

@@ -87,6 +87,7 @@ void	        *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_behaviour
 /** @brief dynamic memory allocator
  *  @param n Segment size
  *  @return a pointer to the allocated memory or NULL if failed
+ *  @remarks The memory isn't cleared (use jo_memset())
  */
 static  __jo_force_inline void	*jo_malloc(unsigned int n)
 {

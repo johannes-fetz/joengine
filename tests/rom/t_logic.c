@@ -105,6 +105,16 @@ static void             t_trig(void)
     JT_NEAR(jo_atan2_degrees(JO_FIXED_1, 0), 90, 1);
     JT_NEAR(jo_atan2_degrees(0, JO_FIXED_1), 0, 1);
     JT_NEAR(jo_atan2_degrees(jo_sin(45), jo_cos(45)), 45, 1);
+    // tangent of a jo_angle: the same as jo_tan() on whole degrees, a fraction of degree, the infinite ones
+    for (bad = 0, deg = -85; deg <= 85; deg += 5)
+        if (jo_tan_angle(jo_DEGtoANG_int(deg)) != jo_tan(deg))
+            ++bad;
+    JT_EQ(bad, 0);
+    JT_EQ(jo_tan_angle(0), 0);
+    JT_NEAR(jo_tan_angle(JO_DEG_TO_ANGLE(45)), JO_FIXED_1, 64);
+    JT_NEAR(jo_tan_angle(JO_DEG_TO_ANGLE(22.5)), 27146, 64);
+    JT_EQ(jo_tan_angle(JO_DEG_TO_ANGLE(90)), JO_FIXED_MAX);
+    JT_EQ(jo_tan_angle((jo_angle)JO_DEG_TO_ANGLE(270)), JO_FIXED_MIN);
 }
 
 static void             t_vectors(void)

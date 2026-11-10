@@ -34,6 +34,22 @@ ifeq (${JO_GAME_PERIPHERALS},)
 	JO_GAME_PERIPHERALS = J
 endif
 
+# JO_CD_SECTOR_SIZE: the size of the sectors of the data track of the CD image (in the makefile of the game, before the
+# include, or "make JO_CD_SECTOR_SIZE=2352")
+#   2048 (default): game.iso, the data of each sector only (MODE1/2048 in game.cue): what the emulators and most drive
+#                   emulators read
+#   2352: game.bin too, the raw sectors of a disc (sync, header, data, EDC and ECC: MODE1/2352 in game.cue), for the
+#         tools and devices that need them. mkisofs can't write them (its -sectype writes 2048 or 2056 bytes): game.iso
+#         is converted by JoEngineIsoToBin (source: Compiler/COMMON/JoEngineIsoToBin.c)
+ifeq (${JO_CD_SECTOR_SIZE},)
+	JO_CD_SECTOR_SIZE = 2048
+endif
+ifneq (${JO_CD_SECTOR_SIZE},2048)
+ifneq (${JO_CD_SECTOR_SIZE},2352)
+$(error JO_CD_SECTOR_SIZE must be 2048 or 2352, not ${JO_CD_SECTOR_SIZE})
+endif
+endif
+
 # JO_FRAMERATE: the game runs every n VBLANK (1: 60 FPS, 2: 30 FPS...). A frame that takes longer than n VBLANK delays
 # the next one (the rate is not divided). JO_FRAMERATE_DYNAMIC = 1: the game runs as soon as a frame is done (up to
 # 60 FPS), the frame buffers change when the VDP1 has drawn the frame (no frame left half drawn): with a game whose
@@ -312,6 +328,7 @@ ifeq ($(OS), Windows_NT)
 	CC=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-gcc.exe
 	CONV=$(COMPILER_DIR)/WINDOWS/bin/sh-elf-objcopy.exe
 	CUE_MAKER=JoEngineCueMaker.exe
+	ISO_TO_BIN=JoEngineIsoToBin.exe
 else ifeq ($(shell uname -s), Darwin)
 	# macOS: toolchain built by Compiler/MACOS/build_toolchain.sh, otherwise sh-elf-gcc from the PATH (SaturnSDK, etc.)
 	ifneq ($(wildcard $(COMPILER_DIR)/MACOS/bin/sh-elf-gcc),)
@@ -322,11 +339,15 @@ else ifeq ($(shell uname -s), Darwin)
 		CONV=sh-elf-objcopy
 	endif
 	CUE_MAKER=sh "$(COMPILER_DIR)/COMMON/cuemaker.sh"
+	# (built from its source by this makefile the first time it is needed)
+	ISO_TO_BIN_EXE=$(COMPILER_DIR)/MACOS/bin/JoEngineIsoToBin
+	ISO_TO_BIN="$(ISO_TO_BIN_EXE)"
 	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
 	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/CueMaker"
+	ISO_TO_BIN="$(COMPILER_DIR)/LINUX/Other Utilities/JoEngineIsoToBin"
 	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 endif
 
@@ -370,6 +391,8 @@ TARGET   = game.elf
 TARGET1  = $(TARGET:.elf=.raw)
 TARGET2  = $(TARGET:.elf=.iso)
 TARGET3  = $(TARGET:.elf=.cue)
+# The raw image of the data track (JO_CD_SECTOR_SIZE = 2352)
+TARGET4  = $(TARGET:.elf=.bin)
 MPFILE   = $(TARGET:.elf=.map)
 IPTEMPLATE = $(CMNDIR)/IP.BIN
 IPSRC    = $(CMNDIR)/ip.S
@@ -380,7 +403,7 @@ IPFLAGS  = -DJO_IP_TITLE="\"$(JO_GAME_TITLE)\"" -DJO_IP_VERSION="\"$(JO_GAME_VER
 	-DJO_IP_PRODUCT_NUMBER="\"$(JO_GAME_PRODUCT_NUMBER)\"" -DJO_IP_PERIPHERALS="\"$(JO_GAME_PERIPHERALS)\""
 LDFILE   = $(CMNDIR)/jo.linker
 
-MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" -sectype 2352 \
+MKISOFS_FLAGS=-quiet -sysid "SEGA SATURN" -volid "SaturnApp" -volset "SaturnApp" \
 	-publisher "SEGA ENTERPRISES, LTD." -preparer "SEGA ENTERPRISES, LTD." -appid "SaturnApp" \
 	-abstract "$(ASSETS_DIR)/ABS.TXT" -copyright "$(ASSETS_DIR)/CPY.TXT" -biblio "$(ASSETS_DIR)/BIB.TXT" -generic-boot $(IPFILE) \
 	-full-iso9660-filenames -o $(TARGET2) $(ASSETS_DIR) $(ENTRYPOINT)
@@ -403,7 +426,15 @@ endif
 
 .PHONY : all clean re
 
+ifeq ($(JO_CD_SECTOR_SIZE),2352)
+all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4)
+else
 all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3)
+# (a raw image of a build with JO_CD_SECTOR_SIZE = 2352: game.cue made again, for game.iso)
+ifneq ($(wildcard $(TARGET4)),)
+.PHONY : $(TARGET3)
+endif
+endif
 
 $(OBJS) $(SYSOBJS): $(JO_OPTIONS_FILE)
 
@@ -421,8 +452,19 @@ $(TARGET2): $(TARGET1) $(IPFILE)
 	$(CONV) -O binary $(TARGET) cd/0.bin
 	$(MKISOFS) $(MKISOFS_SORT) $(MKISOFS_FLAGS)
 
+# (game.bin removed first: the cue sheet makers take the *.bin files of the folder as audio tracks)
 $(TARGET3): $(TARGET1) $(TARGET2)
+	$(RM) $(TARGET4)
 	$(CUE_MAKER)
+
+$(TARGET4): $(TARGET3) $(ISO_TO_BIN_EXE)
+	$(ISO_TO_BIN) $(TARGET2) $(TARGET4) $(TARGET3)
+
+ifneq ($(ISO_TO_BIN_EXE),)
+$(ISO_TO_BIN_EXE): $(CMNDIR)/JoEngineIsoToBin.c
+	mkdir -p "$(dir $(ISO_TO_BIN_EXE))"
+	cc -O2 -o "$(ISO_TO_BIN_EXE)" "$(CMNDIR)/JoEngineIsoToBin.c"
+endif
 
 .c.o:
 	$(CC) $< $(DFLAGS) $(CCFLAGS) $(_CCFLAGS) -o $@
@@ -431,6 +473,6 @@ $(JO_ENGINE_SRC_DIR)/start.o: $(JO_ENGINE_SRC_DIR)/start.S
 	$(CC) -m2 -c $< -o $@
 
 clean:
-	$(RM) $(OBJS) $(SYSOBJS) $(TARGET) $(TARGET1) $(TARGET2) $(MPFILE) $(IPFILE) $(IPOBJ) cd/0.bin
+	$(RM) $(OBJS) $(SYSOBJS) $(TARGET) $(TARGET1) $(TARGET2) $(TARGET4) $(MPFILE) $(IPFILE) $(IPOBJ) cd/0.bin
 
 re: clean all

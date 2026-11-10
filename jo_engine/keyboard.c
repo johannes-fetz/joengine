@@ -235,6 +235,7 @@ char __internal_keyboard_normal_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
     0
 };
 
+/* (the characters with shift: the name is kept, the letters of caps lock are the capitals of the normal mapping) */
 char __internal_keyboard_caps_lock_mapping[__JO_KEYBOARD_MAPPING_SIZE] =
 {
     0,

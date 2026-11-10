@@ -434,6 +434,28 @@ unsigned int                        jo_lz_decompress(const unsigned char * const
     JO_ZERO(bits);
     while (d < end)
     {
+        // A whole group of 8 items far from the end (at most 8 x 18 bytes): without the tests of the end and of the flags
+        // left at each item (19 cycles per byte before)
+        if (bits == 0 && (unsigned int)(end - d) >= 8 * 18)
+        {
+            flags = *s++;
+            for (bits = 8; bits != 0; --bits, flags <<= 1)
+            {
+                if (flags & 0x80)
+                    *d++ = *s++;
+                else
+                {
+                    v = ((unsigned int)s[0] << 8) | s[1];
+                    s += 2;
+                    m = d - ((v >> 4) + 1);
+                    n = (v & 15) + 3;
+                    do
+                        *d++ = *m++;
+                    while (--n != 0);
+                }
+            }
+            continue;
+        }
         if (bits == 0)
         {
             flags = *s++;
@@ -460,6 +482,15 @@ int                                 jo_memcmp(const void * const p1, const void 
     register const unsigned char    *s1 = (const unsigned char *)p1;
     register const unsigned char    *s2 = (const unsigned char *)p2;
 
+    // The same alignment: by words up to the first difference (13 cycles per byte one by one), then the bytes of the word
+    if (((((unsigned int)s1) ^ ((unsigned int)s2)) & 3) == 0 && num >= 8)
+    {
+        for (; (((unsigned int)s1) & 3) != 0; --num, ++s1, ++s2)
+            if (*s1 != *s2)
+                return (*s1 - *s2);
+        for (; num >= 4 && *(const unsigned int *)s1 == *(const unsigned int *)s2; num -= 4, s1 += 4, s2 += 4)
+            ;
+    }
     for (; num > 0; --num, ++s1, ++s2)
         if (*s1 != *s2)
             return (*s1 - *s2);
@@ -550,6 +581,40 @@ void                            jo_memcpy(void * const restrict dst, const void 
         *d8++ = *s8++;
         --size;
     }
+    else if (((((unsigned int)d8) ^ ((unsigned int)s8)) & 1) != 0 && size >= 16)
+    {
+        // An odd difference (a byte): the destination aligned, the words of the source read aligned and joined by shifts
+        // (11.6 cycles per byte one by one). (A word of the source read only for its bytes copied: none read after the end)
+        unsigned int                w;
+        unsigned int                n;
+        unsigned int                offset;
+
+        while (((unsigned int)d8) & 3)
+        {
+            *d8++ = *s8++;
+            --size;
+        }
+        offset = ((unsigned int)s8) & 3;
+        s32 = (const unsigned int *)(s8 - offset);
+        d32 = (unsigned int *)d8;
+        w = *s32++;
+        if (offset == 1)
+            for (; size >= 4; size -= 4)
+            {
+                n = *s32++;
+                *d32++ = (w << 8) | (n >> 24);
+                w = n;
+            }
+        else
+            for (; size >= 4; size -= 4)
+            {
+                n = *s32++;
+                *d32++ = (w << 24) | (n >> 8);
+                w = n;
+            }
+        d8 = (unsigned char *)d32;
+        s8 = (const unsigned char *)s32 - 4 + offset;
+    }
     if (((((unsigned int)d8) | ((unsigned int)s8)) & 3) == 0)
     {
         d32 = (unsigned int *)d8;
@@ -620,6 +685,18 @@ static void                     jo_dma_purge_cache(const void * const addr, cons
     // Only the cache area (0x00000000 to 0x1FFFFFFF) uses the cache
     if (a >= 0x20000000)
         return;
+    // As big as the cache (4 KB) or more: the whole cache purged at once (a write per line of 16 bytes: the sectors of the
+    // CD read by the DMA, 1.2 % of the loading of the rally demo). The cache disabled while it is purged
+    if (size >= 4096)
+    {
+        unsigned char           ccr;
+
+        ccr = JO_SH2_CCR;
+        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE);
+        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE;
+        JO_SH2_CCR = ccr;
+        return;
+    }
     end = a + size;
     for (a &= ~(JO_SH2_CACHE_LINE_SIZE - 1); a < end; a += JO_SH2_CACHE_LINE_SIZE)
         *(volatile unsigned int *)(JO_SH2_CACHE_PURGE_AREA | a) = 0;

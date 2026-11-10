@@ -125,7 +125,8 @@ jo_level                            *jo_level_load(const char * const filename)
                 known = true;
         if ((e->flags & JO_LEVEL_FLAG_REQUIRED) && !known)
             return (jo_level_refuse(level, filename, "required section not supported:", e->id));
-        if (e->id == JO_LEVEL_SECTION_STRS)
+        // (the strings end with a 0: a damaged section without it, the last string was read past the end of the file)
+        if (e->id == JO_LEVEL_SECTION_STRS && e->size != 0 && level->data[e->offset + e->size - 1] == '\0')
         {
             level->strings = (const char *)(level->data + e->offset);
             level->strings_size = e->size;

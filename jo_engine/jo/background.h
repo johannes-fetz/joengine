@@ -64,7 +64,7 @@ static  __jo_force_inline void    jo_set_background_8bits_sprite(jo_img_8bits *i
  *  @param top Top location
  *  @remarks To show a TGA file: jo_set_background_tga()
  */
-static  __jo_force_inline void	jo_set_background_sprite(const jo_img * const img, const unsigned short left, const unsigned short top)
+static  __jo_force_inline void	jo_set_background_sprite(const jo_img * const img, const short left, const short top)
 {
     jo_vdp2_set_nbg1_image(img, left, top);
 }

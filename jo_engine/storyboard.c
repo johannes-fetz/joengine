@@ -113,6 +113,8 @@ static  __jo_force_inline short     jo_storyboard_turn(const short angle, const 
 
 static void                         animate_object(jo_animation * const animation, jo_storyboard_object_cache * const object)
 {
+    int                             before;
+
     if (animation->rotation_speed)
         object->user->rz = jo_storyboard_turn(object->user->rz, animation->rotation_speed);
     if (animation->cos_radius)
@@ -130,8 +132,11 @@ static void                         animate_object(jo_animation * const animatio
             object->user->x -= animation->translation_speed_x;
         else if (animation->direction != 90 && animation->direction != 270)
         {
+            // (the move of the step added to the position: set from dx, the position went back to where it was before the
+            // moves along the axes, or the moves of the game)
+            before = JO_DIV_BY_8(object->dx);
             object->dx += jo_cos_mult(2 + animation->translation_speed_x, animation->direction);
-            object->user->x = JO_DIV_BY_8(object->dx);
+            object->user->x += JO_DIV_BY_8(object->dx) - before;
         }
     }
     if (animation->sin_radius)
@@ -149,8 +154,9 @@ static void                         animate_object(jo_animation * const animatio
             object->user->y -= animation->translation_speed_y;
         else if (animation->direction != 0 && animation->direction != 180)
         {
+            before = JO_DIV_BY_8(object->dy);
             object->dy += jo_sin_mult(2 + animation->translation_speed_y, animation->direction);
-            object->user->y = JO_DIV_BY_8(object->dy);
+            object->user->y += JO_DIV_BY_8(object->dy) - before;
         }
     }
 }

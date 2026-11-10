@@ -193,6 +193,14 @@ static  __jo_force_inline void        jo_set_printf_color_index(const unsigned c
     __jo_vdp2_printf_palette = (unsigned short)((index & 7) << 12);
 }
 
+/** @brief The characters of jo_printf() with an outline (like the text of the arcade games: readable over any image)
+ *  @param enabled The pixels around each glyph (in its 8x8 cell) drawn in the outline color, false: no outline
+ *  @param color Outline color (example: JO_COLOR_Black)
+ *  @remarks The glyphs fill 7 x 7 pixels of their cell: the outline is cut on the left and the top sides where a glyph
+ *           touches its cell. The color 2 of the 8 printf palettes is used
+ */
+void            jo_set_printf_outline(const bool enabled, const jo_color color);
+
 /** @brief Clear screen (usefull for printf)
  *  @warning Try to not use it by adding some whitespace at the end of jo_printf
  */

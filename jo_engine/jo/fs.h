@@ -59,6 +59,12 @@ typedef void                                (*jo_fs_async_read_callback)(char *c
  */
 bool                                        jo_fs_cd(const char *const sub_dir);
 
+/** @brief Check if a file is in the current directory of the CD (no error printed when it is not: an optional file)
+ *  @param filename File name (example: "LEVEL.BIN")
+ *  @return true if the file exists
+ */
+bool                                        jo_fs_file_exists(const char *const filename);
+
 /** @brief Read a file on the CD
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @param sub_dir Sub directory name (use JO_ROOT_DIR if the file is on the root directory)
@@ -72,6 +78,9 @@ char*                                       jo_fs_read_file_in_dir(const char *c
  *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @param len return the file length
  *  @return The stream
+ *  @remarks A compressed file ("JOLZ" first: Compiler/COMMON/jo_lz.py -f) is read decompressed: len is the size of its
+ *  data, buf must hold it (+ 1). Fewer sectors read: a file of 40 % of its size loads about 2.5 times faster (the CPU
+ *  decompresses about 1 MB per second, while the drive reads the next sectors)
  */
 char                                        *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len);
 
@@ -100,6 +109,7 @@ static  __jo_force_inline char*             jo_fs_read_file(const char *const fi
  *  @param optional_token User value to identify the file
  *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @return true if succeed
+ *  @remarks A compressed file (see jo_fs_read_file_ptr()) is read as it is on the CD (not decompressed)
  */
 bool                                        jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf);
 
@@ -118,6 +128,8 @@ static  __jo_force_inline bool              jo_fs_read_file_async(const char *co
  *  @param file Pointer to an allocated jo_file struct
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
  *  @return true if succeed
+ *  @remarks A compressed file ("JOLZ" first, see jo_fs_read_file_ptr()) is read decompressed by jo_fs_read_next_bytes()
+ *  and jo_fs_seek_forward() (file->size: the size of its data; 4 KB more of memory while it is open)
  */
 bool                                        jo_fs_open(jo_file * const file, const char *const filename);
 

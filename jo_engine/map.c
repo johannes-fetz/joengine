@@ -113,19 +113,13 @@ int                                     jo_map_per_pixel_vertical_collision(cons
                     }
                     return (JO_MAP_NO_COLLISION);
                 }
-                else
-                {
-                    distance = y;
-                    do
-                    {
-                        --y;
-                        if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
-                            break;
-
-                    }
-                    while (y > 0);
-                    return (y - distance + 1);
-                }
+                // Inside: up to the first solid pixel of the column (the pixel above is free; the top row of the tile when
+                // the column is solid up to it: the result was one pixel short there, and a solid top row read the row
+                // before the tile)
+                distance = y;
+                while (y > 0 && jo_sprite_get_pixel_palette_index(img_data_8bits, x, y - 1, current_tile->width) != 0)
+                    --y;
+                return (y - distance);
             }
             else
             {
@@ -139,19 +133,11 @@ int                                     jo_map_per_pixel_vertical_collision(cons
                     }
                     return (JO_MAP_NO_COLLISION);
                 }
-                else
-                {
-                    distance = y;
-                    do
-                    {
-                        --y;
-                        if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
-                            break;
-
-                    }
-                    while (y > 0);
-                    return (y - distance + 1);
-                }
+                // (see above)
+                distance = y;
+                while (y > 0 && !jo_sprite_is_pixel_transparent(img_data, x, y - 1, current_tile->width))
+                    --y;
+                return (y - distance);
             }
         }
     }

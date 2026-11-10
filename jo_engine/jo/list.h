@@ -76,6 +76,9 @@ typedef struct
     jo_node                 *first;
     jo_node                 *last;
     jo_malloc_behaviour     allocation_behaviour;
+    /** @brief The next node of the jo_list_foreach() in progress (moved by jo_list_remove(): a callback can remove any
+     *  node, the next one too) */
+    jo_node                 *foreach_next;
 }                           jo_list;
 
 /** @brief Init a list
@@ -220,16 +223,7 @@ static  __jo_force_inline jo_node   *jo_list_last(jo_list * const list)
  *  @param callback callback for each node
  *  @remarks The callback can remove its own node (the next node is read before the call), not the next one
  */
-static  __jo_force_inline void	    jo_list_foreach(jo_list * const list, jo_node_callback callback)
-{
-    jo_node *tmp;
-    jo_node *next;
-    for (tmp = list->first; tmp != JO_NULL; tmp = next)
-    {
-        next = tmp->next;
-        callback(tmp);
-    }
-}
+void                                jo_list_foreach(jo_list * const list, jo_node_callback callback);
 
 /** @brief Find if any element of the list satisfy the condition (callback)
  *  @param list List
@@ -237,18 +231,7 @@ static  __jo_force_inline void	    jo_list_foreach(jo_list * const list, jo_node
  *  @param callback callback for each node
  *  @return true if any element satisfy the condition otherwise false
  */
-static  __jo_force_inline bool	    jo_list_any(jo_list * const list, jo_node_any_callback callback, void *extra)
-{
-    jo_node *tmp;
-    jo_node *next;
-    for (tmp = list->first; tmp != JO_NULL; tmp = next)
-    {
-        next = tmp->next;
-        if (callback(tmp, extra))
-            return true;
-    }
-    return false;
-}
+bool                                jo_list_any(jo_list * const list, jo_node_any_callback callback, void *extra);
 
 /** @brief Set list memory allocation behaviour
  *  @param list List pointer

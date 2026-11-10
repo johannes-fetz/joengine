@@ -301,6 +301,9 @@ typedef struct
     char        *read_buffer;
     int         read_index;
     int         read_buffer_size;
+    void        *lz;            // Compressed file (see jo_fs_open()): the state of the decompression, JO_NULL: not compressed
+    int         raw_size;       // Compressed file: its size on the CD (size: the data once decompressed)
+    int         raw_read;       // Compressed file: the bytes read on the CD
 }               jo_file;
 
 /** @brief 8 directions definition */

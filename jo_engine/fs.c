@@ -764,6 +764,11 @@ int                             __jo_fs_get_file_id(const char * const filename)
     return (-1);
 }
 
+bool                            jo_fs_file_exists(const char *const filename)
+{
+    return (__jo_fs_get_file_id(filename) >= 0);
+}
+
 #ifdef JO_FS_TRACE
 /* Test: the files opened, in their order (JO_FS_TRACE: the count kept), see jo_fs_trace_name() */
 static short                    __jo_fs_trace[JO_FS_TRACE] __attribute__((used));
@@ -1090,6 +1095,286 @@ bool			        jo_fs_cd(const char *const sub_dir)
  *  @param buf_size Size of the output buffer
  *  @return Number of bytes read or -1 if failed
  */
+/*
+** Compressed files: "JOLZ", then the data compressed by Compiler/COMMON/jo_lz.py (its size, big endian, then LZSS: see
+** jo_lz_decompress()). jo_fs_open() and jo_fs_read_file() read them decompressed, as they read the other files
+*/
+
+/** @brief The 4 bytes at the start of a compressed file */
+# define JO_FS_LZ_MAGIC                 (0x4A4F4C5A)
+/** @brief Size of the header of a compressed file (the magic, the size of the data) */
+# define JO_FS_LZ_HEADER                (8)
+/** @brief Bytes of the history of the LZSS (the longest distance of a copy) */
+# define JO_FS_LZ_WINDOW                (4096)
+
+/** @brief State of the decompression of a compressed file */
+typedef struct
+{
+    unsigned char                       window[JO_FS_LZ_WINDOW];    // The last bytes decompressed (pos & (window - 1))
+    unsigned int                        pos;                        // Bytes decompressed
+    unsigned int                        flags;                      // Flags of the group of items (the high bit first)
+    unsigned int                        bits;                       // Flags left in the group
+    unsigned int                        copy_left;                  // Bytes left in the copy in progress
+    unsigned int                        copy_from;                  // Position of its next byte
+}                                       jo_fs_lz_state;
+
+/** @brief Read the next sectors of a file in its read buffer
+ *  @param file File
+ *  @return false if the read failed
+ */
+static bool             jo_fs_fill_read_buffer(jo_file * const file);
+
+/** @brief Read bytes of a file as they are on the CD
+ *  @param file File
+ *  @param buffer Output
+ *  @param nbytes Bytes to read
+ *  @param read The bytes already read (updated)
+ *  @param size The size of the file on the CD
+ *  @return Bytes read
+ */
+static int              jo_fs_read_raw(jo_file * const file, char *buffer, unsigned int nbytes, int * const read, const int size)
+{
+    int                 readed;
+    unsigned int        n;
+
+    JO_ZERO(readed);
+    while (nbytes > 0 && *read < size)
+    {
+        // The read buffer is empty: read the next sectors
+        if (file->read_index >= file->read_buffer_size && !jo_fs_fill_read_buffer(file))
+            break;
+        // Copy what is available in the read buffer at once
+        n = file->read_buffer_size - file->read_index;
+        if (n > nbytes)
+            n = nbytes;
+        if (n > (unsigned int)(size - *read))
+            n = size - *read;
+        jo_memcpy(buffer, file->read_buffer + file->read_index, n);
+        buffer += n;
+        file->read_index += n;
+        nbytes -= n;
+        *read += n;
+        readed += n;
+    }
+    return (readed);
+}
+
+/** @brief The next byte of a compressed file on the CD
+ *  @param file File
+ *  @return The byte, or -1 at the end of the file (or if the read failed)
+ */
+static int              jo_fs_lz_next_raw_byte(jo_file * const file)
+{
+    if (file->raw_read >= file->raw_size)
+        return (-1);
+    if (file->read_index >= file->read_buffer_size && !jo_fs_fill_read_buffer(file))
+        return (-1);
+    ++file->raw_read;
+    return ((unsigned char)file->read_buffer[file->read_index++]);
+}
+
+/** @brief Decompress the next bytes of a compressed file
+ *  @param file File
+ *  @param buffer Output (JO_NULL: the bytes are skipped)
+ *  @param nbytes Bytes wanted
+ *  @return Bytes decompressed (fewer at the end of the file, or if the read failed)
+ */
+static int              jo_fs_lz_read(jo_file * const file, unsigned char *buffer, unsigned int nbytes)
+{
+    jo_fs_lz_state      *s;
+    unsigned char       *window;
+    const unsigned char *in;
+    const unsigned char *in_end;
+    unsigned int        pos;
+    unsigned int        flags;
+    unsigned int        bits;
+    unsigned int        from;
+    unsigned int        n;
+    unsigned int        k;
+    unsigned int        v;
+    unsigned int        b;
+    int                 c;
+
+    s = (jo_fs_lz_state *)file->lz;
+    window = s->window;
+    pos = s->pos;
+    flags = s->flags;
+    bits = s->bits;
+    if (nbytes > (unsigned int)(file->size - file->read))
+        nbytes = file->size - file->read;
+    // (the bytes of the read buffer read through local pointers: a call per byte was 3 times slower; the last sectors of
+    // the file can hold bytes after its end, in_end stops at its end)
+    in = (const unsigned char *)file->read_buffer + file->read_index;
+    in_end = in + JO_MIN(file->read_buffer_size - file->read_index, file->raw_size - file->raw_read);
+# define JO_FS_LZ_NEXT(c)   do { if (in < in_end) c = *in++; else { \
+                                 file->raw_read += (int)(in - ((const unsigned char *)file->read_buffer + file->read_index)); \
+                                 file->read_index = (int)(in - (const unsigned char *)file->read_buffer); \
+                                 c = jo_fs_lz_next_raw_byte(file); \
+                                 in = (const unsigned char *)file->read_buffer + file->read_index; \
+                                 in_end = in + JO_MIN(file->read_buffer_size - file->read_index, file->raw_size - file->raw_read); } } while (0)
+    JO_ZERO(n);
+    while (n < nbytes)
+    {
+        // Fast path: a whole group of 8 items (at most 17 bytes in, 144 bytes out), in the read buffer, into the output
+        if (bits == 0 && s->copy_left == 0 && buffer != JO_NULL && nbytes - n >= 8 * 18 && in_end - in >= 17)
+        {
+            flags = *in++;
+            for (k = 0; k < 8; ++k, flags <<= 1)
+            {
+                if (flags & 0x80)
+                {
+                    b = *in++;
+                    window[pos++ & (JO_FS_LZ_WINDOW - 1)] = (unsigned char)b;
+                    *buffer++ = (unsigned char)b;
+                    ++n;
+                    continue;
+                }
+                v = ((unsigned int)in[0] << 8) | in[1];
+                in += 2;
+                from = pos - ((v >> 4) + 1);
+                v = (v & 15) + 3;
+                n += v;
+                do
+                {
+                    b = window[from++ & (JO_FS_LZ_WINDOW - 1)];
+                    window[pos++ & (JO_FS_LZ_WINDOW - 1)] = (unsigned char)b;
+                    *buffer++ = (unsigned char)b;
+                }
+                while (--v > 0);
+            }
+            continue;
+        }
+        // The copy in progress (it can read the bytes it writes: the window is written byte by byte)
+        if (s->copy_left > 0)
+        {
+            k = JO_MIN(s->copy_left, nbytes - n);
+            s->copy_left -= k;
+            n += k;
+            from = s->copy_from;
+            s->copy_from += k;
+            if (buffer != JO_NULL)
+                while (k-- > 0)
+                {
+                    b = window[from++ & (JO_FS_LZ_WINDOW - 1)];
+                    window[pos++ & (JO_FS_LZ_WINDOW - 1)] = (unsigned char)b;
+                    *buffer++ = (unsigned char)b;
+                }
+            else
+                while (k-- > 0)
+                    window[pos++ & (JO_FS_LZ_WINDOW - 1)] = window[from++ & (JO_FS_LZ_WINDOW - 1)];
+            continue;
+        }
+        if (bits == 0)
+        {
+            JO_FS_LZ_NEXT(c);
+            if (c < 0)
+                break;
+            flags = (unsigned int)c;
+            bits = 8;
+        }
+        --bits;
+        if (flags & 0x80)
+        {
+            // A byte as it is
+            flags <<= 1;
+            JO_FS_LZ_NEXT(c);
+            if (c < 0)
+                break;
+            window[pos++ & (JO_FS_LZ_WINDOW - 1)] = (unsigned char)c;
+            if (buffer != JO_NULL)
+                *buffer++ = (unsigned char)c;
+            ++n;
+            continue;
+        }
+        // A copy of 3 to 18 bytes from 1 to 4096 bytes before
+        flags <<= 1;
+        JO_FS_LZ_NEXT(c);
+        if (c < 0)
+            break;
+        v = (unsigned int)c << 8;
+        JO_FS_LZ_NEXT(c);
+        if (c < 0)
+            break;
+        v |= (unsigned int)c;
+        s->copy_from = pos - ((v >> 4) + 1);
+        s->copy_left = (v & 15) + 3;
+    }
+# undef JO_FS_LZ_NEXT
+    file->raw_read += (int)(in - ((const unsigned char *)file->read_buffer + file->read_index));
+    file->read_index = (int)(in - (const unsigned char *)file->read_buffer);
+    s->pos = pos;
+    s->flags = flags;
+    s->bits = bits;
+    file->read += n;
+    return ((int)n);
+}
+
+/** @brief Open a file of the CD for the reads of jo_fs_read_next_bytes(): its read buffer, its first sectors read (a
+ *  compressed file: the state of its decompression)
+ *  @param file File (id set)
+ *  @param filename Its name (the errors)
+ *  @return false if it failed
+ */
+static bool             jo_fs_open_id(jo_file * const file, const char *const filename)
+{
+    const unsigned char *h;
+
+    file->lz = JO_NULL;
+    if ((file->handle = __jo_fs_open(file->id)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: Too many opened files", filename);
+#else
+        (void)filename;
+#endif
+        return (false);
+    }
+    file->size = __jo_fs_get_file_size(file->handle);
+    // The buffer size is kept: jo_fs_set_read_sector_count() can be called while the file is open
+    file->read_buffer_size = __jo_fs_read_buffer_size;
+    file->read_index = file->read_buffer_size;
+    JO_ZERO(file->read);
+    if ((file->read_buffer = (char *)jo_malloc_with_behaviour(file->read_buffer_size * sizeof(*file->read_buffer),
+                             JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: Out of memory", filename);
+#endif
+        __jo_fs_close(file->handle);
+        file->handle = JO_NULL;
+        return (false);
+    }
+    if (file->size < JO_FS_LZ_HEADER)
+        return (true);
+    // Compressed: its first bytes (read now: the reads of the CD go on from there)
+    if (!jo_fs_fill_read_buffer(file))
+    {
+        jo_fs_close(file);
+        return (false);
+    }
+    h = (const unsigned char *)file->read_buffer;
+    if (jo_lz_size(h) != JO_FS_LZ_MAGIC)
+        return (true);
+    if ((file->lz = jo_malloc_with_behaviour(sizeof(jo_fs_lz_state), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: Out of memory", filename);
+#endif
+        jo_fs_close(file);
+        return (false);
+    }
+    JO_ZERO(((jo_fs_lz_state *)file->lz)->pos);
+    JO_ZERO(((jo_fs_lz_state *)file->lz)->flags);
+    JO_ZERO(((jo_fs_lz_state *)file->lz)->bits);
+    JO_ZERO(((jo_fs_lz_state *)file->lz)->copy_left);
+    JO_ZERO(((jo_fs_lz_state *)file->lz)->copy_from);
+    file->raw_size = file->size;
+    file->raw_read = JO_FS_LZ_HEADER;
+    file->read_index = JO_FS_LZ_HEADER;
+    file->size = (int)jo_lz_size(h + 4);
+    return (true);
+}
+
 static int		        jo_fs_load(const int file_id, void *buf, const int buf_size)
 {
     void                *handle;
@@ -1143,6 +1428,59 @@ char                    *jo_fs_read_file_ptr(const char *const filename, void *b
         return (JO_NULL);
     }
     fsize = __jo_fs_dir[fid].size;
+    // Its first sectors read: a compressed file is read decompressed (see jo_fs_open()), the others go on with a read of
+    // their next sectors in place
+    {
+        jo_file         file;
+        int             first;
+
+        file.id = fid;
+        if (jo_fs_open_id(&file, filename))
+        {
+            if (file.lz != JO_NULL)
+                fsize = file.size;
+            stream = buf != JO_NULL ? (char *)buf : (char *)jo_malloc_with_behaviour((fsize + 1) * sizeof(*stream),
+                                                                                     JO_MALLOC_TRY_REUSE_BLOCK);
+            if (stream == JO_NULL)
+            {
+                jo_fs_close(&file);
+#ifdef JO_DEBUG
+                jo_core_error("%s: Out of memory", filename);
+#endif
+                return (JO_NULL);
+            }
+            if (file.lz != JO_NULL)
+                first = jo_fs_lz_read(&file, (unsigned char *)stream, (unsigned int)fsize) == fsize ? fsize : -1;
+            else
+            {
+                // (the bytes of the first sectors, then the next ones; a file of less than 8 bytes is read here)
+                first = file.read_index == 0 ? JO_MIN(file.read_buffer_size, fsize) : 0;
+                jo_memcpy(stream, file.read_buffer, (unsigned int)first);
+                if (fsize > first && __jo_fs_read_sectors(file.handle, __jo_fs_get_sector_count(file.handle), stream + first,
+                                                          fsize - first) < 1)
+                    first = -1;
+            }
+            jo_fs_close(&file);
+            if (first >= 0)
+            {
+                JO_ZERO(stream[fsize]);
+                if (len != JO_NULL)
+                    *len = fsize;
+                return (stream);
+            }
+            if (buf == JO_NULL)
+                jo_free(stream);
+            // (a failed read: the file read again from its start, with the retries below)
+            fsize = __jo_fs_dir[fid].size;
+            if (file.lz != JO_NULL)
+            {
+#ifdef JO_DEBUG
+                jo_core_error("%s: Read failed", filename);
+#endif
+                return (JO_NULL);
+            }
+        }
+    }
     if (buf != JO_NULL)
         stream = (char *)buf;
     else if ((stream = (char *)jo_malloc_with_behaviour((fsize + 1) * sizeof(*stream), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
@@ -1213,6 +1551,9 @@ bool                    jo_fs_open(jo_file * const file, const char *const filen
     }
 #endif
     file->id = __jo_fs_get_file_id(filename);
+    file->lz = JO_NULL;
+    file->read_buffer = JO_NULL;
+    file->handle = JO_NULL;
     if (file->id < 0)
     {
 #ifdef JO_DEBUG
@@ -1220,29 +1561,7 @@ bool                    jo_fs_open(jo_file * const file, const char *const filen
 #endif
         return (false);
     }
-    if ((file->handle = __jo_fs_open(file->id)) == JO_NULL)
-    {
-#ifdef JO_DEBUG
-        jo_core_error("%s: Too many opened files", filename);
-#endif
-        return (false);
-    }
-    file->size = __jo_fs_get_file_size(file->handle);
-    // The buffer size is kept: jo_fs_set_read_sector_count() can be called while the file is open
-    file->read_buffer_size = __jo_fs_read_buffer_size;
-    file->read_index = file->read_buffer_size;
-    JO_ZERO(file->read);
-    if ((file->read_buffer = (char *)jo_malloc_with_behaviour(file->read_buffer_size * sizeof(*file->read_buffer),
-                             JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
-    {
-#ifdef JO_DEBUG
-        jo_core_error("%s: Out of memory", filename);
-#endif
-        __jo_fs_close(file->handle);
-        file->handle = JO_NULL;
-        return (false);
-    }
-    return (true);
+    return (jo_fs_open_id(file, filename));
 }
 
 /** @brief Read the next sectors of a file in its read buffer
@@ -1278,6 +1597,9 @@ bool                    jo_fs_seek_forward(jo_file * const file, unsigned int nb
 #endif
     if (nbytes > (unsigned int)(file->size - file->read))
         nbytes = file->size - file->read;
+    // A compressed file: the bytes decompressed and dropped
+    if (file->lz != JO_NULL)
+        return (jo_fs_lz_read(file, JO_NULL, nbytes) == (int)nbytes);
     // Bytes still in the read buffer
     remaining = file->read_buffer_size - file->read_index;
     if ((int)nbytes <= remaining)
@@ -1316,9 +1638,6 @@ bool                    jo_fs_seek_forward(jo_file * const file, unsigned int nb
 
 int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes)
 {
-    int                 readed;
-    unsigned int        n;
-
 #ifdef JO_DEBUG
     if (file == JO_NULL)
     {
@@ -1331,26 +1650,9 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
         return (-1);
     }
 #endif
-    JO_ZERO(readed);
-    while (nbytes > 0 && file->read < file->size)
-    {
-        // The read buffer is empty: read the next sectors
-        if (file->read_index >= file->read_buffer_size && !jo_fs_fill_read_buffer(file))
-            break;
-        // Copy what is available in the read buffer at once
-        n = file->read_buffer_size - file->read_index;
-        if (n > nbytes)
-            n = nbytes;
-        if (n > (unsigned int)(file->size - file->read))
-            n = file->size - file->read;
-        jo_memcpy(buffer, file->read_buffer + file->read_index, n);
-        buffer += n;
-        file->read_index += n;
-        nbytes -= n;
-        file->read += n;
-        readed += n;
-    }
-    return (readed);
+    if (file->lz != JO_NULL)
+        return (jo_fs_lz_read(file, (unsigned char *)buffer, nbytes));
+    return (jo_fs_read_raw(file, buffer, nbytes, &file->read, file->size));
 }
 
 void                    jo_fs_close(jo_file * const file)
@@ -1362,10 +1664,13 @@ void                    jo_fs_close(jo_file * const file)
         return ;
     }
 #endif
+    if (file->lz != JO_NULL)
+        jo_free(file->lz);
     if (file->read_buffer != JO_NULL)
         jo_free(file->read_buffer);
     if (file->handle != JO_NULL)
         __jo_fs_close(file->handle);
+    file->lz = JO_NULL;
     file->read_buffer = JO_NULL;
     file->handle = JO_NULL;
 }

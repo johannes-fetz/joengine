@@ -343,9 +343,11 @@ extern bool                 __jo_vdp1_frame_clear;
 /** @brief Clear the frame buffer at the start of each frame (the default), or not
  *  @param enabled false: the frame buffer is not cleared, what the frame does not draw keeps the pixels of the frame
  *  drawn 2 frames before (the frame buffers alternate)
- *  @remarks With JO_FRAMERATE > 1 (the frame buffers change when the VDP1 finished a frame) the frame buffer is cleared
- *  by a polygon of the transparent color that costs the VDP1 about 4 ms: a program that covers the whole screen at each
- *  frame (the rooms of a first person game) does not need it. The last pixel of a line between 2 polygons is the one
+ *  @remarks With JO_FRAMERATE > 1 or JO_FRAMERATE_DYNAMIC (the frame buffers change when the VDP1 finished a frame)
+ *  the frame buffer is erased by the VDP1 during the VBLANK of the change (as many lines as the VBLANK allows, measured at
+ *  the start: with Mednafen, 197 of 224 lines in NTSC, 114 of 240) and the lines left are cleared by a polygon of the transparent
+ *  color (the whole screen: about 4 ms of VDP1 time; when the VBLANK erase can't be used, with a light gun)
+ *  A program that covers the whole screen at each frame (the rooms of a first person game) does not need it. The last pixel of a line between 2 polygons is the one
  *  of the older frame instead of the background. With JO_FRAMERATE 1 the VDP1 erases the frame buffer itself
  *  @remarks From the next frame
  */

@@ -335,9 +335,11 @@ int                         jo_sprite_add_image_4bits_lut(const jo_img * const i
     jo_color                lut[16];
     unsigned char           *pixels;
     jo_color                color;
+    jo_color                last;
     int                     colors;
     int                     count;
     int                     index;
+    int                     high;
     int                     i;
     int                     k;
     int                     id;
@@ -351,43 +353,51 @@ int                         jo_sprite_add_image_4bits_lut(const jo_img * const i
 #endif
     if (JO_MOD_POW2(img->width, 8) != 0)
         return (-1);
-    // The table: the colors of the image (0: transparent, the entry 0 of the table)
-    lut[0] = JO_COLOR_Transparent;
-    colors = 1;
     count = img->width * img->height;
-    for (JO_ZERO(i); i < count; ++i)
-    {
-        color = img->data[i];
-        if (color == JO_COLOR_Transparent)
-            continue;
-        for (k = 1; k < colors && lut[k] != color; ++k)
-            ;
-        if (k < colors)
-            continue;
-        // (more than 14 colors: the image must stay in RGB. The index 15 is never used: it is the end code of the VDP1
-        // in 16 colors mode when the end codes are enabled, 2 of them on a line of the texture stop the line)
-        if (colors >= 15)
-            return (-1);
-        lut[colors++] = color;
-    }
-    for (k = colors; k < 16; ++k)
-        lut[k] = JO_COLOR_Transparent;
     pixels = (unsigned char *)jo_malloc(JO_DIV_BY_2(count));
     if (pixels == JO_NULL)
         return (-1);
-    // 2 pixels per byte, the left pixel in the high bits
+    // The table: the colors of the image in the order of their first pixel (0: transparent, the entry 0 of the table),
+    // and the pixels, 2 per byte, the left pixel in the high bits. In one pass, the color of the previous pixel kept (most
+    // pixels have it: the table searched for about 1 pixel in 10; 2 passes and a search per pixel were 5 % of the loading
+    // of the rally demo)
+    lut[0] = JO_COLOR_Transparent;
+    colors = 1;
+    last = JO_COLOR_Transparent;
+    JO_ZERO(index);
+    JO_ZERO(high);
     for (JO_ZERO(i); i < count; ++i)
     {
         color = img->data[i];
-        JO_ZERO(index);
-        if (color != JO_COLOR_Transparent)
-            for (index = 1; lut[index] != color; ++index)
-                ;
+        if (color != last)
+        {
+            last = color;
+            JO_ZERO(index);
+            if (color != JO_COLOR_Transparent)
+            {
+                for (index = 1; index < colors && lut[index] != color; ++index)
+                    ;
+                if (index >= colors)
+                {
+                    // (more than 14 colors: the image must stay in RGB. The index 15 is never used: it is the end code of
+                    // the VDP1 in 16 colors mode when the end codes are enabled, 2 of them on a line of the texture stop
+                    // the line)
+                    if (colors >= 15)
+                    {
+                        jo_free(pixels);
+                        return (-1);
+                    }
+                    lut[colors++] = color;
+                }
+            }
+        }
         if (JO_MOD_POW2(i, 2) == 0)
-            pixels[JO_DIV_BY_2(i)] = (unsigned char)(index << 4);
+            high = index << 4;
         else
-            pixels[JO_DIV_BY_2(i)] |= (unsigned char)index;
+            pixels[JO_DIV_BY_2(i)] = (unsigned char)(high | index);
     }
+    for (k = colors; k < 16; ++k)
+        lut[k] = JO_COLOR_Transparent;
     id = jo_sprite_add_4bits_lut(pixels, img->width, img->height, lut);
     jo_free(pixels);
     return (id);
