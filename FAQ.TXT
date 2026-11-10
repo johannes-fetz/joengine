@@ -22,19 +22,38 @@ A:	Take the following files from the demo1 sample and copy them in your project:
 
 Q:	My game crashes, glitches or shows an "Out of memory" message. Why?
 A:	There is a 90% chance that it comes from the memory space reserved for jo_malloc().
-	You can change this value in your makefile by adding:
-		JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC = 300000
-	The default value is 393216 bytes, but when your code grows or you have static data,
-	it may exceed the memory size available for your game.
-	Warning: jo_malloc() is also used internally by the engine.
+	The default value is 393216 bytes. If the game needs more, increase it in your makefile:
+		JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC = 524288
+	Warning: jo_malloc() is also used internally by the engine (sprites, files, 3D models, sounds...).
+
+Q:	The build stops with "Program too big". Why?
+A:	The program, its static data and the memory of jo_malloc() don't fit below the stack (0x060FBC00).
+	Reduce JO_GLOBAL_MEMORY_SIZE_FOR_MALLOC in your makefile (see the previous question),
+	or make the program smaller (see "How can I make my program smaller?").
 
 Q:	My game stops on a blue screen with "Jo Engine error handler". What does it mean?
-A:	In debug mode (JO_DEBUG = 1 in your makefile), the engine checks the parameters and the memory.
+A:	In debug mode, the engine checks the parameters and the memory.
 	The screen shows the function and the error. Press START to continue.
-	Disable JO_DEBUG in the final version of your game: the checks are removed and the game is faster.
+	The debug mode is on by default. Disable it in the final version of your game by adding in your makefile:
+		JO_DEBUG = 0
+	The checks are removed and the game is faster and smaller.
+
+Q:	How can I make my program smaller?
+A:	Only the modules your game needs should be on (JO_COMPILE_WITH_xxx_MODULE = 1 or 0 in your makefile).
+	JO_MINIMAL = 1 turns off every module by default (you can still turn on the ones you need), and JO_DEBUG = 0
+	removes the checks and the error messages. The engine functions that your game doesn't call cost nothing.
+	See the comments at the start of Compiler/COMMON/jo_engine_makefile and the sample "demo - minimal".
 
 Q:	What is the best format for images?
 A:	Hardcoded images or the Jo Engine BIN format, that you can both export from Jo Map Editor.
+	TGA files work too: 8, 24 and 32 bits, compressed (RLE) or not.
+
+Q:	How do I make a color of the palette of an 8 bits TGA transparent?
+A:	Pass JO_TGA_TRANSPARENT_INDEX(index) as the transparent color, for example:
+		jo_sprite_add_tga("TEX", "SON8.TGA", JO_TGA_TRANSPARENT_INDEX(0));
+	The value is the index + 1 because the pixels are stored with their index + 1 (0 is transparent on the Saturn).
+	0 (JO_COLOR_Transparent) adds no transparent color. The index 255 is always transparent and its color is
+	not loaded: an 8 bits TGA has 255 colors at most (index 0 to 254).
 
 Q:	The ratio of the sprites is not good. Why?
 A:	Pay close attention to the difference between PAL and NTSC displays.
@@ -42,7 +61,41 @@ A:	Pay close attention to the difference between PAL and NTSC displays.
 	Therefore, if you start the game on a PAL television, the height of the sprites will look wrong.
 	You can switch to PAL (320x256) in your makefile by adding:
 		JO_NTSC = 0
-	Note: Some emulators don't handle all the resolutions, like SSF which uses 640x480 and 720x480 resolutions.
+
+Q:	How do I use another screen resolution?
+A:	In your makefile:
+		JO_SCREEN_WIDTH = 352
+		JO_SCREEN_HEIGHT = 224
+	The width can be 320, 352, 640 or 704. The height can be 224, 240 or 256 (PAL),
+	or 448, 480 or 512 (double density interlace).
+	jo_core_set_screen_resolution() changes it while the game runs. See the sample "demo - display modes".
+
+Q:	How do I choose the frame rate?
+A:	JO_FRAMERATE = 1 (default) runs the game at 60 FPS, JO_FRAMERATE = 2 at 30 FPS, etc.
+	JO_FRAMERATE_DYNAMIC = 1 runs the game as soon as a frame is drawn (up to 60 FPS): use it when your frames take
+	a variable time, and move things according to the time of the frames (see jo_get_ticks()).
+
+Q:	How do I add music tracks (CD audio) to my game?
+A:	Put WAV files (PCM, 44100 Hz, 16 bits, stereo) in the folder of your game. At each build, game.cue is made:
+	the track 1 is the data of the game, then each audio file is a track (2, 3, etc.) in alphabetical order,
+	the case ignored. Name them 01_intro.wav, 02_level1.wav... to choose the order.
+	jo_audio_play_cd_track(2, 2, true) plays the first audio file in a loop. Open game.cue to see the number of each track.
+	To keep the audio files apart, add in your makefile (the folder is relative to the folder of your game):
+		JO_CD_AUDIO_DIR = tracks
+	Note: Mednafen refuses a cue sheet that points into a folder, unless its setting filesys.untrusted_fip_check is 0.
+	The single image (see the next question) doesn't have this problem.
+
+Q:	How do I burn my game on a CD, or use it with a burning tool or an optical drive emulator?
+A:	By default, the build makes game.iso (2048 bytes per sector), the audio files and game.cue: what most emulators read.
+	For a single image of the whole CD (the raw sectors of 2352 bytes, the data and the audio tracks), add in your makefile:
+		JO_CD_SECTOR_SIZE = 2352
+	The build then makes game.bin and its game.cue, that the burning tools and the emulators read.
+	The audio files must be WAV (44100 Hz, 16 bits, stereo), not MP3.
+
+Q:	Which emulator should I use?
+A:	Mednafen is the one used by the regression tests of Jo Engine (it is close to the real Saturn).
+	Old versions of some emulators don't read every cue sheet: if one doesn't start your game or plays no music,
+	try Mednafen or the single image (JO_CD_SECTOR_SIZE = 2352). Always test on a real Saturn when you can.
 
 Q:	My project uses SGL functions (slPrint, slSynch, etc). Does it still compile?
 A:	No. Jo Engine doesn't use the Sega libraries anymore (SGL, GFS, CDC, CPK, SDDRVS): it drives the hardware directly.
@@ -52,3 +105,7 @@ A:	No. Jo Engine doesn't use the Sega libraries anymore (SGL, GFS, CDC, CPK, SDD
 Q:	Can I develop on macOS?
 A:	Yes. Build the SH-2 toolchain once with Compiler/MACOS/build_toolchain.sh (see Compiler/MACOS/README.txt),
 	then use compile.sh like on Linux.
+
+Q:	I changed the engine. How do I check that nothing is broken?
+A:	Run tests\run_tests.bat (about 1 minute): it builds the samples and a test ROM, runs them in Mednafen and compares
+	the results with references. See tests/README.md (Mednafen 1.29 and the Saturn BIOS are needed).
