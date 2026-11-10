@@ -100,6 +100,11 @@ static __jo_force_inline bool   jo_voxel_depth_test(const jo_software_renderer_d
     }
 }
 
+/** @brief The color of each index of the terrain (the palette in the color RAM read once per redraw: a read of the color RAM
+ *  for each sample waited for the bus of the VDP2. The index 0, without a color in the palette (transparent): black, it read
+ *  the color before the palette) */
+static jo_color             __jo_voxel_colors[256];
+
 /** @brief Draw the terrain in a column of the buffer
  *  @param scales camera.scale / z for each sample (JO_NULL: divided for each sample)
  *  @return The height of the column above the terrain
@@ -117,7 +122,7 @@ static __jo_force_inline int    jo_voxel_draw_column(const jo_voxel * const voxe
     const int               terrain_width = voxel_data->terrain_img.width;
     const unsigned char     *height_data = voxel_data->height_img.data;
     const unsigned char     *terrain_data = voxel_data->terrain_img.data;
-    const jo_color          *terrain_pal = voxel_data->terrain_pal.data;
+    const jo_color          *terrain_pal = __jo_voxel_colors;
     const jo_fixed          camera_scale = voxel_data->camera.scale;
     const jo_fixed          camera_horizon = voxel_data->camera.horizon;
     int                     maxheight;
@@ -134,7 +139,7 @@ static __jo_force_inline int    jo_voxel_draw_column(const jo_voxel * const voxe
                                              jo_fixed_mult(jo_fixed_div(h, jo_int2fixed(k + 1)), camera_scale)) + camera_horizon);
         if (projheight < maxheight)
         {
-            const jo_color color = terrain_pal[terrain_data[mapoffset] - 1];
+            const jo_color color = terrain_pal[terrain_data[mapoffset]];
             int y = (projheight >= 0) ? projheight : 0;
             jo_color *pixel = color_buffer + x + y * pitch;
             if (depth_buffer != JO_NULL)
@@ -246,6 +251,7 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
     const int               pitch = gfx->vram_size.width;
     jo_color * const        color_buffer = gfx->color_buffer;
     const jo_color          *height_pal = voxel_data->height_pal.data;
+    const jo_color          *terrain_pal = voxel_data->terrain_pal.data;
     const jo_fixed          camera_height = voxel_data->camera.height;
     const jo_fixed          camera_scale = voxel_data->camera.scale;
     const jo_fixed          zfar = voxel_data->camera.zfar;
@@ -256,9 +262,15 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
     int                     x;
     int                     y;
 
-    for (JO_ZERO(x); x < 256; ++x)
+    // (the index 0: no color in the palette (transparent), the height 0: it read the color before the palette)
+    __jo_voxel_above[0] = camera_height;
+    __jo_voxel_colors[0] = JO_COLOR_Black;
+    for (x = 1; x < 256; ++x)
+    {
         // JO_COLOR_SATURN_GET_R: we use the red component arbitrary because it's a grayscale image
         __jo_voxel_above[x] = camera_height - jo_int2fixed(JO_COLOR_SATURN_GET_R(height_pal[x - 1]));
+        __jo_voxel_colors[x] = terrain_pal[x - 1];
+    }
     // The samples: z = 1, 2, 3... while z < zfar
     for (JO_ZERO(count), z = JO_FIXED_1; z < zfar; z += JO_FIXED_1)
         ++count;

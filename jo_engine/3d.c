@@ -8077,6 +8077,24 @@ void                        jo_3d_create_cube(jo_3d_quad * const array, jo_verti
     jo_3d_create_plane(array + 5, vertices + 20);
 }
 
+/** @brief Draw mode options kept when the texture, the color or the wireframe mode of a polygon changes
+ *  @param attribute Attribute of the polygon
+ *  @param textured The new polygon is textured (the high speed shrink only applies to the textures)
+ *  @return The screen doors, the half transparency and the high speed shrink of the polygon (lost before: only the screen
+ *          doors were kept, a jo_3d_set_mesh_transparency() before a jo_3d_set_mesh_texture() was lost)
+ */
+static unsigned short       jo_3d_kept_draw_mode(const jo_3d_polygon_attribute * const attribute, const bool textured)
+{
+    unsigned short          kept;
+
+    kept = attribute->draw_mode & JO_VDP1_MESH;
+    if ((attribute->draw_mode & 7) == JO_VDP1_COLOR_CALC_HALF_TRANSPARENT)
+        kept |= JO_VDP1_COLOR_CALC_HALF_TRANSPARENT;
+    if (textured)
+        kept |= attribute->draw_mode & JO_VDP1_HIGH_SPEED_SHRINK;
+    return (kept);
+}
+
 void                        jo_3d_set_mesh_polygon_transparency(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index)
 {
 #ifdef JO_DEBUG
@@ -8221,7 +8239,7 @@ void                        jo_3d_set_mesh_light(jo_3d_mesh * const mesh, const 
 void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const mesh, const int sprite_id, const unsigned int index)
 {
     bool                    use_light;
-    bool                    use_screen_doors;
+    unsigned short          kept;
 
 #ifdef JO_DEBUG
     if (mesh == JO_NULL)
@@ -8236,7 +8254,7 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
     }
 #endif
     use_light = (mesh->data.attributes[index].sort & JO_3D_USE_LIGHT) != 0;
-    use_screen_doors = (mesh->data.attributes[index].draw_mode & JO_VDP1_MESH) != 0;
+    kept = jo_3d_kept_draw_mode(&mesh->data.attributes[index], true);
     mesh->data.attributes[index].sort = JO_3D_SORT_CENTER | JO_VDP1_DIRECTION_OPTIONS(JO_VDP1_SPRITE_NO_FLIP) | JO_3D_NO_OPTION;
     if (use_light)
         JO_ADD_FLAG(mesh->data.attributes[index].sort, JO_3D_USE_LIGHT);
@@ -8263,8 +8281,7 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
         mesh->data.attributes[index].color = JO_VDP1_NO_PALETTE;
         mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_RGB | JO_VDP1_NO_GOURAUD) | JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
     }
-    if (use_screen_doors)
-        JO_ADD_FLAG(mesh->data.attributes[index].draw_mode, JO_VDP1_MESH);
+    JO_ADD_FLAG(mesh->data.attributes[index].draw_mode, kept);
     mesh->data.attributes[index].direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_SPRITE_NO_FLIP);
 }
 
@@ -8285,22 +8302,14 @@ void                        jo_3d_set_mesh_texture(jo_3d_mesh * const mesh, cons
 
 void                        jo_3d_set_mesh_polygon_wireframe(jo_3d_mesh * const mesh, const unsigned int index, bool wireframe)
 {
-#ifdef JO_DEBUG
-    if (mesh == JO_NULL)
-    {
-        jo_core_error("mesh is null");
-        return ;
-    }
-#endif
-    mesh->data.attributes[index].sort = JO_3D_SORT_CENTER | JO_VDP1_DIRECTION_OPTIONS(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON) | JO_3D_NO_OPTION;
-    mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_RGB | JO_VDP1_NO_GOURAUD) | JO_VDP1_DIRECTION_DRAW_MODE(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON);
-    mesh->data.attributes[index].direction = JO_VDP1_DIRECTION_COMMAND(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON);
+    // (the color of the polygon, its light, screen doors and half transparency kept, see jo_3d_set_mesh_polygon_color_ex())
+    jo_3d_set_mesh_polygon_color_ex(mesh, mesh->data.attributes[index].color, index, wireframe);
 }
 
 void                        jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index, bool wireframe)
 {
     bool                    use_light;
-    bool                    use_screen_doors;
+    unsigned short          kept;
 
 #ifdef JO_DEBUG
     if (mesh == JO_NULL)
@@ -8315,14 +8324,13 @@ void                        jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const m
     }
 #endif
     use_light = (mesh->data.attributes[index].sort & JO_3D_USE_LIGHT) != 0;
-    use_screen_doors = (mesh->data.attributes[index].draw_mode & JO_VDP1_MESH) != 0;
+    kept = jo_3d_kept_draw_mode(&mesh->data.attributes[index], false);
     mesh->data.attributes[index].sort = JO_3D_SORT_CENTER | JO_VDP1_DIRECTION_OPTIONS(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON) | JO_3D_NO_OPTION;
     if (use_light)
         JO_ADD_FLAG(mesh->data.attributes[index].sort, JO_3D_USE_LIGHT);
     mesh->data.attributes[index].texture_id = JO_3D_NO_TEXTURE;
     mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_RGB | JO_VDP1_NO_GOURAUD) | JO_VDP1_DIRECTION_DRAW_MODE(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON);
-    if (use_screen_doors)
-        JO_ADD_FLAG(mesh->data.attributes[index].draw_mode, JO_VDP1_MESH);
+    JO_ADD_FLAG(mesh->data.attributes[index].draw_mode, kept);
     mesh->data.attributes[index].color = color;
     mesh->data.attributes[index].direction = JO_VDP1_DIRECTION_COMMAND(wireframe ? JO_VDP1_POLYLINE : JO_VDP1_POLYGON);
 }
@@ -8449,7 +8457,9 @@ int                                         jo_3d_mesh_get_bounding_sphere(const
     center->y = jo_int2fixed((lo[1] + hi[1]) / 2);
     center->z = jo_int2fixed((lo[2] + hi[2]) / 2);
     // (the half sizes: 3 x 32767^2 fits in 32 bits, the whole sizes overflowed for the meshes bigger than about 37000)
-    return (jo_sqrt((unsigned int)(JO_SQUARE((hi[0] - lo[0] + 1) / 2) + JO_SQUARE((hi[1] - lo[1] + 1) / 2) + JO_SQUARE((hi[2] - lo[2] + 1) / 2))) + 2);
+    // (unsigned: the sum of the 3 squares goes over 2^31)
+    return (jo_sqrt((unsigned int)JO_SQUARE((hi[0] - lo[0] + 1) / 2) + (unsigned int)JO_SQUARE((hi[1] - lo[1] + 1) / 2) +
+                    (unsigned int)JO_SQUARE((hi[2] - lo[2] + 1) / 2)) + 2);
 }
 
 /** @brief The box of a ray segment (whole units, a margin of 1)
