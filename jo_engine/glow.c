@@ -174,7 +174,8 @@ static jo_fixed                     jo_glow_ray(const int across, const int alon
     fall = JO_FIXED_1 - jo_fixed_div(along, length);
     fall = jo_fixed_mult(fall, fall);
     width = JO_FIXED_1 - (jo_fixed)((across << 16) / JO_GLOW_RAY_WIDTH);
-    return ((jo_fixed_mult(fall, width) * light) >> 8);
+    // (positive: a logical shift, an arithmetic shift is a call of the library of the compiler)
+    return ((jo_fixed)((unsigned int)(jo_fixed_mult(fall, width) * light) >> 8));
 }
 
 /** @brief Light of a pixel of a glow: a disc (1 - d^2)^4 (d: distance to the middle / radius, 0 at the edge) and 8 rays (4 long
@@ -204,24 +205,38 @@ static jo_fixed                     jo_glow_light(const int dx, const int dy, co
     // The rays on the axes (to the edge of the square)
     ray = jo_glow_ray(JO_MIN(dx, dy), JO_MAX(dx, dy), size, __jo_glow_ray_light);
     // The rays on the diagonals (x 1 / sqrt(2): the distances along the diagonals)
-    u = ((dx + dy) * 181) >> 8;
-    v = (JO_ABS(dx - dy) * 181) >> 8;
+    // (positive: logical shifts)
+    u = (int)((unsigned int)((dx + dy) * 181) >> 8);
+    v = (int)((unsigned int)(JO_ABS(dx - dy) * 181) >> 8);
     ray = JO_MAX(ray, jo_glow_ray(JO_MIN(u, v), JO_MAX(u, v), size * 3 / 4, __jo_glow_diagonal_ray_light));
     return (JO_MIN(q + ray, JO_FIXED_1));
 }
 
+/** @brief The ordered dither of the levels (4 x 4 pixels, x 4096) */
+static const unsigned short         __jo_glow_bayer[16] =
+{
+    0 << 12, 8 << 12, 2 << 12, 10 << 12, 12 << 12, 4 << 12, 14 << 12, 6 << 12,
+    3 << 12, 11 << 12, 1 << 12, 9 << 12, 15 << 12, 7 << 12, 13 << 12, 5 << 12
+};
+
+/** @brief The light of a pixel ready for jo_glow_level(): x the levels, rounded
+ *  @param q Its light (see jo_glow_light(), 0 to 1)
+ */
+static  __jo_force_inline unsigned int jo_glow_level_base(const jo_fixed q)
+{
+    return ((unsigned int)q * JO_GLOW_LEVELS + (1 << 11));
+}
+
 /** @brief Level of a pixel of a glow, with an ordered dither between two levels (no ring)
- *  @param x Pixel
- *  @param y Pixel
- *  @param q Its light (see jo_glow_light())
+ *  @param dither The dither of the pixel (__jo_glow_bayer[(y & 3) * 4 + (x & 3)])
+ *  @param base Its light (see jo_glow_level_base())
  *  @return Level (0 to 15)
  */
-static int                          jo_glow_level(const int x, const int y, const jo_fixed q)
+static  __jo_force_inline unsigned int jo_glow_level(const unsigned int dither, const unsigned int base)
 {
-    static const unsigned char      bayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-    int                             level;
+    unsigned int                    level;
 
-    level = (q * JO_GLOW_LEVELS + (bayer[(y & 3) * 4 + (x & 3)] << 12) + (1 << 11)) >> 16;
+    level = (base + dither) >> 16;
     return (JO_MIN(level, JO_GLOW_LEVELS));
 }
 
@@ -240,13 +255,17 @@ static bool                         jo_glow_build_vram(void)
     int                             cy;
     int                             y;
     int                             x;
-    unsigned short                  w;
-    jo_fixed                        *light;
-    jo_fixed                        q;
+    unsigned int                    w;
+    unsigned int                    *light;
+    const unsigned int              *row;
+    const unsigned short            *dither;
+    unsigned int                    base;
     int                             half;
     int                             size;
     int                             dx;
     int                             dy;
+    int                             px;
+    int                             py;
     int                             i;
 
     if (__jo_glow_vram != JO_NULL)
@@ -272,15 +291,17 @@ static bool                         jo_glow_build_vram(void)
     // The light of a quarter of the largest disc (the 4 quarters are the same but for the dither: 4 times less computed,
     // the start of the glows took about 0.6 s)
     half = __jo_glow_sizes[JO_GLOW_SIZES - 1] / 2;
-    light = (jo_fixed *)jo_malloc((unsigned int)(half * half) * sizeof(*light));
+    light = (unsigned int *)jo_malloc((unsigned int)(half * half) * sizeof(*light));
     for (k = 0; k < JO_GLOW_SIZES; ++k)
     {
         size = __jo_glow_sizes[k];
         half = size / 2;
+        // (the light ready for the levels (see jo_glow_level_base()). The same on both sides of the diagonal: jo_glow_light()
+        // of (dx, dy) and of (dy, dx) are the same, half of it computed; the start of the glows took 0.27 s)
         if (light != JO_NULL)
             for (y = 0; y < half; ++y)
                 for (x = 0; x < half; ++x)
-                    light[y * half + x] = jo_glow_light(2 * x + 1, 2 * y + 1, size);
+                    light[y * half + x] = x < y ? light[x * half + y] : jo_glow_level_base(jo_glow_light(2 * x + 1, 2 * y + 1, size));
         n = size / 8;
         __jo_glow_first_char[k] = jo_glow_character(cell);
         for (cy = 0; cy < n; ++cy)
@@ -288,18 +309,24 @@ static bool                         jo_glow_build_vram(void)
             {
                 dst = (volatile unsigned short *)cell;
                 for (y = 0; y < 8; ++y)
+                {
+                    // (the distances to the middle, half pixels: |2 x + 1 - size|, odd)
+                    py = cy * 8 + y;
+                    dy = JO_ABS(2 * py + 1 - size);
+                    row = light != JO_NULL ? light + (dy >> 1) * half : JO_NULL;
+                    dither = __jo_glow_bayer + (py & 3) * 4;
                     for (x = 0; x < 8; x += 4)
                     {
                         for (JO_ZERO(i), JO_ZERO(w); i < 4; ++i)
                         {
-                            // (the distances to the middle, half pixels: |2 x + 1 - size|, odd)
-                            dx = JO_ABS(2 * (cx * 8 + x + i) + 1 - size);
-                            dy = JO_ABS(2 * (cy * 8 + y) + 1 - size);
-                            q = light != JO_NULL ? light[(dy >> 1) * half + (dx >> 1)] : jo_glow_light(dx, dy, size);
-                            w = (unsigned short)((w << 4) | jo_glow_level(cx * 8 + x + i, cy * 8 + y, q));
+                            px = cx * 8 + x + i;
+                            dx = JO_ABS(2 * px + 1 - size);
+                            base = row != JO_NULL ? row[dx >> 1] : jo_glow_level_base(jo_glow_light(dx, dy, size));
+                            w = (w << 4) | jo_glow_level(dither[px & 3], base);
                         }
-                        *dst++ = w;
+                        *dst++ = (unsigned short)w;
                     }
+                }
             }
     }
     if (light != JO_NULL)
