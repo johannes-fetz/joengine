@@ -281,11 +281,17 @@ static void             t_files_bugs(void)
         JT_EQ(img.data[1], JO_COLOR_Blue);
         jo_free(img.data);
     }
-    // A compressed (RLE) image is refused
+    // A compressed (RLE) image: 2 x 1 pixels, one run packet of 2 red pixels (read since the RLE support)
     img.data = JO_NULL;
-    jt_expect_errors(true);
-    JT_TRUE(jo_tga_loader(&img, JO_ROOT_DIR, "RLE.TGA", JO_COLOR_Transparent) != JO_TGA_OK);
-    jt_expect_errors(false);
+    JT_EQ(jo_tga_loader(&img, JO_ROOT_DIR, "RLE.TGA", JO_COLOR_Transparent), JO_TGA_OK);
+    if (img.data != JO_NULL)
+    {
+        JT_EQ(img.width, 2);
+        JT_EQ(img.height, 1);
+        JT_EQ(img.data[0], JO_COLOR_Red);
+        JT_EQ(img.data[1], JO_COLOR_Red);
+        jo_free(img.data);
+    }
     jt_group("bugs.wav");
     // A data size of 0xFFFFFFFF (a stream): the size of the file
     jo_memset(&sound, 0, sizeof(sound));
