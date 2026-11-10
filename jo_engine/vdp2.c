@@ -1169,19 +1169,39 @@ static void                         jo_vdp2_make_coefficient_entries(void *addr,
 {
     volatile unsigned int           *table;
     register unsigned int           e;
+    unsigned int                    d;
+    unsigned int                    q;
+    int                             r;
 
     table = (volatile unsigned int *)(JO_VDP2_VRAM + jo_vdp2_vram_offset(addr));
-    for (e = from; e < to; ++e)
+    for (e = from; e < to && e < __jo_vdp2_ktable_first_entry; ++e)
+        table[e] = JO_VDP2_KTABLE_TRANSPARENT;
+    // The quotient K / d (K = 128 in 16.16) of a divisor from the quotient q and the remainder r of the divisor before:
+    // K = q (d - 1) + r = q d + (r - q), the quotient goes down by K / d^2 (under 3 from d = 2048) when r - q is negative.
+    // The division unit (39 cycles) for the first entry and the small divisors: the table took 43 ms
+    JO_ZERO(q);
+    JO_ZERO(r);
+    for (; e < to; ++e)
     {
-        if (e < __jo_vdp2_ktable_first_entry)
-            table[e] = JO_VDP2_KTABLE_TRANSPARENT;
-        else
+        d = e - JO_VDP2_KTABLE_ORIGIN;
+        if (d < 2048 || q == 0)
         {
             // 32 bits / 32 bits with the division unit (the values are positive)
-            JO_SH2_DVSR = e - JO_VDP2_KTABLE_ORIGIN;
+            JO_SH2_DVSR = d;
             JO_SH2_DVDNT = JO_INT_TO_FIXED(JO_VDP2_KTABLE_SCALE);
-            table[e] = ((unsigned int)JO_SH2_DVDNTL) & JO_VDP2_KTABLE_VALUE_MASK;
+            q = (unsigned int)JO_SH2_DVDNTL;
+            r = (int)(JO_INT_TO_FIXED(JO_VDP2_KTABLE_SCALE) - q * d);
         }
+        else
+        {
+            r -= (int)q;
+            while (r < 0)
+            {
+                --q;
+                r += (int)d;
+            }
+        }
+        table[e] = q & JO_VDP2_KTABLE_VALUE_MASK;
     }
 }
 
@@ -1397,7 +1417,7 @@ void                                __jo_vdp2_init_registers(void)
 
     // Display off while we initialize the video hardware
     JO_VDP2_TVMD = 0;
-    // Clear VRAM and color RAM
+    // Clear VRAM and color RAM (by the CPU: the DMA controller took 50 ms instead of 30 ms)
     for (JO_ZERO(i); i < JO_VDP2_VRAM_SIZE; i += 4)
         *(volatile unsigned int *)(JO_VDP2_VRAM + i) = 0;
     for (JO_ZERO(i); i < JO_VDP2_CRAM_SIZE; i += 4)
@@ -1559,41 +1579,52 @@ static const unsigned char          __jo_vdp2_printf_font[128 * 8] =
  *  @param y Row (0: top)
  *  @param outline The pixels around the glyph in the outline color (inside the 8x8 cell)
  */
-static unsigned char                jo_vdp2_printf_pixel(const unsigned int c, const int x, const int y, const bool outline)
+/** @brief A row of a printf character: its 8 pixels of 4 bits (0: transparent, the glyph color, the outline color), the left
+ *  pixel in the high bits
+ *  @param c Character
+ *  @param y Row (0: top)
+ *  @param outline The pixels around the glyph (the 8 pixels around each pixel of the glyph, inside the 8x8 cell) in the
+ *  outline color
+ */
+static unsigned int                 jo_vdp2_printf_row(const unsigned int c, const int y, const bool outline)
 {
-    int                             dx;
-    int                             dy;
+    const unsigned char             *glyph;
+    unsigned int                    bits;
+    unsigned int                    around;
+    unsigned int                    row;
+    register int                    x;
 
     if (c >= 128)
         return (0);
-    if (__jo_vdp2_printf_font[JO_MULT_BY_8(c) + y] & (0x80 >> x))
-        return (JO_VDP2_PRINTF_GLYPH_COLOR);
-    if (!outline)
-        return (0);
-    for (dy = -1; dy <= 1; ++dy)
-        for (dx = -1; dx <= 1; ++dx)
-            if (x + dx >= 0 && x + dx < 8 && y + dy >= 0 && y + dy < 8 &&
-                (__jo_vdp2_printf_font[JO_MULT_BY_8(c) + y + dy] & (0x80 >> (x + dx))))
-                return (JO_VDP2_PRINTF_OUTLINE_COLOR);
-    return (0);
+    glyph = &__jo_vdp2_printf_font[JO_MULT_BY_8(c)];
+    bits = glyph[y];
+    JO_ZERO(around);
+    if (outline)
+    {
+        around = bits | (y > 0 ? glyph[y - 1] : 0) | (y < 7 ? glyph[y + 1] : 0);
+        around = (around | (around << 1) | (around >> 1)) & ~bits & 0xFF;
+    }
+    JO_ZERO(row);
+    for (JO_ZERO(x); x < 8; ++x)
+        row = (row << 4) | ((bits & (0x80 >> x)) ? JO_VDP2_PRINTF_GLYPH_COLOR : (around & (0x80 >> x)) ? JO_VDP2_PRINTF_OUTLINE_COLOR : 0);
+    return (row);
 }
 
 /** @brief Write the characters of the printf font in VRAM
  *  @param outline With the outline (see jo_set_printf_outline())
+ *  @remarks A row of a character per write (by pixel and by byte: 29 ms at the start of each program, 68 ms with the outline)
  */
 static void                         jo_vdp2_write_printf_font(const bool outline)
 {
-    volatile unsigned char          *cell;
+    volatile unsigned int           *cell;
     register unsigned int           c;
     register int                    y;
-    register int                    x;
 
     // Characters: 256 cells of 8x8 pixels at 4 bits per pixel (2 pixels per byte, left pixel in the high nibble)
-    cell = (volatile unsigned char *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_CELL_OFFSET);
+    cell = (volatile unsigned int *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_CELL_OFFSET);
     for (JO_ZERO(c); c < 256; ++c)
         for (JO_ZERO(y); y < 8; ++y)
-            for (JO_ZERO(x); x < 8; x += 2)
-                *cell++ = (unsigned char)((jo_vdp2_printf_pixel(c, x, y, outline) << 4) | jo_vdp2_printf_pixel(c, x + 1, y, outline));
+            *cell++ = jo_vdp2_printf_row(c, y, outline);
 }
 
 void                                jo_set_printf_outline(const bool enabled, const jo_color color)
@@ -1789,12 +1820,16 @@ static  __jo_force_inline void  __jo_switch_to_8bits_mode(void)
 
 void                            jo_img_to_vdp2_cells(const jo_img_8bits * const img, const bool vertical_flip, unsigned char *cell)
 {
+    const unsigned char         *data;
+    const unsigned char         *p;
+    unsigned int                *words;
     register int                x;
     register int                y;
-    register int                cell_x;
-    register int                cell_y;
-    register int                line_y;
+    register int                c;
     register int                i;
+    int                         width;
+    int                         height;
+    int                         step;
 
 #ifdef JO_DEBUG
         if (img == JO_NULL)
@@ -1813,23 +1848,30 @@ void                            jo_img_to_vdp2_cells(const jo_img_8bits * const 
             return ;
         }
 #endif
-    for (JO_ZERO(x); x < img->width; x += CELL_WIDTH)
+    // Each group of 8 bytes of a cell: a column of the image, 8 rows (the image turned: its columns are the rows of the
+    // screen), the columns from the right without vertical flip. Written by 4 pixels (the VRAM: a write of 32 bits costs a
+    // write of 8 bits, 148 ms for 512 x 256 pixels written by bytes) when the cells are aligned on 4 bytes
+    data = img->data;
+    width = img->width;
+    height = img->height;
+    step = vertical_flip ? 1 : -1;
+    words = (unsigned int *)cell;
+    for (JO_ZERO(x); x < width; x += CELL_WIDTH)
     {
-        for (JO_ZERO(y), JO_ZERO(line_y); y < img->height; y += CELL_HEIGHT, line_y += JO_MULT_BY_8(img->width))
+        for (JO_ZERO(y); y < height; y += CELL_HEIGHT)
         {
-            cell_x = x;
-            cell_y = line_y;
-            for (JO_ZERO(i); i < CELL_SIZE; ++i, ++cell, cell_y += img->width)
+            p = data + y * width + (vertical_flip ? x : width - x - 1);
+            for (JO_ZERO(c); c < CELL_WIDTH; ++c, p += step)
             {
-                if (i != 0 && JO_MOD_POW2(i, CELL_WIDTH) == 0)
+                if (((unsigned int)cell & 3) == 0)
                 {
-                     ++cell_x;
-                     cell_y = line_y;
+                    *words++ = ((unsigned int)p[0] << 24) | ((unsigned int)p[width] << 16) | ((unsigned int)p[2 * width] << 8) | p[3 * width];
+                    *words++ = ((unsigned int)p[4 * width] << 24) | ((unsigned int)p[5 * width] << 16) | ((unsigned int)p[6 * width] << 8) |
+                               p[7 * width];
                 }
-                if (!vertical_flip)
-                    *cell = img->data[(img->width - cell_x - 1) + cell_y];
                 else
-                    *cell = img->data[cell_x + cell_y];
+                    for (JO_ZERO(i); i < CELL_HEIGHT; ++i)
+                        cell[(x * height + y * CELL_WIDTH + c * CELL_HEIGHT) + i] = p[i * width];
             }
         }
     }

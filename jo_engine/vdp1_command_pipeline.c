@@ -1770,9 +1770,6 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
     unsigned int                        last;
     unsigned short                      mode;
 
-    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
-        return (false);
-    words = JO_VDP1_COMMAND_WORDS(cmd);
     texture = &__jo_sprite_def[attr->texture_id];
     // (a negative scale is rare: out of the common path)
     if (__builtin_expect(sx < 0, 0))
@@ -1791,7 +1788,13 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
     {
         w = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->width), sx) + JO_FIXED_1_DIV_2);
         h = JO_FIXED_TO_INT(jo_fixed_mult(JO_INT_TO_FIXED(texture->height), sy) + JO_FIXED_1_DIV_2);
+        // A scale that leaves no pixel: nothing drawn (the VDP1 drew the corner pixel, a dot left by a sprite shrunk to 0)
+        if (w <= 0 || h <= 0)
+            return (true);
     }
+    if ((cmd = jo_vdp1_new_command(z)) == JO_NULL)
+        return (false);
+    words = JO_VDP1_COMMAND_WORDS(cmd);
     x0 = JO_FIXED_TO_INT(cx) - JO_DIV_BY_2(w);
     y0 = JO_FIXED_TO_INT(cy) - JO_DIV_BY_2(h);
     // Last pixel (inclusive coordinates)

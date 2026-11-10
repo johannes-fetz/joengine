@@ -132,39 +132,102 @@ static void                     jo_vdp2_release_top(jo_vdp2_memory_segment * con
     } while (found);
 }
 
-inline void                     jo_vdp2_free(const void * const p)
+/** @brief Copy an entry of the blocks (field by field: a copy of the structure called the block copy of the library of the
+ *  compiler, 1.2 KB more in each program) */
+static  __jo_force_inline void  jo_vdp2_copy_segment(jo_vdp2_memory_segment * const dest, const jo_vdp2_memory_segment * const src)
+{
+    dest->ptr = src->ptr;
+    dest->size = src->size;
+    dest->data = src->data;
+    dest->is_free = src->is_free;
+}
+
+/** @brief Merge a free block with the free block that follows it in the bank (the blocks are in the order of their
+ *  addresses: a new block is at the top of the bank, in the first unused entry, and only the blocks at the top are
+ *  released), the entries after it moved down
+ *  @param segments Blocks of the bank
+ *  @param count Blocks count
+ *  @param i The free block
+ *  @remarks 2 images freed side by side make room for a bigger one (a free block was only reused for a block of its size)
+ */
+static void                     jo_vdp2_merge_next(jo_vdp2_memory_segment * const segments, const unsigned int count, const unsigned int i)
+{
+    register unsigned int       k;
+
+    if (i + 1 >= count || segments[i + 1].size == 0 || !segments[i + 1].is_free ||
+        segments[i].ptr + segments[i].size != segments[i + 1].ptr)
+        return;
+    segments[i].size += segments[i + 1].size;
+    for (k = i + 1; k + 1 < count; ++k)
+        jo_vdp2_copy_segment(&segments[k], &segments[k + 1]);
+    jo_memset(&segments[count - 1], 0, sizeof(segments[count - 1]));
+}
+
+/** @brief Reuse a free block: the rest of the block after the end of the data stays free (a block of its own when an entry
+ *  is unused: the entries after it moved up)
+ *  @param segments Blocks of the bank
+ *  @param count Blocks count
+ *  @param i The free block
+ *  @param data The start of the data in the block
+ *  @param end The end of the data
+ *  @return data
+ *  @remarks Without the rest kept, the free blocks merged (see jo_vdp2_merge_next()) failed more allocations than before
+ */
+static void                     *jo_vdp2_reuse(jo_vdp2_memory_segment * const segments, const unsigned int count, const unsigned int i,
+                                               unsigned char * const data, unsigned char * const end)
+{
+    register unsigned int       k;
+
+    segments[i].data = data;
+    segments[i].is_free = false;
+    if (end < segments[i].ptr + segments[i].size && segments[count - 1].size == 0)
+    {
+        for (k = count - 1; k > i + 1; --k)
+            jo_vdp2_copy_segment(&segments[k], &segments[k - 1]);
+        segments[i + 1].ptr = end;
+        segments[i + 1].size = (unsigned int)(segments[i].ptr + segments[i].size - end);
+        segments[i + 1].data = end;
+        segments[i + 1].is_free = true;
+        segments[i].size = (unsigned int)(end - segments[i].ptr);
+    }
+    return (data);
+}
+
+/** @brief Free a block of a bank
+ *  @param segments Blocks of the bank
+ *  @param count Blocks count
+ *  @param top The end of the used part of the bank
+ *  @param p The block (see jo_vdp2_malloc())
+ *  @return false if the block is not in this bank
+ */
+static bool                     jo_vdp2_free_in(jo_vdp2_memory_segment * const segments, const unsigned int count, unsigned char **top,
+                                                const void * const p)
 {
     register unsigned int       i;
 
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        if (segments[i].size != 0 && segments[i].data == p && !segments[i].is_free)
+        {
+            segments[i].is_free = true;
+            // With the free blocks around it
+            jo_vdp2_merge_next(segments, count, i);
+            if (i > 0 && segments[i - 1].is_free)
+                jo_vdp2_merge_next(segments, count, i - 1);
+            jo_vdp2_release_top(segments, count, top);
+            return (true);
+        }
+    }
+    return (false);
+}
+
+inline void                     jo_vdp2_free(const void * const p)
+{
     if (p == JO_NULL)
         return;
-    for (JO_ZERO(i); i < A0_SEGMENT_COUNT; ++i)
-    {
-        if (__jo_a0_segments[i].data == p && !__jo_a0_segments[i].is_free)
-        {
-            __jo_a0_segments[i].is_free = true;
-            jo_vdp2_release_top(__jo_a0_segments, A0_SEGMENT_COUNT, &__jo_a0);
-            return;
-        }
-    }
-    for (JO_ZERO(i); i < B0_SEGMENT_COUNT; ++i)
-    {
-        if (__jo_b0_segments[i].data == p && !__jo_b0_segments[i].is_free)
-        {
-            __jo_b0_segments[i].is_free = true;
-            jo_vdp2_release_top(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0);
-            return;
-        }
-    }
-    for (JO_ZERO(i); i < B1_SEGMENT_COUNT; ++i)
-    {
-        if (__jo_b1_segments[i].data == p && !__jo_b1_segments[i].is_free)
-        {
-            __jo_b1_segments[i].is_free = true;
-            jo_vdp2_release_top(__jo_b1_segments, B1_SEGMENT_COUNT, &__jo_b1);
-            return;
-        }
-    }
+    if (!jo_vdp2_free_in(__jo_a0_segments, A0_SEGMENT_COUNT, &__jo_a0, p) &&
+        !jo_vdp2_free_in(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0, p))
+        jo_vdp2_free_in(__jo_b1_segments, B1_SEGMENT_COUNT, &__jo_b1, p);
 }
 
 /** @brief The start of a new block: a map is aligned on its size (the map registers hold the number of the page: an
@@ -246,11 +309,7 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
 #endif
                 if (__jo_b1_segments[i].is_free && start + n <= __jo_b1_segments[i].ptr + __jo_b1_segments[i].size)
-                {
-                    __jo_b1_segments[i].data = start;
-                    __jo_b1_segments[i].is_free = false;
-                    return (start);
-                }
+                    return (jo_vdp2_reuse(__jo_b1_segments, B1_SEGMENT_COUNT, i, start, start + n));
             }
 #ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
@@ -276,11 +335,7 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                 }
                 start = jo_vdp2_block_start(__jo_b0_segments[i].ptr, usage);
                 if (__jo_b0_segments[i].is_free && start + n <= __jo_b0_segments[i].ptr + __jo_b0_segments[i].size)
-                {
-                    __jo_b0_segments[i].data = start;
-                    __jo_b0_segments[i].is_free = false;
-                    return (start);
-                }
+                    return (jo_vdp2_reuse(__jo_b0_segments, B0_SEGMENT_COUNT, i, start, start + n));
             }
 #ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
@@ -307,11 +362,7 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     return (__jo_a0_segments[i].ptr);
                 }
                 if (__jo_a0_segments[i].is_free && __jo_a0_segments[i].size >= n)
-                {
-                    __jo_a0_segments[i].data = __jo_a0_segments[i].ptr;
-                    __jo_a0_segments[i].is_free = false;
-                    return (__jo_a0_segments[i].ptr);
-                }
+                    return (jo_vdp2_reuse(__jo_a0_segments, A0_SEGMENT_COUNT, i, __jo_a0_segments[i].ptr, __jo_a0_segments[i].ptr + n));
             }
 #ifdef JO_DEBUG
             jo_core_error("Out of VDP2 memory");
