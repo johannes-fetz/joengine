@@ -52,12 +52,14 @@ void                                    jo_time_init(unsigned char mode)
     jo_time_set_frc(0);
 }
 
-//Clock speed from framerate based on resolution register and NSTC vs PAL
-static  __jo_force_inline float         __jo_time_get_clock_speed(void)
+/** @brief Seconds (16.16) of a clock of the CPU x 2^40: the microseconds of a clock (0.037470726 and 0.035164835 in PAL,
+ *  0.037210548 and 0.03492059 in NTSC, 26.8 and 28.6 MHz) x 65536 / 1000000 x 2^40 (computed by floats before: the floats
+ *  of the library of the compiler at each call of jo_fixed_point_time()) */
+static  __jo_force_inline unsigned int  __jo_time_get_clock_seconds(void)
 {
     return (((*(unsigned short *)0x25f80004 & 0x1) == 0x1) ?
-             ((jo_time_peek_int(RegisterSysClock) == 0) ? (float)0.037470726 : (float)0.035164835) :
-             ((jo_time_peek_int(RegisterSysClock) == 0) ? (float)0.037210548 : (float)0.03492059));
+             ((jo_time_peek_int(RegisterSysClock) == 0) ? 2700050362u : 2533893405u) :
+             ((jo_time_peek_int(RegisterSysClock) == 0) ? 2681302562u : 2516293698u));
 }
 
 //	Determine if clock is on 1/8, 1/32, or 1/128 of count
@@ -66,7 +68,7 @@ static  __jo_force_inline unsigned int  __jo_time_get_clock_mode(void)
     return (8 << ((jo_time_peek_byte(RegisterTCR) & 3) << 1));
 }
 
-/** @brief Microseconds of clocks of the CPU (the speed of __jo_time_get_clock_speed() x 2^20: without float, this runs at
+/** @brief Microseconds of clocks of the CPU (the microseconds of a clock, see __jo_time_get_clock_seconds(), x 2^20: without float, this runs at
  *  each VBLANK, see __jo_time_vblank()) */
 static  __jo_force_inline unsigned int  __jo_time_clocks_to_mcr(const unsigned int clocks)
 {
@@ -144,7 +146,8 @@ static unsigned short previous_frc = 0;
 void                                    jo_fixed_point_time(void)
 {
 	oldtime = time_in_seconds;
-	jo_fixed time_add = (__jo_time_get_clock_speed() * jo_time_elapsed_frc(&previous_frc) * __jo_time_get_clock_mode() / 1000000) * 65536.0;
+	jo_fixed time_add = (jo_fixed)(((unsigned long long)((unsigned int)jo_time_elapsed_frc(&previous_frc) * __jo_time_get_clock_mode()) *
+                                    __jo_time_get_clock_seconds()) >> 40);
 	time_in_seconds += time_add;
 	delta_time = time_in_seconds - oldtime;
 }

@@ -269,7 +269,8 @@ static  __jo_force_inline void              jo_set_a_bus_register(void)
 
 #endif
 
-__jo_force_inline void __jo_call_event(jo_node *node)
+/** @brief Call the callback of a node (a function: jo_list_foreach() is not inlined, it calls it by its address) */
+static void __jo_call_event(jo_node *node)
 {
     ((jo_event_callback)node->data.ptr)();
 }

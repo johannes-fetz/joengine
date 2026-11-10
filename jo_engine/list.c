@@ -46,6 +46,7 @@ void	jo_list_init(jo_list * const list)
     list->last = JO_NULL;
     list->first = JO_NULL;
     list->allocation_behaviour = JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE;
+    list->foreach_next = JO_NULL;
 }
 
 jo_node             *jo_list_insert_at(jo_list * const list, const jo_list_data data, const int index)
@@ -124,6 +125,9 @@ void            jo_list_remove(jo_list * const list, const jo_node * const node_
         return ;
     prev = node_to_delete->prev;
     next = node_to_delete->next;
+    // (the node a jo_list_foreach() goes to next: the one after it)
+    if (list->foreach_next == node_to_delete)
+        list->foreach_next = next;
     if (prev != JO_NULL)
     {
         if (next != JO_NULL)
@@ -152,6 +156,41 @@ void            jo_list_remove(jo_list * const list, const jo_node * const node_
     }
     jo_free(node_to_delete);
     --list->count;
+}
+
+void                jo_list_foreach(jo_list * const list, jo_node_callback callback)
+{
+    jo_node         *tmp;
+    jo_node         *saved;
+
+    // (the next node in the list, not in a local variable: a callback that removed the next node made the loop read the
+    // freed node. The one of an enclosing foreach of the same list is kept. A function: the loop was inlined in each
+    // caller)
+    saved = list->foreach_next;
+    for (tmp = list->first; tmp != JO_NULL; tmp = list->foreach_next)
+    {
+        list->foreach_next = tmp->next;
+        callback(tmp);
+    }
+    list->foreach_next = saved;
+}
+
+bool                jo_list_any(jo_list * const list, jo_node_any_callback callback, void *extra)
+{
+    jo_node         *tmp;
+    jo_node         *saved;
+    bool            found;
+
+    // (the next node kept in the list, see jo_list_foreach())
+    saved = list->foreach_next;
+    found = false;
+    for (tmp = list->first; tmp != JO_NULL && !found; tmp = list->foreach_next)
+    {
+        list->foreach_next = tmp->next;
+        found = callback(tmp, extra);
+    }
+    list->foreach_next = saved;
+    return (found);
 }
 
 /*

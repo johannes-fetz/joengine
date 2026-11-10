@@ -104,15 +104,20 @@ jo_keyboard_special_key   jo_keyboard_get_special_key(void);
 static  __jo_force_inline unsigned char             jo_keyboard_get_char(void)
 {
     jo_peripheral_keyboard                                     *keyboard;
+    unsigned char                                               c;
 
 	keyboard = (jo_peripheral_keyboard *)&__jo_smpc_peripherals[0];
     // (a keyboard only: the condition and the code are the axes of an analog pad, the position of a mouse)
 	if (keyboard->id != JO_PERIPHERAL_ID_KEYBOARD || (keyboard->condition & JO_PERIPHERAL_KEYBOARD_MAKE) == 0 ||
         keyboard->code >= __JO_KEYBOARD_MAPPING_SIZE)
         return (0);
-	if (keyboard->condition & JO_PERIPHERAL_KEYBOARD_CAPS_LOCK)
-        return (__internal_keyboard_caps_lock_mapping[keyboard->code]);
-    return (__internal_keyboard_normal_mapping[keyboard->code]);
+    // Shift: the second character of the key (the symbols, the capitals); caps lock: the case of the letters only (shift
+    // and caps lock: the small letters). Caps lock gave the symbols of the digits before, shift was not read
+    c = (keyboard->modifiers & JO_PERIPHERAL_KEYBOARD_SHIFT) ? __internal_keyboard_caps_lock_mapping[keyboard->code] :
+        __internal_keyboard_normal_mapping[keyboard->code];
+    if ((keyboard->condition & JO_PERIPHERAL_KEYBOARD_CAPS_LOCK) && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
+        c ^= 'a' ^ 'A';
+    return (c);
 }
 
 #endif /* !JO_COMPILE_WITH_KEYBOARD_SUPPORT */

@@ -160,7 +160,8 @@ static void                     jo_vdp2_merge_next(jo_vdp2_memory_segment * cons
     segments[i].size += segments[i + 1].size;
     for (k = i + 1; k + 1 < count; ++k)
         jo_vdp2_copy_segment(&segments[k], &segments[k + 1]);
-    jo_memset(&segments[count - 1], 0, sizeof(segments[count - 1]));
+    // (an entry of size 0 is unused: jo_vdp2_free_in() skips it)
+    JO_ZERO(segments[count - 1].size);
 }
 
 /** @brief Reuse a free block: the rest of the block after the end of the data stays free (a block of its own when an entry
@@ -186,7 +187,6 @@ static void                     *jo_vdp2_reuse(jo_vdp2_memory_segment * const se
             jo_vdp2_copy_segment(&segments[k], &segments[k - 1]);
         segments[i + 1].ptr = end;
         segments[i + 1].size = (unsigned int)(segments[i].ptr + segments[i].size - end);
-        segments[i + 1].data = end;
         segments[i + 1].is_free = true;
         segments[i].size = (unsigned int)(end - segments[i].ptr);
     }

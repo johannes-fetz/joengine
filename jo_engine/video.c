@@ -265,7 +265,7 @@ static bool                     jo_video_read_header(void)
     {
         chunk = m->header_data + pos;
         length = jo_video_be32(chunk + 4);
-        if (chunk[0] == 'F' && chunk[1] == 'D' && chunk[2] == 'S' && chunk[3] == 'C')
+        if (chunk[0] == 'F' && chunk[1] == 'D' && chunk[2] == 'S' && chunk[3] == 'C' && pos + 26 <= size)
         {
             m->header.height = jo_video_be32(chunk + 12);
             m->header.width = jo_video_be32(chunk + 16);
@@ -274,11 +274,14 @@ static bool                     jo_video_read_header(void)
             m->header.audio_bits = chunk[22];
             m->header.audio_frequency = jo_video_be16(chunk + 24);
         }
-        else if (chunk[0] == 'S' && chunk[1] == 'T' && chunk[2] == 'A' && chunk[3] == 'B')
+        else if (chunk[0] == 'S' && chunk[1] == 'T' && chunk[2] == 'A' && chunk[3] == 'B' && pos + 16 <= size)
         {
             m->time_base = jo_video_be32(chunk + 8);
             m->sample_count = jo_video_be32(chunk + 12);
             m->stab = chunk + 16;
+            // (the entries of 16 bytes in the header: a damaged count read the entries after it, out of the buffer)
+            if (m->sample_count > (size - pos - 16) / 16)
+                m->sample_count = (size - pos - 16) / 16;
         }
         if (length < 8)
             break;

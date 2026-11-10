@@ -194,6 +194,15 @@ static  __jo_force_inline void jo_smpc_end_command(jo_smpc_command command)
 # define JO_PERIPHERAL_KEYBOARD_MAKE            (1 << 3)
 /** @brief Keyboard condition: a key is released (break) */
 # define JO_PERIPHERAL_KEYBOARD_BREAK           (1 << 0)
+/** @brief Keyboard modifiers (jo_peripheral_keyboard.modifiers): the left shift key is held */
+# define JO_PERIPHERAL_KEYBOARD_LEFT_SHIFT      (1 << 0)
+/** @brief Keyboard modifiers: the right shift key is held */
+# define JO_PERIPHERAL_KEYBOARD_RIGHT_SHIFT     (1 << 1)
+/** @brief Keyboard modifiers: a shift key is held */
+# define JO_PERIPHERAL_KEYBOARD_SHIFT           (JO_PERIPHERAL_KEYBOARD_LEFT_SHIFT | JO_PERIPHERAL_KEYBOARD_RIGHT_SHIFT)
+/** @brief Key codes of the shift keys (the keyboard reports their make and their break like the other keys) */
+# define JO_PERIPHERAL_KEYBOARD_CODE_LEFT_SHIFT     (0x12)
+# define JO_PERIPHERAL_KEYBOARD_CODE_RIGHT_SHIFT    (0x59)
 
 /** @brief Digital peripheral data (gamepad)
  *  @remarks Buttons are active low: a bit at 0 means pressed
@@ -269,7 +278,8 @@ typedef struct
     unsigned short      pull;
     unsigned char       condition;  // JO_PERIPHERAL_KEYBOARD_xxx flags
     unsigned char       code;       // Key code
-    unsigned short      reserved1;
+    unsigned char       modifiers;  // JO_PERIPHERAL_KEYBOARD_LEFT_SHIFT, JO_PERIPHERAL_KEYBOARD_RIGHT_SHIFT (held)
+    unsigned char       reserved1;
     unsigned int        reserved2[3];
 }                       jo_peripheral_keyboard;
 

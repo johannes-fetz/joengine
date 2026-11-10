@@ -49,6 +49,49 @@
 extern int      __jo_hash_table[JO_MAX_SPRITE];
 #endif
 
+/** @brief The pixels of a BIN image: their 2 bytes swapped, the transparent color replaced
+ *  @param dest Pixels (can be src - 2 pixels: the image read in place, after its header)
+ *  @param src Pixels of the file
+ *  @param size Pixel count
+ *  @param transparent_color Color replaced by JO_COLOR_Transparent (JO_COLOR_Transparent: none)
+ *  @remarks 2 pixels per step when both are aligned on 4 bytes (15 cycles per pixel by 16 bits)
+ */
+static void             jo_bin_copy_pixels(jo_color *dest, const unsigned short *src, int size, const jo_color transparent_color)
+{
+    unsigned int        *d32;
+    const unsigned int  *s32;
+    unsigned int        w;
+    register int        i;
+
+    if ((((unsigned int)dest | (unsigned int)src) & 3) == 0)
+    {
+        d32 = (unsigned int *)dest;
+        s32 = (const unsigned int *)src;
+        for (i = size >> 1; i > 0; --i)
+        {
+            w = *s32++;
+            w = ((w >> 8) & 0x00FF00FFu) | ((w << 8) & 0xFF00FF00u);
+            if (transparent_color != JO_COLOR_Transparent)
+            {
+                if ((w >> 16) == transparent_color)
+                    w = (w & 0xFFFFu) | ((unsigned int)JO_COLOR_Transparent << 16);
+                if ((w & 0xFFFFu) == transparent_color)
+                    w = (w & 0xFFFF0000u) | JO_COLOR_Transparent;
+            }
+            *d32++ = w;
+        }
+        dest = (jo_color *)d32;
+        src = (const unsigned short *)s32;
+        size &= 1;
+    }
+    for (i = 0; i < size; ++i)
+    {
+        dest[i] = jo_swap_endian_ushort(src[i]);
+        if (transparent_color != JO_COLOR_Transparent && dest[i] == transparent_color)
+            dest[i] = JO_COLOR_Transparent;
+    }
+}
+
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 unsigned short      *__jo_bin_load(jo_img *img, const char * const sub_dir, const char * const filename)
@@ -90,7 +133,6 @@ void	                jo_free_img(void * const img)
 
 bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, const jo_color transparent_color)
 {
-    register int        i;
     register int        size;
     unsigned short      *data;
 
@@ -109,12 +151,7 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
     }
     data += 2; /* Jump header */
     size = img->width * img->height;
-    for (JO_ZERO(i); i < size; ++i)
-    {
-        img->data[i] = jo_swap_endian_ushort(*(data + i));
-        if (transparent_color != JO_COLOR_Transparent && img->data[i] == transparent_color)
-            img->data[i] = JO_COLOR_Transparent;
-    }
+    jo_bin_copy_pixels(img->data, data, size, transparent_color);
     return (true);
 }
 
@@ -122,7 +159,6 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
 
 bool                    jo_bin_loader(jo_img *img, const char * const sub_dir, const char *const filename, const jo_color transparent_color)
 {
-    register int        i;
     register int        size;
     unsigned short      *stream;
     unsigned short      *stream_begin;
@@ -133,12 +169,7 @@ bool                    jo_bin_loader(jo_img *img, const char * const sub_dir, c
     stream_begin = stream;
     stream += 2; /* Jump header */
     size = img->width * img->height;
-    for (JO_ZERO(i); i < size; ++i)
-    {
-        img->data[i] = jo_swap_endian_ushort(*(stream + i));
-        if (transparent_color != JO_COLOR_Transparent && img->data[i] == transparent_color)
-            img->data[i] = JO_COLOR_Transparent;
-    }
+    jo_bin_copy_pixels(img->data, stream, size, transparent_color);
     if (stream_begin != img->data)
         jo_free(stream_begin);
     return (true);
@@ -173,7 +204,6 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
     jo_img                  tile_image;
     register int		    x;
     register int		    y;
-    register int		    idx;
     register unsigned int   i;
     int						first_id;
 
@@ -228,16 +258,10 @@ int		                    jo_sprite_add_bin_tileset(const char * const sub_dir, c
             jo_free(stream_begin);
             return (-1);
         }
+        // (a row at a time)
         for (JO_ZERO(y); y < tile_image.height; ++y)
-        {
-            for (JO_ZERO(x); x < tile_image.width; ++x)
-            {
-                idx = x + y * tile_image.width;
-                tile_image.data[idx] = jo_swap_endian_ushort(stream[(x + tileset[i].x) + (y + tileset[i].y) * full_image.width]);
-                if (transparent_color != JO_COLOR_Transparent && tile_image.data[idx] == transparent_color)
-                    tile_image.data[idx] = JO_COLOR_Transparent;
-            }
-        }
+            jo_bin_copy_pixels(tile_image.data + y * tile_image.width, stream + tileset[i].x + (y + tileset[i].y) * full_image.width,
+                               tile_image.width, transparent_color);
         x = jo_sprite_add(&tile_image);
         jo_free_img(&tile_image);
         // (the sprites full: the ids after the last one added were given to the font)
