@@ -180,6 +180,8 @@ typedef struct
 {
     unsigned short                  first;
     unsigned short                  count;
+    unsigned short                  first_point;    // The points used by its polygons: from first_point to last_point
+    unsigned short                  last_point;
     jo_pos3D_fixed                  center;
     int                             radius;
 }                                   __jo_cell_chunk;
@@ -206,6 +208,8 @@ extern unsigned int                 __jo_cells_test_slave[2];
 static jo_3d_polygon_range          __jo_cell_mesh_ranges[JO_CELL_MAX_DRAWN][JO_CELL_MAX_RANGES];
 static int                          __jo_cell_mesh_range_count[JO_CELL_MAX_DRAWN];
 static unsigned char                __jo_cell_mesh_levels[JO_CELL_MAX_DRAWN];
+/** @brief The cell of each mesh drawn (its chunks) */
+static unsigned char                __jo_cell_mesh_cells[JO_CELL_MAX_DRAWN];
 static int                          __jo_cell_mesh_count = 0;
 /** @brief The cells seen through the portals are drawn in the far window, clipped by the VDP1 to the union of their
  *  rectangles (see jo_cells_set_portal_clipping()): on in this frame (no mirror: it uses the far window) */
@@ -1180,9 +1184,14 @@ static void                         __jo_cell_make_chunks(const int cell, const 
             ++end;
         lo[0] = lo[1] = lo[2] = 0x7fffffff;
         hi[0] = hi[1] = hi[2] = -0x7fffffff;
+        ch = &__jo_cell_chunks[cell][__jo_cell_chunk_count[cell]];
+        ch->first_point = 0xFFFF;
+        ch->last_point = 0;
         for (i = first; i < end; ++i)
             for (v = 0; v < 4; ++v)
             {
+                ch->first_point = JO_MIN(ch->first_point, d->polygons[i].vertices[v]);
+                ch->last_point = JO_MAX(ch->last_point, d->polygons[i].vertices[v]);
                 p[0] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].x);
                 p[1] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].y);
                 p[2] = jo_fixed2int(d->points[d->polygons[i].vertices[v]].z);
@@ -1192,7 +1201,7 @@ static void                         __jo_cell_make_chunks(const int cell, const 
                     hi[a] = JO_MAX(hi[a], p[a]);
                 }
             }
-        ch = &__jo_cell_chunks[cell][__jo_cell_chunk_count[cell]++];
+        ++__jo_cell_chunk_count[cell];
         ch->first = (unsigned short)first;
         ch->count = (unsigned short)(end - first);
         ch->center.x = jo_int2fixed((lo[0] + hi[0]) / 2);
@@ -1301,6 +1310,7 @@ static void                         __jo_cell_add_mesh(const jo_cell * const c, 
                     __jo_cells_test_ticks[4] += __jo_cell_mesh_ranges[__jo_cell_mesh_count][r].count;
         }
 #endif
+        __jo_cell_mesh_cells[__jo_cell_mesh_count] = (unsigned char)(c - __jo_cells);
         __jo_cell_meshes[__jo_cell_mesh_count++] = c->mesh;
     }
 }
@@ -1662,10 +1672,13 @@ void                                jo_cells_draw_prepared(const bool slave)
 /** @brief Draw a mesh of the cells on a CPU, with its depth bias and its window (without the dual CPU module, the part of
  *  the slave CPU is drawn by the master CPU, like a job of jo_core_exec_on_slave())
  *  @param ranges Ranges of polygons (JO_NULL: all the polygons)
+ *  @param first_point The points used by the ranges: from first_point to point_end - 1 (see __jo_3d_draw_ranges_from(); 0 and
+ *         the point count of the mesh: searched in their polygons)
  *  @param window Window (-1: unchanged)
  */
 static void                         __jo_cell_draw_mesh(const bool slave, jo_3d_mesh * const mesh, const jo_3d_polygon_range * const ranges,
-                                                        const int range_count, const int bias, const int window)
+                                                        const int range_count, const unsigned int first_point, const unsigned int point_end,
+                                                        const int bias, const int window)
 {
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (slave)
@@ -1676,7 +1689,7 @@ static void                         __jo_cell_draw_mesh(const bool slave, jo_3d_
         if (ranges == JO_NULL)
             jo_3d_slave_mesh_draw(mesh);
         else
-            jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, range_count);
+            __jo_3d_slave_draw_ranges_from(mesh, first_point, point_end, ranges, range_count);
         return;
     }
 #else
@@ -1688,7 +1701,7 @@ static void                         __jo_cell_draw_mesh(const bool slave, jo_3d_
     if (ranges == JO_NULL)
         jo_3d_mesh_draw(mesh);
     else
-        jo_3d_mesh_draw_ranges(mesh, mesh->data.point_count, ranges, range_count);
+        __jo_3d_draw_ranges_from(&mesh->data, first_point, point_end, ranges, range_count);
 }
 
 /** @brief The depth bias of jo_cells_prepare() and the near window again on a CPU (see __jo_cell_draw_mesh()) */
@@ -1710,8 +1723,59 @@ static void                         __jo_cell_draw_end(const bool slave, const b
         jo_3d_select_window(JO_3D_NEAR_WINDOW);
 }
 
+/** @brief The points used by some ranges of polygons of a mesh drawn: the ones of the chunks of these polygons (see
+ *  __jo_cell_chunk)
+ *  @param drawn Index of the mesh drawn
+ *  @param ranges Ranges of polygons (in the order of the polygons)
+ *  @param first_point First point (output)
+ *  @param point_end Last point + 1 (output; the point count of the mesh and 0: no chunks, the points searched)
+ */
+static void                         __jo_cell_points_of(const int drawn, const jo_3d_polygon_range * const ranges, const int range_count,
+                                                        unsigned int * const first_point, unsigned int * const point_end)
+{
+    const __jo_cell_chunk           *ch;
+    const __jo_cell_chunk           *ch_end;
+    unsigned int                    lo;
+    unsigned int                    hi;
+    int                             r;
+
+    ch = __jo_cell_chunks[__jo_cell_mesh_cells[drawn]];
+    *first_point = 0;
+    *point_end = __jo_cell_meshes[drawn]->data.point_count;
+    if (ch == JO_NULL)
+        return;
+    ch_end = ch + __jo_cell_chunk_count[__jo_cell_mesh_cells[drawn]];
+    // (polygons after the last chunk: not covered, searched)
+    if (range_count <= 0 || ch_end == ch ||
+        ranges[range_count - 1].first + ranges[range_count - 1].count > (ch_end - 1)->first + (ch_end - 1)->count)
+        return;
+    lo = 0xFFFF;
+    hi = 0;
+    for (r = 0; r < range_count; ++r)
+    {
+        // (the chunks follow each other: the ones from the first polygon of the range to its last one)
+        while (ch < ch_end && ch->first + ch->count <= ranges[r].first)
+            ++ch;
+        for (; ch < ch_end && ch->first < ranges[r].first + ranges[r].count; ++ch)
+        {
+            lo = JO_MIN(lo, ch->first_point);
+            hi = JO_MAX(hi, ch->last_point);
+        }
+        // (the last chunk may hold the start of the next range)
+        if (ch > __jo_cell_chunks[__jo_cell_mesh_cells[drawn]])
+            --ch;
+    }
+    if (hi >= lo)
+    {
+        *first_point = lo;
+        *point_end = JO_MIN(hi + 1, *point_end);
+    }
+}
+
 void                                jo_cells_draw_prepared_part(const bool slave, const int part, const int handicap)
 {
+    unsigned int                    first_point;
+    unsigned int                    point_end;
     int                             k;
     int                             load[2];
     int                             bin;
@@ -1728,8 +1792,10 @@ void                                jo_cells_draw_prepared_part(const bool slave
         // The cells seen through more portals: behind (see JO_CELL_LEVEL_BIAS)
         if (__jo_cell_mesh_range_count[k] == 0)
             continue;
+        // (the points of the chunks seen, see __jo_cell_points_of())
+        __jo_cell_points_of(k, __jo_cell_mesh_ranges[k], __jo_cell_mesh_range_count[k], &first_point, &point_end);
         __jo_cell_draw_mesh(slave, __jo_cell_meshes[k], __jo_cell_mesh_range_count[k] < 0 ? JO_NULL : __jo_cell_mesh_ranges[k],
-                            __jo_cell_mesh_range_count[k], __jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS, -1);
+                            __jo_cell_mesh_range_count[k], first_point, point_end, __jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS, -1);
     }
     __jo_cell_draw_end(slave, false);
 }
@@ -1750,6 +1816,8 @@ void                                jo_cells_draw_prepared_share(const bool slav
     int                             b;
     int                             visible_count;
     int                             k;
+    unsigned int                    first_point;
+    unsigned int                    point_end;
 
     // The cut among the polygons of the chunks seen (the same on both CPUs): the ones before it are the part 0. Tried: a
     // cut in each mesh, so that both CPUs get a part of the room of the camera: the slave CPU got slower (17 to 36 ms
@@ -1797,8 +1865,13 @@ void                                jo_cells_draw_prepared_share(const bool slav
         }
         if (c == 0)
             continue;
-        // (a cell seen through a portal: the far window, clipped to the portals)
+        // (a cell seen through a portal: the far window, clipped to the portals. The points used: the ones of the chunks of
+        // its ranges (the polygons of a chunk cut by the share: its points transformed by both CPUs, a few more ones: the 2
+        // CPUs searched the points of their halves of the polygons of the mesh cut at each frame, 2 to 3 % of their time in
+        // the first person shooter demo))
+        __jo_cell_points_of(k, ranges, c, &first_point, &point_end);
         __jo_cell_draw_mesh(slave, mesh, c == 1 && ranges[0].first == 0 && (int)ranges[0].count == n ? JO_NULL : ranges, c,
+                            first_point, point_end,
                             __jo_cell_depth_bias + __jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS, jo_cells_window_of(__jo_cell_mesh_levels[k] * JO_CELL_LEVEL_BIAS));
     }
     __jo_cell_draw_end(slave, true);

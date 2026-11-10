@@ -308,6 +308,14 @@ typedef struct
  *  @return false if the VDP1 command table is full
  *  @remarks Hidden polygons (behind the camera, outside the window or seen from the back) are skipped
  */
+/** @brief Draw some ranges of polygons whose points are known: only the points from first_point to point_count - 1 are
+ *  transformed (see jo_3d_mesh_draw_ranges(); the chunks of the cells)
+ *  @param first_point First point used by the polygons of the ranges (none before it)
+ */
+bool                                __jo_3d_draw_ranges_from(const jo_3d_polygon_data * const pdata, const unsigned int first_point,
+                                                             const unsigned int point_count,
+                                                             const jo_3d_polygon_range * const ranges, const int range_count);
+
 bool                                __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
                                                         const jo_3d_polygon_range * const ranges, const int range_count);
 
@@ -1713,6 +1721,11 @@ void                                jo_3d_slave_set_scale_fixed(const jo_fixed x
  */
 bool                                jo_3d_slave_mesh_draw_ranges(const jo_3d_mesh * const mesh, const unsigned int point_count,
                                                                  const jo_3d_polygon_range * const ranges, const int range_count);
+
+/** @brief jo_3d_slave_mesh_draw_ranges() with the points of the ranges known (see __jo_3d_draw_ranges_from()) */
+bool                                __jo_3d_slave_draw_ranges_from(const jo_3d_mesh * const mesh, const unsigned int first_point,
+                                                                   const unsigned int point_count,
+                                                                   const jo_3d_polygon_range * const ranges, const int range_count);
 
 /** @brief Draw a mesh on the slave CPU (call it on the slave CPU, between jo_3d_slave_begin() and jo_3d_slave_end())
  *  @param mesh Mesh (1024 points at most, JO_3D_SLAVE_MAX_VERTICES)

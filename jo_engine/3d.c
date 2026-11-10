@@ -6869,7 +6869,7 @@ __asm__(
  */
 
 static bool                                 jo_3d_draw_polygons(jo_3d_cpu_context * const ctx, const jo_3d_polygon_data * const pdata,
-                                                                const unsigned int point_count,
+                                                                const unsigned int first_point, const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count,
                                                                 const int window, jo_vdp1_command * const commands,
                                                                 unsigned short * const keys, const unsigned int reserved,
@@ -6941,8 +6941,8 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     clip.planes[2] = 0;
     clip.planes[3] = 0;
     jo_profile_begin(JO_PROFILE_3D_VERTICES);
-    if (ctx->parts == JO_NULL && ranges != JO_NULL && count > 0 && JO_MULT_BY_8(polygon_count) <= pdata->polygon_count * 7 &&
-        point_count >= pdata->point_count)
+    if (ctx->parts == JO_NULL && (first_point > 0 || (ranges != JO_NULL && count > 0 && JO_MULT_BY_8(polygon_count) <= pdata->polygon_count * 7 &&
+        point_count >= pdata->point_count)))
     {
         // A few polygons of the mesh (half of them at most: a part of a cell, the share of a CPU): only the vertices from the
         // first one they use to the last one (the vertices of a model are in the order of its polygons: the 2 CPUs drew
@@ -6960,6 +6960,15 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
 
         lo = count;
         JO_ZERO(hi);
+        // (the first point given by the caller: the points of its ranges known (the chunks of the cells, see
+        // __jo_3d_draw_ranges_from()), not searched: the search read the 4 vertex indexes of each polygon, out of the cache,
+        // 2 % of the time of each CPU in the first person shooter demo)
+        if (first_point > 0)
+        {
+            lo = first_point;
+            hi = count - 1;
+        }
+        else
         for (JO_ZERO(i); range + i < last_range; ++i)
             for (q = pdata->polygons + range[i].first, q_end = q + range[i].count; q < q_end; ++q)
             {
@@ -7400,6 +7409,13 @@ bool                                        __jo_3d_draw_parts(const jo_3d_polyg
 bool                                        __jo_3d_draw_ranges(const jo_3d_polygon_data * const pdata, const unsigned int point_count,
                                                                 const jo_3d_polygon_range * const ranges, const int range_count)
 {
+    return (__jo_3d_draw_ranges_from(pdata, 0, point_count, ranges, range_count));
+}
+
+bool                                        __jo_3d_draw_ranges_from(const jo_3d_polygon_data * const pdata, const unsigned int first_point,
+                                                                     const unsigned int point_count,
+                                                                     const jo_3d_polygon_range * const ranges, const int range_count)
+{
     jo_vdp1_command                         *commands;
     unsigned short                          *keys;
     unsigned int                            reserved;
@@ -7409,7 +7425,7 @@ bool                                        __jo_3d_draw_ranges(const jo_3d_poly
     __jo_3d_master.matrix = JO_3D_CURRENT_MATRIX;
     commands = __jo_vdp1_reserve_commands(JO_3D_RESERVE_ALL_COMMANDS, &keys, &reserved);
     JO_ZERO(used);
-    result = jo_3d_draw_polygons(&__jo_3d_master, pdata, point_count, ranges, range_count, __jo_vdp1_current_window, commands, keys,
+    result = jo_3d_draw_polygons(&__jo_3d_master, pdata, first_point, point_count, ranges, range_count, __jo_vdp1_current_window, commands, keys,
                                  reserved, &used);
     // (when the command table is full, the commands were committed by jo_3d_emit_polygon())
     if (result)
@@ -7653,11 +7669,18 @@ void                                        jo_3d_slave_set_scale_fixed(const jo
 bool                                        jo_3d_slave_mesh_draw_ranges(const jo_3d_mesh * const mesh, const unsigned int point_count,
                                                                          const jo_3d_polygon_range * const ranges, const int range_count)
 {
+    return (__jo_3d_slave_draw_ranges_from(mesh, 0, point_count, ranges, range_count));
+}
+
+bool                                        __jo_3d_slave_draw_ranges_from(const jo_3d_mesh * const mesh, const unsigned int first_point,
+                                                                           const unsigned int point_count,
+                                                                           const jo_3d_polygon_range * const ranges, const int range_count)
+{
     unsigned int                            used;
     bool                                    result;
 
     used = __jo_3d_slave_command_count;
-    result = jo_3d_draw_polygons(&__jo_3d_slave, &mesh->data, point_count, ranges, range_count, __jo_3d_slave_window,
+    result = jo_3d_draw_polygons(&__jo_3d_slave, &mesh->data, first_point, point_count, ranges, range_count, __jo_3d_slave_window,
                                  __jo_3d_slave_commands, __jo_3d_slave_keys, JO_3D_SLAVE_MAX_COMMANDS, &used);
     __jo_3d_slave_command_count = used;
     return (result);
@@ -7699,7 +7722,7 @@ bool                                        __jo_3d_slave_draw_parts(const jo_3d
     __jo_3d_slave.parts = parts;
     __jo_3d_slave.part_count = part_count;
     used = __jo_3d_slave_command_count;
-    result = jo_3d_draw_polygons(&__jo_3d_slave, pdata, pdata->point_count, JO_NULL, 0, __jo_3d_slave_window,
+    result = jo_3d_draw_polygons(&__jo_3d_slave, pdata, 0, pdata->point_count, JO_NULL, 0, __jo_3d_slave_window,
                                  __jo_3d_slave_commands, __jo_3d_slave_keys, JO_3D_SLAVE_MAX_COMMANDS, &used);
     __jo_3d_slave_command_count = used;
     __jo_3d_slave.parts = JO_NULL;
