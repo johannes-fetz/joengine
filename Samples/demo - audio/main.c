@@ -47,8 +47,9 @@ void			    my_gamepad(void)
     {
         if (!is_cd_playing)
         {
-            /* The first track in this demo is game data so the first audio track is 2.
-               For more details you can open "game.cue" file with a notepad */
+            /* The track 1 is the data of the game: the audio tracks start at 2. They are the audio files of this
+               folder (track1.wav here) in alphabetical order, or of the folder set by JO_CD_AUDIO_DIR in the makefile.
+               game.cue, made at each build, gives the number of each track */
             jo_audio_play_cd_track(2, 2, true);
             is_cd_playing = true;
         }

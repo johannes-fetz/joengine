@@ -74,6 +74,14 @@ typedef struct
  *  @param from_track First track index to play
  *  @param to_track Last track index to play
  *  @param repeat_infinitely Play tracks infinitely or not
+ *  @details The track 1 is the data of the game (game.iso): the audio tracks start at 2. They are the audio files of
+ *  the folder of the game (or of JO_CD_AUDIO_DIR in its makefile, e.g. JO_CD_AUDIO_DIR = tracks) in alphabetical order,
+ *  the case ignored: with intro.wav and level1.wav, intro.wav is the track 2 and level1.wav the track 3 (01_intro.wav,
+ *  02_level1.wav... keep the order you want). The WAV files must be PCM, 44100 Hz, 16 bits, stereo (the format of a
+ *  CD). game.cue, made at each build, gives the number of each track.
+ *  @remarks JO_CD_SECTOR_SIZE = 2352 in the makefile makes a single image (game.bin with the data and the audio
+ *  tracks, and game.cue): what the burning tools and all the emulators read. Mednafen refuses a cue sheet that points
+ *  into a folder (JO_CD_AUDIO_DIR without JO_CD_SECTOR_SIZE = 2352) unless its setting filesys.untrusted_fip_check is 0
  *  @warning Requires JO_COMPILE_WITH_FS_MODULE
  */
 void	jo_audio_play_cd_track(const int from_track, const int to_track, const bool repeat_infinitely);

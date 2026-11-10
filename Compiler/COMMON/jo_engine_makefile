@@ -34,13 +34,26 @@ ifeq (${JO_GAME_PERIPHERALS},)
 	JO_GAME_PERIPHERALS = J
 endif
 
+# The CD audio tracks: the audio files of JO_CD_AUDIO_DIR (*.wav: PCM, 44100 Hz, 16 bits, stereo), in alphabetical order
+# (the case ignored), are the tracks 2, 3, etc. of the CD after the data track (1): jo_audio_play_cd_track(2, 2, true)
+# plays the first one. game.cue is made by JoEngineCueMaker (source: Compiler/COMMON/JoEngineCueMaker.c).
+# JO_CD_AUDIO_DIR: the folder of the audio files, relative to the folder of the game (in the makefile of the game,
+# before the include). The folder of the game by default; JO_CD_AUDIO_DIR = tracks for example keeps them apart.
+# Mednafen refuses a cue sheet that points into a folder (FILE "tracks/...") unless its setting
+# filesys.untrusted_fip_check is 0; with JO_CD_SECTOR_SIZE = 2352, game.cue only points to game.bin
+ifeq (${JO_CD_AUDIO_DIR},)
+	JO_CD_AUDIO_DIR = .
+endif
+
 # JO_CD_SECTOR_SIZE: the size of the sectors of the data track of the CD image (in the makefile of the game, before the
 # include, or "make JO_CD_SECTOR_SIZE=2352")
-#   2048 (default): game.iso, the data of each sector only (MODE1/2048 in game.cue): what the emulators and most drive
-#                   emulators read
-#   2352: game.bin too, the raw sectors of a disc (sync, header, data, EDC and ECC: MODE1/2352 in game.cue), for the
-#         tools and devices that need them. mkisofs can't write them (its -sectype writes 2048 or 2056 bytes): game.iso
-#         is converted by JoEngineIsoToBin (source: Compiler/COMMON/JoEngineIsoToBin.c)
+#   2048 (default): game.iso, the data of each sector only (MODE1/2048 in game.cue), and the audio files: what the
+#                   emulators and most drive emulators read
+#   2352: game.bin, a single image of the whole CD: the raw sectors of the data track (sync, header, data, EDC and
+#         ECC: MODE1/2352) then the audio tracks (raw CD audio), and game.cue describes it. What the burning tools
+#         and all the emulators read. game.iso is converted by JoEngineIsoToBin (source:
+#         Compiler/COMMON/JoEngineIsoToBin.c): mkisofs can't write these sectors (its -sectype writes 2048 or 2056
+#         bytes). The audio files must be WAV (44100 Hz, 16 bits, stereo), not MP3
 ifeq (${JO_CD_SECTOR_SIZE},)
 	JO_CD_SECTOR_SIZE = 2048
 endif
@@ -338,15 +351,16 @@ else ifeq ($(shell uname -s), Darwin)
 		CC=sh-elf-gcc
 		CONV=sh-elf-objcopy
 	endif
-	CUE_MAKER=sh "$(COMPILER_DIR)/COMMON/cuemaker.sh"
-	# (built from its source by this makefile the first time it is needed)
+	# (built from their sources by this makefile the first time they are needed)
+	CUE_MAKER_EXE=$(COMPILER_DIR)/MACOS/bin/JoEngineCueMaker
+	CUE_MAKER="$(CUE_MAKER_EXE)"
 	ISO_TO_BIN_EXE=$(COMPILER_DIR)/MACOS/bin/JoEngineIsoToBin
 	ISO_TO_BIN="$(ISO_TO_BIN_EXE)"
 	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 else
 	CC=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-gcc-8.2.0
 	CONV=$(COMPILER_DIR)/LINUX/bin/sh-none-elf-objcopy
-	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/CueMaker"
+	CUE_MAKER="$(COMPILER_DIR)/LINUX/Other Utilities/JoEngineCueMaker"
 	ISO_TO_BIN="$(COMPILER_DIR)/LINUX/Other Utilities/JoEngineIsoToBin"
 	CCFLAGS+="-I$(COMPILER_DIR)/WINDOWS/sh-elf/include"
 endif
@@ -391,7 +405,7 @@ TARGET   = game.elf
 TARGET1  = $(TARGET:.elf=.raw)
 TARGET2  = $(TARGET:.elf=.iso)
 TARGET3  = $(TARGET:.elf=.cue)
-# The raw image of the data track (JO_CD_SECTOR_SIZE = 2352)
+# The single image of the CD (JO_CD_SECTOR_SIZE = 2352)
 TARGET4  = $(TARGET:.elf=.bin)
 MPFILE   = $(TARGET:.elf=.map)
 IPTEMPLATE = $(CMNDIR)/IP.BIN
@@ -426,11 +440,13 @@ endif
 
 .PHONY : all clean re
 
-ifeq ($(JO_CD_SECTOR_SIZE),2352)
-all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4)
-else
 all: $(TARGET) $(TARGET1) $(TARGET2) $(TARGET3)
-# (a raw image of a build with JO_CD_SECTOR_SIZE = 2352: game.cue made again, for game.iso)
+# (game.cue made again when game.bin is missing with JO_CD_SECTOR_SIZE = 2352, or there with 2048: the size changed)
+ifeq ($(JO_CD_SECTOR_SIZE),2352)
+ifeq ($(wildcard $(TARGET4)),)
+.PHONY : $(TARGET3)
+endif
+else
 ifneq ($(wildcard $(TARGET4)),)
 .PHONY : $(TARGET3)
 endif
@@ -452,13 +468,20 @@ $(TARGET2): $(TARGET1) $(IPFILE)
 	$(CONV) -O binary $(TARGET) cd/0.bin
 	$(MKISOFS) $(MKISOFS_SORT) $(MKISOFS_FLAGS)
 
-# (game.bin removed first: the cue sheet makers take the *.bin files of the folder as audio tracks)
-$(TARGET3): $(TARGET1) $(TARGET2)
+# game.cue (and game.bin with JO_CD_SECTOR_SIZE = 2352: the cue sheet of game.iso and the audio files becomes the one of
+# the single image)
+$(TARGET3): $(TARGET1) $(TARGET2) $(CUE_MAKER_EXE) $(ISO_TO_BIN_EXE)
 	$(RM) $(TARGET4)
-	$(CUE_MAKER)
-
-$(TARGET4): $(TARGET3) $(ISO_TO_BIN_EXE)
+	$(CUE_MAKER) $(TARGET2) "$(JO_CD_AUDIO_DIR)"
+ifeq ($(JO_CD_SECTOR_SIZE),2352)
 	$(ISO_TO_BIN) $(TARGET2) $(TARGET4) $(TARGET3)
+endif
+
+ifneq ($(CUE_MAKER_EXE),)
+$(CUE_MAKER_EXE): $(CMNDIR)/JoEngineCueMaker.c
+	mkdir -p "$(dir $(CUE_MAKER_EXE))"
+	cc -O2 -o "$(CUE_MAKER_EXE)" "$(CMNDIR)/JoEngineCueMaker.c"
+endif
 
 ifneq ($(ISO_TO_BIN_EXE),)
 $(ISO_TO_BIN_EXE): $(CMNDIR)/JoEngineIsoToBin.c
