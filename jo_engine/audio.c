@@ -258,14 +258,58 @@ static void                         jo_audio_slot_write(const unsigned int slot,
 static struct
 {
     bool                            paused;
+    bool                            restart;        // Resumed in a repeat: the tracks again from their start at the end
+    bool                            played;         // The rest of the tracks seen playing since the resume
+    unsigned char                   wait;           // Frames before the next look at the drive
     unsigned int                    fad;
     int                             from_track;
     int                             to_track;
     unsigned char                   play_mode;
 }                                   __jo_audio_cd;
 
+/** @brief Drive status: the drive is in standby (stopped) */
+# define JO_AUDIO_CD_DRIVE_STANDBY          (0x02)
+
+/** @brief Called at each frame by jo_core_run() (see jo_audio_play_music()) */
+extern void                         (*__jo_core_music_update)(void);
+
+/** @brief The end of the rest of the tracks after a resume: they are played again from their start, in a repeat (the
+ *  CD block repeats the range it plays: resumed with a repeat, it repeated from the pause position, the range shorter
+ *  at each pause, at last the 8 seconds of the end); the drive looked at every 15 frames */
+static void                         jo_audio_cd_update(void)
+{
+    int                             status;
+
+    if (!__jo_audio_cd.restart || __jo_audio_cd.paused)
+        return;
+    if (__jo_audio_cd.wait > 0)
+    {
+        --__jo_audio_cd.wait;
+        return;
+    }
+    __jo_audio_cd.wait = 15;
+    status = __jo_cd_get_status(JO_NULL);
+    if (status == JO_CD_DRIVE_PLAY)
+        __jo_audio_cd.played = true;
+    else if (__jo_audio_cd.played && (status == JO_CD_DRIVE_PAUSE || status == JO_AUDIO_CD_DRIVE_STANDBY))
+    {
+        __jo_audio_cd.restart = false;
+        __jo_core_music_update = JO_NULL;
+        __jo_cd_play_tracks(__jo_audio_cd.from_track, __jo_audio_cd.to_track, __jo_audio_cd.play_mode);
+    }
+}
+
+/** @brief No restart pending (a new play, a stop) */
+static void                         jo_audio_cd_no_restart(void)
+{
+    if (__jo_audio_cd.restart && __jo_core_music_update == jo_audio_cd_update)
+        __jo_core_music_update = JO_NULL;
+    __jo_audio_cd.restart = false;
+}
+
 void			    jo_audio_play_cd_track(const int from_track, const int to_track, const bool repeat_infinitely)
 {
+    jo_audio_cd_no_restart();
     __jo_audio_cd.paused = false;
     __jo_audio_cd.from_track = from_track;
     __jo_audio_cd.to_track = to_track;
@@ -275,6 +319,7 @@ void			    jo_audio_play_cd_track(const int from_track, const int to_track, cons
 
 void		        jo_audio_stop_cd(void)
 {
+    jo_audio_cd_no_restart();
     __jo_audio_cd.paused = false;
     __jo_cd_pause();
 }
@@ -292,7 +337,18 @@ void		        jo_audio_resume_cd(void)
     if (!__jo_audio_cd.paused)
         return ;
     __jo_audio_cd.paused = false;
-    // (a repeat starts again at the pause position, not at the start of the tracks)
+    // (the rest of the tracks once, then the tracks from their start in a repeat, see jo_audio_cd_update(); the hook of
+    // jo_core_run() taken by a music streamed from the CD: the repeat from the pause position, as before)
+    if (__jo_audio_cd.play_mode == JO_AUDIO_CD_ENDLESS_REPEAT &&
+        (__jo_core_music_update == JO_NULL || __jo_core_music_update == jo_audio_cd_update))
+    {
+        __jo_cd_play_from_fad(__jo_audio_cd.fad, __jo_audio_cd.from_track, __jo_audio_cd.to_track, JO_AUDIO_CD_NO_REPEAT);
+        __jo_audio_cd.restart = true;
+        __jo_audio_cd.played = false;
+        __jo_audio_cd.wait = 15;
+        __jo_core_music_update = jo_audio_cd_update;
+        return;
+    }
     __jo_cd_play_from_fad(__jo_audio_cd.fad, __jo_audio_cd.from_track, __jo_audio_cd.to_track, __jo_audio_cd.play_mode);
 }
 
