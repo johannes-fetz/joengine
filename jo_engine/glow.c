@@ -726,16 +726,39 @@ static void                         jo_glow_add_cells(unsigned short *dst, const
     unsigned int                    wb;
     unsigned int                    w;
     int                             i;
-    int                             k;
+    unsigned int                    last_a;
+    unsigned int                    last_b;
+    unsigned int                    last_w;
 
     pa = jo_glow_character_address(a & 0xFFF);
     pb = jo_glow_character_address(b & 0xFFF);
+    // (4 pixels of a row (a word): nothing under or over it, the other one as it is; the same 2 words as the last row
+    // (the middle of a rectangle, the rows of a disc near its middle), the same sum. The images are the same; the sum
+    // of the 4 pixels, with a shift by a variable, was the hottest line of the glows in a profile of the master CPU)
+    last_a = 0x10000;
+    JO_ZERO(last_b);
+    JO_ZERO(last_w);
     for (i = 0; i < 16; ++i)
     {
         wa = pa[i];
         wb = pb[i];
-        for (JO_ZERO(w), k = 12; k >= 0; k -= 4)
-            w = (w << 4) | __jo_glow_add_levels[(wa >> k) & 15][(wb >> k) & 15];
+        if (wa == 0)
+            w = wb;
+        else if (wb == 0)
+            w = wa;
+        else if (wa == last_a && wb == last_b)
+            w = last_w;
+        else
+        {
+            // (the shifts by constants: a shift by a variable is a call of the library on the SH-2)
+            w = ((unsigned int)__jo_glow_add_levels[wa >> 12][wb >> 12] << 12) |
+                ((unsigned int)__jo_glow_add_levels[(wa >> 8) & 15][(wb >> 8) & 15] << 8) |
+                ((unsigned int)__jo_glow_add_levels[(wa >> 4) & 15][(wb >> 4) & 15] << 4) |
+                __jo_glow_add_levels[wa & 15][wb & 15];
+            last_a = wa;
+            last_b = wb;
+            last_w = w;
+        }
         dst[i] = (unsigned short)w;
     }
 }
