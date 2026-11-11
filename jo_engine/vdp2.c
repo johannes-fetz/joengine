@@ -2952,17 +2952,19 @@ static bool                         __jo_vdp2_glow_saved_rbg0;
 /** @brief Show the glow layers (internal usage, see glow.c)
  *  @param cells Characters (16 colors, in the VRAM bank B0)
  *  @param map2 Map of NBG2 (1 page of 64 x 64 cells, in the bank B0)
- *  @param map3 Map of NBG3
+ *  @param map3 Map of NBG3, JO_NULL: NBG2 only (NBG3 stays as it is)
  *  @param cram_block Color RAM block of 256 colors of their palettes (0 to 7)
  *  @remarks The rotation screen is hidden (its pattern names are in the bank B0, read by the glow layers instead): the
  *           glows are for the places where the 3D planes are not seen (inside)
  */
 void                                __jo_vdp2_glow_layers_show(const void *cells, const void *map2, const void *map3, const int cram_block)
 {
+    unsigned short                  layers;
     int                             n;
 
     if (__jo_vdp2_glow_layers_shown)
         return;
+    layers = map3 != JO_NULL ? (JO_NBG2_SCREEN | JO_NBG3_SCREEN) : JO_NBG2_SCREEN;
     __jo_vdp2_glow_layers_shown = true;
     __jo_vdp2_glow_saved_ramctl = JO_VDP2_GET(JO_VDP2_RAMCTL);
     __jo_vdp2_glow_saved_ccctl = JO_VDP2_GET(JO_VDP2_CCCTL);
@@ -2972,7 +2974,7 @@ void                                __jo_vdp2_glow_layers_show(const void *cells
     // The bank B0 is not read by the rotation screen (its pattern names): the cycle patterns give its slots to NBG2, NBG3
     JO_REMOVE_FLAG(screen_flags, JO_RBG0_SCREEN);
     JO_VDP2_SET(JO_VDP2_RAMCTL, __jo_vdp2_glow_saved_ramctl & ~JO_VDP2_RAMCTL_ROTATION_DATA(2, 3));
-    for (n = JO_VDP2_SCREEN_NBG2; n <= JO_VDP2_SCREEN_NBG3; ++n)
+    for (n = JO_VDP2_SCREEN_NBG2; n <= (map3 != JO_NULL ? JO_VDP2_SCREEN_NBG3 : JO_VDP2_SCREEN_NBG2); ++n)
     {
         jo_vdp2_set_character_mode(n, JO_VDP2_COLOR_16, 0);
         jo_vdp2_set_cell(n, cells, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
@@ -2983,10 +2985,9 @@ void                                __jo_vdp2_glow_layers_show(const void *cells
     JO_VDP2_SET(JO_VDP2_PRINB, JO_VDP2_PRIORITY_PAIR(7, 7));
     // Their colors in the block of the color RAM
     JO_VDP2_SET(JO_VDP2_CRAOFA, (__jo_vdp2_glow_saved_craofa & 0x00FF) | ((cram_block & 7) << 8) | ((cram_block & 7) << 12));
-    // Color calculation of NBG2 and NBG3: added to the image under them
-    JO_VDP2_SET(JO_VDP2_CCCTL, (__jo_vdp2_glow_saved_ccctl & ~(JO_VDP2_CCCTL_MODE_MASK | JO_NBG2_SCREEN | JO_NBG3_SCREEN)) |
-                               JO_VDP2_CCCTL_ADD | JO_NBG2_SCREEN | JO_NBG3_SCREEN);
-    JO_ADD_FLAG(screen_flags, JO_NBG2_SCREEN | JO_NBG3_SCREEN);
+    // Color calculation of the layers: added to the image under them
+    JO_VDP2_SET(JO_VDP2_CCCTL, (__jo_vdp2_glow_saved_ccctl & ~(JO_VDP2_CCCTL_MODE_MASK | layers)) | JO_VDP2_CCCTL_ADD | layers);
+    JO_ADD_FLAG(screen_flags, layers);
     jo_vdp2_set_displayed_screens(screen_flags);
 }
 

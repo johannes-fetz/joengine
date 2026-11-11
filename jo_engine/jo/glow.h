@@ -28,14 +28,17 @@
 /** @file glow.h
  *  @author Johannes Fetz
  *
- *  @brief Jo Engine glows: the halo of light around a lamp (a soft disc of its color, without edge, and a few thin rays
- *  of light, added to the image)
+ *  @brief Jo Engine glows: the halo of light around a lamp (a soft disc of its color, without edge, with or without a
+ *  few thin rays of light; a lit rectangle; the outline of a rectangle, a neon), added to the image
  *
  *  - The VDP1 blends at 50 % only: a half transparent sprite shows its edge (and darkens the dark walls around it). The
- *    glows are drawn by the VDP2 instead: NBG2 and NBG3 over the sprite layer, with the color calculation "add": the
- *    color of a glow is added to the 3D view (0 at its edge: no edge, like the light of a real lamp in a camera)
- *  - 2 glows on the screen at the same time (the 2 brightest seen; a glow fades in and out). Each layer shows one disc
- *    (16 to 128 pixels, 15 levels of light), moved by its scroll and colored by its palette: no CPU time per pixel
+ *    glows are drawn by the VDP2 instead: NBG2 over the sprite layer, with the color calculation "add": the color of a
+ *    glow is added to the 3D view (0 at its edge: no edge, like the light of a real lamp in a camera)
+ *  - Up to 15 glows on the screen at the same time (the brightest seen; a glow fades in and out), each one its size, its
+ *    color and its shape (see jo_3d_glow_set_shape()): the map of the layer is a canvas, each glow puts the cells of its
+ *    shape there (16 to 128 pixels, 15 levels of light) with its palette; where 2 glows overlap their light is added.
+ *    The cells are computed once (no CPU time per pixel but for the overlaps); a glow is placed within 2 to 8 pixels,
+ *    the brightest one to the pixel (the scroll of the layer). NBG3 stays free
  *  - The layers change when the image of the frame is displayed (not when the frame is computed): the glow stays on its
  *    lamp when the camera turns
  *  - They use the VRAM bank B0 of the VDP2: the rotation screen (the 3D planes, see background.h) is hidden while the
@@ -55,6 +58,16 @@
 /** @brief Max glows (lamps) */
 # define JO_3D_GLOW_MAX                     (48)
 
+/** @brief Shapes of the glows (see jo_3d_glow_set_shape())
+ */
+typedef enum
+{
+    JO_3D_GLOW_STAR = 0,        // A soft disc and 8 thin rays (see jo_3d_glows_set_rays()): the default
+    JO_3D_GLOW_DISC = 1,        // A soft disc, no rays (a car light, a small lamp)
+    JO_3D_GLOW_RECT = 2,        // A lit rectangle, its light falling around it (a sign, a window)
+    JO_3D_GLOW_FRAME = 3        // The outline of a rectangle, its light on both sides of the line (a neon tube)
+}                                   jo_3d_glow_shape;
+
 /** @brief Add a glow
  *  @param position Position (world)
  *  @param r Red (0 to 255): the color added at its middle with the intensity 256
@@ -66,6 +79,23 @@
  */
 int                                 jo_3d_glow_add(const jo_pos3D_fixed * const position, const unsigned char r, const unsigned char g,
                                                    const unsigned char b, const int radius, const int intensity);
+
+/** @brief Change the shape of a glow
+ *  @param id Id of the glow
+ *  @param shape Shape (JO_3D_GLOW_STAR when it is added)
+ *  @param width Width of the rectangle (RECT, FRAME: world units, facing the camera; its radius is the width of the light
+ *         around it, 8, 16 or 24 pixels on the screen)
+ *  @param height Height of the rectangle
+ *  @remarks A rectangle is placed on the cells of the layer (8 pixels), the discs within 2 to 4 pixels (the glow seen the
+ *           most to the pixel)
+ */
+void                                jo_3d_glow_set_shape(const int id, const jo_3d_glow_shape shape, const int width, const int height);
+
+/** @brief Change the size of a glow
+ *  @param id Id of the glow
+ *  @param radius Radius (world units, see jo_3d_glow_add()); a rectangle: the width of the light around it
+ */
+void                                jo_3d_glow_set_radius(const int id, const int radius);
 
 /** @brief Change the intensity of a glow (a lamp that flickers, an alarm)
  *  @param id Id of the glow
@@ -110,8 +140,8 @@ void                                jo_3d_glows_set_occlusion(bool (*hit)(const 
                                                                           const jo_fixed max_t));
 
 /** @brief The glows are seen only in a rectangle of the screen: the rectangle where the place of the lamp is seen (a lamp
- *  in a room seen through a door: its glow stays in the door, see jo_cells_view_rect_at()). A window of the VDP2 cuts the
- *  disc to the rectangle
+ *  in a room seen through a door: its glow stays in the door, see jo_cells_view_rect_at()). The cells of the glow out of
+ *  the rectangle are not shown (to 8 pixels)
  *  @param clip Gives the rectangle where a point is seen, false if it is not seen; JO_NULL: the whole screen
  */
 void                                jo_3d_glows_set_clip(bool (*clip)(const jo_pos3D_fixed * const position, jo_3d_rect * const rect));
