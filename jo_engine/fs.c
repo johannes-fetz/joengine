@@ -63,13 +63,9 @@
 # define JO_OPEN_MAX						(1)
 #endif
 
-/** @brief Maximum sector fetched once (for jo_fs_read_file_async())
+/** @brief Sectors taken at most by each call to jo_fs_do_background_jobs() (the ones already read by the drive)
  */
 # define JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC     (8)
-
-/** @brief Size of each read jo(for jo_fs_do_background_jobs())
- */
-# define JO_READ_SIZE_ASYNC                       (JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC * JO_SECTOR_SIZE)
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
@@ -245,6 +241,8 @@ static bool                     __jo_cd_stream_owner = false;
 /** @brief Called by the reads of files while they wait for the drive (the music keeps its buffer filled) */
 void                            (*__jo_fs_stream_service)(void) = JO_NULL;
 static bool                     __jo_fs_stream_service_running = false;
+/** @brief The reads of the music at each frame (core.c), done while jo_fs_wait_background_jobs() waits */
+extern void                     (*__jo_core_music_update)(void);
 
 /** @brief Send a command to the CD block
  *  @param cr1 Command register 1 (JO_CD_CR1_VALUE())
@@ -399,6 +397,90 @@ static unsigned int     __jo_fs_stat_vblanks = 0;
 static unsigned int     __jo_fs_stat_bytes = 0;
 static unsigned int     __jo_fs_stat_files = 0;
 
+/** @brief Transfer n sectors of the buffer partition (they are there: jo_cd_sector_count())
+ *  @param n Sector count
+ *  @param out Output buffer (moved after the bytes stored)
+ *  @param out_bytes Bytes to store (the rest of the sectors is skipped; decreased by the bytes stored)
+ *  @return 0 if succeed, -1 if failed
+ */
+static int                      jo_cd_get_sectors(const unsigned int n, unsigned char **out, unsigned int *out_bytes)
+{
+    unsigned char               *buf;
+    unsigned int                bytes;
+    register unsigned int       i;
+    register unsigned int       w;
+    register unsigned int       b;
+    unsigned int                value;
+
+    // Get then delete n sectors from partition 0
+    if (jo_cd_command(JO_CD_CR1_VALUE(JO_CD_COMMAND_GET_THEN_DELETE, 0), 0, JO_CD_PARTITION << 8, n, JO_CD_HIRQ_DRDY, JO_NULL) < 0)
+    {
+        jo_cd_stop_read();
+        return (-1);
+    }
+    buf = *out;
+    bytes = *out_bytes;
+    JO_ZERO(i);
+    // Fast path: the n sectors fit in an aligned buffer, the DMA controller reads them
+    if (bytes >= n * JO_SECTOR_SIZE && ((unsigned int)buf & 3) == 0)
+    {
+        __jo_dma_read_port32(&JO_CD_DATA, buf, n * JO_SECTOR_SIZE);
+        buf += n * JO_SECTOR_SIZE;
+        bytes -= n * JO_SECTOR_SIZE;
+        i = n;
+    }
+    for (; i < n; ++i)
+    {
+        // Fast path: a whole sector in an aligned buffer (4 words per iteration)
+        if (bytes >= JO_SECTOR_SIZE && ((unsigned int)buf & 3) == 0)
+        {
+            unsigned int    *d32 = (unsigned int *)buf;
+
+            for (JO_ZERO(w); w < JO_SECTOR_SIZE / 4; w += 4)
+            {
+                d32[0] = JO_CD_DATA;
+                d32[1] = JO_CD_DATA;
+                d32[2] = JO_CD_DATA;
+                d32[3] = JO_CD_DATA;
+                d32 += 4;
+            }
+            buf += JO_SECTOR_SIZE;
+            bytes -= JO_SECTOR_SIZE;
+            continue;
+        }
+        for (JO_ZERO(w); w < JO_SECTOR_SIZE / 4; ++w)
+        {
+            value = JO_CD_DATA;
+            if (bytes >= 4)
+            {
+                if (((unsigned int)buf & 3) == 0)
+                    *(unsigned int *)buf = value;
+                else
+                {
+                    buf[0] = value >> 24;
+                    buf[1] = value >> 16;
+                    buf[2] = value >> 8;
+                    buf[3] = value;
+                }
+                buf += 4;
+                bytes -= 4;
+            }
+            else
+            {
+                for (JO_ZERO(b); b < bytes; ++b)
+                    buf[b] = value >> (24 - JO_MULT_BY_8(b));
+                buf += bytes;
+                JO_ZERO(bytes);
+            }
+        }
+    }
+    jo_cd_end_transfer();
+    *out = buf;
+    *out_bytes = bytes;
+    __jo_cd_play_next_fad += n;
+    return (0);
+}
+
 /** @brief Read sectors
  *  @param fad First sector (frame address)
  *  @param count Sector count
@@ -415,11 +497,6 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     unsigned int                timeout;
     int                         available;
     unsigned int                n;
-    register unsigned int       i;
-    register unsigned int       w;
-    register unsigned int       b;
-    unsigned int                value;
-
     unsigned int                start;
 
     if (jo_cd_init() < 0)
@@ -471,69 +548,9 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
         n = (unsigned int)available;
         if (n > count - done)
             n = count - done;
-        // Get then delete n sectors from partition 0
-        if (jo_cd_command(JO_CD_CR1_VALUE(JO_CD_COMMAND_GET_THEN_DELETE, 0), 0, JO_CD_PARTITION << 8, n, JO_CD_HIRQ_DRDY, JO_NULL) < 0)
-        {
-            jo_cd_stop_read();
+        if (jo_cd_get_sectors(n, &buf, &bytes) < 0)
             return (-1);
-        }
-        JO_ZERO(i);
-        // Fast path: the n sectors fit in an aligned buffer, the DMA controller reads them
-        if (bytes >= n * JO_SECTOR_SIZE && ((unsigned int)buf & 3) == 0)
-        {
-            __jo_dma_read_port32(&JO_CD_DATA, buf, n * JO_SECTOR_SIZE);
-            buf += n * JO_SECTOR_SIZE;
-            bytes -= n * JO_SECTOR_SIZE;
-            i = n;
-        }
-        for (; i < n; ++i)
-        {
-            // Fast path: a whole sector in an aligned buffer (4 words per iteration)
-            if (bytes >= JO_SECTOR_SIZE && ((unsigned int)buf & 3) == 0)
-            {
-                unsigned int    *d32 = (unsigned int *)buf;
-
-                for (JO_ZERO(w); w < JO_SECTOR_SIZE / 4; w += 4)
-                {
-                    d32[0] = JO_CD_DATA;
-                    d32[1] = JO_CD_DATA;
-                    d32[2] = JO_CD_DATA;
-                    d32[3] = JO_CD_DATA;
-                    d32 += 4;
-                }
-                buf += JO_SECTOR_SIZE;
-                bytes -= JO_SECTOR_SIZE;
-                continue;
-            }
-            for (JO_ZERO(w); w < JO_SECTOR_SIZE / 4; ++w)
-            {
-                value = JO_CD_DATA;
-                if (bytes >= 4)
-                {
-                    if (((unsigned int)buf & 3) == 0)
-                        *(unsigned int *)buf = value;
-                    else
-                    {
-                        buf[0] = value >> 24;
-                        buf[1] = value >> 16;
-                        buf[2] = value >> 8;
-                        buf[3] = value;
-                    }
-                    buf += 4;
-                    bytes -= 4;
-                }
-                else
-                {
-                    for (JO_ZERO(b); b < bytes; ++b)
-                        buf[b] = value >> (24 - JO_MULT_BY_8(b));
-                    buf += bytes;
-                    JO_ZERO(bytes);
-                }
-            }
-        }
-        jo_cd_end_transfer();
         done += n;
-        __jo_cd_play_next_fad += n;
     }
     if (__jo_cd_play_next_fad >= __jo_cd_play_end_fad)
     {
@@ -542,6 +559,81 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     }
     __jo_fs_stat_vblanks += jo_core_get_vblank_count() - start;
     return (0);
+}
+
+/** @brief The calls of jo_cd_take_sectors() without a sector: the read is started again after (a lost command) */
+# define JO_CD_TAKE_RETRY               (300)
+static unsigned int             __jo_cd_take_idle = 0;
+
+/** @brief Take the sectors already read by the drive, without waiting for them (see jo_fs_do_background_jobs())
+ *  @param fad First sector (frame address)
+ *  @param count Sector count wanted (at most)
+ *  @param buf Output buffer
+ *  @param bytes Bytes to store in buf (the rest of the sectors is skipped)
+ *  @param read_ahead_end Last sector (exclusive) that can be read in advance
+ *  @return The sectors stored (0: not read yet, or the music reads its own sectors), -1 if failed
+ *  @remarks The read of the music (__jo_fs_stream_read()) is not stopped: its sectors come first, the drive is taken
+ *  back when they are read (its buffer is filled, the file has the drive until the music needs it again)
+ */
+static int                      jo_cd_take_sectors(const unsigned int fad, unsigned int count, unsigned char *buf, unsigned int bytes,
+                                                   unsigned int read_ahead_end)
+{
+    int                         available;
+    unsigned int                n;
+
+    if (jo_cd_init() < 0)
+        return (-1);
+    if (count == 0)
+        return (0);
+    if (__jo_cd_stream_owner && __jo_fs_stream_service != JO_NULL)
+        return (0);
+    if (read_ahead_end < fad + count)
+        read_ahead_end = fad + count;
+    // (a little after the sectors read in advance (the next file on the disc): the sectors between are dropped, a seek
+    // costs more)
+    while (__jo_cd_play_end_fad && !__jo_cd_stream_owner && fad > __jo_cd_play_next_fad &&
+           fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX && fad + count <= __jo_cd_play_end_fad)
+    {
+        unsigned char           *dropped;
+        unsigned int            none;
+
+        if ((available = jo_cd_sector_count()) < 0)
+            return (-1);
+        if (available == 0)
+            return (0);
+        n = JO_MIN((unsigned int)available, fad - __jo_cd_play_next_fad);
+        dropped = __jo_cd_sector_buffer;
+        JO_ZERO(none);
+        if (jo_cd_get_sectors(n, &dropped, &none) < 0)
+            return (-1);
+    }
+    if (__jo_cd_stream_owner || fad != __jo_cd_play_next_fad || fad + count > __jo_cd_play_end_fad)
+    {
+        if (jo_cd_start_read(fad, read_ahead_end - fad) < 0)
+            return (-1);
+        JO_ZERO(__jo_cd_take_idle);
+    }
+    if ((available = jo_cd_sector_count()) < 0)
+        return (-1);
+    if (available == 0)
+    {
+        if (++__jo_cd_take_idle > JO_CD_TAKE_RETRY)
+            jo_cd_stop_read();
+        return (0);
+    }
+    JO_ZERO(__jo_cd_take_idle);
+    n = (unsigned int)available;
+    if (n > count)
+        n = count;
+    if (jo_cd_get_sectors(n, &buf, &bytes) < 0)
+        return (-1);
+    __jo_fs_stat_bytes += n * JO_SECTOR_SIZE;
+    if (__jo_cd_play_next_fad >= __jo_cd_play_end_fad)
+    {
+        JO_ZERO(__jo_cd_play_next_fad);
+        JO_ZERO(__jo_cd_play_end_fad);
+    }
+    return ((int)n);
 }
 
 /*
@@ -913,6 +1005,33 @@ int                             __jo_fs_read_sectors(void *handle, int sector_co
     return (bytes);
 }
 
+/** @brief Read the sectors of a file already read by the drive, without waiting (see jo_cd_take_sectors())
+ *  @return Bytes stored in buf (0: none yet), -1 if failed
+ */
+static int                      __jo_fs_take_sectors(jo_fs_handle * const h, int sector_count, void *buf, const int buf_size)
+{
+    int                         remaining_bytes;
+    int                         bytes;
+    int                         n;
+
+    if (h->position >= h->sector_count || sector_count <= 0)
+        return (0);
+    if (sector_count > h->sector_count - h->position)
+        sector_count = h->sector_count - h->position;
+    remaining_bytes = h->size - h->position * JO_SECTOR_SIZE;
+    bytes = sector_count * JO_SECTOR_SIZE;
+    if (bytes > remaining_bytes)
+        bytes = remaining_bytes;
+    if (bytes > buf_size)
+        bytes = buf_size;
+    if ((n = jo_cd_take_sectors(h->fad + h->position, sector_count, (unsigned char *)buf, bytes,
+                                JO_MAX(h->fad + h->sector_count, __jo_fs_data_end_fad))) <= 0)
+        return (n);
+    h->position += n;
+    // (the bytes stored: whole sectors, the end of the file in the last one)
+    return (JO_MIN(n * JO_SECTOR_SIZE, bytes));
+}
+
 /*
 ** Jo Engine file API
 */
@@ -967,28 +1086,40 @@ void                    jo_fs_do_background_jobs(void)
     register int        i;
     int                 nbyte;
     jo_fs_handle        *handle;
+    __jo_fs_background_job *job;
 
+    // (the first job only: the files one after the other, the drive does not go back and forth between them)
     for (JO_ZERO(i); i < JO_MAX_FS_BACKGROUND_JOBS; ++i)
     {
-        if (!__jo_fs_background_jobs[i].active)
+        job = &__jo_fs_background_jobs[i];
+        if (!job->active)
             continue;
-        handle = (jo_fs_handle *)__jo_fs_background_jobs[i].handle;
-        nbyte = __jo_fs_read_sectors(handle, JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC, __jo_fs_background_jobs[i].ptr, JO_READ_SIZE_ASYNC);
-        if (nbyte < 0)
-            JO_ZERO(nbyte);
-        else
-            nbyte = JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC * JO_SECTOR_SIZE;
+        handle = (jo_fs_handle *)job->handle;
+        // (the sectors already read by the drive: no wait, the game goes on; a failed read is tried again next time)
+        nbyte = __jo_fs_take_sectors(handle, JO_MAXIMUM_SECTOR_FETCHED_ONCE_ASYNC, job->ptr,
+                                     job->file_length - (int)(job->ptr - job->contents));
+        if (nbyte > 0)
+            job->ptr += nbyte;
         if (handle->position >= handle->sector_count)
         {
             __jo_fs_close(handle);
             --__jo_fs_background_job_count;
-            JO_ZERO(__jo_fs_background_jobs[i].contents[__jo_fs_background_jobs[i].file_length]);
-            __jo_fs_background_jobs[i].active = false;
-            __jo_fs_background_jobs[i].callback(__jo_fs_background_jobs[i].contents, __jo_fs_background_jobs[i].file_length, __jo_fs_background_jobs[i].token);
+            JO_ZERO(job->contents[job->file_length]);
+            job->active = false;
+            job->callback(job->contents, job->file_length, job->token);
         }
-        else
-            __jo_fs_background_jobs[i].ptr += nbyte;
-        return ; //TODO
+        return ;
+    }
+}
+
+void                    jo_fs_wait_background_jobs(void)
+{
+    // (the music keeps its buffer filled: its read goes first, see jo_cd_take_sectors())
+    while (__jo_fs_background_job_count)
+    {
+        if (__jo_core_music_update != JO_NULL)
+            __jo_core_music_update();
+        jo_fs_do_background_jobs();
     }
 }
 

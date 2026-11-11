@@ -110,8 +110,15 @@ static  __jo_force_inline char*             jo_fs_read_file(const char *const fi
  *  @param buf Output buffer: the file length + 1 byte at least (a null character is written after the contents)
  *  @return true if succeed
  *  @remarks A compressed file (see jo_fs_read_file_ptr()) is read as it is on the CD (not decompressed)
+ *  @remarks The frames do not wait for the drive: each one takes the sectors already read (8 at most). The music
+ *  (jo_audio_play_music()) goes on: it has the drive first when its buffer needs it. The files are read one after the other
  */
 bool                                        jo_fs_read_file_async_ptr(const char *const filename, jo_fs_async_read_callback callback, int optional_token, void *buf);
+
+/** @brief Wait for the end of the reads of jo_fs_read_file_async() (their callbacks called, the files they start too)
+ *  @remarks The music (jo_audio_play_music()) goes on meanwhile
+ */
+void                                        jo_fs_wait_background_jobs(void);
 
 /** @brief Read a file on the CD asynchronously
  *  @param filename Filename (upper case and shorter as possible like "A.TXT")
