@@ -113,6 +113,7 @@ typedef struct
     bool                            seen;           // No wall between the camera and the lamp (last ray)
     bool                            tested;         // A ray was cast since the glow was added or moved
     unsigned char                   shape;          // jo_3d_glow_shape
+    bool                            anchor;         // Placed to the pixel (the scroll of the layer), see jo_3d_glow_set_anchor()
     jo_pos3D_fixed                  position;
     jo_pos3D_fixed                  tested_from;    // The camera of the last ray (the same camera: the same result)
     unsigned char                   r;
@@ -944,6 +945,7 @@ int                                 jo_3d_glow_add(const jo_pos3D_fixed * const 
         jo_memset(glow, 0, sizeof(*glow));
         glow->used = true;
         glow->shape = JO_3D_GLOW_STAR;
+        glow->anchor = false;
         glow->position = *position;
         glow->r = r;
         glow->g = g;
@@ -962,6 +964,12 @@ void                                jo_3d_glow_set_shape(const int id, const jo_
     __jo_glows[id].shape = (unsigned char)shape;
     __jo_glows[id].width = (short)JO_MAX(width, 0);
     __jo_glows[id].height = (short)JO_MAX(height, 0);
+}
+
+void                                jo_3d_glow_set_anchor(const int id, const bool anchor)
+{
+    if (id >= 0 && id < JO_3D_GLOW_MAX)
+        __jo_glows[id].anchor = anchor;
 }
 
 void                                jo_3d_glow_set_radius(const int id, const int radius)
@@ -1245,6 +1253,9 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
             continue;
         s = glow->shape >= JO_3D_GLOW_RECT ? JO_MIN(2 * JO_MAX(half_w[i], half_h[i]) + diameter[i], 128) : JO_MIN(diameter[i], 128);
         score[i] = (glow->intensity * glow->fade >> 8) * JO_MAX(s, 4);
+        // (an anchored glow first: the grid of the cells on it, placed to the pixel)
+        if (glow->anchor)
+            score[i] += 0x10000000;
         // (sorted, the brightest first)
         if (count == JO_GLOW_SHOWN && score[order[JO_GLOW_SHOWN - 1]] >= score[i])
             continue;

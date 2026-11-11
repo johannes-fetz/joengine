@@ -91,6 +91,14 @@ int                                 jo_3d_glow_add(const jo_pos3D_fixed * const 
  */
 void                                jo_3d_glow_set_shape(const int id, const jo_3d_glow_shape shape, const int width, const int height);
 
+/** @brief Place a glow to the pixel: the scroll of the layer puts the grid of the cells on it (the glow seen the most
+ *  otherwise); for a rectangle that must stay on its lamps (the rear lamps of a car: a rectangle is placed on the
+ *  cells, 8 pixels, it jumped from one cell to the next). The first anchored glow seen wins
+ *  @param id Id of the glow
+ *  @param anchor true: placed to the pixel
+ */
+void                                jo_3d_glow_set_anchor(const int id, const bool anchor);
+
 /** @brief Change the size of a glow
  *  @param id Id of the glow
  *  @param radius Radius (world units, see jo_3d_glow_add()); a rectangle: the width of the light around it
