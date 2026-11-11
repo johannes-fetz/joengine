@@ -1655,10 +1655,9 @@ void                                jo_3d_set_texture_subdivision_depth(const in
 void                                jo_3d_set_texture_subdivision_error(const int sprite_id, const int pixels);
 
 /** @brief Draw the polygons in parts only where it is needed to draw them at all (see jo_3d_set_texture_subdivision()): the
- *  polygons that cross the near plane (or go very far outside of the view); not for the perspective of their texture, nor
- *  beyond the guard band (clipped by the CPU at the edges of the screen, see jo_3d_set_guard_band(): their texture is
- *  distorted, a bigger guard band keeps them few), nor the big ones mostly out of the screen (the VDP1 draws their pixels
- *  out of the screen too)
+ *  polygons that cross the near plane, and those beyond the guard band in 2 x 2 parts only (see jo_3d_set_guard_band(); a
+ *  bigger guard band keeps them few); not for the perspective of their texture, nor the big ones mostly out of the screen
+ *  (the VDP1 draws their pixels out of the screen too)
  *  @param enabled true: fewer parts (the CPU time of the parts saved), false: the default
  *  @remarks For both CPUs. A split screen (2 views per frame, each one half as high: the texture slides less, the VDP1 has
  *  time to spare): about 10 % of the time of the CPUs (Mednafen emulated the split screen of the rally demo 10 % faster)
