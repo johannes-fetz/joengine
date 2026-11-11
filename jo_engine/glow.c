@@ -124,6 +124,9 @@ typedef struct
     short                           height;
     short                           intensity;
     short                           fade;           // 0 (hidden) to 256 (seen)
+    short                           placed_x;       // The top left pixel of its star in the frame before (see
+    short                           placed_y;       // jo_glow_sticky_cell())
+    bool                            placed;
 }                                   jo_glow;
 
 /** @brief A glow in the cells of a frame: a box of cells (screen cells, the grid moved by the scroll of the frame) */
@@ -1150,6 +1153,35 @@ static  __jo_force_inline int       jo_glow_cell_of(const int pixel, const int f
     return ((p >> 3) - 128);
 }
 
+/** @brief The cell of a star (8 pixels: its place within 4 pixels): the nearest one, or the one of the frame before while
+ *  it is within JO_GLOW_STICKY pixels of the place of the lamp (a lamp that moves by one pixel, the camera shaking with the
+ *  car standing, the grid moved by the anchored glow, jumped by 8 pixels between 2 cells at each frame: far away, a star of
+ *  16 pixels jumped by half its size)
+ *  @param pixel The top left pixel of the star (exact)
+ *  @param fine The scroll of the grid
+ *  @param placed The top left pixel of the star in the frame before (-32768: none)
+ *  @return Cell
+ */
+#define JO_GLOW_STICKY                      (6)
+
+static int                          jo_glow_sticky_cell(const int pixel, const int fine, const int placed)
+{
+    int                             rest;
+    int                             m;
+    int                             k;
+
+    m = jo_glow_cell_of(pixel, fine, &rest);
+    m += rest >= 4;
+    if (placed == -32768)
+        return (m);
+    // (the cell of the grid nearest to the place of the frame before)
+    k = jo_glow_cell_of(placed, fine, &rest);
+    k += rest >= 4;
+    if (k != m && JO_ABS(k * 8 + fine - pixel) <= JO_GLOW_STICKY)
+        return (k);
+    return (m);
+}
+
 void                                jo_3d_glows_draw(const jo_pos3D_fixed * const camera)
 {
     jo_glow_state                   *state;
@@ -1382,8 +1414,12 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
             }
             else
             {
-                mx += rx >= 4;
-                my += ry >= 4;
+                // (a star: in the cell of the frame before while it is near enough, see jo_glow_sticky_cell())
+                mx = jo_glow_sticky_cell(left, state->fine_x, glow->placed ? glow->placed_x : -32768);
+                my = jo_glow_sticky_cell(top, state->fine_y, glow->placed ? glow->placed_y : -32768);
+                glow->placed_x = (short)(mx * 8 + state->fine_x);
+                glow->placed_y = (short)(my * 8 + state->fine_y);
+                glow->placed = true;
                 item->first = __jo_glow_star_char[size];
             }
             item->cx = (short)mx;
