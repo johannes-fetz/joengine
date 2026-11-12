@@ -429,6 +429,22 @@ static  __jo_force_inline void	jo_sprite_set_additive_palette(int palette_id)
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id) | 0x6000;
 }
 
+/** @brief Draw a sprite of the current sprite attributes without rotation (internal usage: see jo_sprite_draw3D())
+ *  @param sprite_id Sprite Id
+ *  @param x Horizontal position of its center from the center of the screen
+ *  @param y Vertical position of its center from the center of the screen
+ *  @param z Z index (depth)
+ */
+void        __jo_vdp1_draw_sprite3D(const int sprite_id, const int x, const int y, const int z);
+
+/** @brief Draw a sprite of the current sprite attributes without rotation (internal usage: see jo_sprite_draw3D2())
+ *  @param sprite_id Sprite Id
+ *  @param x Horizontal position of its top left corner from the top left of the screen
+ *  @param y Vertical position of its top left corner from the top left of the screen
+ *  @param z Z index (depth)
+ */
+void        __jo_vdp1_draw_sprite3D2(const int sprite_id, const int x, const int y, const int z);
+
 /** @brief Display a sprite in 3 dimensional space
  *  @param sprite_id Sprite Id
  *  @param x Horizontal position from the center of the screen
@@ -451,9 +467,7 @@ static  __jo_force_inline void	jo_sprite_draw3D_and_rotate(const int sprite_id, 
  */
 static  __jo_force_inline void	jo_sprite_draw3D(const int sprite_id, const int x, const int y, const int z)
 {
-    extern jo_pos3D __jo_sprite_pos;
-    __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw(sprite_id, &__jo_sprite_pos, true, false);
+    __jo_vdp1_draw_sprite3D(sprite_id, x, y, z);
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -478,9 +492,7 @@ static  __jo_force_inline void	jo_sprite_draw3D_and_rotate2(const int sprite_id,
  */
 static  __jo_force_inline void	jo_sprite_draw3D2(const int sprite_id, const int x, const int y, const int z)
 {
-    extern jo_pos3D __jo_sprite_pos;
-    __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw(sprite_id, &__jo_sprite_pos, false, false);
+    __jo_vdp1_draw_sprite3D2(sprite_id, x, y, z);
 }
 
 /** @brief Display a sprite on 4 points (distorted sprite)

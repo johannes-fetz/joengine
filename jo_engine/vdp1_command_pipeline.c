@@ -48,6 +48,7 @@
 #include "jo/profile.h"
 #include "internal/core.h"
 #include "internal/vdp1_command_pipeline.h"
+#include "internal/sprites.h"
 #include "internal/profile.h"
 
 /*
@@ -1752,8 +1753,9 @@ static  __jo_force_inline jo_fixed      jo_vdp1_perspective_scale(const jo_fixed
  *  @return false if the command table is full
  *  @remarks The sprite covers (width * scale) x (height * scale) pixels (VDP1 coordinates are inclusive)
  *  @remarks A sprite without scale and rotation is drawn with a normal sprite command (faster and pixel perfect)
+ *  @remarks Not inlined: one copy for all the sprites (about 0.7 KB of code)
  */
-static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, const jo_fixed cy, const jo_fixed z, jo_fixed sx, jo_fixed sy,
+static __attribute__((noinline)) bool   jo_vdp1_draw_sprite(const jo_fixed cx, const jo_fixed cy, const jo_fixed z, jo_fixed sx, jo_fixed sy,
                                                             const jo_angle angle, const jo_vdp1_sprite_attribute *attr)
 {
     jo_vdp1_command                     *cmd;
@@ -1828,6 +1830,61 @@ static bool                             jo_vdp1_draw_sprite(const jo_fixed cx, c
     words[5] = last;
     words[6] = JO_VDP1_PACK(x0, y0 + h);
     return (true);
+}
+
+/** @brief jo_sprite_draw3D() and jo_sprite_draw3D2(): a sprite of the current sprite attributes, without rotation, straight to
+ *  jo_vdp1_draw_sprite() (the position and the scale in registers). The same command as jo_sprite_draw_rotate(), which went
+ *  through __jo_vdp1_draw_sprite() with 2 structures written to the stack and read back: about 570 cycles a sprite there,
+ *  480 here (Mednafen; one copy of the command code: a copy of it here was 0.8 KB more for each game)
+ *  @param sprite_id Sprite Id (negative: nothing drawn)
+ *  @param x Horizontal position (pixels, see centered)
+ *  @param y Vertical position
+ *  @param z Depth
+ *  @param centered true: (x, y) is the center of the sprite from the center of the window, false: its top left corner from
+ *  the top left of the screen
+ */
+static  __jo_force_inline void          jo_vdp1_draw_sprite3D(const int sprite_id, int x, int y, const int z, const bool centered)
+{
+    jo_vdp1_sprite_attribute            attr;
+    jo_fixed                            fz;
+    jo_fixed                            sx;
+    jo_fixed                            sy;
+    jo_fixed                            ps;
+
+    // (see jo_sprite_draw_rotate(): no sprite (for instance jo_get_video_sprite() when the movie is stopped))
+    if (sprite_id < 0)
+        return;
+    fz = jo_int2fixed(z);
+    if (!jo_vdp1_is_sprite_visible(fz))
+        return;
+    if (!centered)
+    {
+        x = x - __jo_screen.width_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].width);
+        y = y - __jo_screen.height_2 + JO_DIV_BY_2(__jo_sprite_def[sprite_id].height);
+    }
+    __jo_sprite_attributes_of_state(&attr, sprite_id, &__jo_sprite_attributes);
+    // (see __jo_vdp1_draw_sprite_hv(): the perspective scale, one division for both)
+    sx = __jo_sprite_attributes.fixed_scale_x;
+    sy = __jo_sprite_attributes.fixed_scale_y;
+    if ((sx | sy) < 0)
+    {
+        ps = jo_vdp1_perspective_scale(fz);
+        if (sx < 0)
+            sx = jo_fixed_mult(-sx, ps);
+        if (sy < 0)
+            sy = jo_fixed_mult(-sy, ps);
+    }
+    jo_vdp1_draw_sprite(jo_vdp1_window_center_x() + jo_int2fixed(x), jo_vdp1_window_center_y() + jo_int2fixed(y), fz, sx, sy, 0, &attr);
+}
+
+void __attribute__((noinline))          __jo_vdp1_draw_sprite3D(const int sprite_id, const int x, const int y, const int z)
+{
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, true);
+}
+
+void __attribute__((noinline))          __jo_vdp1_draw_sprite3D2(const int sprite_id, const int x, const int y, const int z)
+{
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, false);
 }
 
 bool                                    __jo_vdp1_draw_sprite(const jo_vdp1_sprite_position * const pos, const jo_vdp1_sprite_attribute * const attr, const jo_angle angle)

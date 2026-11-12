@@ -69,12 +69,9 @@ unsigned short          __jo_sprite_lut[JO_MAX_SPRITE];
 /* Mean color of the pixels of a texture with smaller copies (set by jo_3d_set_texture_mipmaps() in 3d.c), 0: unknown. A
    polygon with the texture seen as a thin line is drawn with it (see jo_3d_emit_sliver()) */
 unsigned short          __jo_sprite_mean_color[JO_MAX_SPRITE];
-/* Gouraud tables of jo_set_gouraud_shading_colors(): after the textures (JO_VDP1_USER_AREA_END_ADDR), 2 sets of
-   JO_SPRITE_GOURAUD_TABLES tables (the VDP1 draws a frame while the CPU prepares the next one: another set) */
-# define JO_SPRITE_GOURAUD_TABLES       (32)
-# define JO_SPRITE_GOURAUD_OFFSET       (JO_VDP1_USER_AREA_END_ADDR - JO_VDP1_VRAM)
+/* Gouraud tables of jo_set_gouraud_shading_colors() (see JO_SPRITE_GOURAUD_OFFSET in internal/sprites.h) */
 int                     __jo_gouraud_shading_runtime_index = -1;
-static int              __jo_gouraud_shading_set = 0;
+int                     __jo_gouraud_shading_set = 0;
 #ifdef JO_COMPILE_WITH_SPRITE_HASHTABLE
 int				        __jo_hash_table[JO_MAX_SPRITE];
 #endif
@@ -506,50 +503,6 @@ void                jo_set_gouraud_shading_brightness(const unsigned char bright
     jo_set_gouraud_shading_colors(color, color, color, color);
 }
 
-/** @brief Fill the attribute of a sprite
- *  @param attr Attribute (output)
- *  @param sprite_id Sprite Id
- *  @param state Sprite attributes (__jo_sprite_attributes, or the copy of the slave CPU)
- *  @remarks Same as JO_VDP1_SPRITE_ATTRIBUTE(0, JO_VDP1_NO_PALETTE, JO_VDP1_NO_GOURAUD, JO_VDP1_END_CODE_DISABLE, JO_VDP1_SPRITE_NO_FLIP | JO_VDP1_FUNCTION_SPRITE)
- *           and the sprite attributes of the state, field by field (an initialized local structure is copied with memcpy())
- */
-static  __jo_force_inline void jo_sprite_attributes_of_state(jo_vdp1_sprite_attribute *attr, const int sprite_id,
-                                                             const jo_sprite_attributes * const state)
-{
-    attr->direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_SPRITE_NO_FLIP | JO_VDP1_FUNCTION_SPRITE) | state->direction;
-    attr->draw_mode = JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP | JO_VDP1_FUNCTION_SPRITE) |
-                      state->effect | state->clipping;
-    // The VDP1 reads the lines of a sprite flipped horizontally from their end: it would stop at the end codes
-    if (!__jo_sprite_end_codes[sprite_id] || (attr->direction & JO_VDP1_H_FLIP))
-        attr->draw_mode |= JO_VDP1_END_CODE_DISABLE;
-    attr->gouraud_table = JO_VDP1_NO_GOURAUD;
-    if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS)
-    {
-        attr->draw_mode |= JO_VDP1_COLOR_MODE_RGB;
-        JO_ZERO(attr->color);
-    }
-    else if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
-    {
-        // 16 colors and their RGB colors in a lookup table: drawn like an RGB texture (gouraud, half transparency)
-        attr->draw_mode |= JO_VDP1_COLOR_MODE_16_LOOKUP;
-        attr->color = __jo_sprite_lut[sprite_id];
-    }
-    else
-    {
-        attr->draw_mode |= JO_VDP1_COLOR_MODE_256_BANK;
-        attr->color = state->color_table_index;
-    }
-    // (a table given by jo_sprite_set_gouraud_table(), else the last one of jo_set_gouraud_shading_colors(), else (none in
-    // this frame) the neutral table of the 3D light)
-    if (state->effect & 4)
-        attr->gouraud_table = state->gouraud_shading_index != 0 ? (unsigned short)state->gouraud_shading_index :
-                              __jo_gouraud_shading_runtime_index >= 0 ?
-                              (unsigned short)(JO_DIV_BY_8(JO_SPRITE_GOURAUD_OFFSET) + __jo_gouraud_shading_set * JO_SPRITE_GOURAUD_TABLES +
-                                               __jo_gouraud_shading_runtime_index) :
-                              (unsigned short)(JO_DIV_BY_8(JO_VDP1_LIGHT_TABLE_OFFSET) + 16);
-    attr->texture_id = sprite_id;
-}
-
 void                    jo_sprite_draw_rotated_fixed(const int sprite_id, const jo_fixed x, const jo_fixed y, const jo_fixed z,
                                                      const jo_fixed half_width, const jo_fixed half_height, const int angle)
 {
@@ -575,15 +528,15 @@ void                    jo_sprite_draw_rotated_fixed(const int sprite_id, const 
     jo_sprite_draw_4p_fixed(sprite_id, p, z, true);
 }
 
-/** @brief Fill the attribute of a sprite with the current sprite attributes (see jo_sprite_attributes_of_state()) */
+/** @brief Fill the attribute of a sprite with the current sprite attributes (see __jo_sprite_attributes_of_state()) */
 static  __jo_force_inline void __jo_set_sprite_attributes(jo_vdp1_sprite_attribute *attr, const int sprite_id)
 {
-    jo_sprite_attributes_of_state(attr, sprite_id, &__jo_sprite_attributes);
+    __jo_sprite_attributes_of_state(attr, sprite_id, &__jo_sprite_attributes);
 }
 
 void                    __jo_sprite_attributes_of(jo_vdp1_sprite_attribute *attr, const int sprite_id, const jo_sprite_attributes * const state)
 {
-    jo_sprite_attributes_of_state(attr, sprite_id, state);
+    __jo_sprite_attributes_of_state(attr, sprite_id, state);
 }
 
 void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_pos2D_fixed * const four_points, const jo_fixed z, const bool centered_style_coordinates)
@@ -629,7 +582,7 @@ static void             jo_sprite_draw_color_polygon(const jo_pos2D_fixed * cons
     attr.draw_mode = JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_POLYGON) | JO_VDP1_COLOR_MODE_RGB |
                      __jo_sprite_attributes.effect | __jo_sprite_attributes.clipping;
     attr.color = color;
-    // (the gouraud table of the sprites, see jo_sprite_attributes_of_state())
+    // (the gouraud table of the sprites, see __jo_sprite_attributes_of_state())
     attr.gouraud_table = !(__jo_sprite_attributes.effect & 4) ? JO_VDP1_NO_GOURAUD :
                          __jo_sprite_attributes.gouraud_shading_index != 0 ? (unsigned short)__jo_sprite_attributes.gouraud_shading_index :
                          __jo_gouraud_shading_runtime_index >= 0 ?
