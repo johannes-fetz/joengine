@@ -5006,6 +5006,35 @@ static  __attribute__((noinline)) void      jo_3d_subdivision_row_colors(unsigne
     }
 }
 
+/** @brief The points of a row of a subdivided polygon, one coordinate: from start to start + d at i x step, step = 1 / n
+ *  (n: 2 or 4), the same values as start + jo_fixed_mult(d, i x step) without the products
+ *  @param row The n + 1 points of the row (output: the coordinate k)
+ *  @remarks jo_fixed_mult(d, i x JO_FIXED_1 / 4) is d x i / 4 rounded down (the 64 bits product is exact): d >> 2 (shifted
+ *  as a signed value: rounded down), d >> 1, d - ceil(d / 4) (d - (d >> 2) - 1 when d is not a multiple of 4), d. In the
+ *  big jo_3d_emit_subdivided_polygon(), the compiler made 64 bits sums of the products, kept on the stack: about 30
+ *  instructions a point
+ */
+static  __jo_force_inline void              jo_3d_subdivision_row_coordinate(jo_fixed (* const row)[3], const int k, const jo_fixed start,
+                                                                             const jo_fixed d, const int n)
+{
+    jo_fixed                                quarter;
+
+    row[0][k] = start;
+    if (n == 4)
+    {
+        quarter = d >> 2;
+        row[1][k] = start + quarter;
+        row[2][k] = start + (d >> 1);
+        row[3][k] = start + (d - quarter - ((d & 3) != 0 ? 1 : 0));
+        row[4][k] = start + d;
+    }
+    else
+    {
+        row[1][k] = start + (d >> 1);
+        row[2][k] = start + d;
+    }
+}
+
 /** @brief Draw a textured polygon near the camera in n x n parts, each part with its tile of the texture: the distortion
  *  of the texture (the VDP1 maps it without perspective) and of the clipping by the near plane stays small, the parts
  *  are sorted with their own depth
@@ -5032,7 +5061,6 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     unsigned short                          part_colors[4];
     jo_fixed                                view[4][3];
     jo_fixed                                step;
-    jo_fixed                                u;
     jo_fixed                                t;
     jo_fixed                                top[3];
     jo_fixed                                bottom_edge[3];
@@ -5133,13 +5161,9 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
             top[k] = view[0][k] + jo_fixed_mult(view[3][k] - view[0][k], t);
             bottom_edge[k] = view[1][k] + jo_fixed_mult(view[2][k] - view[1][k], t);
         }
-        for (JO_ZERO(i); i <= n; ++i)
-        {
-            u = step * i;
-            grid_view[j][i][0] = top[0] + jo_fixed_mult(bottom_edge[0] - top[0], u);
-            grid_view[j][i][1] = top[1] + jo_fixed_mult(bottom_edge[1] - top[1], u);
-            grid_view[j][i][2] = top[2] + jo_fixed_mult(bottom_edge[2] - top[2], u);
-        }
+        // (between the edges at i x step: see jo_3d_subdivision_row_coordinate())
+        for (JO_ZERO(k); k < 3; ++k)
+            jo_3d_subdivision_row_coordinate(grid_view[j], k, top[k], bottom_edge[k] - top[k], n);
         if (gouraud)
             jo_3d_subdivision_row_colors(colors[j], table, flat, t, step, n, j);
         // The corners of the polygon (projected): their positions on the screen as they are, the same as for the polygons next
