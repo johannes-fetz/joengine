@@ -1390,14 +1390,15 @@ void                            doors_lights_update(const int elapsed)
 
 static const jo_entity_class    lamp_class = {"lamp", 0, lamp_spawn, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL, JO_NULL};
 
-/** @brief The walls hide the glows of the lamps behind them */
+/** @brief The walls hide the glows of the lamps behind them, and the doors where their panel is (a door that turns: its glows
+ *  appear while it opens, see doors_ray_hit()) */
 static bool                     lamp_ray_hit(const jo_pos3D_fixed * const origin, const jo_pos3D_fixed * const dir, const jo_fixed max_t)
 {
     jo_fixed                    t;
     jo_pos3D_fixed              normal;
     jo_entity                   *door;
 
-    return (jo_cells_ray_hit(origin, dir, max_t, &t, &normal) || doors_ray_hit(origin, dir, max_t, &normal, &door, true) >= 0);
+    return (jo_cells_ray_hit(origin, dir, max_t, &t, &normal) || doors_ray_hit(origin, dir, max_t, &normal, &door, false) >= 0);
 }
 
 void                            doors_glows_init(void)

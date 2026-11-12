@@ -115,7 +115,6 @@ typedef struct
     unsigned char                   shape;          // jo_3d_glow_shape
     bool                            anchor;         // Placed to the pixel (the scroll of the layer), see jo_3d_glow_set_anchor()
     jo_pos3D_fixed                  position;
-    jo_pos3D_fixed                  tested_from;    // The camera of the last ray (the same camera: the same result)
     unsigned char                   r;
     unsigned char                   g;
     unsigned char                   b;
@@ -1097,7 +1096,6 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
     int                             scaled;
 
     glow->tested = true;
-    glow->tested_from = *camera;
     if (__jo_glow_hit == JO_NULL)
     {
         glow->seen = true;
@@ -1285,10 +1283,9 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
     for (j = 0; j < JO_3D_GLOW_MAX && rays < JO_GLOW_RAYS_PER_FRAME; ++j)
     {
         __jo_glow_ray_cursor = (__jo_glow_ray_cursor + 1) % JO_3D_GLOW_MAX;
-        glow = &__jo_glows[__jo_glow_ray_cursor];
-        // (the camera didn't move since the last ray of this glow: the same result, the ray for another glow)
-        if (on_screen[__jo_glow_ray_cursor] && (glow->tested_from.x != camera->x || glow->tested_from.y != camera->y ||
-                                                glow->tested_from.z != camera->z))
+        // (cast again even when the camera didn't move: what is between the camera and the lamp may have moved. A door that
+        // opened in front of the agent standing still: the glows behind it stayed hidden until the agent moved)
+        if (on_screen[__jo_glow_ray_cursor])
         {
             jo_glow_test(&__jo_glows[__jo_glow_ray_cursor], camera);
             ++rays;
