@@ -4933,6 +4933,9 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     bool                                    fine;
     unsigned int                            any;
     const jo_texture_definition             *texture;
+    unsigned char                           parts[4 * 4];
+    int                                     visible;
+    int                                     m;
     int                                     th;
     int                                     i;
     int                                     j;
@@ -5093,45 +5096,64 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
 #ifdef JO_TEST_SUBDIVISION_COUNT
     k = (int)*used;
 #endif
-    for (JO_ZERO(j); j < n && result; ++j)
-        for (JO_ZERO(i); i < n && result; ++i)
+    // The parts to draw first: a part outside of a side of the screen or behind the near plane has nothing to draw (the test of
+    // jo_3d_emit_tile(), without its call). In a list (row x 8 + column), from a loop of the codes of the points alone: about
+    // half of the parts of the polygons near the camera are out (under the screen, behind the camera), each one cost 130
+    // cycles in the loop of the parts drawn (its registers on the stack)
+    JO_ZERO(visible);
+    for (JO_ZERO(j); j < n; ++j)
+    {
+        const jo_3d_vertex                  *upper;
+        const jo_3d_vertex                  *lower;
+        unsigned int                        left_codes;
+        unsigned int                        right_codes;
+
+        upper = grid[j];
+        lower = grid[j + 1];
+        left_codes = (unsigned int)(upper[0].zc & lower[0].zc);
+        for (JO_ZERO(i); i < n; ++i)
         {
-            corners[0] = &grid[j][i];
-            corners[1] = &grid[j][i + 1];
-            corners[2] = &grid[j + 1][i + 1];
-            corners[3] = &grid[j + 1][i];
-            // A part outside of a side of the screen or behind the near plane: nothing to draw (the test of jo_3d_emit_tile(),
-            // without its call)
-            if ((unsigned int)(corners[0]->zc & corners[1]->zc & corners[2]->zc & corners[3]->zc) & JO_3D_CODE_MASK &
-                (JO_3D_CODE_SCREEN | JO_3D_CODE_NEAR))
-                continue;
-            // (the positions in the view space are read only by a part that crosses the near plane or goes far outside of
-            // the screen, see jo_3d_emit_tile())
-            any = (unsigned int)(corners[0]->zc | corners[1]->zc | corners[2]->zc | corners[3]->zc) & JO_3D_CODE_MASK;
-            if (gouraud)
-            {
-                part_colors[0] = colors[j][i];
-                part_colors[1] = colors[j][i + 1];
-                part_colors[2] = colors[j + 1][i + 1];
-                part_colors[3] = colors[j + 1][i];
-            }
-            // (most parts: drawn here, no call of the recursive jo_3d_emit_tile(); the finer tiles: the parts cut again too,
-            // see jo_3d_fine_part())
-            if (!(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) && (!fine || n != 4 || !jo_3d_fine_part(&s, corners, any)))
-            {
-                result = jo_3d_emit_tile_part(&s, (const jo_fixed (*)[3])corner_view, corners, gouraud ? part_colors : JO_NULL, n == 4 ? 1 : 0,
-                                              i, j, 0, any);
-                continue;
-            }
-            for (JO_ZERO(k); k < 3; ++k)
-            {
-                corner_view[0][k] = grid_view[j][i][k];
-                corner_view[1][k] = grid_view[j][i + 1][k];
-                corner_view[2][k] = grid_view[j + 1][i + 1][k];
-                corner_view[3][k] = grid_view[j + 1][i][k];
-            }
-            result = jo_3d_emit_tile(&s, (const jo_fixed (*)[3])corner_view, corners, gouraud ? part_colors : JO_NULL, n == 4 ? 1 : 0, i, j, 0);
+            right_codes = (unsigned int)(upper[i + 1].zc & lower[i + 1].zc);
+            if (!(left_codes & right_codes & (JO_3D_CODE_SCREEN | JO_3D_CODE_NEAR)))
+                parts[visible++] = (unsigned char)(JO_MULT_BY_8(j) + i);
+            left_codes = right_codes;
         }
+    }
+    for (JO_ZERO(m); m < visible && result; ++m)
+    {
+        j = parts[m] >> 3;
+        i = parts[m] & 7;
+        corners[0] = &grid[j][i];
+        corners[1] = &grid[j][i + 1];
+        corners[2] = &grid[j + 1][i + 1];
+        corners[3] = &grid[j + 1][i];
+        // (the positions in the view space are read only by a part that crosses the near plane or goes far outside of
+        // the screen, see jo_3d_emit_tile())
+        any = (unsigned int)(corners[0]->zc | corners[1]->zc | corners[2]->zc | corners[3]->zc) & JO_3D_CODE_MASK;
+        if (gouraud)
+        {
+            part_colors[0] = colors[j][i];
+            part_colors[1] = colors[j][i + 1];
+            part_colors[2] = colors[j + 1][i + 1];
+            part_colors[3] = colors[j + 1][i];
+        }
+        // (most parts: drawn here, no call of the recursive jo_3d_emit_tile(); the finer tiles: the parts cut again too,
+        // see jo_3d_fine_part())
+        if (!(any & (JO_3D_CODE_NEAR | JO_3D_CODE_GUARD)) && (!fine || n != 4 || !jo_3d_fine_part(&s, corners, any)))
+        {
+            result = jo_3d_emit_tile_part(&s, (const jo_fixed (*)[3])corner_view, corners, gouraud ? part_colors : JO_NULL, n == 4 ? 1 : 0,
+                                          i, j, 0, any);
+            continue;
+        }
+        for (JO_ZERO(k); k < 3; ++k)
+        {
+            corner_view[0][k] = grid_view[j][i][k];
+            corner_view[1][k] = grid_view[j][i + 1][k];
+            corner_view[2][k] = grid_view[j + 1][i + 1][k];
+            corner_view[3][k] = grid_view[j + 1][i][k];
+        }
+        result = jo_3d_emit_tile(&s, (const jo_fixed (*)[3])corner_view, corners, gouraud ? part_colors : JO_NULL, n == 4 ? 1 : 0, i, j, 0);
+    }
     // The polygon after this one sorted with it (JO_3D_SORT_PREVIOUS: a picture on a wall) is drawn after all its parts: the
     // key of its nearest vertex (the parts are sorted on their centers: all farther. With the key of the last part, the
     // parts nearer than it were drawn over the picture)
