@@ -5943,6 +5943,14 @@ static void                                 jo_3d_compute_mesh_normals(jo_3d_mes
     }
 }
 
+static bool                                 jo_3d_draw_environment_polygon(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
+                                                                           const jo_3d_polygon_attribute * const a);
+
+/** @brief Draw a polygon with the tile of the environment map (see __jo_3d_draw_polygon_slow()), set by
+ *  jo_3d_set_mesh_environment(): the code of the environment maps only in the programs that use them (about 1 KB) */
+static bool                                 (*__jo_3d_environment_polygon)(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
+                                                                           const jo_3d_polygon_attribute * const a) = JO_NULL;
+
 bool                                        jo_3d_set_mesh_environment(jo_3d_mesh * const mesh, const int sprite_id, const int tiles)
 {
     jo_3d_environment                       *e;
@@ -5993,6 +6001,7 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     jo_free(img.data);
     if (id < 0)
         return (false);
+    __jo_3d_environment_polygon = jo_3d_draw_environment_polygon;
     e->key = &mesh->data;
     e->sprite = id;
     e->tiles = tiles;
@@ -6023,7 +6032,7 @@ bool                                        jo_3d_set_mesh_polygon_environment(j
     return (true);
 }
 
-/** @brief A polygon with the tile of the environment map upright on the screen (see __jo_3d_draw_polygon_slow())
+/** @brief A polygon with the tile of the environment map upright on the screen (see jo_3d_draw_environment_polygon())
  *  @param k Parameters of the loop
  *  @param p Polygon
  *  @param a Its attribute
@@ -6078,23 +6087,30 @@ static const jo_3d_polygon                  *jo_3d_environment_upright(const jo_
     return (upright);
 }
 
-/** @brief Draw one polygon: the general case (see __jo_3d_polygon_loop()), with the tile of the environment map
+/** @brief The fields read by jo_3d_emit_part() for the usual polygon of an environment map (see
+ *  jo_3d_draw_environment_polygon()), one per CPU, written for each polygon (not on the stack: the stack of the slave CPU is
+ *  small) */
+static jo_3d_subdivision                    __jo_3d_environment_part[2] __attribute__((aligned(16)));
+
+/** @brief Draw one polygon with the tile of the environment map (see __jo_3d_environment_polygon())
  *  @param k Parameters of the loop
  *  @param p Polygon
- *  @param a Its attribute
+ *  @param a Its attribute (textured by the tiles of the environment map)
  *  @return false if the command table is full (or an index is invalid)
- *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
  */
-bool __attribute__((noinline, used, externally_visible)) __jo_3d_draw_polygon_slow(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
-                                                                      const jo_3d_polygon_attribute * const a)
+static bool                                 jo_3d_draw_environment_polygon(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
+                                                                           const jo_3d_polygon_attribute * const a)
 {
     jo_3d_cpu_context                       *ctx;
+    jo_3d_subdivision                       *part;
+    const jo_3d_polygon                     *q;
     jo_3d_polygon                           upright;
+    jo_3d_vertex                            *drawn[4];
     bool                                    result;
+    bool                                    fast;
 
     ctx = k->state->ctx;
-    if (ctx->environment < 0 || !(a->sort & JO_3D_USE_TEXTURE) || a->texture_id != __jo_3d_environments[ctx->environment].sprite)
-        return (jo_3d_draw_polygon_general(k, p, a));
+    fast = false;
     // A polygon that would not be drawn: skipped before its tile (the back faces of a closed mesh, half of its polygons: the
     // tile, the upright vertices and the general path cost about 3 times the drawing of the front faces in the environment
     // mapping demo). Back face: both of its triangles face away, for both of its diagonals (the vertices of the upright copy
@@ -6133,13 +6149,71 @@ bool __attribute__((noinline, used, externally_visible)) __jo_3d_draw_polygon_sl
                         return (true);
                 }
             }
+            // The usual polygon: on the screen, one plane, not lit, sorted on its center, a texture without tiles and smaller
+            // copies (see jo_3d_subdivision.fast; jo_3d_draw_polygon_general(): not drawn in parts, not a thin line)
+            fast = k->clip_mode == 0 && ctx->front_shift < 0 && !jo_3d_is_lit(a) && __jo_3d_tiles[a->texture_id].levels == 0 &&
+                   __jo_sprite_mean_color[a->texture_id] == 0 && (ctx->forced_key >= 0 || (a->sort & JO_3D_SORT_MASK) == JO_3D_SORT_CENTER);
         }
     }
     ctx->texture_words = jo_3d_environment_tile(k->state, p);
     // The tile kept upright on the screen (a reflection doesn't turn with the polygon): its vertices rotated
-    result = jo_3d_draw_polygon_general(k, jo_3d_environment_upright(k, p, a, &upright), a);
+    q = jo_3d_environment_upright(k, p, a, &upright);
+    if (!fast)
+        result = jo_3d_draw_polygon_general(k, q, a);
+    else
+    {
+        // The usual polygon: the test of jo_3d_draw_polygon_general() left (too far), then the command of jo_3d_emit_part(),
+        // the same command as jo_3d_emit_polygon_call() without the general path and its 13 arguments (about 9 microseconds
+        // less per polygon, Mednafen)
+        drawn[0] = &k->vertices[q->vertices[0]];
+        drawn[1] = &k->vertices[q->vertices[1]];
+        drawn[2] = &k->vertices[q->vertices[2]];
+        drawn[3] = &k->vertices[q->vertices[3]];
+        if (JO_MIN(JO_MIN(drawn[0]->zc, drawn[1]->zc), JO_MIN(drawn[2]->zc, drawn[3]->zc)) > k->zlimit)
+            result = true;
+        else
+        {
+#ifdef JO_TEST_PATH_COUNTS
+            // (see jo_3d_draw_polygon_general(): drawn as one polygon, no tiles)
+            JO_SUB_REASON(7);
+            ++__jo_3d_path_counts[ctx->slave ? 4 : 0][0];
+            if (!ctx->slave)
+                ++__jo_3d_path_reasons[__jo_3d_sub_reason & 7];
+#endif
+            part = &__jo_3d_environment_part[ctx->slave ? 1 : 0];
+            part->ctx = ctx;
+            part->p = q;
+            part->a = a;
+            part->commands = k->commands;
+            part->keys = k->keys;
+            part->reserved = k->reserved;
+            part->used = k->used;
+            part->light = k->state->light;
+            result = jo_3d_emit_part(part, drawn[0], drawn[1], drawn[2], drawn[3], JO_NULL);
+        }
+    }
     ctx->texture_words = 0;
     return (result);
+}
+
+/** @brief Draw one polygon: the general case (see __jo_3d_polygon_loop()), or with the tile of the environment map
+ *  @param k Parameters of the loop
+ *  @param p Polygon
+ *  @param a Its attribute
+ *  @return false if the command table is full (or an index is invalid)
+ *  @remarks Called by the assembly loop: not static (not inlined, kept by the link time optimization)
+ */
+bool __attribute__((noinline, used, externally_visible)) __jo_3d_draw_polygon_slow(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
+                                                                      const jo_3d_polygon_attribute * const a)
+{
+    jo_3d_cpu_context                       *ctx;
+
+    ctx = k->state->ctx;
+    // (an environment map: after jo_3d_set_mesh_environment(), see __jo_3d_environment_polygon)
+    if (ctx->environment < 0 || !(a->sort & JO_3D_USE_TEXTURE) || a->texture_id != __jo_3d_environments[ctx->environment].sprite ||
+        __jo_3d_environment_polygon == JO_NULL)
+        return (jo_3d_draw_polygon_general(k, p, a));
+    return (__jo_3d_environment_polygon(k, p, a));
 }
 
 /** @brief Light the command of a polygon written by the assembly loop (as jo_3d_emit_polygon() does after the command)
