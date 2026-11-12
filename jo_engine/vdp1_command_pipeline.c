@@ -202,7 +202,7 @@ typedef struct
 {
     jo_vdp1_command                     commands[JO_VDP1_MAX_COMMANDS] __attribute__((aligned(4)));
     unsigned short                      keys[JO_VDP1_MAX_COMMANDS];
-    unsigned short                      window[JO_VDP1_MAX_COMMANDS];
+    unsigned short                      window[JO_VDP1_MAX_COMMANDS] __attribute__((aligned(4)));   // (read 2 by 2)
     unsigned int                        count;
     jo_vdp1_window                      windows[JO_VDP1_WINDOW_COUNT]; // The windows at the end of the frame
     short                               system_clip_right;      // The system clipping at the end of the frame
@@ -885,9 +885,11 @@ static unsigned short                   *jo_vdp1_radix_sort(const jo_vdp1_frame 
  *  hundreds per frame)
  *  @param frame Frame
  *  @param order The sorted commands (see jo_vdp1_radix_sort())
+ *  @param windows Output: the windows of the commands (one run of commands each, one header)
  *  @return The grouped commands (__jo_vdp1_sort_a: the sort does not use it any more)
  */
-static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_frame * const frame, const unsigned short * const order)
+static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_frame * const frame, const unsigned short * const order,
+                                                               unsigned int * const windows)
 {
     unsigned int                        first[JO_VDP1_HEADER_SLOTS];
     unsigned int                        sum;
@@ -899,9 +901,12 @@ static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_fra
         JO_ZERO(first[i]);
     for (JO_ZERO(i); i < n; ++i)
         ++first[frame->window[i]];
+    JO_ZERO(*windows);
     for (JO_ZERO(i), JO_ZERO(sum); i < JO_VDP1_HEADER_SLOTS; ++i)
     {
         n = first[i];
+        if (n != 0)
+            ++*windows;
         first[i] = sum;
         sum += n;
     }
@@ -1090,21 +1095,50 @@ static  __jo_force_inline bool          jo_vdp1_dma_busy(void)
     return ((JO_SCU_DMA_STATUS & JO_SCU_DMA_STATUS_BUSY(JO_VDP1_SCU_DMA_LEVEL)) != 0);
 }
 
+/** @brief Check if all the commands of a frame are in the same window
+ *  @param frame Frame (at least one command)
+ *  @remarks In the order of the array, 2 windows a read (the array starts on 4 bytes, see jo_vdp1_frame)
+ */
+static bool                             jo_vdp1_one_window(const jo_vdp1_frame * const frame)
+{
+    const jo_vdp1_word                  *w;
+    const jo_vdp1_word                  *end;
+    unsigned int                        pair;
+
+    // (the first window in both halves of a word)
+    pair = (unsigned int)frame->window[0] * 0x10001u;
+    w = (const jo_vdp1_word *)frame->window;
+    end = w + JO_DIV_BY_2(frame->count);
+    for (; w < end; ++w)
+        if (*w != pair)
+            return (false);
+    // (an odd count: the last one alone)
+    return ((frame->count & 1) == 0 || frame->window[frame->count - 1] == frame->window[0]);
+}
+
 /** @brief The first command that fits in the table with the headers of its window changes (the commands sorted far to
  *  near: the farthest ones are dropped first)
  *  @param frame Frame (the windows of its commands)
  *  @param order Command indexes in the order of the sort
  *  @param n Number of commands (at least one)
  *  @param room Commands the table can take
+ *  @param windows The commands grouped by window: the windows (see jo_vdp1_group_windows()), 0: not grouped
  *  @return Index in order of the first command to draw (0: all)
  */
 static unsigned int                     jo_vdp1_first_fitting(const jo_vdp1_frame * const frame, const unsigned short * const order,
-                                                              unsigned int n, const unsigned int room)
+                                                              unsigned int n, const unsigned int room, const unsigned int windows)
 {
     unsigned int                        cost;
     unsigned short                      window;
     unsigned short                      previous;
 
+    // The usual frames: all the commands in one window, or grouped by window (a split screen), one header per window: they
+    // all fit when the table takes them and the headers (the walk below reads the windows in the order of the sort, at
+    // random, about 16 cycles a command: 0.6 ms of the CPU in a frame of 600 to 1000 commands; the check of one window,
+    // in the order of the array, about 2, Mednafen)
+    if (windows != 0 ? n + JO_VDP1_HEADER_COMMANDS * windows <= room :
+                       n + JO_VDP1_HEADER_COMMANDS <= room && jo_vdp1_one_window(frame))
+        return (0);
     // From the nearest: each command, and the header of each run of commands of a window
     previous = frame->window[order[n - 1]];
     cost = JO_VDP1_HEADER_COMMANDS + 1;
@@ -1135,6 +1169,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     unsigned int                        limit;
     unsigned int                        entries;
     unsigned int                        *dma;
+    unsigned int                        windows;
     register unsigned int               i;
     register unsigned int               j;
     int                                 window;
@@ -1167,8 +1202,9 @@ static void                             jo_vdp1_send_frame(void *argument)
             if (frame->window[j] == frame->window_change_window[i])
                 ((jo_vdp1_frame *)frame)->window[j] = (unsigned short)(JO_VDP1_WINDOW_COUNT + i);
     order = jo_vdp1_radix_sort(frame);
+    JO_ZERO(windows);
     if (frame->windows_apart)
-        order = jo_vdp1_group_windows(frame, order);
+        order = jo_vdp1_group_windows(frame, order, &windows);
     jo_profile_end(JO_PROFILE_VDP1_SORT);
     jo_profile_count(JO_PROFILE_VDP1_COMMANDS, n);
     jo_profile_begin(JO_PROFILE_VDP1_WAIT);
@@ -1228,7 +1264,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     // be the ones dropped. The farthest ones are dropped instead (counted only when the frame could overflow)
     if (n > 0 && n * (JO_VDP1_HEADER_COMMANDS + 1) > (limit - offset) / sizeof(jo_vdp1_command))
     {
-        j = jo_vdp1_first_fitting(frame, order, n, (limit - offset) / sizeof(jo_vdp1_command));
+        j = jo_vdp1_first_fitting(frame, order, n, (limit - offset) / sizeof(jo_vdp1_command), windows);
         order += j;
         n -= j;
     }
