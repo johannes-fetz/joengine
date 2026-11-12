@@ -3356,6 +3356,7 @@ typedef struct
     bool                                    triangle;           // The polygon is a triangle (its last 2 vertices are the same)
     bool                                    flip_x;             // The tiles are read from the right (mirrored or flipped)
     bool                                    flip_y;             // The tiles are read from the bottom (flipped)
+    bool                                    fast;               // Its parts by jo_3d_emit_part() (see jo_3d_emit_subdivided_polygon())
     unsigned int                            tile_words[JO_3D_TILE_FINE_LEVELS]; // Texture words of the command of the first tile of each
     unsigned int                            tile_step[JO_3D_TILE_FINE_LEVELS];  // level (address and size, see jo_3d_emit_tile_part()),
                                                                 // and from a tile to the next
@@ -4615,6 +4616,121 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
  *  @param parent_edges Edges of the part on the edges of the part it was cut from (bit k: from the corner k to k + 1), 0: none
  *  @return false if the command table is full
  */
+/** @brief jo_3d_emit_polygon() for a part of a subdivided polygon drawn as it is (see jo_3d_emit_tile_part()): the same
+ *  command, for the usual case only (see jo_3d_subdivision.fast: one plane, textured by its tile, not lit, no mirror, no front
+ *  layer, sorted on its center or on the key of the whole polygon), 6 arguments instead of 13 and none of the tests of the other
+ *  cases (jo_3d_emit_polygon_call(): about 280 instructions, 610 cycles a part; 315 cycles here, Mednafen)
+ *  @return false if the command table is full
+ */
+static __attribute__((noinline)) bool       jo_3d_emit_part(const jo_3d_subdivision * const s, jo_3d_vertex * const v0, jo_3d_vertex * const v1,
+                                                            jo_3d_vertex * const v2, jo_3d_vertex * const v3, const unsigned short * const colors)
+{
+    jo_3d_cpu_context                       *ctx;
+    const jo_3d_polygon_attribute           *a;
+    jo_3d_command_word                      *words;
+    volatile unsigned int                   *table;
+    unsigned int                            pmod;
+    unsigned int                            grda;
+    unsigned int                            used;
+    jo_fixed                                key;
+    int                                     sort_key;
+    int                                     cross;
+    int                                     tri;
+    int                                     index;
+    int                                     x0;
+    int                                     y0;
+    int                                     x1;
+    int                                     y1;
+    int                                     x2;
+    int                                     y2;
+    int                                     x3;
+    int                                     y3;
+
+    ctx = s->ctx;
+    a = s->a;
+    used = *s->used;
+    // (a polygon of the mean color of its texture, or the command table full: the general case)
+    if (ctx->sliver_color != 0 || ctx->texture_words == 0 || used >= s->reserved)
+        return (jo_3d_emit_polygon_call(ctx, v0, v1, v2, v3, colors, s->p, a, s->commands, s->keys, s->reserved, s->used, s->light));
+    x0 = JO_3D_VERTEX_X(v0);
+    y0 = JO_3D_VERTEX_Y(v0);
+    x1 = JO_3D_VERTEX_X(v1);
+    y1 = JO_3D_VERTEX_Y(v1);
+    x2 = JO_3D_VERTEX_X(v2);
+    y2 = JO_3D_VERTEX_Y(v2);
+    x3 = JO_3D_VERTEX_X(v3);
+    y3 = JO_3D_VERTEX_Y(v3);
+    // Facing (see jo_3d_emit_polygon(): one plane, its 2 triangles facing away)
+    cross = (x2 - x0) * (y3 - y1) - (x3 - x1) * (y2 - y0);
+    if (cross < 0)
+    {
+        tri = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+        if (tri < 0 && cross < tri)
+            return (true);
+    }
+    // Sort key: the key of the whole polygon (JO_3D_SORT_MIN, JO_3D_SORT_MAX), else its center
+    if (ctx->forced_key >= 0)
+        key = ctx->forced_key;
+    else
+        key = (JO_DIV_BY_4(v0->zc) + JO_DIV_BY_4(v1->zc) + JO_DIV_BY_4(v2->zc) + JO_DIV_BY_4(v3->zc)) & ~JO_3D_CODE_MASK;
+    if (key < __jo_vdp1_near_z)
+        key = __jo_vdp1_near_z;
+    ctx->previous_polygon_z = key;
+    sort_key = JO_FIXED_TO_INT(key) + *ctx->depth_bias;
+    s->keys[used] = sort_key < 0 ? 0 : (sort_key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)sort_key);
+    words = (jo_3d_command_word *)&s->commands[used];
+    *s->used = used + 1;
+    ++*ctx->displayed_polygon_count;
+    pmod = a->draw_mode | ctx->clip_mode;
+    // (the pre-clipping, see jo_3d_emit_polygon())
+    if (ctx->clip_mode == 0)
+    {
+        const unsigned int                  area = ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+        const unsigned int                  p0 = (unsigned int)v0->xy;
+        const unsigned int                  p1 = (unsigned int)v1->xy;
+        const unsigned int                  p2 = (unsigned int)v2->xy;
+        const unsigned int                  p3 = (unsigned int)v3->xy;
+
+        if (((p0 | p1 | p2 | p3 | (area - p0) | (area - p1) | (area - p2) | (area - p3)) & 0x80008000u) == 0)
+            pmod |= JO_VDP1_PRE_CLIPPING_DISABLE;
+    }
+    grda = (pmod & JO_VDP1_COLOR_CALC_GOURAUD) ? (a->gouraud_table != 0 ? (unsigned short)(a->gouraud_table + ctx->gouraud_offset) : 0) : 0;
+    // The gouraud table of the part (2 32 bits writes: an access to the VRAM is slow, the table is 8 bytes aligned)
+    if (colors != JO_NULL && (index = jo_3d_clip_table(ctx)) >= 0)
+    {
+        table = (volatile unsigned int *)(JO_VDP1_VRAM + JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET + JO_MULT_BY_8(index));
+        table[0] = ((unsigned int)colors[0] << 16) | colors[1];
+        table[1] = ((unsigned int)colors[2] << 16) | colors[3];
+        grda = JO_DIV_BY_8(JO_VDP1_CLIP_GOURAUD_TABLE_OFFSET) + index;
+    }
+    // The tile (the VDP1 reads the lines of a texture flipped horizontally from their end: it would stop at the end codes)
+    if ((a->direction & JO_VDP1_H_FLIP) && __jo_sprite_end_codes[a->texture_id])
+        pmod |= JO_VDP1_END_CODE_DISABLE;
+    words[0] = (unsigned int)(JO_VDP1_CMD_DISTORTED_SPRITE | (a->direction & JO_VDP1_DIRECTION_FLIP_MASK)) << 16;
+    words[1] = (pmod << 16) | a->color;
+    words[2] = ctx->texture_words;
+    words[3] = (unsigned int)v0->xy;
+    words[4] = (unsigned int)v1->xy;
+    words[5] = (unsigned int)v2->xy;
+    words[6] = (unsigned int)v3->xy;
+    words[7] = grda << 16;
+#ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
+    if (__jo_profile_pixels)
+    {
+        // (see jo_3d_emit_polygon())
+        unsigned int                        texture_words;
+        int                                 lines;
+        int                                 width;
+
+        texture_words = ctx->texture_words;
+        lines = JO_MAX(JO_MAX(JO_ABS(x3 - x0), JO_ABS(y3 - y0)), JO_MAX(JO_ABS(x2 - x1), JO_ABS(y2 - y1)));
+        width = JO_MAX(JO_MAX(JO_ABS(x1 - x0), JO_ABS(y1 - y0)), JO_MAX(JO_ABS(x2 - x3), JO_ABS(y2 - y3)));
+        ctx->pixels += (JO_MAX(lines, (int)(texture_words & 0xFF)) + 1) * (JO_MAX(width, (int)JO_MULT_BY_8((texture_words >> 8) & 0x3F)) + 1);
+    }
+#endif
+    return (true);
+}
+
 /** @brief The last level of jo_3d_emit_tile(): one part, with its tile of the texture (inlined in jo_3d_emit_subdivided_polygon()
  *  for the parts that don't cross the near plane: no call of the recursive jo_3d_emit_tile(), its big stack frame; the
  *  command itself by jo_3d_emit_polygon_call())
@@ -4681,13 +4797,15 @@ static  __jo_force_inline bool              jo_3d_emit_tile_part(const jo_3d_sub
                 return (result);
         }
         if (borders == 0)
-            result = jo_3d_emit_polygon_call(s->ctx, pc[0], pc[1], pc[2], pc[3], colors, s->p, s->a, s->commands,
-                                        s->keys, s->reserved, s->used, s->light);
+            result = s->fast ? jo_3d_emit_part(s, pc[0], pc[1], pc[2], pc[3], colors) :
+                     jo_3d_emit_polygon_call(s->ctx, pc[0], pc[1], pc[2], pc[3], colors, s->p, s->a, s->commands,
+                                             s->keys, s->reserved, s->used, s->light);
         else
         {
             jo_3d_grow_borders(pc, grown, borders);
-            result = jo_3d_emit_polygon_call(s->ctx, &grown[0], &grown[1], &grown[2], &grown[3], colors, s->p, s->a, s->commands,
-                                        s->keys, s->reserved, s->used, s->light);
+            result = s->fast ? jo_3d_emit_part(s, &grown[0], &grown[1], &grown[2], &grown[3], colors) :
+                     jo_3d_emit_polygon_call(s->ctx, &grown[0], &grown[1], &grown[2], &grown[3], colors, s->p, s->a, s->commands,
+                                             s->keys, s->reserved, s->used, s->light);
         }
     }
     else
@@ -5070,6 +5188,9 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     s.tiles = &__jo_3d_tiles[a->texture_id];
     s.mirrored = mirrored;
     s.triangle = v[3] == v[2];
+    // (the usual parts: see jo_3d_emit_part(). The key of the whole polygon set above: JO_3D_SORT_MIN, JO_3D_SORT_MAX)
+    s.fast = !ctx->mirror && ctx->front_shift < 0 && a->plane == JO_3D_SINGLE_PLANE && (a->sort & JO_3D_USE_TEXTURE) && !jo_3d_is_lit(a) &&
+             (ctx->forced_key >= 0 || (a->sort & JO_3D_SORT_MASK) == JO_3D_SORT_CENTER);
     // Tiles: the back face of a dual plane polygon is mirrored (see jo_3d_emit_polygon()), the flips (horizontal: 0x10,
     // vertical: 0x20, see JO_VDP1_DIRECTION_FLIP_MASK)
     s.flip_x = mirrored != ((a->direction & 0x10) != 0);
