@@ -68,7 +68,8 @@
 */
 /** @brief IREG0: get the system status */
 # define JO_SMPC_INTBACK_SYSTEM_STATUS  (0x01)
-/** @brief IREG0: continue the peripheral data transfer */
+/** @brief IREG0: continue the peripheral data transfer (bit 7 inverted at each request of the next batch: the SMPC waits
+ *  for its change; 0x80 written each time asked for the second batch only, a multitap stopped there) */
 # define JO_SMPC_INTBACK_CONTINUE       (0x80)
 /** @brief IREG1: get the peripheral data (15 bytes mode for both ports, OREG return) */
 # define JO_SMPC_INTBACK_PERIPHERALS    (0x08)
@@ -147,6 +148,10 @@ jo_smpc_status                          __jo_smpc_status;
 static unsigned char                    __jo_smpc_intback_buffer[JO_SMPC_INTBACK_BUFFER_SIZE];
 static unsigned int                     __jo_smpc_intback_length;
 static volatile bool                    __jo_smpc_intback_busy;
+/** @brief IREG0 written at the last request of the current INTBACK (bit 7: the continue bit, inverted for the next batch) */
+static unsigned char                    __jo_smpc_intback_ireg0;
+/** @brief VBLANK-IN reached since the start of the current INTBACK */
+static unsigned char                    __jo_smpc_intback_frames;
 static unsigned short                   __jo_smpc_previous_pressed[JO_SMPC_MAX_PERIPHERAL];
 /** @brief End of the peripherals of each port filled by the last parse (the next ones are cleared already: the 2 x 15 entries
  *  were cleared at each VBLANK; the whole port the first time) */
@@ -389,8 +394,9 @@ static void __attribute__((interrupt_handler)) jo_smpc_handler(void)
     }
     if (sr & JO_SMPC_STATUS_MORE_DATA)
     {
-        // More peripheral data: continue
-        jo_smpc_write_byte(InputRegister0, JO_SMPC_INTBACK_CONTINUE);
+        // More peripheral data: continue (the continue bit inverted)
+        __jo_smpc_intback_ireg0 = (unsigned char)((__jo_smpc_intback_ireg0 ^ JO_SMPC_INTBACK_CONTINUE) & JO_SMPC_INTBACK_CONTINUE);
+        jo_smpc_write_byte(InputRegister0, __jo_smpc_intback_ireg0);
     }
     else
     {
@@ -409,10 +415,21 @@ static void __attribute__((interrupt_handler)) jo_smpc_handler(void)
  */
 void                                    __jo_smpc_vblank_in(void)
 {
-    if (__jo_smpc_intback_busy || (jo_smpc_read_byte(StatusFlag) & JO_SMPC_STATUS_FLAG_BUSY))
+    // An INTBACK still running at the second VBLANK-IN, the SMPC idle: it was dropped. The SMPC waits for the request of the
+    // next batch until the VBLANK-IN only (its interrupt handled too late: the interrupts masked a long time), then stops
+    // without an interrupt; the peripherals were never read again (the pads frozen, measured in Mednafen NTSC)
+    if (__jo_smpc_intback_busy)
+    {
+        if (++__jo_smpc_intback_frames < 2 || (jo_smpc_read_byte(StatusFlag) & JO_SMPC_STATUS_FLAG_BUSY))
+            return;
+        __jo_smpc_intback_busy = false;
+    }
+    else if (jo_smpc_read_byte(StatusFlag) & JO_SMPC_STATUS_FLAG_BUSY)
         return;
     __jo_smpc_intback_busy = true;
+    JO_ZERO(__jo_smpc_intback_frames);
     JO_ZERO(__jo_smpc_intback_length);
+    __jo_smpc_intback_ireg0 = JO_SMPC_INTBACK_SYSTEM_STATUS;
     __jo_smpc_intback_gun_ports = __jo_smpc_gun_ports;
     jo_smpc_write_byte(StatusFlag, JO_SMPC_STATUS_FLAG_BUSY);
     jo_smpc_write_byte(InputRegister0, JO_SMPC_INTBACK_SYSTEM_STATUS);
