@@ -38,10 +38,12 @@
 ** cell): an empty cell, the discs with their rays (STAR, each size), the soft discs (DISC, each size; the small ones also
 ** moved by 4 pixels in X, Y or both, in a box of one more cell: they are placed within 2 pixels), the pieces of the
 ** rectangles (RECT, FRAME: corners, edges and middle for 3 widths of light, put together around a rectangle of cells),
-** then the pool of the cells where glows overlap (their light added, computed for each frame).
+** then the pool of the cells where glows overlap (their light added, computed for each frame), the cells of the discs with
+** rays moved in their cells (written for each frame).
 ** Levels of light 1 to 15 (0: transparent); the light of a level is (level / 15)^2 x the color of the glow.
 ** The glow seen the most (its light x its size) is placed to the pixel: the scroll of the layer puts the grid of the cells
-** on it; the others are within 2 pixels (the small discs) or 4 pixels.
+** on it; the others are within 1 pixel (the small discs with rays: moved for each frame, see JO_GLOW_SHIFTED_SIZES), 2
+** pixels (the small soft discs) or 4 pixels.
 */
 
 #include <stdbool.h>
@@ -61,6 +63,7 @@
 #include "jo/vdp2_malloc.h"
 #include "jo/glow.h"
 #include "internal/vdp1_command_pipeline.h"
+#include "internal/vdp2_malloc.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
@@ -69,6 +72,14 @@
 static const unsigned char                  __jo_glow_sizes[JO_GLOW_SIZES] = {16, 24, 32, 40, 48, 56, 64, 72, 80, 96, 112, 128};
 /** @brief The soft discs up to this size index (48 pixels) also exist moved by 4 pixels (X, Y, both) */
 #define JO_GLOW_PHASED_SIZES                (5)
+/** @brief The discs with their rays up to this size index (48 pixels: the lamps far away) are drawn moved by 0, 2, 4 or 6
+ *  pixels in their cells (X and Y): placed within 1 pixel. Written for each frame in the cells of the frame (a copy of the
+ *  disc in RAM, moved by whole bytes: 2 pixels a byte), a box of one cell more. In the cell of the grid (within 4 pixels,
+ *  kept while within 6 pixels), a lamp far away jumped by 8 pixels as the camera moved (the demo FPS, 13/11/2026: its 40
+ *  pixels halo moved by 7 pixels from the lamp then jumped back) */
+#define JO_GLOW_SHIFTED_SIZES               (5)
+/** @brief Cells of the moved discs for each frame (a disc of 48 pixels moved: 49 cells) */
+#define JO_GLOW_SHIFT_POOL                  (128)
 /** @brief Widths of the light around a rectangle (cells: 8, 16, 24 pixels) */
 #define JO_GLOW_MARGINS                     (3)
 /** @brief Cells in a line of the map (1 page) */
@@ -188,6 +199,11 @@ static unsigned char                *__jo_glow_vram = JO_NULL;
 static volatile unsigned short      *__jo_glow_map;
 static unsigned char                *__jo_glow_cells;
 static unsigned char                *__jo_glow_pool;
+/** @brief The cells of the moved discs (JO_GLOW_STATES x __jo_glow_shift_cells), see JO_GLOW_SHIFTED_SIZES */
+static unsigned char                *__jo_glow_shift_pool;
+static int                          __jo_glow_shift_cells = 0;
+/** @brief The discs with their rays in RAM (4 bits a pixel, line by line: 4 x n bytes a line), see JO_GLOW_SHIFTED_SIZES */
+static unsigned char                *__jo_glow_star_ram[JO_GLOW_SHIFTED_SIZES];
 /** @brief Character number of the first cell of each disc (STAR), of each soft disc and its moves (DISC: 0, X, Y, X and Y;
  *  0: none, the STAR disc instead), of the pieces of the rectangles of each width (0: none), of the empty cell */
 static unsigned short               __jo_glow_star_char[JO_GLOW_SIZES];
@@ -549,11 +565,15 @@ static bool                         jo_glow_build_vram(void)
     }
     for (k = 0; k < JO_GLOW_MARGINS; ++k)
         base_cells += jo_glow_rect_cells(k + 1, false) + jo_glow_rect_cells(k + 1, true);
-    // (the map aligned on its size: up to a map more)
-    for (tier = 0; tier < 3; ++tier)
+    // (the map aligned on its size: up to a map more; tier 0: all, 1: half the cells of the moved discs with rays, 2: no
+    // soft discs moved, 3: no discs with rays moved, 4: no soft discs)
+    for (tier = 0; tier < 5; ++tier)
     {
-        cells = base_cells + (tier < 2 ? disc_cells : 0) + (tier < 1 ? move_cells : 0);
-        __jo_glow_vram = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG1, 2 * JO_GLOW_MAP_BYTES + cells * 32);
+        __jo_glow_shift_cells = tier == 0 ? JO_GLOW_SHIFT_POOL : (tier < 3 ? JO_GLOW_SHIFT_POOL / 2 : 0);
+        cells = base_cells + (tier < 4 ? disc_cells : 0) + (tier < 2 ? move_cells : 0) + JO_GLOW_STATES * __jo_glow_shift_cells;
+        // (the last try: the error of JO_DEBUG if the memory is full)
+        __jo_glow_vram = (unsigned char *)(tier < 4 ? __jo_vdp2_malloc_try : jo_vdp2_malloc)(JO_VDP2_RAM_MAP_NBG1,
+                                                                                         2 * JO_GLOW_MAP_BYTES + cells * 32);
         if (__jo_glow_vram != JO_NULL)
             break;
     }
@@ -582,12 +602,12 @@ static bool                         jo_glow_build_vram(void)
         n = __jo_glow_sizes[k] / 8;
         for (m = 0; m < 4; ++m)
             __jo_glow_disc_char[k][m] = 0;
-        if (tier >= 2)
+        if (tier >= 4)
             continue;
         jo_glow_build_lut(__jo_glow_sizes[k], false);
         for (m = 0; m < 4; ++m)
         {
-            if (m > 0 && (tier >= 1 || k >= JO_GLOW_PHASED_SIZES))
+            if (m > 0 && (tier >= 2 || k >= JO_GLOW_PHASED_SIZES))
                 break;
             __jo_glow_disc_char[k][m] = jo_glow_character(cell);
             cell = jo_glow_write_block(cell, n + (m & 1), n + (m >> 1), 1, __jo_glow_sizes[k], 8 * n + (m & 1) * 8,
@@ -608,8 +628,22 @@ static bool                         jo_glow_build_vram(void)
         __jo_glow_frame_char[k] = jo_glow_character(cell);
         cell = jo_glow_write_rect(cell, k + 1, true);
     }
-    // The pool of the overlaps
+    // The pool of the overlaps, the cells of the moved discs
     __jo_glow_pool = cell;
+    __jo_glow_shift_pool = cell + JO_GLOW_STATES * JO_GLOW_POOL * 32;
+    // The discs with their rays in RAM (none: not moved)
+    for (k = 0; k < JO_GLOW_SHIFTED_SIZES; ++k)
+    {
+        n = __jo_glow_sizes[k] / 8;
+        __jo_glow_star_ram[k] = __jo_glow_shift_cells > 0 ? (unsigned char *)jo_malloc((unsigned int)(32 * n * n)) : JO_NULL;
+        if (__jo_glow_star_ram[k] == JO_NULL)
+            continue;
+        cell = (unsigned char *)jo_glow_character_address(__jo_glow_star_char[k]);
+        for (y = 0; y < 8 * n; ++y)
+            for (x = 0; x < 2 * n; ++x)
+                ((unsigned short *)__jo_glow_star_ram[k])[y * 2 * n + x] =
+                    ((volatile unsigned short *)cell)[((y >> 3) * n + (x >> 1)) * 16 + (y & 7) * 2 + (x & 1)];
+    }
     // The map: empty
     for (x = 0; x < JO_GLOW_MAP_WIDTH * JO_GLOW_MAP_WIDTH; ++x)
         __jo_glow_map[x] = __jo_glow_empty_char;
@@ -1217,6 +1251,42 @@ static int                          jo_glow_sticky_cell(const int pixel, const i
     return (m);
 }
 
+/** @brief Write a disc with its rays moved in its cells (see JO_GLOW_SHIFTED_SIZES)
+ *  @param cell First cell (the box: n + 1 cells in X when moved in X, the same in Y)
+ *  @param k Size index
+ *  @param px Move in X (0, 2, 4, 6 pixels)
+ *  @param py Move in Y
+ */
+static void                         jo_glow_write_shifted(unsigned char * const cell, const int k, const int px, const int py)
+{
+    unsigned int                    line[JO_GLOW_SHIFTED_SIZES + 3];
+    volatile unsigned int           *dst;
+    const unsigned char             *src;
+    int                             n;
+    int                             w;
+    int                             h;
+    int                             x;
+    int                             y;
+    int                             sy;
+
+    n = __jo_glow_sizes[k] / 8;
+    w = n + (px != 0);
+    h = n + (py != 0);
+    src = __jo_glow_star_ram[k];
+    for (y = 0; y < 8 * h; ++y)
+    {
+        // (the line: 2 pixels a byte, the move in whole bytes)
+        for (x = 0; x < w; ++x)
+            line[x] = 0;
+        sy = y - py;
+        if (sy >= 0 && sy < 8 * n)
+            jo_memcpy((unsigned char *)line + px / 2, src + sy * 4 * n, (unsigned int)(4 * n));
+        dst = (volatile unsigned int *)(cell + (y >> 3) * w * 32 + (y & 7) * 4);
+        for (x = 0; x < w; ++x, dst += 8)
+            *dst = line[x];
+    }
+}
+
 void                                jo_3d_glows_draw(const jo_pos3D_fixed * const camera)
 {
     jo_glow_state                   *state;
@@ -1227,6 +1297,8 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
     jo_fixed                        columns[3][3];
     jo_fixed                        k;
     unsigned char                   *pool;
+    unsigned char                   *shift;
+    int                             shift_left;
     short                           sx[JO_3D_GLOW_MAX];
     short                           sy[JO_3D_GLOW_MAX];
     short                           diameter[JO_3D_GLOW_MAX];     // Disc: its diameter; rectangle: the width of its light
@@ -1359,6 +1431,8 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
     // The frame: the grid of the cells on the brightest glow, then each glow in the cells
     state = &__jo_glow_states[tag % JO_GLOW_STATES];
     pool = __jo_glow_pool + (tag % JO_GLOW_STATES) * JO_GLOW_POOL * 32;
+    shift = __jo_glow_shift_pool + (tag % JO_GLOW_STATES) * __jo_glow_shift_cells * 32;
+    shift_left = __jo_glow_shift_cells;
     state->count = 0;
     state->overlap_count = 0;
     state->fine_x = 0;
@@ -1448,6 +1522,29 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
                 item->first = __jo_glow_disc_char[size][c];
                 item->w += c & 1;
                 item->h += c >> 1;
+            }
+            else if (size < JO_GLOW_SHIFTED_SIZES && __jo_glow_star_ram[size] != JO_NULL && (rx | ry) != 0 &&
+                     shift_left >= (s / 8 + 1) * (s / 8 + 1))
+            {
+                // (a small star: moved by 0, 2, 4 or 6 pixels in its cells, written for this frame: placed within 1 pixel)
+                rx = (rx + 1) & ~1;
+                ry = (ry + 1) & ~1;
+                mx += rx >> 3;
+                my += ry >> 3;
+                rx &= 7;
+                ry &= 7;
+                item->w += rx != 0;
+                item->h += ry != 0;
+                if (rx == 0 && ry == 0)
+                    item->first = __jo_glow_star_char[size];
+                else
+                {
+                    jo_glow_write_shifted(shift, size, rx, ry);
+                    item->first = jo_glow_character(shift);
+                    shift += item->w * item->h * 32;
+                    shift_left -= item->w * item->h;
+                }
+                glow->placed = false;
             }
             else
             {

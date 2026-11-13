@@ -43,6 +43,14 @@
  */
 bool                            __jo_vdp2_a0_start_is_free(const unsigned int n);
 
+/** @brief jo_vdp2_malloc() without the error message of JO_DEBUG when the memory is full: a try (the glows try their
+ *  largest set of cells first, then smaller ones)
+ *  @param usage The usage of the block
+ *  @param n Size in bytes
+ *  @return The block, JO_NULL if the memory is full
+ */
+void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage usage, const unsigned int n);
+
 #endif /* !__JO_INTERNAL_VDP2_MALLOC_H__ */
 
 /*

@@ -77,6 +77,10 @@ static const unsigned char      *__jo_back_color = (unsigned char *)(JO_VDP2_VRA
 // B0
 # define B0_SEGMENT_COUNT       (6)
 static unsigned char            *__jo_b0 = (unsigned char *)JO_VDP2_VRAM_B0;
+#ifdef JO_DEBUG
+/** @brief No error message when the memory is full (__jo_vdp2_malloc_try()) */
+static bool                     __jo_vdp2_quiet = false;
+#endif
 static jo_vdp2_memory_segment   __jo_b0_segments[6];
 // B1
 # define B1_SEGMENT_COUNT       (12)
@@ -262,7 +266,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
         usage != JO_VDP2_RAM_COLOR)
     {
 #ifdef JO_DEBUG
-        jo_core_error("Out of VDP2 memory");
+        if (!__jo_vdp2_quiet)
+            jo_core_error("Out of VDP2 memory");
 #endif
         return (JO_NULL);
     }
@@ -312,7 +317,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     return (jo_vdp2_reuse(__jo_b1_segments, B1_SEGMENT_COUNT, i, start, start + n));
             }
 #ifdef JO_DEBUG
-            jo_core_error("Out of VDP2 memory");
+            if (!__jo_vdp2_quiet)
+                jo_core_error("Out of VDP2 memory");
 #endif
             return (JO_NULL);
         case JO_VDP2_RAM_MAP_NBG1:
@@ -338,7 +344,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     return (jo_vdp2_reuse(__jo_b0_segments, B0_SEGMENT_COUNT, i, start, start + n));
             }
 #ifdef JO_DEBUG
-            jo_core_error("Out of VDP2 memory");
+            if (!__jo_vdp2_quiet)
+                jo_core_error("Out of VDP2 memory");
 #endif
             return (JO_NULL);
         case JO_VDP2_RAM_BITMAP_NBG0:
@@ -365,7 +372,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     return (jo_vdp2_reuse(__jo_a0_segments, A0_SEGMENT_COUNT, i, __jo_a0_segments[i].ptr, __jo_a0_segments[i].ptr + n));
             }
 #ifdef JO_DEBUG
-            jo_core_error("Out of VDP2 memory");
+            if (!__jo_vdp2_quiet)
+                jo_core_error("Out of VDP2 memory");
 #endif
             return (JO_NULL);
         case JO_VDP2_RAM_COLOR:
@@ -373,7 +381,8 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
             if ((__jo_current_palette_id + 1) >= JO_PALETTE_MAX)
             {
 #ifdef JO_DEBUG
-                jo_core_error("Out of VDP2 memory");
+                if (!__jo_vdp2_quiet)
+                    jo_core_error("Out of VDP2 memory");
 #endif
                 return (JO_NULL);
             }
@@ -387,4 +396,18 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
 #endif
             return (JO_NULL);
     }
+}
+
+void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage usage, const unsigned int n)
+{
+#ifdef JO_DEBUG
+    void                        *ptr;
+
+    __jo_vdp2_quiet = true;
+    ptr = jo_vdp2_malloc(usage, n);
+    __jo_vdp2_quiet = false;
+    return (ptr);
+#else
+    return (jo_vdp2_malloc(usage, n));
+#endif
 }
