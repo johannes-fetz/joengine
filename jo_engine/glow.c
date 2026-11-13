@@ -85,6 +85,11 @@ static const unsigned char                  __jo_glow_sizes[JO_GLOW_SIZES] = {16
 #define JO_GLOW_STATES                      (4)
 /** @brief Change of the fade of a glow at each frame (0 to 256): it appears and disappears in 4 frames */
 #define JO_GLOW_FADE_STEP                   (64)
+/** @brief The points of a lamp tested by the rays, one per ray in turn: its middle, JO_GLOW_LAMP_SIZE to its right, under it,
+ *  to its left (seen from the camera). Its light: the share of its points seen */
+#define JO_GLOW_POINTS                      (4)
+/** @brief The light of a glow (its fade at most) for its points seen (4 bits): the share of them */
+static const short                  __jo_glow_points_seen[16] = {0, 64, 64, 128, 64, 128, 128, 192, 64, 128, 128, 192, 128, 192, 192, 256};
 /** @brief Rays of the occlusion at each frame */
 #define JO_GLOW_RAYS_PER_FRAME              (2)
 /** @brief Width of the rays of light of a glow (half pixels: the light falls to 0 at this distance from the ray) */
@@ -110,8 +115,9 @@ static int                          __jo_glow_diagonal_ray_light = JO_GLOW_DIAGO
 typedef struct
 {
     bool                            used;
-    bool                            seen;           // No wall between the camera and the lamp (last ray)
     bool                            tested;         // A ray was cast since the glow was added or moved
+    unsigned char                   seen_points;    // The points of the lamp seen by their last ray: 4 bits (see
+    unsigned char                   next_point;     // jo_glow_test()), the next one tested
     unsigned char                   shape;          // jo_3d_glow_shape
     bool                            anchor;         // Placed to the pixel (the scroll of the layer), see jo_3d_glow_set_anchor()
     jo_pos3D_fixed                  position;
@@ -1081,9 +1087,13 @@ bool                                jo_3d_glows_enable(const bool enabled)
     return (true);
 }
 
-/** @brief Cast the ray from the camera to a lamp
+/** @brief The occlusion of a glow: a ray from the camera to one of its points (see JO_GLOW_POINTS), the next one at each
+ *  call; the first ray (a glow added or moved) for all of them
  *  @param glow Glow
- *  @param camera Camera (world)
+ *  @param camera Camera
+ *  @remarks One point was a light on or off: a lamp at the edge of a wall (the ceiling of a room seen through a door, far
+ *  away) was seen and hidden in turn as the camera moved by a few units, its glow appeared and vanished (the alarms of the
+ *  FPS demo). Its points seen in part: its glow dimmed in part (see the fade in jo_3d_glows_draw())
  */
 static void                         jo_glow_test(jo_glow * const glow, const jo_pos3D_fixed * const camera)
 {
@@ -1092,37 +1102,64 @@ static void                         jo_glow_test(jo_glow * const glow, const jo_
     int                             dx;
     int                             dy;
     int                             dz;
+    int                             horizontal;
     int                             scale;
     int                             scaled;
+    int                             point;
+    bool                            seen;
 
-    glow->tested = true;
-    if (__jo_glow_hit == JO_NULL)
-    {
-        glow->seen = true;
-        return;
-    }
-    // (a far lamp in a big level: the differences halved until the sum of their squares and jo_int2fixed() fit, the sum
-    // overflowed above about 26000 world units, the ray went in another direction)
+    point = glow->tested ? glow->next_point : 0;
+    glow->next_point = (unsigned char)((point + 1) % JO_GLOW_POINTS);
     dx = jo_fixed2int(glow->position.x - camera->x);
     dy = jo_fixed2int(glow->position.y - camera->y);
     dz = jo_fixed2int(glow->position.z - camera->z);
-    for (JO_ZERO(scale); JO_ABS(dx) > 16383 || JO_ABS(dy) > 16383 || JO_ABS(dz) > 16383; ++scale)
+    if (__jo_glow_hit == JO_NULL || (JO_ABS(dx) <= JO_GLOW_LAMP_SIZE && JO_ABS(dy) <= JO_GLOW_LAMP_SIZE && JO_ABS(dz) <= JO_GLOW_LAMP_SIZE))
+        seen = true;
+    else
     {
-        dx >>= 1;
-        dy >>= 1;
-        dz >>= 1;
+        // (the point: to the right of the lamp seen from the camera (across the horizontal direction to it), under it (Y
+        // down), to its left)
+        if (point == 1 || point == 3)
+        {
+            horizontal = (int)jo_sqrt((unsigned int)(JO_MIN(JO_ABS(dx), 16383) * JO_MIN(JO_ABS(dx), 16383)) +
+                                      (unsigned int)(JO_MIN(JO_ABS(dz), 16383) * JO_MIN(JO_ABS(dz), 16383)));
+            if (horizontal > 0)
+            {
+                scale = point == 1 ? JO_GLOW_LAMP_SIZE : -JO_GLOW_LAMP_SIZE;
+                scaled = dx;
+                dx -= JO_MIN(JO_MAX(dz, -16383), 16383) * scale / horizontal;
+                dz += JO_MIN(JO_MAX(scaled, -16383), 16383) * scale / horizontal;
+            }
+        }
+        else if (point == 2)
+            dy += JO_GLOW_LAMP_SIZE;
+        // (a far lamp in a big level: the differences halved until the sum of their squares and jo_int2fixed() fit, the
+        // sum overflowed above about 26000 world units, the ray went in another direction)
+        for (JO_ZERO(scale); JO_ABS(dx) > 16383 || JO_ABS(dy) > 16383 || JO_ABS(dz) > 16383; ++scale)
+        {
+            dx >>= 1;
+            dy >>= 1;
+            dz >>= 1;
+        }
+        scaled = (int)jo_sqrt((unsigned int)(dx * dx) + (unsigned int)(dy * dy) + (unsigned int)(dz * dz));
+        length = scaled << scale;
+        if (length <= JO_GLOW_LAMP_SIZE || scaled == 0)
+            seen = true;
+        else
+        {
+            dir.x = jo_int2fixed(dx) / scaled;
+            dir.y = jo_int2fixed(dy) / scaled;
+            dir.z = jo_int2fixed(dz) / scaled;
+            seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(JO_MIN(length - JO_GLOW_LAMP_SIZE, 32767)));
+        }
     }
-    scaled = (int)jo_sqrt((unsigned int)(dx * dx) + (unsigned int)(dy * dy) + (unsigned int)(dz * dz));
-    length = scaled << scale;
-    if (length <= JO_GLOW_LAMP_SIZE || scaled == 0)
-    {
-        glow->seen = true;
-        return;
-    }
-    dir.x = jo_int2fixed(dx) / scaled;
-    dir.y = jo_int2fixed(dy) / scaled;
-    dir.z = jo_int2fixed(dz) / scaled;
-    glow->seen = !__jo_glow_hit(camera, &dir, jo_int2fixed(JO_MIN(length - JO_GLOW_LAMP_SIZE, 32767)));
+    if (!glow->tested)
+        glow->seen_points = seen ? (1 << JO_GLOW_POINTS) - 1 : 0;
+    else if (seen)
+        glow->seen_points |= (unsigned char)(1 << point);
+    else
+        glow->seen_points &= (unsigned char)~(1 << point);
+    glow->tested = true;
 }
 
 /** @brief The nearest size of disc
@@ -1208,6 +1245,7 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
     int                             rays;
     int                             size;
     int                             reach;
+    int                             target;
     int                             left;
     int                             top;
     int                             rx;
@@ -1297,10 +1335,12 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
     {
         if (!glow->used)
             continue;
-        if (on_screen[i] && glow->seen && glow->intensity > 0)
-            glow->fade = (short)JO_MIN(glow->fade + JO_GLOW_FADE_STEP, 256);
+        // (to the share of the points of the lamp seen, see jo_glow_test())
+        target = on_screen[i] && glow->intensity > 0 ? __jo_glow_points_seen[glow->seen_points & 15] : 0;
+        if (glow->fade < target)
+            glow->fade = (short)JO_MIN(glow->fade + JO_GLOW_FADE_STEP, target);
         else
-            glow->fade = (short)JO_MAX(glow->fade - JO_GLOW_FADE_STEP, 0);
+            glow->fade = (short)JO_MAX(glow->fade - JO_GLOW_FADE_STEP, target);
         if (!on_screen[i] || glow->fade <= 0)
             continue;
         s = glow->shape >= JO_3D_GLOW_RECT ? JO_MIN(2 * JO_MAX(half_w[i], half_h[i]) + diameter[i], 128) : JO_MIN(diameter[i], 128);
@@ -1426,10 +1466,12 @@ void                                jo_3d_glows_draw(const jo_pos3D_fixed * cons
             continue;
         item->palette = (unsigned char)(state->count + 1);
         // The cells seen (the clip of the glow, moved like the grid)
-        item->clip_x0 = (short)jo_glow_cell_of(rect[i].left, state->fine_x, &rx);
-        item->clip_y0 = (short)jo_glow_cell_of(rect[i].top, state->fine_y, &ry);
-        item->clip_x1 = (short)jo_glow_cell_of(rect[i].right, state->fine_x, &rx);
-        item->clip_y1 = (short)jo_glow_cell_of(rect[i].bottom, state->fine_y, &ry);
+        // (the cells half in the rectangle at least: all the cells it touched went beyond it by up to 7 pixels, the glow of
+        // a lamp seen through a door far away was on the wall above the door)
+        item->clip_x0 = (short)jo_glow_cell_of(rect[i].left + 4, state->fine_x, &rx);
+        item->clip_y0 = (short)jo_glow_cell_of(rect[i].top + 4, state->fine_y, &ry);
+        item->clip_x1 = (short)jo_glow_cell_of(rect[i].right - 3, state->fine_x, &rx);
+        item->clip_y1 = (short)jo_glow_cell_of(rect[i].bottom - 3, state->fine_y, &ry);
         // (the light of a level: (level / 15)^2: a soft halo, the light falls quickly away from the lamp. Linear, the halo
         // was a wide bright disc with a visible edge)
         s = light[state->count];
