@@ -163,7 +163,9 @@ extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 /** @brief Print implementation
  *  @param x Horizontal position from top left screen corner
  *  @param y Vertical position from top left screen corner
- *  @param str String
+ *  @param str String: ASCII and the half-width katakana of Shift-JIS (one byte each, 0xA1 to 0xDF: the comments of the
+ *  saves in the backup memory, such as "\xBE\xB0\xCC\xDE" for "ｾｰﾌﾞ"); the 2 bytes characters of Shift-JIS (kanji,
+ *  hiragana) are not supported
  */
 void jo_print(int x, int y, char * str);
 
