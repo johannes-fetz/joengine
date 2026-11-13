@@ -114,9 +114,12 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
  *  frame to draw it, the slave CPU never waits to copy the next one. Before: a table sent before the second VBLANK of
  *  its frame (the CPUs under 16.7 ms) was taken at that VBLANK, the next one sent after it (17 ms) at the VBLANK after:
  *  the image before stayed 3 fields, the one after 1 field (a stutter at each crossing of 16.7 ms: 37 in a 1200 frames
- *  run of the first person shooter with the VDP1 at 9 ms, 0 after). When the VDP1 is over a frame, its table is taken at
- *  the first VBLANK after (one image of 3 fields), the images go on from there, and come back to the VBLANKs that start
- *  the frames as soon as the VDP1 draws a frame in a field (one image of 1 field) */
+ *  run of the first person shooter with the VDP1 at 9 ms, 0 after). Each image stays JO_FRAMERATE fields at least (see
+ *  __jo_vdp1_vblank()): a table that missed its VBLANK (the CPUs, the sort and the copy over a frame, or the VDP1 over
+ *  a frame) is taken at the first VBLANK after (one image of 3 fields), and the images go on from there, JO_FRAMERATE
+ *  fields apart. Before: the next table, ready at the VBLANK that starts its frame with the VDP1 done in a field, was
+ *  taken at that VBLANK (one image of 1 field): with the CPUs near 33 ms and the VDP1 near 16.7 ms the images went 3, 1,
+ *  3, 1 fields (a judder: 92 images of 1 field in 10 s of the ocean demo, 0 after) */
 # define JO_VDP1_PACED                      (1)
 #endif
 /** @brief PMOD of the clear polygon: replace, no end code and no transparent pixel check, no pre-clipping (it is the
@@ -1554,6 +1557,12 @@ void                                    __jo_vdp1_vblank(void)
         return;
     if (JO_VDP1_MANUAL_CHANGE)
     {
+#if JO_VDP1_PACED && JO_FRAMERATE > 1
+        // The pace of the images (see JO_VDP1_PACED): the image shown stays JO_FRAMERATE fields at least
+        if (__jo_vdp1_drawing &&
+            JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_flip_field) < (unsigned int)JO_FRAMERATE)
+            return;
+#endif
         // Manual change: the new table is drawn when the VDP1 finished the current one (else the next VBLANK)
         if (__jo_vdp1_drawing && (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0)
             return;
