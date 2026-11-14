@@ -1427,6 +1427,24 @@ jo_angle                        jo_atan2_fixed(const jo_fixed y, const jo_fixed 
  */
 int                             jo_atan2_degrees(const jo_fixed y, const jo_fixed x);
 
+/** @brief An angle in degree brought in 0 to 359 (Internal usage)
+ *  @param deg Angle in degree (any value)
+ *  @return deg modulo 360, 0 to 359
+ *  @remarks The quotient by the high word of a product (deg x 2^32 / 360, rounded up: at most 1 too high or too low), then
+ *  one correction: the % of C was a product and a shift of libgcc (___ashiftrt_r4_8)
+ */
+static __jo_force_inline int    __jo_wrap_360(const int deg)
+{
+    int                         r;
+
+    r = deg - jo_fixed_mult_to_int(deg, 11930465) * 360;
+    if (r < 0)
+        r += 360;
+    else if (r >= 360)
+        r -= 360;
+    return (r);
+}
+
 /** @brief Turn an angle toward another angle, by the shortest way
  *  @param angle Current angle in degree (0 to 359)
  *  @param target Target angle in degree (any value)
@@ -1437,10 +1455,10 @@ static __jo_force_inline int    jo_turn_toward(const int angle, const int target
 {
     int                         d;
 
-    // Shortest difference: -180 to 179 (the modulo, a division by libgcc, only when the angles are not 0 to 359)
+    // Shortest difference: -180 to 179 (the modulo only when the angles are not 0 to 359)
     d = target - angle;
     if (d >= 360 || d <= -360)
-        d %= 360;
+        d = __jo_wrap_360(d);
     if (d >= 180)
         d -= 360;
     else if (d < -180)
@@ -1451,7 +1469,7 @@ static __jo_force_inline int    jo_turn_toward(const int angle, const int target
         d = -max_step;
     d += angle;
     if (d >= 360 || d <= -360)
-        d %= 360;
+        return (__jo_wrap_360(d));
     return (d < 0 ? d + 360 : d);
 }
 
@@ -1996,24 +2014,6 @@ static __jo_force_inline void jo_matrixf_transpose(const jo_matrixf * const matr
     result->m33 = matrix->m33;
 }
 
-/** @brief Multiply a matrix by a vector4 (using fixed numbers)
- *  @param m Matrix
- *  @param v Vector4
- *  @param result Result vector4
- *  @warning v and result parameters can be the same address
- */
-static __jo_force_inline void   jo_matrix_mul_vector4(const jo_matrix * const m, const jo_vector4_fixed * const v, jo_vector4_fixed * const result)
-{
-    jo_vector4_fixed            in;
-
-    // (a copy: v and result can be the same vector)
-    in = *v;
-    result->x = jo_fixed_mult(m->m00, in.x) + jo_fixed_mult(m->m10, in.y) + jo_fixed_mult(m->m20, in.z) + jo_fixed_mult(m->m30, in.w);
-    result->y = jo_fixed_mult(m->m01, in.x) + jo_fixed_mult(m->m11, in.y) + jo_fixed_mult(m->m21, in.z) + jo_fixed_mult(m->m31, in.w);
-    result->z = jo_fixed_mult(m->m02, in.x) + jo_fixed_mult(m->m12, in.y) + jo_fixed_mult(m->m22, in.z) + jo_fixed_mult(m->m32, in.w);
-    result->w = jo_fixed_mult(m->m03, in.x) + jo_fixed_mult(m->m13, in.y) + jo_fixed_mult(m->m23, in.z) + jo_fixed_mult(m->m33, in.w);
-}
-
 /** @brief Dot product of 2 vectors of 4 fixed numbers (Internal usage)
  *  @param ptA First vector (4 contiguous fixed numbers)
  *  @param ptB Second vector (4 contiguous fixed numbers)
@@ -2041,6 +2041,38 @@ static __jo_force_inline jo_fixed       __jo_fixed_dot4(const jo_fixed ptA[4], c
              : "m" (*(const jo_fixed (*)[4])ptA), "m" (*(const jo_fixed (*)[4])ptB)
              : "mach", "macl");
     return (low);
+}
+
+/** @brief Multiply a matrix by a vector4 (using fixed numbers)
+ *  @param m Matrix
+ *  @param v Vector4
+ *  @param result Result vector4
+ *  @warning v and result parameters can be the same address
+ *  @remarks Each element is a sum of 4 products on 64 bits (mac.l, the columns of m copied as rows): faster than 16
+ *  jo_fixed_mult(), rounded once
+ */
+static __jo_force_inline void   jo_matrix_mul_vector4(const jo_matrix * const m, const jo_vector4_fixed * const v, jo_vector4_fixed * const result)
+{
+    jo_fixed                    columns[4][4];
+    jo_fixed                    in[4];
+    register int                i;
+
+    // (a copy: v and result can be the same vector)
+    in[0] = v->x;
+    in[1] = v->y;
+    in[2] = v->z;
+    in[3] = v->w;
+    for (i = 0; i < 4; ++i)
+    {
+        columns[i][0] = m->m[0][i];
+        columns[i][1] = m->m[1][i];
+        columns[i][2] = m->m[2][i];
+        columns[i][3] = m->m[3][i];
+    }
+    result->x = __jo_fixed_dot4(columns[0], in);
+    result->y = __jo_fixed_dot4(columns[1], in);
+    result->z = __jo_fixed_dot4(columns[2], in);
+    result->w = __jo_fixed_dot4(columns[3], in);
 }
 
 /** @brief Multiply 2 matrix (using fixed numbers)
@@ -2149,10 +2181,12 @@ void jo_matrixf_mul_dir(const jo_matrixf * const matrix, const jo_vectorf * cons
  *  @param v1 Second value
  *  @param t T [0, 1]
  *  @return Interpolation between two inputs (v0, v1) for a parameter (t) in the closed unit interval [0, 1].
+ *  @remarks v0 + t x (v1 - v0): one product, rounded once (it was (1 - t) x v0 + t x v1: 2 products, 2 roundings)
+ *  @warning v1 - v0 must fit in a jo_fixed
  */
 static __jo_force_inline jo_fixed           jo_lerp(const jo_fixed v0, const jo_fixed v1, const jo_fixed t)
 {
-    return (jo_fixed_mult((JO_FIXED_1 - t), v0) + jo_fixed_mult(t, v1));
+    return (v0 + jo_fixed_mult(t, v1 - v0));
 }
 
 /** @brief Check if float almost equals 0
