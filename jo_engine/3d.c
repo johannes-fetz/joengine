@@ -489,7 +489,8 @@ static  __jo_force_inline int               jo_3d_tint_component(const int tint,
 {
     int                                     v;
 
-    v = (tint >> shift) & 0x1f;
+    // (a logical shift, the same 5 bits: the arithmetic shift by 10 was a call of libgcc, ___ashiftrt_r4_10)
+    v = (int)(((unsigned int)tint >> shift) & 0x1f);
     return ((v >= 16 ? v - 32 : v) * 2);
 }
 
@@ -819,6 +820,14 @@ static bool                                 __jo_3d_slave_tables_taken = false;
 /** @brief A copy of the commands of the slave CPU was started this frame (by its DMA controller, see jo_3d_slave_end()) */
 static bool                                 __jo_3d_slave_copy_started = false;
 
+/** @brief 2^(32 - k) for k from 1 to 31 (k = 0: unused), see jo_3d_set_front_layer() */
+static const unsigned int                   __jo_3d_pow2_32[32] =
+{
+    0u, 0x80000000u, 0x40000000u, 0x20000000u, 0x10000000u, 0x8000000u, 0x4000000u, 0x2000000u, 0x1000000u, 0x800000u,
+    0x400000u, 0x200000u, 0x100000u, 0x80000u, 0x40000u, 0x20000u, 0x10000u, 0x8000u, 0x4000u, 0x2000u, 0x1000u, 0x800u,
+    0x400u, 0x200u, 0x100u, 0x80u, 0x40u, 0x20u, 0x10u, 0x8u, 0x4u, 0x2u
+};
+
 /* State of the master CPU */
 static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, JO_3D_MAX_VERTICES, __jo_3d_view, JO_NULL, 0, -1, &__jo_vdp1_depth_bias, 0, 0,
                                                               JO_3D_CLIP_GOURAUD_TABLES,
@@ -900,9 +909,9 @@ static void                                 jo_3d_normalize(jo_pos3D_fixed *v)
     }
     if (len2 > JO_FIXED_MAX)
     {
-        v->x >>= 8;
-        v->y >>= 8;
-        v->z >>= 8;
+        v->x = jo_shift_right8(v->x);
+        v->y = jo_shift_right8(v->y);
+        v->z = jo_shift_right8(v->z);
         jo_3d_normalize(v);
         return;
     }
@@ -1364,7 +1373,8 @@ static __attribute__((noinline)) void       jo_3d_prepare_light(jo_3d_light_cont
     d12 = ((long long)m[1][0] * m[2][0] + (long long)m[1][1] * m[2][1] + (long long)m[1][2] * m[2][2]) >> 16;
     // (relative to the scale: 1/256 of |row 0|², the absolute tolerance of a scale of 1. A small flattened model (0.06,
     // 0.03, 0.06) passed as uniform, its normals were lit as the ones of a sphere)
-    tolerance = JO_MAX(s0 >> 8, 1);
+    // (s0 >= 0: a logical shift, not ___ashiftrt_r4_8 of libgcc)
+    tolerance = JO_MAX((long long)((unsigned long long)s0 >> 8), 1);
     context->uniform_scale = s0 > 0 && s0 <= JO_FIXED_MAX &&
                              JO_ABS(s1 - s0) <= tolerance && JO_ABS(s2 - s0) <= tolerance &&
                              JO_ABS(d01) <= tolerance && JO_ABS(d02) <= tolerance && JO_ABS(d12) <= tolerance;
@@ -2749,7 +2759,14 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     sort_key = JO_FIXED_TO_INT(key) + *ctx->depth_bias;
     // The front layer (a rear-view mirror): in front of all the other polygons, sorted among themselves
     if (ctx->front_shift >= 0)
-        sort_key = (JO_MAX(JO_FIXED_TO_INT(key), 0) >> ctx->front_shift) + 1;
+    {
+        // (a shift by a variable count of bits is a loop of libgcc (___ashrsi3) on the SH-2: the high word of a product by
+        // 2^(32 - shift) instead, the same value for a positive key)
+        sort_key = JO_MAX(JO_FIXED_TO_INT(key), 0);
+        if (ctx->front_shift > 0)
+            sort_key = (int)(((unsigned long long)(unsigned int)sort_key * __jo_3d_pow2_32[ctx->front_shift & 31]) >> 32);
+        ++sort_key;
+    }
     keys[*used] = sort_key < 0 ? 0 : (sort_key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)sort_key);
     cmd = &commands[(*used)++];
     ++*ctx->displayed_polygon_count;
@@ -3538,8 +3555,9 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
                     fb += fa;
                     while (fb > 0x7FFFFFFF)
                     {
-                        fa >>= 8;
-                        fb >>= 8;
+                        // (both positive: logical shifts, the same values, not ___ashiftrt_r4_8 of libgcc)
+                        fa = (long long)((unsigned long long)fa >> 8);
+                        fb = (long long)((unsigned long long)fb >> 8);
                     }
                     tc = jo_fixed_div((jo_fixed)fa, (jo_fixed)fb);
                     t = JO_MIN(t, tc);
@@ -4124,6 +4142,28 @@ static bool                                 jo_3d_all_inside(const jo_3d_vertex 
 /** @brief Pixels a point of the part of a tile seen may be outside of the quad drawn for it (see jo_3d_quad_covers()) */
 # define JO_3D_NEAR_TILE_COVER_TOLERANCE    (2)
 
+/** @brief The part of an edge cut by a side of the screen: d x a / den (see jo_3d_clip_to_screen())
+ *  @param d Difference of the coordinates of the 2 ends
+ *  @param a Distance of the first end to the side
+ *  @param den Distance of the first end minus the one of the second end (not 0, |a| <= |den|)
+ *  @return d x a / den, rounded toward 0 (the quotient is between 0 and d)
+ *  @remarks The 64 / 32 bits division of the hardware unit (39 cycles) when den fits in 32 bits, the same quotient as the
+ *  64 bits division of libgcc (___divdi3, hundreds of cycles) it replaces. The tiles through the near plane: 2 per edge
+ *  cut by a side
+ */
+static  __jo_force_inline int               jo_3d_clip_lerp(const int d, const long long a, const long long den)
+{
+    long long                               numerator;
+
+    numerator = (long long)d * a;
+    if (den != (long long)(int)den)
+        return ((int)(numerator / den));
+    JO_SH2_DVSR = (int)den;
+    JO_SH2_DVDNTH = (int)(numerator >> 32);
+    JO_SH2_DVDNTL = (int)numerator;
+    return (JO_SH2_DVDNTL);
+}
+
 /** @brief Clip a polygon of the screen by the edges of the screen (Sutherland-Hodgman: left, right, top, bottom)
  *  @param x Vertices (screen positions, 12 entries, modified)
  *  @param y Vertices
@@ -4187,8 +4227,8 @@ static int                                  jo_3d_clip_to_screen(int x[12], int 
             }
             if ((da >= 0) != (db >= 0))
             {
-                dx[m] = sx[i] + (int)((long long)(sx[j] - sx[i]) * da / (da - db));
-                dy[m++] = sy[i] + (int)((long long)(sy[j] - sy[i]) * da / (da - db));
+                dx[m] = sx[i] + jo_3d_clip_lerp(sx[j] - sx[i], da, da - db);
+                dy[m++] = sy[i] + jo_3d_clip_lerp(sy[j] - sy[i], da, da - db);
             }
         }
         n = m;
@@ -4453,7 +4493,8 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
                 needed = ((long long)JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)) * __jo_vdp1_projection_distance) >> 16;
                 if (needed > 0x7FFF0000)
                     needed = 0x7FFF0000;
-                needed_z = JO_MAX(needed_z, (jo_fixed)needed / JO_3D_NEAR_TILE_LIMIT + JO_FIXED_1);
+                // (the division unit, not ___sdivsi3 of libgcc: the same quotient, both positive)
+                needed_z = JO_MAX(needed_z, jo_int_div((jo_fixed)needed, JO_3D_NEAR_TILE_LIMIT) + JO_FIXED_1);
             }
             jo_3d_set_vertex(&screen[i], JO_3D_WINDOW_CX(s->w) + x, JO_3D_WINDOW_CY(s->w) + y, out[i].z, 0);
             // (the tile clipped by the near plane itself: what must be covered when the plane is moved, see below)
@@ -5137,9 +5178,10 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
         d1[0] >>= 4; d1[1] >>= 4; d1[2] >>= 4;
         d2[0] >>= 4; d2[1] >>= 4; d2[2] >>= 4;
     }
-    facing = (long long)((long long)d1[1] * d2[2] - (long long)d1[2] * d2[1]) * (view[0][0] >> 8) +
-             (long long)((long long)d1[2] * d2[0] - (long long)d1[0] * d2[2]) * (view[0][1] >> 8) +
-             (long long)((long long)d1[0] * d2[1] - (long long)d1[1] * d2[0]) * (view[0][2] >> 8);
+    // (jo_shift_right8(): the same shift, not 3 calls of libgcc, ___ashiftrt_r4_8)
+    facing = (long long)((long long)d1[1] * d2[2] - (long long)d1[2] * d2[1]) * jo_shift_right8(view[0][0]) +
+             (long long)((long long)d1[2] * d2[0] - (long long)d1[0] * d2[2]) * jo_shift_right8(view[0][1]) +
+             (long long)((long long)d1[0] * d2[1] - (long long)d1[1] * d2[0]) * jo_shift_right8(view[0][2]);
     mirrored = ctx->mirror ? facing > 0 : facing < 0;
     if (mirrored && a->plane == JO_3D_SINGLE_PLANE)
         return (true);
@@ -9098,6 +9140,11 @@ static  __jo_force_inline bool              jo_3d_mesh_ray_hit_in(const jo_3d_me
             continue;
         // Inside of the quad (convex): the point is on the same side of the 4 edges (an edge of length 0 for a triangle).
         // (e x w).n: e x w / 16 (edges of 4000 units at most), normal Q8
+        // (the normal Q8: nx >> 6 without the call of libgcc (___ashiftrt_r4_6): the logical shift of nx + 2^31, minus
+        // 2^25, the same value)
+        nx = (int)(((unsigned int)nx + 0x80000000u) >> 6) - (1 << 25);
+        ny = (int)(((unsigned int)ny + 0x80000000u) >> 6) - (1 << 25);
+        nz = (int)(((unsigned int)nz + 0x80000000u) >> 6) - (1 << 25);
         sign = 0;
         for (j = 0; j < 4; ++j)
         {
@@ -9109,7 +9156,7 @@ static  __jo_force_inline bool              jo_3d_mesh_ray_hit_in(const jo_3d_me
             wx = qx - jo_fixed2int(a->x);
             wy = qy - jo_fixed2int(a->y);
             wz = qz - jo_fixed2int(a->z);
-            side = ((ey * wz - ez * wy) >> 4) * (nx >> 6) + ((ez * wx - ex * wz) >> 4) * (ny >> 6) + ((ex * wy - ey * wx) >> 4) * (nz >> 6);
+            side = ((ey * wz - ez * wy) >> 4) * nx + ((ez * wx - ex * wz) >> 4) * ny + ((ex * wy - ey * wx) >> 4) * nz;
             if (side == 0)
                 continue;
             if (sign == 0)
