@@ -50,7 +50,7 @@ PROJECT_NAME           = "Jo Engine"
 # de révision. Cela peut être utile pour archiver la documentation générée ou si
 # un système de contrôle de version est utilisé.
 
-PROJECT_NUMBER         = 2026.11.3
+PROJECT_NUMBER         = 2026.11.4
 
 # En utilisant la balise PROJECT_BRIEF, on peut fournir une description
 # optionnelle d'une ligne pour un projet qui apparaît en haut de chaque page et
