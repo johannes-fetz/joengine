@@ -8,7 +8,8 @@
 #include "jt.h"
 #include "tests.h"
 
-static jt_step          steps[384];
+/* (in the low work RAM, see JT_LOW_RAM_STEPS) */
+static jt_step * const  steps = JT_LOW_RAM_STEPS;
 
 static void             unit_tests(void)
 {
@@ -44,12 +45,12 @@ void                    jo_main(void)
     // (after the leak checks: the fuzz uses the files of cd/FUZZ, made by rom/gen_fuzz.py)
     steps[count++] = (jt_step){JT_STEP_RUN, "fuzz", t_fuzz, JO_NULL, JO_NULL, JO_NULL, 0};
     // (the quick anti-glitch views: before the report, the quick run stops after it)
-    count += t_glitch_steps(true, steps + count, JT_COUNT(steps) - count - 1);
+    count += t_glitch_steps(true, steps + count, JT_LOW_RAM_STEP_COUNT - count - 1);
     steps[count++] = (jt_step){JT_STEP_REPORT, "unit", JO_NULL, JO_NULL, JO_NULL, JO_NULL, 0};
-    for (i = 0; i < t_scene_step_count && count < JT_COUNT(steps); ++i)
+    for (i = 0; i < t_scene_step_count && count < JT_LOW_RAM_STEP_COUNT; ++i)
         steps[count++] = t_scene_steps[i];
     // The other anti-glitch views, then their report (stage 2: the errors of the engine during the views)
-    i = t_glitch_steps(false, steps + count, JT_COUNT(steps) - count - 1);
+    i = t_glitch_steps(false, steps + count, JT_LOW_RAM_STEP_COUNT - count - 1);
     if (i > 0)
     {
         count += i;

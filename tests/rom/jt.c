@@ -19,7 +19,9 @@
 #define JT_FRAMES_PER_PAGE      (3)
 #define JT_MARKER_FRAMES        (3)
 
-static unsigned char            jt_report[JT_REPORT_SIZE];
+/* (in the low work RAM, see JT_LOW_RAM_REPORT) */
+_Static_assert(JT_REPORT_SIZE <= JT_LOW_RAM_REPORT_SIZE, "the report overlaps the next buffer of the low work RAM");
+static unsigned char * const    jt_report = JT_LOW_RAM_REPORT;
 static int                      jt_report_length;
 static bool                     jt_report_overflow;
 static int                      jt_checks;

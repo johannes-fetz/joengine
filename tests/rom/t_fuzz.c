@@ -910,13 +910,16 @@ static void                 t_api_vdp2_malloc_sizes(void)
  *  textures (the size of the texture was masked with 0x7FFE0 by the check of the free memory) */
 /** @brief The VDP1 memory after the area of the textures (the gouraud tables): saved before a texture that may be written
  *  after the end of the area */
-static unsigned int         t_vdp1_saved[(0x80000 - (JO_VDP1_USER_AREA_END_ADDR - JO_VDP1_VRAM)) / 4];
+#define T_VDP1_SAVED_WORDS          ((0x80000 - (JO_VDP1_USER_AREA_END_ADDR - JO_VDP1_VRAM)) / 4)
+_Static_assert(T_VDP1_SAVED_WORDS * 4 <= JT_LOW_RAM_VDP1_SAVED_SIZE, "the VDP1 memory saved overlaps the next buffer");
+/* (in the low work RAM, see JT_LOW_RAM_VDP1_SAVED) */
+static unsigned int * const t_vdp1_saved = JT_LOW_RAM_VDP1_SAVED;
 
 static void                 t_vdp1_save(const bool restore)
 {
     unsigned int            k;
 
-    for (k = 0; k < JT_COUNT(t_vdp1_saved); ++k)
+    for (k = 0; k < T_VDP1_SAVED_WORDS; ++k)
         if (restore)
             ((volatile unsigned int *)JO_VDP1_USER_AREA_END_ADDR)[k] = t_vdp1_saved[k];
         else
