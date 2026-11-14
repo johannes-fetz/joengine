@@ -217,10 +217,10 @@ typedef struct
     jo_3d_polygon_data       data;
 }               jo_3d_mesh;
 
-/** @brief Sprite quads (internal engine usage)
+/** @brief Sprite quads (internal engine usage): a quad per sprite, the table allocated with the first quad (JO_NULL: none)
  *  @warning MC Hammer: don't touch this
  */
-extern jo_3d_quad *__jo_sprite_quad[JO_MAX_SPRITE];
+extern jo_3d_quad **__jo_sprite_quad;
 bool    jo_3d_create_sprite_quad(const int sprite_id);
 
 
@@ -509,7 +509,7 @@ void                                jo_3d_create_triangle(jo_3d_quad * const qua
  */
 static  __jo_force_inline jo_3d_quad    *jo_3d_get_sprite_quad(const int sprite_id)
 {
-    return (__jo_sprite_quad[sprite_id] == JO_NULL && !jo_3d_create_sprite_quad(sprite_id) ? JO_NULL : __jo_sprite_quad[sprite_id]);
+    return ((__jo_sprite_quad == JO_NULL || __jo_sprite_quad[sprite_id] == JO_NULL) && !jo_3d_create_sprite_quad(sprite_id) ? JO_NULL : __jo_sprite_quad[sprite_id]);
 }
 
 /** @brief Delete sprite quad
@@ -608,7 +608,7 @@ static  __jo_force_inline void      jo_3d_set_palette(jo_3d_quad * const quad, c
  */
 static  __jo_force_inline bool      jo_3d_set_sprite_palette(const int sprite_id, const int palette_id)
 {
-    if (__jo_sprite_quad[sprite_id] == JO_NULL && !jo_3d_create_sprite_quad(sprite_id)) return (false);
+    if ((__jo_sprite_quad == JO_NULL || __jo_sprite_quad[sprite_id] == JO_NULL) && !jo_3d_create_sprite_quad(sprite_id)) return (false);
     jo_3d_set_palette(__jo_sprite_quad[sprite_id], palette_id);
     return (true);
 }
@@ -1147,7 +1147,7 @@ static  __jo_force_inline void      jo_3d_draw_array(jo_3d_quad * const array, i
  */
 static  __jo_force_inline bool      jo_3d_draw_sprite(const int sprite_id)
 {
-    if (__jo_sprite_quad[sprite_id] == JO_NULL && !jo_3d_create_sprite_quad(sprite_id)) return (false);
+    if ((__jo_sprite_quad == JO_NULL || __jo_sprite_quad[sprite_id] == JO_NULL) && !jo_3d_create_sprite_quad(sprite_id)) return (false);
     jo_3d_draw(__jo_sprite_quad[sprite_id]);
     return (true);
 }

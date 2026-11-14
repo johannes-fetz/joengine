@@ -203,7 +203,7 @@ int				            __jo_sprite_replace(const jo_img * const img, const int sprit
     __jo_sprite_end_codes[sprite_id] = false;
     __jo_sprite_mean_color[sprite_id] = 0;
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
-    if (__jo_sprite_quad[sprite_id] != JO_NULL)
+    if (__jo_sprite_quad != JO_NULL && __jo_sprite_quad[sprite_id] != JO_NULL)
         jo_3d_free_sprite_quad(sprite_id);
 #endif // JO_COMPILE_WITH_3D_SUPPORT
     return (sprite_id);
@@ -461,7 +461,8 @@ void                        jo_sprite_free_from(const int sprite_id)
     // The last sprite is included
     for (i = sprite_id; i <= __jo_sprite_id; ++i)
     {
-        if (__jo_sprite_quad[i] != JO_NULL)
+        // (the table of the quads freed with the last one)
+        if (__jo_sprite_quad != JO_NULL && __jo_sprite_quad[i] != JO_NULL)
             jo_3d_free_sprite_quad(i);
     }
 #endif // JO_COMPILE_WITH_3D_SUPPORT

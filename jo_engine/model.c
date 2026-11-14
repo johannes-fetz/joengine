@@ -60,14 +60,25 @@
  *  models loaded later did not find them */
 # define JO_3D_MODEL_MAX_TEXTURES               (JO_MAX_SPRITE)
 
+/** @brief Textures of the models kept in the program (the next ones: in a bigger table allocated, see
+ *  jo_3d_model_add_texture()): a quarter of the sprites, most of them are not textures of models (the textures of the
+ *  program, the smaller copies, the tiles), 282 of 1600 in the rally demo */
+#ifndef JO_3D_MODEL_KEPT_TEXTURES
+# define JO_3D_MODEL_KEPT_TEXTURES              (JO_3D_MODEL_MAX_TEXTURES / 4 < 32 ? 32 : JO_3D_MODEL_MAX_TEXTURES / 4)
+#endif
+
 /** @brief Textures of the models (the names as 2 hashes and the sprite ids): 10 bytes a texture instead of 20 (the names of
  *  16 characters: 8 KB with 400 sprites) */
 typedef struct
 {
     unsigned int                            hash[2];
 }                                           jo_3d_model_texture_name;
-static jo_3d_model_texture_name             __jo_3d_model_texture_names[JO_3D_MODEL_MAX_TEXTURES];
-static short                                __jo_3d_model_texture_ids[JO_3D_MODEL_MAX_TEXTURES];
+static jo_3d_model_texture_name             __jo_3d_model_texture_kept_names[JO_3D_MODEL_KEPT_TEXTURES];
+static short                                __jo_3d_model_texture_kept_ids[JO_3D_MODEL_KEPT_TEXTURES];
+/* (the tables used: the ones kept in the program, or a bigger one allocated: the names, then the ids) */
+static jo_3d_model_texture_name             *__jo_3d_model_texture_names = __jo_3d_model_texture_kept_names;
+static short                                *__jo_3d_model_texture_ids = __jo_3d_model_texture_kept_ids;
+static int                                  __jo_3d_model_texture_capacity = JO_3D_MODEL_KEPT_TEXTURES;
 static int                                  __jo_3d_model_texture_count = 0;
 
 static jo_3d_model                          *jo_3d_create_model(const unsigned char * const data, const unsigned int size, void * const file,
@@ -241,10 +252,45 @@ static int                                  jo_3d_model_find_texture(const char 
     return (-1);
 }
 
+/** @brief Use the tables of the textures of the models of a capacity (the names and the ids copied)
+ *  @param capacity JO_3D_MODEL_KEPT_TEXTURES: the tables kept in the program, more: a table allocated
+ *  @return false if out of memory (the tables used stay)
+ */
+static bool                                 jo_3d_model_texture_tables(const int capacity)
+{
+    jo_3d_model_texture_name                *names;
+    short                                   *ids;
+
+    if (capacity == JO_3D_MODEL_KEPT_TEXTURES)
+    {
+        names = __jo_3d_model_texture_kept_names;
+        ids = __jo_3d_model_texture_kept_ids;
+    }
+    else
+    {
+        // (one block: the names, then the ids)
+        if ((names = (jo_3d_model_texture_name *)jo_malloc((unsigned int)capacity * (sizeof(*names) + sizeof(*ids)))) == JO_NULL)
+            return (false);
+        ids = (short *)(names + capacity);
+    }
+    jo_memcpy(names, __jo_3d_model_texture_names, (unsigned int)__jo_3d_model_texture_count * sizeof(*names));
+    jo_memcpy(ids, __jo_3d_model_texture_ids, (unsigned int)__jo_3d_model_texture_count * sizeof(*ids));
+    if (__jo_3d_model_texture_names != __jo_3d_model_texture_kept_names)
+        jo_free(__jo_3d_model_texture_names);
+    __jo_3d_model_texture_names = names;
+    __jo_3d_model_texture_ids = ids;
+    __jo_3d_model_texture_capacity = capacity;
+    return (true);
+}
+
 /** @brief Keep the name of a texture of the models (it is loaded once) */
 static void                                 jo_3d_model_add_texture(const char * const name, const int id)
 {
     if (id < 0 || __jo_3d_model_texture_count >= JO_3D_MODEL_MAX_TEXTURES)
+        return;
+    // (more textures of models than the tables kept in the program: a table twice as big allocated)
+    if (__jo_3d_model_texture_count >= __jo_3d_model_texture_capacity &&
+        !jo_3d_model_texture_tables(JO_MIN(JO_MULT_BY_2(__jo_3d_model_texture_capacity), JO_3D_MODEL_MAX_TEXTURES)))
         return;
     // (a name longer than 15 characters: kept with its first 15, as before)
     jo_3d_model_texture_hash(name, &__jo_3d_model_texture_names[__jo_3d_model_texture_count]);
@@ -269,6 +315,9 @@ void                                        jo_3d_model_free_textures_from(const
         ++n;
     }
     __jo_3d_model_texture_count = n;
+    // (back in the tables kept in the program when they are enough: the table allocated freed)
+    if (__jo_3d_model_texture_capacity != JO_3D_MODEL_KEPT_TEXTURES && n <= JO_3D_MODEL_KEPT_TEXTURES)
+        jo_3d_model_texture_tables(JO_3D_MODEL_KEPT_TEXTURES);
     __jo_3d_forget_sprites_from(sprite_id);
     jo_sprite_free_from(sprite_id);
 }
