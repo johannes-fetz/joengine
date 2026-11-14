@@ -148,6 +148,8 @@ void                                        jo_fs_close(jo_file * const file);
 /** @brief Set the size of the read buffer of the files opened by jo_fs_open()
  *  @param count Number of sectors (2048 bytes) read at once by jo_fs_read_next_bytes() (1 by default)
  *  @remarks Only the files opened after this call use the new size
+ *  @remarks A file read in many small pieces (the models of a level read one at a time): a bigger buffer calls the CD
+ *  less often (16 sectors: each call of the CD reads 32 KB)
  */
 void                                        jo_fs_set_read_sector_count(const int count);
 
@@ -156,8 +158,21 @@ void                                        jo_fs_set_read_sector_count(const in
  *  @param buffer Pointer to an allocated buffer (length >= nbytes)
  *  @param nbytes number of bytes to read
  *  @return Number of bytes read (<= 0 means EOF)
+ *  @remarks The whole sectors of a big read go straight to the buffer (not through the read buffer of the file: no copy,
+ *  and the DMA when the buffer is 4 bytes aligned)
  */
 int                                         jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes);
+
+/** @brief Read bytes from a file: all of them
+ *  @param file Pointer to an allocated and valid jo_file struct
+ *  @param buffer Pointer to an allocated buffer (length >= nbytes)
+ *  @param nbytes Number of bytes to read
+ *  @return false if the file ends before or if the read failed
+ */
+static  __jo_force_inline bool              jo_fs_read_exact(jo_file * const file, void * const buffer, const unsigned int nbytes)
+{
+    return (jo_fs_read_next_bytes(file, (char *)buffer, nbytes) == (int)nbytes);
+}
 
 /** @brief Seek forward from current position of a file
  *  @param file Pointer to an allocated and valid jo_file struct

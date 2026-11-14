@@ -863,6 +863,19 @@ static  __jo_force_inline int	jo_random_using_multiple(int max, int multiple)
     return (max < multiple ? multiple : jo_random(max / multiple) * multiple);
 }
 
+/** @brief Get a random number of a sequence of its own (the effects of a game: the same at each run, whatever the other
+ *  calls of jo_random())
+ *  @param seed The seed of the sequence (any value at the start; updated)
+ *  @return 0 to 65535
+ *  @remarks Linear congruential generator: seed = seed * 1103515245 + 12345, the high 16 bits (the low bits repeat soon).
+ *  A number from 0 to n - 1: jo_random_seeded(&seed) % n
+ */
+static  __jo_force_inline int   jo_random_seeded(unsigned int * const seed)
+{
+    *seed = *seed * 1103515245u + 12345u;
+    return ((int)(*seed >> 16));
+}
+
 /*
 ███████╗ ██████╗ ██████╗ ████████╗
 ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝

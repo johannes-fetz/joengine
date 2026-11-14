@@ -534,6 +534,18 @@ void                                    jo_3d_free_sprite_quad(const int sprite_
  */
 void                                jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const mesh, const int sprite_id, const unsigned int index);
 
+/** @brief Set a texture of 16 colors on one polygon, its colors taken in a bank of 16 colors of a palette (in place of its
+ *  color lookup table): a polygon of the palette lighting (see jo_3d_set_palette_light()), or opaque over the half
+ *  transparent water (the MSB of the colors of the palette cleared), or the same texture in other colors
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param sprite_id Sprite ID (16 colors: jo_sprite_add_4bits_lut(), jo_sprite_add_image_4bits_lut())
+ *  @param palette Palette (jo_create_palette())
+ *  @param bank Bank of 16 colors in the palette: 0 to 15 (the pixel of index i: the color bank * 16 + i of the palette)
+ *  @param index polygon index on the mesh
+ */
+void                                jo_3d_set_mesh_polygon_texture_bank(jo_3d_mesh * const mesh, const int sprite_id, const jo_palette * const palette,
+                                                                        const int bank, const unsigned int index);
+
 /** @brief Set a texture on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param sprite_id Sprite ID
@@ -1072,6 +1084,27 @@ static  __jo_force_inline bool      jo_3d_mesh_draw_ranges(const jo_3d_mesh * co
                                                            const jo_3d_polygon_range * const ranges, const int range_count)
 {
     return (__jo_3d_draw_ranges(&mesh->data, point_count, ranges, range_count));
+}
+
+/** @brief Add polygons to a list of ranges (see jo_3d_mesh_draw_ranges()): joined to the last range when they follow it
+ *  @param ranges Ranges (room for one more)
+ *  @param range_count Number of ranges (updated)
+ *  @param first First polygon
+ *  @param count Number of polygons (0 or less: nothing added)
+ */
+static  __jo_force_inline void      jo_3d_add_polygon_range(jo_3d_polygon_range * const ranges, int * const range_count, const int first,
+                                                            const int count)
+{
+    if (count <= 0)
+        return;
+    if (*range_count > 0 && ranges[*range_count - 1].first + ranges[*range_count - 1].count == first)
+    {
+        ranges[*range_count - 1].count += (unsigned short)count;
+        return;
+    }
+    ranges[*range_count].first = (unsigned short)first;
+    ranges[*range_count].count = (unsigned short)count;
+    ++*range_count;
 }
 
 /** @brief Get polygon count on the mesh

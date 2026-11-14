@@ -485,6 +485,81 @@ static void                     t_vdp2_malloc(void)
 ** Files (cd/TEST.TXT)
 */
 
+/** @brief The bytes of cd/DATA/PATTERN.BIN wrong in a piece of it
+ *  @param p The piece
+ *  @param offset Its place in the file
+ *  @param len Its size
+ */
+static int                      t_pattern_errors(const unsigned char * const p, const int offset, const int len)
+{
+    int                         bad;
+    int                         i;
+
+    for (bad = 0, i = 0; i < len; ++i)
+        if (p[i] != (unsigned char)(((offset + i) * 7 + ((offset + i) >> 8)) & 255))
+            ++bad;
+    return (bad);
+}
+
+/** @brief The reads of an open file (cd/DATA/PATTERN.BIN, 5001 bytes): through the read buffer, the whole sectors of a big
+ *  read straight to the output (aligned or not), the end of the file */
+static void                     t_file_reads(void)
+{
+    unsigned char               *buf;
+    jo_file                     file;
+    bool                        ok;
+
+    jt_group("fs.reads");
+    // (allocated: in the BSS the test ROM no longer fit under the Linux compiler)
+    buf = (unsigned char *)jo_malloc(5008);
+    JT_TRUE(buf != JO_NULL);
+    if (buf == JO_NULL)
+        return ;
+    JT_TRUE(jo_fs_cd("DATA"));
+    // 3 bytes, then 4096: the rest of the read buffer (1 sector), a whole sector straight to the output (aligned: the
+    // DMA), 3 bytes through the read buffer
+    ok = jo_fs_open(&file, "PATTERN.BIN");
+    JT_TRUE(ok);
+    if (ok)
+    {
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf, 3), 3);
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf + 4, 4096), 4096);
+        JT_EQ(t_pattern_errors(buf, 0, 3) + t_pattern_errors(buf + 4, 3, 4096), 0);
+        // The end of the file: the bytes left, then none
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf, 1000), 902);
+        JT_EQ(t_pattern_errors(buf, 4099, 902), 0);
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf, 10), 0);
+        jo_fs_close(&file);
+    }
+    // A whole sector straight to an output not aligned (the CPU stores the bytes), then jo_fs_read_exact()
+    ok = jo_fs_open(&file, "PATTERN.BIN");
+    JT_TRUE(ok);
+    if (ok)
+    {
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf + 1, 4100), 4100);
+        JT_EQ(t_pattern_errors(buf + 1, 0, 4100), 0);
+        JT_TRUE(jo_fs_read_exact(&file, buf, 901));
+        JT_EQ(t_pattern_errors(buf, 4100, 901), 0);
+        JT_TRUE(!jo_fs_read_exact(&file, buf, 1));
+        jo_fs_close(&file);
+    }
+    // A read buffer of 2 sectors (filled when the file is opened), a seek forward in it
+    jo_fs_set_read_sector_count(2);
+    ok = jo_fs_open(&file, "PATTERN.BIN");
+    jo_fs_set_read_sector_count(1);
+    JT_TRUE(ok);
+    if (ok)
+    {
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf, 2048), 2048);
+        JT_TRUE(jo_fs_seek_forward(&file, 100));
+        JT_EQ(jo_fs_read_next_bytes(&file, (char *)buf + 2048, 3000), 2853);
+        JT_EQ(t_pattern_errors(buf, 0, 2048) + t_pattern_errors(buf + 2048, 2148, 2853), 0);
+        jo_fs_close(&file);
+    }
+    jo_fs_cd(JO_PARENT_DIR);
+    jo_free(buf);
+}
+
 static void                     t_files(void)
 {
     char                        *data;
@@ -529,4 +604,5 @@ void                            t_state(void)
     t_sprite_shapes();
     t_vdp2_malloc();
     t_files();
+    t_file_reads();
 }

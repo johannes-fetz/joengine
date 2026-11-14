@@ -266,6 +266,45 @@ static void             t_malloc(void)
     jo_free(p);
 }
 
+static void             t_helpers(void)
+{
+    static const unsigned char  bytes[6] = {0x00, 0x12, 0x34, 0x56, 0x78, 0x9A};
+    unsigned int        seed;
+    unsigned int        other;
+    jo_3d_polygon_range ranges[4];
+    int                 count;
+    jo_palette          palette;
+
+    jt_group("helpers");
+    // The random numbers of a sequence of its own: the generator of the C standard, its high 16 bits
+    seed = 12345;
+    JT_EQ(jo_random_seeded(&seed), 54236);
+    JT_EQ(jo_random_seeded(&seed), 42756);
+    other = 12345;
+    jo_random_seeded(&other);
+    JT_EQ(jo_random_seeded(&other), 42756);
+    JT_EQ(jo_random_seeded(&seed), 54885);
+    // The ranges of polygons: joined when they follow each other, nothing added for 0 polygons
+    count = 0;
+    jo_3d_add_polygon_range(ranges, &count, 0, 3);
+    jo_3d_add_polygon_range(ranges, &count, 3, 2);
+    jo_3d_add_polygon_range(ranges, &count, 10, 1);
+    jo_3d_add_polygon_range(ranges, &count, 11, 0);
+    JT_EQ(count, 2);
+    JT_EQ(ranges[0].first, 0);
+    JT_EQ(ranges[0].count, 5);
+    JT_EQ(ranges[1].first, 10);
+    JT_EQ(ranges[1].count, 1);
+    // The color code of a color of a palette
+    palette.id = 2;
+    palette.data = JO_NULL;
+    JT_EQ(jo_palette_color(&palette, 5), 2 * 256 + 5);
+    // Big endian values at any address, a mix of 2 colors
+    JT_EQ((int)jo_read_big_endian_uint(bytes + 1), 0x12345678);
+    JT_EQ(jo_read_big_endian_ushort(bytes + 3), 0x5678);
+    JT_EQ(jo_color_mix(JO_COLOR_RGB(0, 0, 0), JO_COLOR_RGB(248, 128, 64), 128), JO_COLOR_SATURN_RGB(15, 8, 4));
+}
+
 void                    t_logic(void)
 {
     t_fixed();
@@ -275,4 +314,5 @@ void                    t_logic(void)
     t_strings();
     t_list();
     t_malloc();
+    t_helpers();
 }

@@ -8663,6 +8663,25 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
     mesh->data.attributes[index].direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_SPRITE_NO_FLIP);
 }
 
+void                        jo_3d_set_mesh_polygon_texture_bank(jo_3d_mesh * const mesh, const int sprite_id, const jo_palette * const palette,
+                                                                const int bank, const unsigned int index)
+{
+    jo_3d_polygon_attribute *attribute;
+
+#ifdef JO_DEBUG
+    if (palette == JO_NULL)
+    {
+        jo_core_error("palette is null");
+        return ;
+    }
+#endif
+    jo_3d_set_mesh_polygon_texture(mesh, sprite_id, index);
+    // (the color bank mode in place of the color lookup table: the color is the first one of the bank)
+    attribute = &mesh->data.attributes[index];
+    attribute->draw_mode = (unsigned short)((attribute->draw_mode & ~JO_VDP1_COLOR_MODE_MASK) | JO_VDP1_COLOR_MODE_16_BANK);
+    attribute->color = (unsigned short)(palette->id * 256 + bank * 16);
+}
+
 void                        jo_3d_set_mesh_texture(jo_3d_mesh * const mesh, const int sprite_id)
 {
     unsigned int            i;

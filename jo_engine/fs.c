@@ -1254,6 +1254,7 @@ typedef struct
  *  @return false if the read failed
  */
 static bool             jo_fs_fill_read_buffer(jo_file * const file);
+static bool             jo_fs_read_sectors_to(jo_file * const file, char * const buffer, const int sector_count);
 
 /** @brief Read bytes of a file as they are on the CD
  *  @param file File
@@ -1271,9 +1272,26 @@ static int              jo_fs_read_raw(jo_file * const file, char *buffer, unsig
     JO_ZERO(readed);
     while (nbytes > 0 && *read < size)
     {
-        // The read buffer is empty: read the next sectors
-        if (file->read_index >= file->read_buffer_size && !jo_fs_fill_read_buffer(file))
-            break;
+        if (file->read_index >= file->read_buffer_size)
+        {
+            // The read buffer is empty (the next byte is the first one of a sector): the whole sectors wanted go straight
+            // to the output (no copy, the DMA when it is aligned), the rest through the read buffer
+            n = JO_MIN(nbytes, (unsigned int)(size - *read)) / JO_SECTOR_SIZE;
+            if (n > 0)
+            {
+                if (!jo_fs_read_sectors_to(file, buffer, (int)n))
+                    break;
+                n *= JO_SECTOR_SIZE;
+                buffer += n;
+                nbytes -= n;
+                *read += n;
+                readed += n;
+                continue;
+            }
+            // The read buffer is empty: read the next sectors
+            if (!jo_fs_fill_read_buffer(file))
+                break;
+        }
         // Copy what is available in the read buffer at once
         n = file->read_buffer_size - file->read_index;
         if (n > nbytes)
@@ -1701,16 +1719,28 @@ bool                    jo_fs_open(jo_file * const file, const char *const filen
  */
 static bool             jo_fs_fill_read_buffer(jo_file * const file)
 {
+    if (!jo_fs_read_sectors_to(file, file->read_buffer, file->read_buffer_size / JO_SECTOR_SIZE))
+        return (false);
+    JO_ZERO(file->read_index);
+    return (true);
+}
+
+/** @brief Read the next sectors of a file (retried a few times)
+ *  @param file File
+ *  @param buffer Output (sector_count x 2048 bytes)
+ *  @param sector_count Sectors to read
+ *  @return false if the read failed
+ */
+static bool             jo_fs_read_sectors_to(jo_file * const file, char * const buffer, const int sector_count)
+{
     int                 retry;
 
-    for (retry = JO_READ_RETRY_COUNT; __jo_fs_read_sectors(file->handle, file->read_buffer_size / JO_SECTOR_SIZE,
-                                                            file->read_buffer, file->read_buffer_size) < 0; --retry)
+    for (retry = JO_READ_RETRY_COUNT; __jo_fs_read_sectors(file->handle, sector_count, buffer, sector_count * JO_SECTOR_SIZE) < 0; --retry)
     {
         if (!retry)
             return (false);
         jo_spin_wait(JO_READ_SPIN_WAIT);
     }
-    JO_ZERO(file->read_index);
     return (true);
 }
 

@@ -1490,6 +1490,163 @@ const jo_3d_model_group                     *jo_3d_model_find_group(const jo_3d_
     return (JO_NULL);
 }
 
+/** @brief Most chunks walked by jo_3d_model_find_chunk() (the size of the data is not known: a wrong file stops there) */
+# define JO_3D_MODEL_FIND_CHUNK_MAX             (64)
+
+const unsigned char                         *jo_3d_model_find_chunk(const void * const data, const char * const tag, unsigned int * const size)
+{
+    const unsigned char                     *p;
+    unsigned int                            chunk;
+    register unsigned int                   k;
+
+    if (data == JO_NULL)
+        return (JO_NULL);
+    p = (const unsigned char *)data + JO_3D_MODEL_HEADER_SIZE;
+    for (JO_ZERO(k); k < JO_3D_MODEL_FIND_CHUNK_MAX && !jo_3d_model_is_tag(p, "END "); ++k)
+    {
+        chunk = *(const unsigned int *)(p + 4);
+        if (jo_3d_model_is_tag(p, tag))
+        {
+            if (size != JO_NULL)
+                *size = chunk;
+            return (p + 8);
+        }
+        // (the sizes are multiples of 4: a wrong one stops the walk, the next chunk would not be aligned)
+        if (chunk & 3)
+            break;
+        p += 8 + chunk;
+    }
+    return (JO_NULL);
+}
+
+const unsigned short                        *jo_3d_model_file_gouraud_colors(const void * const data, const unsigned int polygon_count)
+{
+    const unsigned char                     *p;
+
+    // (the count of the colors: 4 per polygon)
+    p = jo_3d_model_find_chunk(data, "GOUR", JO_NULL);
+    if (p == JO_NULL || *(const unsigned int *)p != JO_MULT_BY_4(polygon_count))
+        return (JO_NULL);
+    return ((const unsigned short *)(p + 4));
+}
+
+bool                                        jo_3d_model_set_environment(jo_3d_model * const model, const int sprite_id, const int tiles,
+                                                                        const unsigned int material_flags)
+{
+    jo_3d_mesh                              *mesh;
+    register unsigned int                   k;
+
+    if (model == JO_NULL || sprite_id < 0)
+        return (false);
+    mesh = model->mesh;
+    if (!jo_3d_set_mesh_environment(mesh, sprite_id, tiles))
+        return (false);
+    if (model->materials == JO_NULL || model->polygon_materials == JO_NULL)
+        return (true);
+    for (JO_ZERO(k); k < mesh->data.polygon_count; ++k)
+        if (model->materials[model->polygon_materials[k]].flags & material_flags)
+            jo_3d_set_mesh_polygon_environment(mesh, k);
+    return (true);
+}
+
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
+void                                        jo_3d_model_pool_init(jo_3d_model_pool * const pool, const unsigned int block_size,
+                                                                  const unsigned int bytes)
+{
+    pool->block = JO_NULL;
+    JO_ZERO(pool->left);
+    pool->bytes_left = bytes;
+    pool->block_size = block_size;
+    JO_ZERO(pool->block_count);
+}
+
+jo_3d_model                                 *jo_3d_model_pool_read(jo_3d_model_pool * const pool, jo_file * const file, const unsigned int size)
+{
+    unsigned int                            size4;
+    unsigned int                            used;
+    unsigned int                            chunk;
+    unsigned char                           *data;
+    unsigned char                           *p;
+    unsigned char                           *cut;
+    jo_3d_model                             *model;
+
+    if (size == 0)
+        return (JO_NULL);
+    size4 = (size + 3) & ~3u;
+    if (size4 > pool->left)
+    {
+        // A new block (the rest of the current one is lost; the memory left in pieces: a block of the size of the model)
+        pool->left = JO_MAX(pool->bytes_left > 0 ? JO_MIN(pool->block_size, pool->bytes_left) : pool->block_size, size4);
+        pool->block = (unsigned char *)jo_malloc(pool->left);
+        if (pool->block == JO_NULL)
+        {
+            pool->left = size4;
+            pool->block = (unsigned char *)jo_malloc(pool->left);
+        }
+        if (pool->block == JO_NULL || pool->block_count >= JO_3D_MODEL_POOL_MAX_BLOCKS)
+        {
+            if (pool->block != JO_NULL)
+                jo_free(pool->block);
+            pool->block = JO_NULL;
+            JO_ZERO(pool->left);
+            return (JO_NULL);
+        }
+        pool->blocks[pool->block_count++] = pool->block;
+    }
+    data = pool->block;
+    if (!jo_fs_read_exact(file, data, size4))
+        return (JO_NULL);
+    pool->bytes_left -= JO_MIN(pool->bytes_left, size4);
+    model = jo_3d_create_model_in_place(data, size);
+    if (model == JO_NULL)
+        return (JO_NULL);
+    // The chunks used only while the model was created, last in the file: the embedded textures, the names of the
+    // textures, the gouraud colors are in the VRAM now. The next model is read over them, an end chunk in their place
+    // (rally demo: about 150 KB less for a track)
+    used = size4;
+    cut = JO_NULL;
+    for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 8 <= data + size; p += 8 + chunk)
+    {
+        chunk = *(const unsigned int *)(p + 4);
+        if (jo_3d_model_is_tag(p, "END "))
+        {
+            if (cut != JO_NULL)
+            {
+                jo_memcpy(cut, "END \0\0\0\0", 8);
+                used = (unsigned int)(cut + 8 - data);
+            }
+            break;
+        }
+        // (a wrong size: nothing given back)
+        if (chunk & 3)
+            break;
+        if (jo_3d_model_is_tag(p, "TIMG") || jo_3d_model_is_tag(p, "TEXT") || jo_3d_model_is_tag(p, "GOUR"))
+        {
+            if (cut == JO_NULL)
+                cut = p;
+        }
+        else
+            cut = JO_NULL;
+    }
+    pool->block += used;
+    pool->left -= used;
+    return (model);
+}
+
+void                                        jo_3d_model_pool_free(jo_3d_model_pool * const pool)
+{
+    register int                            k;
+
+    for (JO_ZERO(k); k < pool->block_count; ++k)
+        jo_free(pool->blocks[k]);
+    JO_ZERO(pool->block_count);
+    pool->block = JO_NULL;
+    JO_ZERO(pool->left);
+}
+
+#endif /* JO_COMPILE_WITH_FS_SUPPORT */
+
 #endif /* JO_COMPILE_WITH_3D_SUPPORT */
 
 /*

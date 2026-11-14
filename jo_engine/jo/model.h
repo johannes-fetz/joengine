@@ -246,7 +246,94 @@ jo_3d_model                                 *jo_3d_create_model_from_memory(cons
  */
 jo_3d_model                                 *jo_3d_create_model_in_place(const unsigned char * const data, const unsigned int size);
 
+/** @brief Find a chunk in the content of a JOM file (a chunk of the program too: the loader skips the chunks it doesn't
+ *  know)
+ *  @param data Content of the file (4 bytes aligned): model->file of a model that keeps it (jo_3d_load_model(),
+ *  jo_3d_create_model_in_place())
+ *  @param tag Tag of the chunk (4 characters, example: "GOUR")
+ *  @param size Size of the data of the chunk (output, JO_NULL: not wanted)
+ *  @return The data of the chunk (after its tag and its size), JO_NULL if the file has no such chunk
+ */
+const unsigned char                         *jo_3d_model_find_chunk(const void * const data, const char * const tag, unsigned int * const size);
+
+/** @brief The gouraud colors of the polygons in the content of a JOM file ("GOUR" chunk)
+ *  @param data Content of the file (4 bytes aligned)
+ *  @param polygon_count Polygons of the model
+ *  @return polygon_count x 4 colors (RGB 555, 16: the texture unchanged), JO_NULL if the file has none for these polygons
+ */
+const unsigned short                        *jo_3d_model_file_gouraud_colors(const void * const data, const unsigned int polygon_count);
+
+/** @brief The gouraud colors of a model as they were loaded: a game that writes its gouraud tables again (a light on a car)
+ *  starts from them (its tables in the VRAM may not be written yet)
+ *  @param model Model that keeps the content of its file (jo_3d_load_model(), jo_3d_create_model_in_place())
+ *  @return polygons x 4 colors, JO_NULL if the model has no gouraud colors or keeps no file (jo_3d_create_model_from_memory())
+ */
+static  __jo_force_inline const unsigned short  *jo_3d_model_gouraud_colors(const jo_3d_model * const model)
+{
+    if (model == JO_NULL || model->gouraud_tables == 0 || model->file == JO_NULL)
+        return (JO_NULL);
+    return (jo_3d_model_file_gouraud_colors(model->file, model->mesh->data.polygon_count));
+}
+
+/** @brief Environment map on the polygons of a model whose material has a flag (the paint and the glass of a car, see
+ *  jo_3d_set_mesh_environment())
+ *  @param model Model
+ *  @param sprite_id The picture of the surroundings (RGB)
+ *  @param tiles Tiles on a side (4 to 8)
+ *  @param material_flags Flags of the materials (jo_3d_material.flags, example: JO_3D_MATERIAL_USER(0)): the polygons of
+ *  a material with one of them show the environment map
+ *  @return false if the model is JO_NULL, the sprite -1, or if the mesh can't have this environment map (see
+ *  jo_3d_set_mesh_environment())
+ */
+bool                                        jo_3d_model_set_environment(jo_3d_model * const model, const int sprite_id, const int tiles,
+                                                                        const unsigned int material_flags);
+
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
+
+/** @brief Maximum of memory blocks of a pool of models */
+# define JO_3D_MODEL_POOL_MAX_BLOCKS            (256)
+
+/** @brief Models read one after the other from a file (the parts of a level) into big memory blocks, used in place
+ *  (jo_3d_create_model_in_place()): no copy, no small memory blocks for each model. Measured (rally demo, about 1000
+ *  models): the copies of jo_3d_create_model_from_memory() took 11 s (about 12 memory blocks each, every block allocated
+ *  after a search among the ones before)
+ */
+typedef struct
+{
+    unsigned char                           *block;             // Free place in the current block
+    unsigned int                            left;               // Bytes left in it
+    unsigned int                            bytes_left;         // Bytes of the models not read yet (a block no bigger than
+                                                                // them), 0: unknown
+    unsigned int                            block_size;
+    int                                     block_count;
+    unsigned char                           *blocks[JO_3D_MODEL_POOL_MAX_BLOCKS];
+}                                           jo_3d_model_pool;
+
+/** @brief Start a pool of models
+ *  @param pool Pool
+ *  @param block_size Size of its memory blocks (64 KB for example: a bigger model has a block of its size)
+ *  @param bytes Bytes of all the models it will read, each one rounded up to 4 bytes: the last block is no bigger than the
+ *  models left (0: unknown)
+ */
+void                                        jo_3d_model_pool_init(jo_3d_model_pool * const pool, const unsigned int block_size,
+                                                                  const unsigned int bytes);
+
+/** @brief Read the next model of a file (the content of a JOM file, see jo_3d_create_model_in_place()) into a pool
+ *  @param pool Pool
+ *  @param file File open at the model (many small models: a bigger read buffer, see jo_fs_set_read_sector_count())
+ *  @param size Size of the model in the file (the next one starts after it, rounded up to 4 bytes)
+ *  @return The model (free it with jo_3d_free_model()), JO_NULL if size is 0, the read failed, the model is wrong or out of
+ *  memory
+ *  @remarks The chunks used only while the model is created, when they are the last ones of the file ("TIMG", "TEXT",
+ *  "GOUR": the textures and the gouraud tables are in the VRAM now), are given back: the next model is read over them
+ *  (jo_3d_model_gouraud_colors() gives JO_NULL for such a model)
+ */
+jo_3d_model                                 *jo_3d_model_pool_read(jo_3d_model_pool * const pool, jo_file * const file, const unsigned int size);
+
+/** @brief Free the memory blocks of a pool (after its models: jo_3d_free_model())
+ *  @param pool Pool (empty after the call)
+ */
+void                                        jo_3d_model_pool_free(jo_3d_model_pool * const pool);
 
 /** @brief Load a model (JOM file) from the current directory of the CD
  *  @param filename File name (example: "MODEL.JOM")

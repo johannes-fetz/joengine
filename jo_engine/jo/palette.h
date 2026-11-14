@@ -67,6 +67,17 @@ void                jo_palette_set_light_shades(jo_palette * const palette, cons
 /** @brief Color code of the color i of the shades written by jo_palette_set_light_shades() (its darkest shade) */
 # define JO_PALETTE_LIGHT_COLOR(PALETTE_ID, FIRST, I)   ((jo_color)((PALETTE_ID) * 256 + (FIRST) + (I)))
 
+/** @brief Color code of a color of a palette: a polygon of this color (jo_3d_set_mesh_polygon_color()) has the color of
+ *  the palette, in all the modes
+ *  @param palette Palette (jo_create_palette())
+ *  @param index Index of the color in the palette (1 to 255: palette->data[index - 1])
+ *  @return jo_color
+ */
+static  __jo_force_inline jo_color  jo_palette_color(const jo_palette * const palette, const int index)
+{
+    return ((jo_color)(palette->id * 256 + index));
+}
+
 /** @brief Copies the image palette data to CRAM
  *  @param data Data source
  *  @param cram_addr Color RAM address
