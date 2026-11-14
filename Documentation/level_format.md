@@ -320,6 +320,40 @@ Record:
 
 Size: 76 bytes.
 
+### TX16: Textures of 16 colors (version 1)
+
+Textures of 16 colors (4 bits a pixel: 4 times less VRAM than RGB) and their palette, read when the game starts (not in the program). A texture gives the color of the palette of each of its 16 pixel values. The engine copies the palette in the color RAM (jo_level_set_textures16_palette()) and makes a sprite of each texture with its color lookup table (jo_level_add_textures16()): the color codes of the palette (opaque over a see-through bottom, the blend ratios of the sprites) or the RGB colors (gouraud, half transparency); a texture whose pixel value v is the color bank x 16 + v can also be drawn with its bank (jo_3d_set_mesh_polygon_texture_bank()). See jo_engine/jo/level.h.
+
+Header:
+
+| Offset | Field | Type | Default | Since | Description |
+|---|---|---|---|---|---|
+| 0 | `color_count` | u16 | 0 | v1 | Colors of the palette (0 to 255): the color n (1 to color_count) is colors[n - 1] |
+| 2 | `flags` | u16 | 0 | v1 | Reserved (0) |
+| 4 | `colors` | offset | 0 | v1 | Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see jo_vdp2_blend_rgb_sprites_only()). In a lookup table of RGB colors the MSB is set |
+| 8 | `pixel_size` | u32 | 0 | v1 | Bytes of pixels |
+| 12 | `pixels` | offset | 0 | v1 | Pixels of the textures: 2 pixels a byte (the left pixel in the high bits), each texture at a multiple of 4 bytes |
+
+Size: 16 bytes.
+
+Record:
+
+| Offset | Field | Type | Default | Since | Description |
+|---|---|---|---|---|---|
+| 0 | `width` | u16 | 0 | v1 | Width (a multiple of 8) (pixels) |
+| 2 | `height` | u16 | 0 | v1 | Height (pixels) |
+| 4 | `pixels` | u32 | 0 | v1 | Offset of the pixels of the texture in the array pixels (a multiple of 4): width x height / 2 bytes |
+| 8 | `value` | u16 | 0 | v1 | Of the game (the engine does not use it): a bank of the palette, the width of the ink of a sprite... |
+| 10 | `colors` | u8[16] | 0 | v1 | Color of the palette of each pixel value: 1 to color_count, 0: transparent (the pixel value 0 is transparent) |
+| 26 | `ratios` | u8[16] | 0 | v1 | Blend ratio of each pixel value (0 to 3, see jo_vdp2_set_sprite_blend_ratios()): the bits 12-11 of its color code in a lookup table of color codes |
+
+Size: 44 bytes.
+
+Arrays (after the header and the records, aligned on 4 bytes):
+
+- `colors`: u16, color_count elements (offset: `colors`). Colors of the palette.
+- `pixels`: u8, pixel_size elements (offset: `pixels`). Pixels of the textures.
+
 ## Enumerations
 
 ### EVENT

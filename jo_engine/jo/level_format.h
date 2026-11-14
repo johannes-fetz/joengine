@@ -342,6 +342,40 @@ typedef struct
 /** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
 # define JO_LEVEL_WEAP_RECORD_DEFAULTS      {.name = 0xFFFFFFFF, .model = 0xFFFFFFFF, .convergence = 0x258, .fire_delay = 4, .damage = 0x19, .recoil = 0xA, .kick = 2, .magazine = 0x1E, .ammo_max = 0x3E7, .reload_time = 0x32, .switch_time = 0xC, .flash = 0xFFFFFFFF, .flash_size = 0x16, .sound_shot = 0xFFFFFFFF, .sound_reload = 0xFFFFFFFF, .shot_volume = 0x78}
 
+/*
+** TX16: Textures of 16 colors (version 1)
+*/
+# define JO_LEVEL_SECTION_TX16               JO_LEVEL_ID('T', 'X', '1', '6')
+# define JO_LEVEL_TX16_VERSION               (1)
+
+/** @brief Textures of 16 colors: header (16 bytes) */
+typedef struct
+{
+    unsigned short              color_count;         // v1: Colors of the palette (0 to 255): the color n (1 to color_count) is colors[n - 1]
+    unsigned short              flags;               // v1: Reserved (0)
+    unsigned int                colors;              // v1: Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see jo_vdp2_blend_rgb_sprites_only()). In a lookup table of RGB colors the MSB is set
+    unsigned int                pixel_size;          // v1: Bytes of pixels
+    unsigned int                pixels;              // v1: Pixels of the textures: 2 pixels a byte (the left pixel in the high bits), each texture at a multiple of 4 bytes
+}                               jo_level_tx16_header;
+
+/** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
+# define JO_LEVEL_TX16_HEADER_DEFAULTS      {}
+
+/** @brief Textures of 16 colors: record (44 bytes) */
+typedef struct
+{
+    unsigned short              width;               // v1: Width (a multiple of 8) (pixels)
+    unsigned short              height;              // v1: Height (pixels)
+    unsigned int                pixels;              // v1: Offset of the pixels of the texture in the array pixels (a multiple of 4): width x height / 2 bytes
+    unsigned short              value;               // v1: Of the game (the engine does not use it): a bank of the palette, the width of the ink of a sprite...
+    unsigned char               colors[16];          // v1: Color of the palette of each pixel value: 1 to color_count, 0: transparent (the pixel value 0 is transparent)
+    unsigned char               ratios[16];          // v1: Blend ratio of each pixel value (0 to 3, see jo_vdp2_set_sprite_blend_ratios()): the bits 12-11 of its color code in a lookup table of color codes
+    unsigned char               __pad0[2];
+}                               jo_level_tx16_record;
+
+/** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
+# define JO_LEVEL_TX16_RECORD_DEFAULTS      {}
+
 /** @brief Events of an entity (LINK.event): what happened to the source */
 # define JO_LEVEL_EVENT_TRIGGER             (0)
 # define JO_LEVEL_EVENT_ENTER               (1)

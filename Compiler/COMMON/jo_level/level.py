@@ -6,6 +6,8 @@ Example:
     lv.add('TERR', header=dict(n=3, cell=128, origin_x=0, origin_z=0),
            arrays=dict(heights=[0] * 9, colors=[0x8000] * 9, holes=[]))
     lv.add('PLNT', records=[dict(x=0, y=40, z=0, kind=0, angle=30, scale=256)])
+    lv.add_textures16([dict(width=8, height=2, pixels=[[0, 1] * 4, [2, 1] * 4], colors=[0, 1, 2] + [0] * 13)],
+                      [jo_level.saturn_color(255, 0, 0), jo_level.saturn_color(0, 0, 255)])
     lv.write('cd/LEVEL.JOL')
 
     python3 -m jo_level dump cd/LEVEL.JOL      (or: python3 Compiler/COMMON/jo_level dump FILE)
@@ -69,6 +71,24 @@ def _unpack(fields, data, version):
 def _align(buf, n=4):
     while len(buf) % n:
         buf.append(0)
+
+
+def saturn_color(r, g, b, msb=True):
+    """A Saturn color (RGB 555) from 8 bits components, like JO_COLOR_RGB() with the MSB (msb=False: without it, a palette
+    color not mixed by the color calculation of the sprites)"""
+    return (0x8000 if msb else 0) | ((int(b) >> 3) << 10) | ((int(g) >> 3) << 5) | (int(r) >> 3)
+
+
+def pack4(rows):
+    """Pixel values (rows of 0 to 15, an even width) packed 4 bits a pixel, the left pixel in the high bits"""
+    out = bytearray()
+    for row in rows:
+        row = [int(v) for v in row]
+        if len(row) % 2 or any(not 0 <= v <= 15 for v in row):
+            raise ValueError('pack4: pixel values from 0 to 15, an even width')
+        for x in range(0, len(row), 2):
+            out.append((row[x] << 4) | row[x + 1])
+    return bytes(out)
 
 
 class Section:
@@ -215,6 +235,48 @@ class Level:
         self.add('CELL', records=records)
         if portals:
             self.add('PRTL', records=portals)
+
+    def add_textures16(self, textures, palette):
+        """Add textures of 16 colors and their palette (section TX16) from a list of dictionaries:
+
+            dict(width=16, height=8, pixels=[[0, 1, 2, ...], ...], colors=[0, 5, 6, ...], ratios=[0, 0, 2, ...], value=0)
+
+        pixels: rows of pixel values (0 to 15, 0: transparent), or bytes (2 pixels a byte, the left pixel in the high
+        bits, see pack4()); colors: the color of the palette of each pixel value (1 to len(palette), 0: transparent;
+        16 values at most, the missing ones 0; default: the pixel value v is the color v); ratios (optional): the blend
+        ratio of each pixel value (0 to 3); value (optional): of the game. The width is a multiple of 8.
+        palette: the colors of the palette (255 at most, the color n is palette[n - 1]), Saturn colors (see
+        saturn_color()): their MSB as in the color RAM
+        """
+        if len(palette) > 255:
+            raise ValueError('TX16: %d colors, 255 at most' % len(palette))
+        records = []
+        pixels = bytearray()
+        for k, t in enumerate(textures):
+            w, h = t['width'], t['height']
+            p = t['pixels']
+            if not isinstance(p, (bytes, bytearray)):
+                rows = [list(r) for r in p]
+                if len(rows) != h or any(len(r) != w for r in rows):
+                    raise ValueError('TX16[%d]: the pixels are not %d x %d' % (k, w, h))
+                p = pack4(rows)
+            if w <= 0 or h <= 0 or w % 8 or len(p) != w * h // 2:
+                raise ValueError('TX16[%d]: %d x %d (the width a multiple of 8), %d bytes of pixels' % (k, w, h, len(p)))
+            colors = [int(c) for c in t.get('colors', range(16))]
+            ratios = [int(r) for r in t.get('ratios', [])]
+            if len(colors) > 16 or len(ratios) > 16:
+                raise ValueError('TX16[%d]: 16 colors and 16 ratios at most' % k)
+            colors += [0] * (16 - len(colors))
+            ratios += [0] * (16 - len(ratios))
+            if any(not 0 <= c <= len(palette) for c in colors) or any(not 0 <= r <= 3 for r in ratios):
+                raise ValueError('TX16[%d]: a color outside of the palette (%d colors) or a ratio outside of 0 to 3' %
+                                 (k, len(palette)))
+            _align(pixels)
+            records.append(dict(width=w, height=h, pixels=len(pixels), value=t.get('value', 0), colors=colors,
+                                ratios=ratios))
+            pixels += p
+        _align(pixels)
+        return self.add('TX16', records=records, arrays=dict(colors=[int(c) for c in palette], pixels=pixels))
 
     # Writing
 
@@ -370,6 +432,18 @@ def validate(data):
         for v in terr.arrays['holes']:
             if (v & 0x7FFF) >= n * n:
                 raise ValueError('TERR: hole %d outside of the height map' % v)
+    tx16 = next((s for e, s in sections if e['name'] == 'TX16'), None)
+    if tx16 is not None:
+        h = tx16.header
+        if h['color_count'] > 255:
+            raise ValueError('TX16: %d colors, 255 at most' % h['color_count'])
+        for k, r in enumerate(tx16.records):
+            if r['width'] == 0 or r['height'] == 0 or r['width'] % 8 or r['pixels'] % 4 or \
+                    r['pixels'] + r['width'] * r['height'] // 2 > h['pixel_size']:
+                raise ValueError('TX16[%d]: %d x %d (the width a multiple of 8), its pixels outside of the array or not '
+                                 'aligned' % (k, r['width'], r['height']))
+            if max(r['colors']) > h['color_count'] or max(r['ratios']) > 3:
+                raise ValueError('TX16[%d]: a color outside of the palette or a ratio outside of 0 to 3' % k)
     return True
 
 

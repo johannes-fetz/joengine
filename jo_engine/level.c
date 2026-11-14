@@ -39,6 +39,10 @@
 #include "jo/malloc.h"
 #include "jo/fs.h"
 #include "jo/math.h"
+#include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
+#include "jo/sprites.h"
+#include "jo/palette.h"
 #include "jo/level.h"
 
 /** @brief Sections known by this engine and their versions: a required section must be known (else the level is refused) */
@@ -58,6 +62,7 @@ static const unsigned int           __jo_level_known[][2] =
     {JO_LEVEL_SECTION_CELL, JO_LEVEL_CELL_VERSION},
     {JO_LEVEL_SECTION_PRTL, JO_LEVEL_PRTL_VERSION},
     {JO_LEVEL_SECTION_WEAP, JO_LEVEL_WEAP_VERSION},
+    {JO_LEVEL_SECTION_TX16, JO_LEVEL_TX16_VERSION},
 };
 
 /** @brief Refuse a level (the reason is printed with JO_DEBUG) */
@@ -260,6 +265,121 @@ const char                          *jo_level_string(const jo_level * const leve
     if (level->strings == JO_NULL || offset >= level->strings_size)
         return ("");
     return (level->strings + offset);
+}
+
+/*
+** Textures of 16 colors (section TX16)
+*/
+
+/** @brief An array of a section with all its bytes in the section (a damaged file: not read past its section)
+ *  @return The array, JO_NULL if its offset is 0, if it is not aligned on align bytes or if it goes past the section
+ */
+static const void                   *jo_level_array_in_section(const jo_level * const level, const unsigned int id,
+                                                               const unsigned int offset, const unsigned int size,
+                                                               const unsigned int align)
+{
+    const jo_level_directory_entry  *e;
+
+    e = jo_level_find_section(level, id);
+    if (e == JO_NULL || offset == 0 || (offset & (align - 1)) != 0 || offset > e->size || size > e->size - offset)
+        return (JO_NULL);
+    return (level->data + e->offset + offset);
+}
+
+/** @brief The palette of the textures (color_count colors)
+ *  @return The colors, JO_NULL if there are none, more than JO_PALETTE_MAX_COLORS or outside of the section
+ */
+static const jo_color               *jo_level_textures16_colors(jo_level * const level, const jo_level_tx16_header * const header)
+{
+    if (header == JO_NULL || header->color_count == 0 || header->color_count > JO_PALETTE_MAX_COLORS)
+        return (JO_NULL);
+    return ((const jo_color *)jo_level_array_in_section(level, JO_LEVEL_SECTION_TX16, header->colors,
+                                                        header->color_count * sizeof(jo_color), sizeof(jo_color)));
+}
+
+bool                                jo_level_set_textures16_palette(jo_level * const level, const jo_palette * const palette)
+{
+    const jo_level_tx16_header      *header;
+    const jo_color                  *colors;
+    int                             k;
+
+#ifdef JO_DEBUG
+    if (level == JO_NULL || palette == JO_NULL)
+    {
+        jo_core_error("level or palette is null");
+        return (false);
+    }
+#endif
+    header = JO_LEVEL_HEADER(level, TX16, tx16);
+    if ((colors = jo_level_textures16_colors(level, header)) == JO_NULL || palette->data == JO_NULL)
+        return (false);
+    // (the color RAM: written 16 bits at a time)
+    for (JO_ZERO(k); k < header->color_count; ++k)
+        palette->data[k] = colors[k];
+    return (true);
+}
+
+bool                                jo_level_add_textures16(jo_level * const level, const jo_palette * const palette,
+                                                            const int first, const int count, int * const sprite_ids)
+{
+    const jo_level_tx16_header      *header;
+    const jo_level_tx16_record      *records;
+    const jo_level_tx16_record      *t;
+    const jo_color                  *colors;
+    const unsigned char             *pixels;
+    jo_color                        lut[16];
+    unsigned int                    record_count;
+    unsigned int                    c;
+    int                             k;
+    int                             v;
+
+#ifdef JO_DEBUG
+    if (level == JO_NULL || sprite_ids == JO_NULL)
+    {
+        jo_core_error("level or sprite_ids is null");
+        return (false);
+    }
+#endif
+    header = JO_LEVEL_HEADER(level, TX16, tx16);
+    records = JO_LEVEL_RECORDS(level, TX16, tx16, &record_count);
+    if (header == JO_NULL || records == JO_NULL || first < 0 || count < 0 || (unsigned int)count > record_count ||
+        (unsigned int)first > record_count - (unsigned int)count)
+        return (false);
+    // (the colors: read for the RGB tables only, their array checked in both cases: a damaged section is refused)
+    colors = jo_level_textures16_colors(level, header);
+    pixels = (const unsigned char *)jo_level_array_in_section(level, JO_LEVEL_SECTION_TX16, header->pixels, header->pixel_size, 4);
+    if (pixels == JO_NULL || (colors == JO_NULL && (palette == JO_NULL || header->color_count != 0)) ||
+        (palette != JO_NULL && palette->id < 0))
+        return (false);
+    // The textures checked first: a damaged one, no sprite made (the pixels in the array, aligned for the DMA; the colors in
+    // the palette)
+    for (t = records + first, k = 0; k < count; ++k, ++t)
+    {
+        if (t->width == 0 || (t->width & 7) != 0 || t->height == 0 || (t->pixels & 3) != 0 || t->pixels > header->pixel_size ||
+            (unsigned int)t->width * t->height / 2 > header->pixel_size - t->pixels)
+            return (false);
+        for (JO_ZERO(v); v < 16; ++v)
+            if (t->colors[v] > header->color_count)
+                return (false);
+    }
+    for (t = records + first, k = 0; k < count; ++k, ++t)
+    {
+        // The table: a color code of the palette (its blend ratio in the bits 12-11) or an RGB color (the MSB set: an entry
+        // without it is a color code); 0 for a transparent pixel value
+        for (JO_ZERO(v); v < 16; ++v)
+        {
+            c = t->colors[v];
+            if (c == 0)
+                JO_ZERO(lut[v]);
+            else if (palette != JO_NULL)
+                lut[v] = (jo_color)(((t->ratios[v] & 3) << 11) | jo_palette_color(palette, (int)c));
+            else
+                lut[v] = (jo_color)(colors[c - 1] | JO_COLOR_SATURN_MSB);
+        }
+        if ((sprite_ids[k] = jo_sprite_add_4bits_lut(pixels + t->pixels, t->width, t->height, lut)) < 0)
+            return (false);
+    }
+    return (true);
 }
 
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */

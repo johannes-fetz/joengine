@@ -426,6 +426,37 @@ SECTIONS = [
         Field('sound_reload', 'string', 'PCM file of the reload', default=NO_STRING),
         Field('shot_volume', 'u16', 'Volume of the shot (0 to 127)', default=120),
     ]),
+
+    Section('TX16', 1, 'Textures of 16 colors', "Textures of 16 colors (4 bits a pixel: 4 times less VRAM than RGB) and "
+            "their palette, read when the game starts (not in the program). A texture gives the color of the palette of "
+            "each of its 16 pixel values. The engine copies the palette in the color RAM (jo_level_set_textures16_palette()) "
+            "and makes a sprite of each texture with its color lookup table (jo_level_add_textures16()): the color codes of "
+            "the palette (opaque over a see-through bottom, the blend ratios of the sprites) or the RGB colors (gouraud, half "
+            "transparency); a texture whose pixel value v is the color bank x 16 + v can also be drawn with its bank "
+            "(jo_3d_set_mesh_polygon_texture_bank()). See jo_engine/jo/level.h", header=[
+        Field('color_count', 'u16', 'Colors of the palette (0 to 255): the color n (1 to color_count) is colors[n - 1]'),
+        Field('flags', 'u16', 'Reserved (0)'),
+        Field('colors', 'offset', 'Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color '
+              'RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see '
+              'jo_vdp2_blend_rgb_sprites_only()). In a lookup table of RGB colors the MSB is set'),
+        Field('pixel_size', 'u32', 'Bytes of pixels'),
+        Field('pixels', 'offset', 'Pixels of the textures: 2 pixels a byte (the left pixel in the high bits), each texture '
+              'at a multiple of 4 bytes'),
+    ], record=[
+        Field('width', 'u16', 'Width (a multiple of 8)', unit='pixels'),
+        Field('height', 'u16', 'Height', unit='pixels'),
+        Field('pixels', 'u32', 'Offset of the pixels of the texture in the array pixels (a multiple of 4): width x height '
+              '/ 2 bytes'),
+        Field('value', 'u16', 'Of the game (the engine does not use it): a bank of the palette, the width of the ink of a '
+              'sprite...'),
+        Field('colors', 'u8', 'Color of the palette of each pixel value: 1 to color_count, 0: transparent (the pixel '
+              'value 0 is transparent)', count=16),
+        Field('ratios', 'u8', 'Blend ratio of each pixel value (0 to 3, see jo_vdp2_set_sprite_blend_ratios()): the bits '
+              '12-11 of its color code in a lookup table of color codes', count=16),
+    ], arrays=[
+        Array('colors', 'u16', 'Colors of the palette', 'colors', count_field='color_count'),
+        Array('pixels', 'u8', 'Pixels of the textures', 'pixels', count_field='pixel_size'),
+    ]),
 ]
 
 # Identifiers reserved for the next versions of the engine (see the design notes): they must not be used by a game

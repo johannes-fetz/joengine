@@ -60,6 +60,10 @@ extern jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
+extern unsigned short           __jo_sprite_lut[JO_MAX_SPRITE];
+/** @brief (internal engine usage)
+ *  @warning MC Hammer: don't touch this
+ */
 void    jo_sprite_draw(const int sprite_id, const jo_pos3D * const pos, const bool centered_style_coordinates, const bool billboard);
 /** @brief (internal engine usage)
  *  @warning MC Hammer: don't touch this
@@ -106,9 +110,12 @@ int     jo_sprite_add_8bits_image(const jo_img_8bits * const img);
  *  @param pixels 2 pixels per byte (the left pixel in the high bits), the color 0 is transparent
  *  @param width Width (multiple of 8)
  *  @param height Height
- *  @param lut The 16 colors (RGB 555 of the Saturn, the color 0 is not used: transparent)
+ *  @param lut The 16 colors (RGB 555 of the Saturn, the color 0 is not used: transparent). An entry without its MSB is a
+ *  color code of a palette (jo_palette_color()): the pixel has the color of the color RAM (opaque over a see-through bottom,
+ *  see jo_vdp2_blend_rgb_sprites_only(); its bits 12-11: the blend ratio, see jo_vdp2_set_sprite_blend_ratios())
  *  @return Sprite Id or -1 if failed
- *  @remarks The table is kept in the VRAM just before the pixels, in the place of the texture (no sprite of its own)
+ *  @remarks The table is kept in the VRAM just before the pixels, in the place of the texture (no sprite of its own), see
+ *  jo_sprite_get_lut(). The textures of a level: jo_level_add_textures16()
  */
 int     jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsigned short width, const unsigned short height,
                                 const jo_color * const lut);
@@ -685,6 +692,20 @@ static  __jo_force_inline int           jo_sprite_get_height(const int sprite_id
 static  __jo_force_inline void          *jo_sprite_get_raw_data(const int sprite_id)
 {
     return (__jo_sprite_pic[sprite_id].data);
+}
+
+/** @brief Get the color lookup table of a 16 colors texture (jo_sprite_add_4bits_lut()): its 16 entries in the VRAM. The
+ *  game writes them to change the colors of the texture (an animation of its colors, all the polygons of the texture at
+ *  once) or reads them to find a texture by its colors
+ *  @param sprite_id Sprite Id
+ *  @return The table, JO_NULL if the sprite has none (not a 16 colors texture)
+ *  @remarks The smaller copies of a texture and its parts drawn near the camera (jo_3d_set_texture_mipmaps(),
+ *  jo_3d_set_texture_subdivision()) share its table
+ */
+static  __jo_force_inline jo_color      *jo_sprite_get_lut(const int sprite_id)
+{
+    // ((jo_color *)0: JO_NULL is not known by all the files that include this one)
+    return (__jo_sprite_lut[sprite_id] == 0 ? (jo_color *)0 : (jo_color *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[sprite_id])));
 }
 
 /*

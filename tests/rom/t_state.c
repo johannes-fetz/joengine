@@ -560,6 +560,155 @@ static void                     t_file_reads(void)
     jo_free(buf);
 }
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+
+/*
+** Textures of 16 colors of a level (section TX16): a level built in memory
+*/
+
+/** @brief A level with a section TX16: 2 textures of 8 x 2 pixels, a palette of 3 colors */
+typedef struct
+{
+    jo_level_tx16_header        header;
+    jo_level_tx16_record        records[2];
+    jo_color                    colors[4];
+    unsigned char               pixels[16];
+}                               t_tx16_section;
+
+typedef struct
+{
+    t_tx16_section              section;
+    jo_level_directory_entry    directory;
+    jo_level                    level;
+}                               t_tx16_file;
+
+#define T_TX16_FIELD(FIELD)     ((unsigned int)__builtin_offsetof(t_tx16_section, FIELD))
+
+/** @brief The damaged sections: a field changed (its offset in the section, its size, its value), refused */
+static const unsigned int       t_tx16_damages[][3] =
+{
+    {T_TX16_FIELD(records[1].pixels), 4, 12},           // Past the pixels
+    {T_TX16_FIELD(records[1].pixels), 4, 6},            // Not aligned
+    {T_TX16_FIELD(records[1].width), 2, 4},             // Not a multiple of 8
+    {T_TX16_FIELD(records[1].colors[5]), 1, 4},         // Not in the palette
+    {T_TX16_FIELD(header.pixel_size), 4, 0xFFFFFFF0u},  // Past the section
+    {T_TX16_FIELD(header.color_count), 2, 0x4000},      // More than 255 colors
+};
+
+/** @brief The tables of the textures: with the palette 5, then the second texture with RGB colors */
+static const jo_color           t_tx16_luts[3][16] =
+{
+    {0, 5 * 256 + 1, 5 * 256 + 2},
+    {0, 5 * 256 + 2, 0, (2 << 11) | (5 * 256 + 3)},
+    {0, JO_COLOR_RGB(0, 255, 0), 0, JO_COLOR_RGB(0, 0, 255)},
+};
+
+static void                     t_tx16_init(t_tx16_file * const f)
+{
+    t_tx16_section              *s;
+    int                         k;
+
+    jo_memset(f, 0, sizeof(*f));
+    s = &f->section;
+    s->header.color_count = 3;
+    s->header.colors = T_TX16_FIELD(colors);
+    s->header.pixel_size = sizeof(s->pixels);
+    s->header.pixels = T_TX16_FIELD(pixels);
+    // (the MSB of the colors as in the color RAM: the second one without it)
+    s->colors[0] = JO_COLOR_RGB(255, 0, 0);
+    s->colors[1] = JO_COLOR_RGB(0, 255, 0) & 0x7FFF;
+    s->colors[2] = JO_COLOR_RGB(0, 0, 255);
+    for (JO_ZERO(k); k < 16; ++k)
+        s->pixels[k] = (unsigned char)(k * 17);
+    // Texture 0: the pixel values 1 and 2 are the colors 1 and 2; texture 1: the value 3 is the color 3 with the ratio 2
+    s->records[0].width = 8;
+    s->records[0].height = 2;
+    s->records[0].colors[1] = 1;
+    s->records[0].colors[2] = 2;
+    s->records[1] = s->records[0];
+    s->records[1].pixels = 8;
+    s->records[1].value = 77;
+    s->records[1].colors[2] = 0;
+    s->records[1].colors[1] = 2;
+    s->records[1].colors[3] = 3;
+    s->records[1].ratios[3] = 2;
+    f->directory.id = JO_LEVEL_SECTION_TX16;
+    f->directory.version = JO_LEVEL_TX16_VERSION;
+    f->directory.size = sizeof(*s);
+    f->directory.header_size = sizeof(s->header);
+    f->directory.record_size = sizeof(s->records[0]);
+    f->directory.record_count = 2;
+    f->level.data = (unsigned char *)s;
+    f->level.size = sizeof(*s);
+    f->level.directory = &f->directory;
+    f->level.section_count = 1;
+}
+
+static void                     t_textures16(void)
+{
+    // (a palette in the work RAM: the color RAM has no free, the scenes create their palettes after the checks)
+    jo_color                    colors[8];
+    jo_palette                  palette;
+    t_tx16_file                 *f;
+    unsigned char               *field;
+    unsigned int                count;
+    jo_img                      img;
+    int                         ids[3];
+    int                         last;
+    int                         bad;
+    int                         k;
+
+    jt_group("level.textures16");
+    // (allocated: in the BSS the test ROM 320x224 no longer fit under the Linux compiler; the failed checks: the bits of
+    // bad, one per check, to keep the program small)
+    if ((f = (t_tx16_file *)jo_malloc(sizeof(*f))) == JO_NULL)
+        return ;
+    t_tx16_init(f);
+    palette.data = colors;
+    palette.id = 5;
+    last = jo_get_last_sprite_id();
+    // The palette; the textures with the color codes of the palette, the second one again with RGB colors: their tables,
+    // their pixels
+    bad = (!jo_level_set_textures16_palette(&f->level, &palette)) | (jo_memcmp(colors, f->section.colors, 3 * sizeof(jo_color)) != 0) << 1 |
+          (!jo_level_add_textures16(&f->level, &palette, 0, 2, ids)) << 2 | (!jo_level_add_textures16(&f->level, JO_NULL, 1, 1, ids + 2)) << 3;
+    for (k = 0; k < 3 && !(bad & 12); ++k)
+        if (ids[k] != last + 1 + k || jo_sprite_get_lut(ids[k]) == JO_NULL ||
+            jo_memcmp(jo_sprite_get_lut(ids[k]), t_tx16_luts[k], sizeof(t_tx16_luts[k])) != 0 || jo_sprite_get_height(ids[k]) != 2 ||
+            jo_memcmp(jo_sprite_get_raw_data(ids[k]), f->section.pixels + (k == 0 ? 0 : 8), 8) != 0)
+            bad |= 16 << k;
+    // The fields of the game; not these textures: refused
+    bad |= (JO_LEVEL_RECORDS(&f->level, TX16, tx16, &count)[1].value != 77) << 7 | jo_level_add_textures16(&f->level, &palette, 1, 2, ids) << 8 |
+           jo_level_add_textures16(&f->level, &palette, -1, 1, ids) << 9;
+    // A damaged section: refused, no sprite made
+    for (k = 0; k < JT_COUNT(t_tx16_damages); ++k)
+    {
+        t_tx16_init(f);
+        field = (unsigned char *)&f->section + t_tx16_damages[k][0];
+        if (t_tx16_damages[k][1] == 4)
+            *(unsigned int *)field = t_tx16_damages[k][2];
+        else if (t_tx16_damages[k][1] == 2)
+            *(unsigned short *)field = (unsigned short)t_tx16_damages[k][2];
+        else
+            *field = (unsigned char)t_tx16_damages[k][2];
+        bad |= jo_level_add_textures16(&f->level, (k & 1) ? JO_NULL : &palette, 0, 2, ids) << (10 + k);
+    }
+    bad |= jo_level_set_textures16_palette(&f->level, &palette) << 16 | (jo_get_last_sprite_id() != last + 3) << 17;
+    // A level without textures (a section of the game with the same letters); an RGB sprite: no table
+    f->directory.id = JO_LEVEL_ID('t', 'x', '1', '6');
+    bad |= jo_level_set_textures16_palette(&f->level, &palette) << 18 | jo_level_add_textures16(&f->level, &palette, 0, 1, ids) << 19;
+    img.width = 8;
+    img.height = 1;
+    img.data = colors;
+    k = jo_sprite_add(&img);
+    bad |= (k != last + 4 || jo_sprite_get_lut(k) != JO_NULL) << 20;
+    jo_sprite_free_from(last + 1);
+    JT_EQ(bad, 0);
+    JT_EQ(jo_get_last_sprite_id(), last);
+    jo_free(f);
+}
+
+#endif
+
 static void                     t_files(void)
 {
     char                        *data;
@@ -605,4 +754,7 @@ void                            t_state(void)
     t_vdp2_malloc();
     t_files();
     t_file_reads();
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+    t_textures16();
+#endif
 }
