@@ -189,6 +189,14 @@ const jo_fixed                  __jo_sin_table[1025] =
 **  - https://github.com/johannes-fetz/joengine/pull/19
 */
 
+/** @brief 2^k, k from 0 to 31 */
+static const unsigned int       __jo_pow2[32] =
+{
+    0x1u, 0x2u, 0x4u, 0x8u, 0x10u, 0x20u, 0x40u, 0x80u, 0x100u, 0x200u, 0x400u, 0x800u, 0x1000u, 0x2000u, 0x4000u, 0x8000u,
+    0x10000u, 0x20000u, 0x40000u, 0x80000u, 0x100000u, 0x200000u, 0x400000u, 0x800000u, 0x1000000u, 0x2000000u,
+    0x4000000u, 0x8000000u, 0x10000000u, 0x20000000u, 0x40000000u, 0x80000000u
+};
+
 jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
 {
     jo_fixed        result;
@@ -265,7 +273,8 @@ int                 jo_gcd(int a, int b)
         }
         v -= u;
     } while (v != 0);
-    return ((int)(u << shift));
+    // (a product: a variable shift is a loop of libgcc)
+    return ((int)(u * __jo_pow2[shift]));
 }
 
 /** @brief Angle (degree, 0 to 45) of a slope (0 to 1): polynomial approximation of atan(t)
@@ -365,6 +374,16 @@ jo_angle                        jo_atan2_fixed(jo_fixed y, jo_fixed x)
     return ((jo_angle)a);
 }
 
+jo_fixed                        __jo_acos_fixed_rad(jo_fixed cosinus)
+{
+    jo_angle                    a;
+
+    cosinus = JO_MAX(-JO_FIXED_1, JO_MIN(JO_FIXED_1, cosinus));
+    // acos(c) = atan2(sin, c) with sin = sqrt((1 - c) (1 + c)): 0 to 32768 (pi; atan2(0, -1) is -32768, the same angle)
+    a = jo_atan2_fixed(jo_fixed_sqrt(jo_fixed_mult(JO_FIXED_1 - cosinus, JO_FIXED_1 + cosinus)), cosinus);
+    return ((jo_fixed)(((long long)(unsigned short)a * JO_FIXED_PI_2) >> 16));
+}
+
 /** @brief Convert a vector of floats to fixed numbers (Internal usage)
  *  @param in Vector of floats
  *  @param out Vector of fixed numbers
@@ -425,14 +444,6 @@ static void   __jo_matrix_to_float(const jo_matrix * const in, jo_matrixf * cons
 ** float routine of libgcc. The variable shifts are multiplications by a power of 2 (the SH-2 shifts by 1, 2, 8 or 16
 ** bits only); a right shift is the high word of a 64 bits product (dmulu.l)
 */
-
-/** @brief 2^k, k from 0 to 31 */
-static const unsigned int       __jo_pow2[32] =
-{
-    0x1u, 0x2u, 0x4u, 0x8u, 0x10u, 0x20u, 0x40u, 0x80u, 0x100u, 0x200u, 0x400u, 0x800u, 0x1000u, 0x2000u, 0x4000u, 0x8000u,
-    0x10000u, 0x20000u, 0x40000u, 0x80000u, 0x100000u, 0x200000u, 0x400000u, 0x800000u, 0x1000000u, 0x2000000u,
-    0x4000000u, 0x8000000u, 0x10000000u, 0x20000000u, 0x40000000u, 0x80000000u
-};
 
 float                           __jo_float_scale2(const float x, const int shift)
 {
@@ -675,7 +686,8 @@ jo_fixed        jo_vector_fixed_length(const jo_vector_fixed * const a)
         square >>= 2;
         ++k;
     }
-    return ((jo_fixed)(jo_sqrt((unsigned int)square) << k));
+    // (the root shifted back by a product: a variable shift is a loop of libgcc, ___ashlsi3_r0)
+    return ((jo_fixed)(jo_sqrt((unsigned int)square) * __jo_pow2[k]));
 }
 
 void            jo_vector_fixed_normalize(const jo_vector_fixed * const a, jo_vector_fixed * const result)
@@ -870,42 +882,22 @@ unsigned int        jo_sqrt(unsigned int value)
 AKA RECIPROCAL SQUARE ROOT
 */
 
-/*
-** Based on trenki2 implementation and adapted for the Jo Engine
-*/
-
 jo_fixed        jo_fixed_rsqrt(jo_fixed value)
 {
-    static const unsigned short rsq_tab[] =
-    {
-        /* domain 0.5 .. 1.0-1/16 */
-		0xb504, 0xaaaa, 0xa1e8, 0x9a5f, 0x93cd, 0x8e00, 0x88d6, 0x8432,
-    };
-    jo_fixed    result;
-    int         i;
-    int         exp;
+    unsigned int    root;
 
-    if (value == 0)
+    // (0 or negative: the largest value)
+    if (value <= 0)
         return (JO_FIXED_MAX);
-    if (value == JO_FIXED_1)
-        return (value);
-    // Number of leading zeros
-    exp = 31 - (int)jo_highest_bit((unsigned int)value);
-    result = rsq_tab[(value >> (28 - exp)) & 0x7] << 1;
-	exp -= 16;
-    if (exp <= 0)
-		result >>= -exp >> 1;
-    else
-		result <<= (exp >> 1) + (exp & 1);
-    if (exp & 1)
-        result = jo_fixed_mult(result, rsq_tab[0]);
-    /* newton-raphson : x = x/2*(3-(a*x)*x) */
-    i = 0;
-    do
-    {
-		result = jo_fixed_mult((result >> 1), (JO_FIXED_1 * 3 - jo_fixed_mult(jo_fixed_mult(value, result), result)));
-    } while(++i < 3);
-    return (result);
+    // 1 / sqrt(value) = 2^32 / root (root = sqrt(value) in Q16.16, 256 at least: the quotient fits), rounded to the nearest:
+    // a 64 / 32 bits division of the hardware unit. The table and the 3 steps of Newton's method of before shifted by a
+    // variable count of bits (___ashrsi3, ___ashlsi3 of libgcc: loops) and were up to 0.5 % off (2^-16: 16785446 for
+    // 16777216)
+    root = (unsigned int)jo_fixed_sqrt(value);
+    JO_SH2_DVSR = (int)root;
+    JO_SH2_DVDNTH = 1;
+    JO_SH2_DVDNTL = (int)(root >> 1);
+    return ((jo_fixed)JO_SH2_DVDNTL);
 }
 
 /*
@@ -1071,19 +1063,23 @@ float jo_vectorf_angle_between_radf(const jo_vectorf * const a, const jo_vectorf
 {
     jo_vector_fixed     fa;
     jo_vector_fixed     fb;
-    jo_fixed            cosinus;
+    jo_vector_fixed     cross;
+    jo_angle            angle;
 
     __jo_floats_to_fixed_scaled(&a->x, &fa.x, 3, 13);
     __jo_floats_to_fixed_scaled(&b->x, &fb.x, 3, 13);
     jo_vector_fixed_normalize(&fa, &fa);
     jo_vector_fixed_normalize(&fb, &fb);
-    // (a vector 0, 0, 0: the cosinus 1, as before)
+    // (a vector 0, 0, 0: 0, as before)
     if ((fa.x | fa.y | fa.z) == 0 || (fb.x | fb.y | fb.z) == 0)
-        cosinus = JO_FIXED_1;
-    else
-        cosinus = JO_MAX(-JO_FIXED_1, JO_MIN(JO_FIXED_1, jo_vector_fixed_dot(&fa, &fb)));
-    // (the straight line of jo_acos_radf())
-    return (jo_fixed2float(jo_fixed_mult(JO_FIXED_PI_DIV_2, JO_FIXED_1 - cosinus)));
+        return (0.0f);
+    // atan2(|a x b|, a . b): exact for parallel and opposite vectors (the cross product is 0: 0 and PI), precise
+    // everywhere. The acos of the dot product lost the angles near 0 and PI: a dot product 1 / 65536 below 1 is 0.0055
+    // radian
+    jo_vector_fixed_cross(&fa, &fb, &cross);
+    angle = jo_atan2_fixed(jo_vector_fixed_length(&cross), jo_vector_fixed_dot(&fa, &fb));
+    // (0 to 32768: PI; atan2(0, -1) is -32768, the same angle)
+    return (jo_fixed2float((jo_fixed)(((long long)(unsigned short)angle * JO_FIXED_PI_2) >> 16)));
 }
 
 void   jo_matrixf_mul(const jo_matrixf * const a, const jo_matrixf * const b, jo_matrixf * const result)
@@ -1163,8 +1159,20 @@ void jo_matrixf_perspective(const float vertical_field_of_view_in_deg, const flo
     m.m11 = __jo_fixed_div_or_max(JO_FIXED_1, jo_tan_angle((jo_angle)(jo_DEGtoANG(vertical_field_of_view_in_deg) / 2)));
     m.m00 = __jo_fixed_div_or_max(m.m11, jo_float2fixed(aspect_ratio));
     m.m22 = __jo_fixed_div_or_max(f + n, n - f);
-    // (2 far near on 64 bits (Q32), divided by near - far (Q16))
-    m.m32 = n == f ? JO_FIXED_MIN : (jo_fixed)(((long long)f * n * 2) / (n - f));
+    // (2 far near on 64 bits (Q32), divided by near - far (Q16): a 64 / 32 bits division of the hardware unit, not
+    // ___divdi3 of libgcc. The quotient must fit in a jo_fixed, as before)
+    if (n == f)
+        m.m32 = JO_FIXED_MIN;
+    else
+    {
+        long long               numerator;
+
+        numerator = (long long)f * n * 2;
+        JO_SH2_DVSR = n - f;
+        JO_SH2_DVDNTH = (int)(numerator >> 32);
+        JO_SH2_DVDNTL = (int)numerator;
+        m.m32 = (jo_fixed)JO_SH2_DVDNTL;
+    }
     m.m23 = -JO_FIXED_1;
     m.m33 = 0;
     __jo_matrix_to_float(&m, result);

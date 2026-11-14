@@ -635,6 +635,10 @@ static __jo_force_inline jo_fixed       __jo_angle_to_fixed_rad(const jo_angle a
  */
 static __jo_force_inline jo_fixed       jo_fixed_wrap_to_pi(jo_fixed rad)
 {
+    // (far from the range: the turns removed at once, rad x 2^32 / (2 pi) by the high word of a product (dmuls.l), at
+    // most one turn off. The loops alone made up to 5000 turns)
+    if (rad > 2 * JO_FIXED_PI_2 || rad < -2 * JO_FIXED_PI_2)
+        rad -= (int)(((long long)rad * 10430) >> 32) * JO_FIXED_PI_2;
     while (rad > JO_FIXED_PI) rad -= JO_FIXED_PI_2;
     while (rad <= -JO_FIXED_PI) rad += JO_FIXED_PI_2;
     return (rad);
@@ -646,6 +650,10 @@ static __jo_force_inline jo_fixed       jo_fixed_wrap_to_pi(jo_fixed rad)
  */
 static __jo_force_inline jo_fixed       jo_fixed_wrap_to_180(jo_fixed deg)
 {
+    // (far from the range: the turns removed at once, deg x 2^32 / 360 by the high word of a product (dmuls.l), at most
+    // one turn off. The loops alone made up to 90 turns)
+    if (deg > 2 * JO_FIXED_360 || deg < -2 * JO_FIXED_360)
+        deg -= (int)(((long long)deg * 182) >> 32) * JO_FIXED_360;
     while (deg > JO_FIXED_180) deg -= JO_FIXED_360;
     while (deg <= -JO_FIXED_180) deg += JO_FIXED_360;
     return (deg);
@@ -966,7 +974,8 @@ AKA RECIPROCAL SQUARE ROOT
 
 /** @brief Fast Reciprocal Square root using fixed number
  *  @param value Value
- *  @return RSqrt(value)
+ *  @return RSqrt(value), rounded to the nearest from the root of jo_fixed_sqrt() (0 or negative: JO_FIXED_MAX)
+ *  @remarks jo_fixed_sqrt() and a division of the hardware unit
  */
 jo_fixed        jo_fixed_rsqrt(jo_fixed value);
 
@@ -1355,15 +1364,22 @@ static __jo_force_inline float  jo_tan_radf(const float rad)
 ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
 */
 
-/** @brief Fast Arc Cosinus computation (linear approximation)
+/** @brief Arc cosinus in fixed numbers (Internal usage, see jo_acos_radf())
+ *  @param cosinus Cosinus (-1 to 1, Q16.16: kept in the range)
+ *  @return Acos(cosinus) in radian (Q16.16): 0 to PI
+ */
+jo_fixed                                __jo_acos_fixed_rad(jo_fixed cosinus);
+
+/** @brief Fast Arc Cosinus computation
  *  @param angle Cosinus (-1 to 1)
  *  @return Acos(angle) in radian using floating number: PI for -1, PI/2 for 0, 0 for 1
- *  @warning Rough: error up to about 0.33 radian (19 degrees, at 0.77), measured on all the inputs
+ *  @remarks atan2(sqrt(1 - angle^2), angle) in fixed numbers (jo_fixed_sqrt(), jo_atan2_fixed()): the error is the one of
+ *  the cosinus in fixed numbers (2^-16), 0.006 radian at most near 1 and -1, much less elsewhere. It was a straight line
+ *  (pi / 2 x (1 - angle)): up to 0.33 radian off (19 degrees, at 0.77)
  */
 static  __jo_force_inline float	jo_acos_radf(const float angle)
 {
-    // (the same straight line: pi / 2 x (1 - angle), in fixed numbers)
-    return (jo_fixed2float(jo_fixed_mult(JO_FIXED_PI_DIV_2, JO_FIXED_1 - jo_float2fixed(angle))));
+    return (jo_fixed2float(__jo_acos_fixed_rad(jo_float2fixed(angle))));
 }
 
 /*
