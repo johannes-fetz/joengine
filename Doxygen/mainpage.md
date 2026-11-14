@@ -47,19 +47,19 @@ function called every frame and jo_core_run() starts the main loop (it never ret
 The project makefile
 --------------------
 
-Every module can be enabled or disabled in the `makefile` of your project to save memory:
+Every module can be enabled or disabled in the `makefile` of your project to save memory (the engine starts the
+modules on and calls some of them in its loop). The other parts are always compiled, the link time optimization keeps
+only what the game calls: the levels (with the file system), the backup memory, the serial link, the Video CD card, the
+software renderer and the voxels, the pseudo mode 7, the sprites, the maps, the physics...
 
 | Option | Description |
 |--------|-------------|
 | `JO_COMPILE_WITH_3D_MODULE` | 3D meshes, matrices, camera, models, lights and glows (\ref 3d.h, \ref model.h, \ref light.h, \ref glow.h) |
-| `JO_COMPILE_WITH_LEVEL_MODULE` | Levels (.JOL files): cells and portals, entities, weapons, vehicles (\ref level.h) |
 | `JO_COMPILE_WITH_AUDIO_MODULE` | PCM sounds and CD audio tracks (\ref audio.h) |
 | `JO_COMPILE_WITH_AUDIO_DRIVER_MODULE` | The 68000 runs a sound driver: glides, tones (needs the audio module) |
 | `JO_COMPILE_WITH_AUDIO_DSP_MODULE` | The DSP of the SCSP adds a reverberation (needs the audio module) |
-| `JO_COMPILE_WITH_BACKUP_MODULE` | Save data in the internal memory, on a cartridge or an external device (\ref backup.h) |
 | `JO_COMPILE_WITH_TGA_MODULE` | TGA image loader (\ref tga.h) |
 | `JO_COMPILE_WITH_VIDEO_MODULE` | Sega FILM (CPK) video player (\ref video.h) |
-| `JO_COMPILE_WITH_PSEUDO_MODE7_MODULE` | Mode 7 floor (\ref mode7.h) |
 | `JO_COMPILE_WITH_EFFECTS_MODULE` | Special effects: particles, flash, fade, shake (\ref effects.h) |
 | `JO_COMPILE_WITH_PROFILER_MODULE` | Time spent by the CPUs and the VDP1 in each frame (\ref profile.h) |
 | `JO_COMPILE_WITH_DUAL_CPU_MODULE` | Run code on the slave SH-2 |
@@ -129,7 +129,7 @@ Modules
 | \ref serial.h | Serial link (Taisen cable) |
 | \ref vcd_card.h | VCD card (work in progress) |
 
-### Levels (JO_COMPILE_WITH_LEVEL_MODULE)
+### Levels (with the file system)
 | Header | Content |
 |--------|---------|
 | \ref level.h | Levels (.JOL files, see \ref level_format), written by `Compiler/COMMON/jo_level` |

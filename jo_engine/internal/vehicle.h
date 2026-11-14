@@ -37,7 +37,7 @@
 #ifndef __JO_INTERNAL_VEHICLE_H__
 # define __JO_INTERNAL_VEHICLE_H__
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 /** @brief The class vehicle (Internal usage: registered by jo_entities_load()) */
 extern const jo_entity_class        __jo_vehicle_class;

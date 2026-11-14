@@ -35,8 +35,6 @@
 #ifndef __JO_VOXEL_H__
 # define __JO_VOXEL_H__
 
-#ifdef JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
-
 /** @brief Voxel computation cache (internal engine usage)
  *  @warning MC Hammer: don't touch this
  */
@@ -237,8 +235,6 @@ static  __jo_force_inline void      jo_voxel_rotate_right(jo_voxel * const voxel
     voxel_data->camera.angle += angle_rad;
     jo_voxel_do_angle_computation(voxel_data);
 }
-
-#endif // JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
 
 #endif /* !__JO_VOXEL_H__ */
 

@@ -25,9 +25,7 @@
 			<Add option="-DJO_COMPILE_WITH_AUDIO_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_PRINTF_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_3D_SUPPORT" />
-			<Add option="-DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_EFFECTS_SUPPORT" />
-			<Add option="-DJO_COMPILE_WITH_BACKUP_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_VIDEO_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_DUAL_CPU_SUPPORT" />
 			<Add option="-DJO_NTSC_VERSION" />
@@ -36,7 +34,6 @@
 			<Add option="-DJO_COMPILE_WITH_KEYBOARD_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_CONSOLE_SUPPORT" />
 			<Add option="-DJO_COMPILE_WITH_SPRITE_HASHTABLE" />
-			<Add option="-DJO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT" />
 		</Compiler>
 		<Unit filename="control.h" />
 		<Unit filename="main.c">

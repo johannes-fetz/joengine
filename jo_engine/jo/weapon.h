@@ -32,13 +32,13 @@
  *         the levels, see Documentation/level_format.md) and their rules: ammunition, fire rate (automatic or one shot
  *         per press), reload, change of weapon. The game draws the weapon of jo_weapons_current() and makes the shots
  *         (the bullets, the sounds, the flash) on the events of jo_weapons_update()
- *  @remarks Module JO_COMPILE_WITH_LEVEL_MODULE = 1 in the makefile
+ *  @remarks With the file system module (JO_COMPILE_WITH_FS_MODULE, on by default: the levels are files)
  */
 
 #ifndef __JO_WEAPON_H__
 # define __JO_WEAPON_H__
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 /** @brief Weapons at most */
 # define JO_WEAPON_MAX                      (8)
@@ -136,7 +136,7 @@ int                                 jo_weapons_lowered(void);
  */
 void                                jo_weapons_give_ammo(const int ammo_type, const int count);
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 #endif /* !__JO_WEAPON_H__ */
 

@@ -787,7 +787,7 @@ static void                 t_fuzz_files_map(void)
     jt_value("fuzz.files_map.accepted", (unsigned int)state.accepted);
 }
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 /** @brief The sections with records and the size of their records */
 static const unsigned int   t_level_sections[][2] =
@@ -862,7 +862,7 @@ static void                 t_fuzz_files_jol(void)
     jt_value("fuzz.files_jol.accepted", (unsigned int)state.accepted);
 }
 
-#endif /* JO_COMPILE_WITH_LEVEL_SUPPORT */
+#endif /* JO_COMPILE_WITH_FS_SUPPORT */
 
 /*
 ** APIs
@@ -1377,7 +1377,7 @@ static void                 t_fixed_crashes(void)
         if (T_FUZZ_KNOWN_BUGS != 0 && T_FUZZ_KNOWN_BUGS != 10 + k)
             continue;
         t_progress(names[k], k);
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
         if (k >= 3)
         {
             // A section with a record_size of 0: jo_level_get_records() of a record of 24 bytes (an older engine)
@@ -1449,7 +1449,7 @@ void                        t_fuzz(void)
     t_fuzz_files_tga();
     t_fuzz_files_wav();
     t_fuzz_files_map();
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
     t_fuzz_files_jol();
 #endif
     jo_clear_screen_line(27);

@@ -35,8 +35,6 @@
 #ifndef __JO_SERIAL_H__
 # define __JO_SERIAL_H__
 
-# ifdef JO_COMPILE_WITH_SERIAL_SUPPORT
-
 // serial registers
 #define SERIAL_REG_SMR (*(volatile unsigned char*)(0xFFFFFE00)) // serial mode register
 #define SERIAL_REG_BRR (*(volatile unsigned char*)(0xFFFFFE01)) // bit rate register
@@ -63,8 +61,6 @@ void jo_serial_async_init(void);
 void jo_serial_register_error_callbacks(jo_serial_error_callback orer, jo_serial_error_callback fer, jo_serial_error_callback per);
 int jo_serial_send_byte(unsigned char data);
 int jo_serial_recv_byte(unsigned char* data);
-
-#endif /* !JO_COMPILE_WITH_SERIAL_SUPPORT */
 
 #endif /* !__JO_SERIAL_H__ */
 

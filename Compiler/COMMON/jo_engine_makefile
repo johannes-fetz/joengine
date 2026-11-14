@@ -85,13 +85,13 @@ endif
 # input, jo_malloc()): every module is off by default, the 5 modules above too (no file system: jo_sprite_add() of
 # images in the program, no jo_printf(): jo_printf() and the error screen without text). Each module can still be
 # chosen by the game in its makefile (JO_MINIMAL = 1 and JO_COMPILE_WITH_FS_MODULE = 1: the files of the CD too). The
-# file system is on with the modules that read files (TGA, AUDIO, VIDEO, LEVEL), unless the game sets it.
+# file system is on with the modules that read files (TGA, AUDIO, VIDEO), unless the game sets it.
 # JO_DEBUG keeps its default (1): JO_DEBUG = 0 removes the checks and the error messages too (a release).
 # Sizes of Samples/demo - minimal (game.raw: rectangles, a sprite made in the program, the pad): 29052 bytes with the
 # default engine, 20940 with JO_MINIMAL = 1, 17616 with JO_MINIMAL = 1 and JO_DEBUG = 0 (see also jo/conf.h)
 ifeq (1,${JO_MINIMAL})
 ifeq (${JO_COMPILE_WITH_FS_MODULE},)
-ifneq ($(filter 1,${JO_COMPILE_WITH_TGA_MODULE} ${JO_COMPILE_WITH_AUDIO_MODULE} ${JO_COMPILE_WITH_VIDEO_MODULE} ${JO_COMPILE_WITH_LEVEL_MODULE}),)
+ifneq ($(filter 1,${JO_COMPILE_WITH_TGA_MODULE} ${JO_COMPILE_WITH_AUDIO_MODULE} ${JO_COMPILE_WITH_VIDEO_MODULE}),)
 	JO_COMPILE_WITH_FS_MODULE = 1
 else
 	JO_COMPILE_WITH_FS_MODULE = 0
@@ -140,30 +140,22 @@ ifeq (1,${JO_COMPILE_WITH_VIDEO_MODULE})
 	SRCS += $(JO_ENGINE_SRC_DIR)/video.c
 endif
 
-ifeq (1,${JO_COMPILE_WITH_BACKUP_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_BACKUP_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/backup.c
-endif
-
-ifeq (1,${JO_COMPILE_WITH_SERIAL_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_SERIAL_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/serial.c
-endif
-
-ifeq (1,${JO_COMPILE_WITH_VCD_CARD_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_VCD_CARD_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/vcd_card.c
-endif
+# Always compiled, no option (removed on 14/11/2026, a game makefile that still sets them changes nothing): the backup
+# memory, the serial link, the Video CD card, the software renderer and the voxels, the levels (.JOL files, see
+# Documentation/level_format.md: with the file system; the cells, the entities and the vehicles with the 3D too), the
+# pseudo mode 7. The engine doesn't start them nor call them in its loop: the link time optimization keeps only what
+# the game calls, a game that doesn't use them has the same program. (Each one at the place of its old block: the
+# same order of the objects, the same program as before for the games that had the module)
+SRCS += $(JO_ENGINE_SRC_DIR)/backup.c
+SRCS += $(JO_ENGINE_SRC_DIR)/serial.c
+SRCS += $(JO_ENGINE_SRC_DIR)/vcd_card.c
 
 ifeq (1,${JO_COMPILE_WITH_TGA_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_TGA_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/tga.c
 endif
 
-ifeq (1,${JO_COMPILE_WITH_SOFTWARE_RENDERER_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/software_renderer.c $(JO_ENGINE_SRC_DIR)/voxel.c
-endif
+SRCS += $(JO_ENGINE_SRC_DIR)/software_renderer.c $(JO_ENGINE_SRC_DIR)/voxel.c
 
 ifeq (1,${JO_COMPILE_WITH_AUDIO_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_AUDIO_SUPPORT
@@ -186,10 +178,7 @@ ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
 endif
 
 # Levels (.JOL files, see Documentation/level_format.md)
-ifeq (1,${JO_COMPILE_WITH_LEVEL_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_LEVEL_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/level.c $(JO_ENGINE_SRC_DIR)/entity.c $(JO_ENGINE_SRC_DIR)/cell.c $(JO_ENGINE_SRC_DIR)/weapon.c $(JO_ENGINE_SRC_DIR)/vehicle.c
-endif
+SRCS += $(JO_ENGINE_SRC_DIR)/level.c $(JO_ENGINE_SRC_DIR)/entity.c $(JO_ENGINE_SRC_DIR)/cell.c $(JO_ENGINE_SRC_DIR)/weapon.c $(JO_ENGINE_SRC_DIR)/vehicle.c
 
 ifeq (1,${JO_COMPILE_WITH_FS_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_FS_SUPPORT
@@ -201,10 +190,7 @@ ifeq (1,${JO_COMPILE_WITH_STORYBOARD_MODULE})
 	SRCS += $(JO_ENGINE_SRC_DIR)/storyboard.c
 endif
 
-ifeq (1,${JO_COMPILE_WITH_PSEUDO_MODE7_MODULE})
-	CCFLAGS += -DJO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/mode7.c
-endif
+SRCS += $(JO_ENGINE_SRC_DIR)/mode7.c
 
 ifeq (1,${JO_COMPILE_WITH_PROFILER_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_PROFILER_SUPPORT

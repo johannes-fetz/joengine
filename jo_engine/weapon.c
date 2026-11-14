@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include "jo/conf.h"
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -318,7 +318,7 @@ unsigned int                        jo_weapons_update(const bool fire_held, cons
     return (events);
 }
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 /*
 ** END OF FILE

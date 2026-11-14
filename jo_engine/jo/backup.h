@@ -36,8 +36,6 @@
 #ifndef __JO_BACKUP_H__
 # define __JO_BACKUP_H__
 
-# ifdef JO_COMPILE_WITH_BACKUP_SUPPORT
-
 /** @brief Max backup filename length */
 # define JO_BACKUP_MAX_FILENAME_LENGTH      (12)
 
@@ -231,8 +229,6 @@ int                 jo_backup_get_total_block_count(const jo_backup_device backu
  *  @return Backup status
  */
 jo_backup_status    jo_backup_get_last_status(const jo_backup_device backup_device);
-
-#endif /* !JO_COMPILE_WITH_BACKUP_SUPPORT */
 
 #endif /* !__JO_BACKUP_H__ */
 

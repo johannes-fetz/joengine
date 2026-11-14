@@ -30,7 +30,7 @@
  *
  *  @brief Entities: the things of a level that live (barrels that explode, trigger zones, relays, doors, enemies...).
  *         They are read from a level (sections ENTI, PROP and LINK, see Documentation/level_format.md)
- *  @remarks Module JO_COMPILE_WITH_LEVEL_MODULE = 1 in the makefile (and JO_COMPILE_WITH_EFFECTS_MODULE = 1 for the fire,
+ *  @remarks With the file system and the 3D modules (and JO_COMPILE_WITH_EFFECTS_MODULE = 1 for the fire,
  *           the smoke, the flash and the shake of the explosions, see effects.h)
  *
  *  - An entity has a class: its behavior. The engine has the generic classes (explosive, trigger, relay...), the game
@@ -45,7 +45,7 @@
 #ifndef __JO_ENTITY_H__
 # define __JO_ENTITY_H__
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 # include "level.h"
 
@@ -488,7 +488,7 @@ bool                                jo_actor_is_done(const jo_entity * const ent
  */
 bool                                jo_actor_is_playing(const jo_entity * const entity, const char * const name);
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 #endif /* !__JO_ENTITY_H__ */
 

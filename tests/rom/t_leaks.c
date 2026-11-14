@@ -459,7 +459,6 @@ static void                     c_storyboard(void)
 }
 #endif
 
-#ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
 static void                     c_mode7(void)
 {
     jo_mode7                    params;
@@ -481,7 +480,6 @@ static void                     c_mode7(void)
     if (out.data != JO_NULL)
         jo_free(out.data);
 }
-#endif
 
 /*
 ** 3D
@@ -933,7 +931,7 @@ static void                     c_point_lights_model(void)
     t_light_model = JO_NULL;
 }
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 static void                     c_glows(void)
 {
     jo_pos3D_fixed              p;
@@ -966,7 +964,7 @@ static void                     c_effects(void)
 }
 #endif
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 /** @brief A level: its cells (models for the lights, mirrors), its entities (an actor, an explosive), the point lights of
  *  the cells, everything freed */
@@ -1049,9 +1047,7 @@ void                            t_leaks(void)
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
     t_cycles("leaks.storyboard", c_storyboard);
 #endif
-#ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
     t_cycles("leaks.mode7", c_mode7);
-#endif
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     t_cycles("leaks.3d.mesh", c_mesh);
     t_cap = t_read("CAP.JOM", &t_cap_len);
@@ -1103,7 +1099,7 @@ void                            t_leaks(void)
 #ifdef JO_COMPILE_WITH_EFFECTS_SUPPORT
     t_cycles("leaks.3d.effects", c_effects);
 #endif
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
     t_cycles("leaks.3d.glows", c_glows);
     t_cycles("leaks.level.errors", c_level_errors);
     // (the textures of the models stay loaded by design, see jo_3d_free_model(): the work RAM only)

@@ -35,8 +35,6 @@
 #ifndef __JO_VCD_CARD_H__
 #define __JO_VCD_CARD_H__
 
-#ifdef JO_COMPILE_WITH_VCD_CARD_SUPPORT
-
  /** @brief Checks whether or not the VCD Card is inserted in the system
   *  @return 0 if the VCD Card is present (the result of the BIOS), -1 if the BIOS has no such function
   */
@@ -51,8 +49,6 @@ int jo_vcd_card_is_present(void);
   *          -3 dest_size is too small, -4 the BIOS has no such function
   */
 int jo_vcd_card_get_vcd_card_rom(unsigned int index, unsigned int num_indexes, void* dest, unsigned int dest_size);
-
-#endif /* !JO_COMPILE_WITH_VCD_CARD_SUPPORT */
 
 #endif /* !__JO_VCD_CARDL_H__ */
 

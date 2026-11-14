@@ -41,8 +41,6 @@
 #include "jo/list.h"
 #include "jo/backup.h"
 
-# ifdef JO_COMPILE_WITH_BACKUP_SUPPORT
-
 /*
 ** INTERNAL MACROS
 */
@@ -873,8 +871,6 @@ jo_backup_status    jo_backup_get_last_status(const jo_backup_device backup_devi
         return (JoBackupStatusUnknown);
     }
 }
-
-#endif /* !JO_COMPILE_WITH_BACKUP_SUPPORT */
 
 /*
 ** END OF FILE

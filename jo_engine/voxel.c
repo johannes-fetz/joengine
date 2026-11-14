@@ -26,8 +26,6 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifdef JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
-
 /*
 ** Based on Sebastian Macke implementation
 ** https://github.com/s-macke/VoxelSpace
@@ -188,8 +186,10 @@ typedef struct
     bool                    clear;
 }                           jo_voxel_columns;
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 /** @brief The columns of the slave CPU (read through its cache: it is purged before each job) */
 static jo_voxel_columns     __jo_voxel_slave_columns;
+#endif
 
 /** @brief Draw the columns from c->first to c->end (excluded)
  *  @param c Columns
@@ -337,8 +337,6 @@ void            jo_voxel_run(jo_voxel * const voxel_data)
     jo_voxel_do_angle_computation(voxel_data);
     jo_voxel_redraw_and_flush(voxel_data);
 }
-
-#endif
 
 /*
 ** END OF FILE

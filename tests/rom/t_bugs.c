@@ -548,7 +548,7 @@ static void             t_round6_c_bugs(void)
 }
 
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 /** @brief A level built in memory (see t_round6_e_bugs()): its directory, its sections */
 typedef struct
@@ -1388,7 +1388,7 @@ void                    t_bugs(void)
     t_round3_bugs();
     t_round5_bugs();
     t_round6_c_bugs();
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
     t_round6_e_bugs();
 #endif
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT

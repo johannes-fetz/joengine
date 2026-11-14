@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include "jo/conf.h"
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -2329,7 +2329,7 @@ int                                 jo_cells_add_point_light_meshes(const bool s
     return (count);
 }
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 /*
 ** END OF FILE

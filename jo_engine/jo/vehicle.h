@@ -40,7 +40,7 @@
 #ifndef __JO_VEHICLE_H__
 # define __JO_VEHICLE_H__
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 # include "entity.h"
 
@@ -111,7 +111,7 @@ void                                jo_vehicle_to_world(const jo_entity * const 
  */
 jo_vehicle                          *jo_vehicle_get(jo_entity * const entity);
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 #endif /* !__JO_VEHICLE_H__ */
 

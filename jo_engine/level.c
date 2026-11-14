@@ -29,7 +29,7 @@
 #include <stdbool.h>
 #include "jo/conf.h"
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -262,7 +262,7 @@ const char                          *jo_level_string(const jo_level * const leve
     return (level->strings + offset);
 }
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 /*
 ** END OF FILE

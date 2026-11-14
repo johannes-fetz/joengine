@@ -32,7 +32,7 @@ def make_doc():
            '*This file is made by `Compiler/COMMON/jo_level/gen.py` from `Compiler/COMMON/jo_level/schema.py`: change the '
            'schema, not this file.*', '',
            'A level (`.JOL`) holds the data of a level of a game: terrain, models and their collisions, plants, decals... '
-           'The engine loads it with `jo_level_load()` (module `JO_COMPILE_WITH_LEVEL_MODULE = 1`); the tools of '
+           'The engine loads it with `jo_level_load()` (with the file system: `JO_COMPILE_WITH_FS_MODULE`, on by default); the tools of '
            '`Compiler/COMMON/jo_level` write it (Python), check it and print it.', '',
            '## Rules of the format', '', schema.FORMAT_RULES, '',
            '## Types', '',

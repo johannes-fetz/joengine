@@ -36,8 +36,6 @@
 #ifndef __JO_SOFTWARE_RENDERER_H__
 # define __JO_SOFTWARE_RENDERER_H__
 
-#ifdef JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
-
 /*
  ██████╗ ██████╗ ██████╗ ███████╗
 ██╔════╝██╔═══██╗██╔══██╗██╔════╝
@@ -240,8 +238,6 @@ static __jo_force_inline void               jo_software_renderer_draw_triangle_w
                                      triangle->v0.pos.x, triangle->v0.pos.y, triangle->v0.pos.z,
                                      triangle->v2.color, triangle->v0.color);
 }
-
-#endif // JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
 
 #endif /* !__JO_SOFTWARE_RENDERER_H__ */
 

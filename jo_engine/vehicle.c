@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include "jo/conf.h"
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -378,7 +378,7 @@ static void                         __jo_vehicle_draw(jo_entity * const entity)
 const jo_entity_class               __jo_vehicle_class = {"vehicle", sizeof(jo_vehicle), __jo_vehicle_spawn, JO_NULL, JO_NULL,
                                                           JO_NULL, __jo_vehicle_draw, JO_NULL, JO_NULL};
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 /*
 ** END OF FILE

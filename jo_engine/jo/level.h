@@ -30,7 +30,7 @@
  *
  *  @brief Levels (.JOL files): the data of a level of a game (terrain, models, plants, decals...), see
  *         Documentation/level_format.md. The files are written by the Python tools of Compiler/COMMON/jo_level
- *  @remarks Module JO_COMPILE_WITH_LEVEL_MODULE = 1 in the makefile
+ *  @remarks With the file system module (JO_COMPILE_WITH_FS_MODULE, on by default: the levels are files)
  *  @remarks The file is read once and used as it is (big endian, aligned): a section is a pointer in the file. A header
  *           or records of an older version (smaller) are copied with the default values of the missing fields
  *           (jo_level_get_header(), jo_level_get_records())
@@ -39,7 +39,7 @@
 #ifndef __JO_LEVEL_H__
 # define __JO_LEVEL_H__
 
-#ifdef JO_COMPILE_WITH_LEVEL_SUPPORT
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 # include "level_format.h"
 
@@ -131,7 +131,7 @@ const char                          *jo_level_string(const jo_level * const leve
                                                (const jo_level_##NAME##_record *)jo_level_get_records((LEVEL), JO_LEVEL_SECTION_##ID, \
                                                sizeof(jo_level_##NAME##_record), &__defaults, (COUNT)); })
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 #endif /* !__JO_LEVEL_H__ */
 

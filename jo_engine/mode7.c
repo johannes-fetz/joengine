@@ -43,8 +43,6 @@
 #include "jo/vdp2.h"
 #include "jo/mode7.h"
 
-#ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
-
 /** @brief Size of the line buffer (maximum output width) */
 # define JO_MODE7_LINE_BUFFER_SIZE     (1024)
 
@@ -212,8 +210,6 @@ void                jo_do_mode7_floor(const jo_img * const tile, const int cam_y
     }
     jo_dma_wait();
 }
-
-#endif /* !JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT */
 
 /*
 ** END OF FILE

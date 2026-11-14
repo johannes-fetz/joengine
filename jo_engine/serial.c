@@ -29,8 +29,6 @@
 #include <jo/serial.h>
 #include <jo/jo.h>
 
-# ifdef JO_COMPILE_WITH_SERIAL_SUPPORT
-
 static int g_serial_initialized = 0;
 
 // error callback functions
@@ -155,8 +153,6 @@ int jo_serial_recv_byte(unsigned char* data)
     
     return 0;
 }
-
-#endif /* !JO_COMPILE_WITH_SERIAL_SUPPORT */
 
 /*
 ** END OF FILE

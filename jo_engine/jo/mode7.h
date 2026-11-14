@@ -35,8 +35,6 @@
 #ifndef __JO_MODE7_H__
 # define __JO_MODE7_H__
 
-#ifdef JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT
-
 /** @brief mode7 internal computation cache struct */
 typedef struct
 {
@@ -100,8 +98,6 @@ void    jo_free_mode7(jo_mode7 * const params);
  *  @param params mode7 structure
  */
 void    jo_do_mode7_floor(const jo_img * const tile, const int cam_x, const int cam_y, const jo_mode7 * const params);
-
-#endif /* !JO_COMPILE_WITH_PSEUDO_MODE7_SUPPORT */
 
 #endif /* !__JO_MODE7_H__ */
 

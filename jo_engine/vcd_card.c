@@ -29,8 +29,6 @@
 #include <jo/vcd_card.h>
 #include <jo/jo.h>
 
-#ifdef JO_COMPILE_WITH_VCD_CARD_SUPPORT
-
 #define BIOS_IS_VCD_CARD_PRESENT (0x06000274) // contains a pointer to bios_is_vcd_card_present routine
 #define BIOS_GET_VCD_CARD_ROM (0x06000298) // contains a pointer to bios_get_vcd_card_rom routine
 #define INDEX_SIZE_BYTES (0x800) // each index is 0x800 bytes.
@@ -85,8 +83,6 @@ int jo_vcd_card_get_vcd_card_rom(unsigned int index, unsigned int num_indexes, v
 
     return bios_get_vcd_card_rom(index, num_indexes, dest);
 }
-
-#endif /* !JO_COMPILE_WITH_VCD_CARD_SUPPORT */
 
 /*
 ** END OF FILE

@@ -39,7 +39,7 @@
 #include <stdbool.h>
 #include "jo/conf.h"
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 #include "jo/types.h"
 #include "jo/sega_saturn.h"
@@ -785,8 +785,9 @@ static void                         __jo_entities_forget_draw(void)
     __jo_entity_slave_count = 0;
     __jo_entity_slave_callbacks = 0;
 }
-/** @brief The entities with a draw_slave callback are drawn (written by the slave CPU, read without the cache) */
-static volatile int                 __jo_entity_slave_done = 0;
+/** @brief The entities with a draw_slave callback are drawn (written by the slave CPU, read without the cache: always
+ *  through a volatile pointer, the variable itself not volatile: unused, the link time optimization removes it) */
+static int                          __jo_entity_slave_done = 0;
 static int                          __jo_entity_slave_wait = 0;
 
 int                                 jo_entities_test_counts(const int which)
@@ -990,7 +991,7 @@ void                                jo_entities_prepare_draw(const int slave_sha
     __jo_entity_slave_count = (int)(__jo_entity_draw_list + JO_ENTITY_MAX - last);
     __jo_entity_master_polygons = master_cost - 1;
     __jo_entity_slave_polygons = slave_cost - 1;
-    __jo_entity_slave_done = 0;
+    *(volatile int *)JO_CACHE_THROUGH(&__jo_entity_slave_done) = 0;
     __jo_entity_draw_prepared = true;
 }
 
@@ -2131,7 +2132,7 @@ static void                         __jo_entity_register_engine_classes(void)
         jo_entity_register_class(&__jo_vehicle_class);
 }
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 /*
 ** END OF FILE

@@ -29,7 +29,7 @@
  *  @author Johannes Fetz
  *
  *  @brief Cells and portals: the rooms of an inside level (sections CELL and PRTL, see Documentation/level_format.md)
- *  @remarks Module JO_COMPILE_WITH_LEVEL_MODULE = 1 in the makefile
+ *  @remarks With the file system and the 3D modules (the levels are files)
  *
  *  - A cell is a room: its model (walls, floor, ceiling in world coordinates, the light baked in the colors of the
  *    vertices) and a box where the player can walk, with a flat floor or a slope (stairs)
@@ -42,7 +42,7 @@
 #ifndef __JO_CELL_H__
 # define __JO_CELL_H__
 
-#if defined(JO_COMPILE_WITH_LEVEL_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
+#if defined(JO_COMPILE_WITH_FS_SUPPORT) && defined(JO_COMPILE_WITH_3D_SUPPORT)
 
 /** @brief Cells at most */
 # define JO_CELL_MAX                        (48)
@@ -369,7 +369,7 @@ bool                                jo_cells_ray_hit(const jo_pos3D_fixed * cons
  */
 int                                 jo_cells_add_point_light_meshes(const bool shadows);
 
-#endif /* !JO_COMPILE_WITH_LEVEL_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
+#endif /* !JO_COMPILE_WITH_FS_SUPPORT && JO_COMPILE_WITH_3D_SUPPORT */
 
 #endif /* !__JO_CELL_H__ */
 

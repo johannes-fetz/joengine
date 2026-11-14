@@ -26,8 +26,6 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifdef JO_COMPILE_WITH_SOFTWARE_RENDERER_SUPPORT
-
 /*
 ** INCLUDES
 */
@@ -1036,8 +1034,6 @@ void                                        jo_software_renderer_draw_triangle(c
         jo_sr_fill_triangle(gfx, points, t);
     }
 }
-
-#endif
 
 /*
 ** END OF FILE
