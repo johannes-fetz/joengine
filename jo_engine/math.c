@@ -365,37 +365,199 @@ jo_angle                        jo_atan2_fixed(jo_fixed y, jo_fixed x)
     return ((jo_angle)a);
 }
 
-float       jo_atan2f_rad(const float y, const float x)
+/** @brief Convert a vector of floats to fixed numbers (Internal usage)
+ *  @param in Vector of floats
+ *  @param out Vector of fixed numbers
+ */
+static void __jo_vectorf_to_fixed(const jo_vectorf * const in, jo_vector_fixed * const out)
 {
-    float   atan;
-    float   z;
+    out->x = jo_float2fixed(in->x);
+    out->y = jo_float2fixed(in->y);
+    out->z = jo_float2fixed(in->z);
+}
 
-    if (JO_IS_FLOAT_NULL(x))
+/** @brief Convert a vector of fixed numbers to floats, times 2^shift (Internal usage)
+ *  @param in Vector of fixed numbers
+ *  @param shift Power of 2 (0: the same values)
+ *  @param out Vector of floats
+ */
+static void __jo_vector_fixed_to_float(const jo_vector_fixed * const in, const int shift, jo_vectorf * const out)
+{
+    out->x = jo_fixed2float(in->x);
+    out->y = jo_fixed2float(in->y);
+    out->z = jo_fixed2float(in->z);
+    if (shift != 0)
     {
-        if (y > 0.0f)
-            return (JO_PI_2);
-        if (JO_IS_FLOAT_NULL(y))
-            return 0.0f;
-        return (-JO_PI_2);
+        out->x = __jo_float_scale2(out->x, shift);
+        out->y = __jo_float_scale2(out->y, shift);
+        out->z = __jo_float_scale2(out->z, shift);
     }
-    z = y / x;
-    if (JO_FABS(z) < 1.0f)
-    {
-        atan = z / (1.0f + 0.28f * z * z);
-        if (x < 0.0f)
-        {
-            if (y < 0.0f)
-                return (atan - JO_PI);
-            return (atan + JO_PI);
-        }
-    }
+}
+
+/** @brief A fixed division, saturated when the divisor is 0 (Internal usage) */
+static jo_fixed __jo_fixed_div_or_max(const jo_fixed dividend, const jo_fixed divisor)
+{
+    if (divisor == 0)
+        return (dividend < 0 ? JO_FIXED_MIN : JO_FIXED_MAX);
+    return (jo_fixed_div(dividend, divisor));
+}
+
+/** @brief Convert a matrix of floats to fixed numbers (Internal usage) */
+static void   __jo_matrixf_to_fixed(const jo_matrixf * const in, jo_matrix * const out)
+{
+    int                         i;
+
+    for (i = 0; i < 16; ++i)
+        out->table[i] = jo_float2fixed(in->table[i]);
+}
+
+/** @brief Convert a matrix of fixed numbers to floats (Internal usage) */
+static void   __jo_matrix_to_float(const jo_matrix * const in, jo_matrixf * const out)
+{
+    int                         i;
+
+    for (i = 0; i < 16; ++i)
+        out->table[i] = jo_fixed2float(in->table[i]);
+}
+
+/*
+** Floats in integers: the float API of the engine converts its floats to fixed numbers (and back) on their bits, no
+** float routine of libgcc. The variable shifts are multiplications by a power of 2 (the SH-2 shifts by 1, 2, 8 or 16
+** bits only); a right shift is the high word of a 64 bits product (dmulu.l)
+*/
+
+/** @brief 2^k, k from 0 to 31 */
+static const unsigned int       __jo_pow2[32] =
+{
+    0x1u, 0x2u, 0x4u, 0x8u, 0x10u, 0x20u, 0x40u, 0x80u, 0x100u, 0x200u, 0x400u, 0x800u, 0x1000u, 0x2000u, 0x4000u, 0x8000u,
+    0x10000u, 0x20000u, 0x40000u, 0x80000u, 0x100000u, 0x200000u, 0x400000u, 0x800000u, 0x1000000u, 0x2000000u,
+    0x4000000u, 0x8000000u, 0x10000000u, 0x20000000u, 0x40000000u, 0x80000000u
+};
+
+float                           __jo_float_scale2(const float x, const int shift)
+{
+    unsigned int                        bits;
+    int                                 exponent;
+
+    bits = __jo_float_bits(x);
+    exponent = (int)((bits >> 23) & 0xFF);
+    // (0 stays 0)
+    if (exponent == 0)
+        return (__jo_float_from_bits(bits & 0x80000000u));
+    exponent += shift;
+    if (exponent <= 0)
+        return (__jo_float_from_bits(bits & 0x80000000u));
+    if (exponent >= 255)
+        return (__jo_float_from_bits((bits & 0x80000000u) | 0x7F7FFFFFu));
+    return (__jo_float_from_bits((bits & 0x807FFFFFu) | ((unsigned int)exponent << 23)));
+}
+
+jo_fixed                        __jo_float_to_fixed(const float x)
+{
+    unsigned int                bits;
+    unsigned int                mantissa;
+    unsigned int                v;
+    int                         exponent;
+
+    bits = __jo_float_bits(x);
+    exponent = (int)((bits >> 23) & 0xFF) - 127;
+    // (under 2^-16: 0; from 2^15: out of the range)
+    if (exponent < -16)
+        return (0);
+    if (exponent >= 15)
+        return ((bits & 0x80000000u) ? JO_FIXED_MIN : JO_FIXED_MAX);
+    // (the value: mantissa x 2^(exponent - 7), the shift from -23 to 7; the bits shifted out on the right are lost:
+    // rounded toward 0 like a cast)
+    mantissa = (bits & 0x7FFFFFu) | 0x800000u;
+    if (exponent >= 7)
+        v = mantissa * __jo_pow2[exponent - 7];
+    else
+        v = (unsigned int)(((unsigned long long)mantissa * __jo_pow2[25 + exponent]) >> 32);
+    return ((bits & 0x80000000u) ? -(jo_fixed)v : (jo_fixed)v);
+}
+
+float                           __jo_fixed_to_float(const jo_fixed x)
+{
+    unsigned int                sign;
+    unsigned int                v;
+    unsigned int                m;
+    unsigned int                rest;
+    unsigned int                half;
+    int                         top;
+    int                         k;
+
+    if (x == 0)
+        return (__jo_float_from_bits(0));
+    sign = x < 0 ? 0x80000000u : 0;
+    v = x < 0 ? 0u - (unsigned int)x : (unsigned int)x;
+    top = (int)jo_highest_bit(v);
+    // (the 24 highest bits are the mantissa; more bits: rounded to the nearest, to even on a tie, like the conversion of
+    // the compiler)
+    if (top <= 23)
+        m = v * __jo_pow2[23 - top];
     else
     {
-        atan = JO_PI_2 - z / (z * z + 0.28f);
-        if (y < 0.0f)
-            return (atan - JO_PI);
+        k = top - 23;
+        m = (unsigned int)(((unsigned long long)v * __jo_pow2[32 - k]) >> 32);
+        rest = v - m * __jo_pow2[k];
+        half = __jo_pow2[k - 1];
+        if (rest > half || (rest == half && (m & 1)))
+        {
+            ++m;
+            if (m == 0x1000000u)
+            {
+                m = 0x800000u;
+                ++top;
+            }
+        }
     }
-    return (atan);
+    // (the value: v x 2^-16 = 1.m x 2^(top - 16), the exponent biased by 127)
+    return (__jo_float_from_bits(sign | ((unsigned int)(top + 111) << 23) | (m & 0x7FFFFFu)));
+}
+
+int                             __jo_floats_to_fixed_scaled(const float * const in, jo_fixed * const out, const int count,
+                                                            const int top)
+{
+    int                         largest;
+    int                         exponent;
+    int                         shift;
+    int                         k;
+
+    largest = 0;
+    for (k = 0; k < count; ++k)
+    {
+        exponent = (int)((__jo_float_bits(in[k]) >> 23) & 0xFF);
+        if (exponent > largest)
+            largest = exponent;
+    }
+    if (largest == 0)
+    {
+        for (k = 0; k < count; ++k)
+            out[k] = 0;
+        return (0);
+    }
+    // (the exponent of the largest value becomes top)
+    shift = top + 127 - largest;
+    for (k = 0; k < count; ++k)
+        out[k] = __jo_float_to_fixed(__jo_float_scale2(in[k], shift));
+    return (shift);
+}
+
+jo_angle                        __jo_atan2_floats(const float y, const float x)
+{
+    float                       in[2];
+    jo_fixed                    out[2];
+
+    // (the same power of 2 for both: the angle is kept; the largest one between 2^14 and 2^15 for the precision)
+    in[0] = y;
+    in[1] = x;
+    __jo_floats_to_fixed_scaled(in, out, 2, 14);
+    return (jo_atan2_fixed(out[0], out[1]));
+}
+
+float                           jo_atan2f_rad(const float y, const float x)
+{
+    return (jo_fixed2float(__jo_angle_to_fixed_rad(__jo_atan2_floats(y, x))));
 }
 
 void                        jo_planar_rotate(const jo_pos2D * const point, const jo_pos2D * const origin, const int angle, jo_pos2D * const result)
@@ -498,23 +660,56 @@ void            jo_vector_fixed_compute_bezier_point(const jo_fixed t, jo_vector
     jo_vector_fixed_add(result, &p3, result);
 }
 
+jo_fixed        jo_vector_fixed_length(const jo_vector_fixed * const a)
+{
+    unsigned long long  square;
+    unsigned int        k;
+
+    // (the sum of the squares on 64 bits (Q32): its root is the length (Q16). Over 32 bits: shifted down by pairs of
+    // bits, the root shifted back by as many bits)
+    square = (unsigned long long)((long long)a->x * a->x) + (unsigned long long)((long long)a->y * a->y) +
+             (unsigned long long)((long long)a->z * a->z);
+    k = 0;
+    while ((unsigned int)(square >> 32) != 0)
+    {
+        square >>= 2;
+        ++k;
+    }
+    return ((jo_fixed)(jo_sqrt((unsigned int)square) << k));
+}
+
+void            jo_vector_fixed_normalize(const jo_vector_fixed * const a, jo_vector_fixed * const result)
+{
+    jo_fixed    length;
+
+    length = jo_vector_fixed_length(a);
+    if (length == 0)
+    {
+        result->x = 0;
+        result->y = 0;
+        result->z = 0;
+        return;
+    }
+    // (each axis divided by the length: |axis| <= length, the quotient fits)
+    result->x = jo_fixed_div(a->x, length);
+    result->y = jo_fixed_div(a->y, length);
+    result->z = jo_fixed_div(a->z, length);
+}
+
 void            jo_vectorf_compute_bezier_point(const float t, jo_vectorf p0, jo_vectorf p1, jo_vectorf p2, jo_vectorf p3, jo_vectorf *result)
 {
-    float       tt = t * t;
-    float       u = 1.0f - t;
-    float       uu = u * u;
+    jo_vector_fixed f0;
+    jo_vector_fixed f1;
+    jo_vector_fixed f2;
+    jo_vector_fixed f3;
+    jo_vector_fixed r;
 
-    // first term
-    jo_vectorf_muls(&p0, uu * u, result);
-    // second term
-    jo_vectorf_muls(&p1, 3.0f * uu * t, &p1);
-    jo_vectorf_add(result, &p1, result);
-    // third term
-    jo_vectorf_muls(&p2, 3.0f * u * tt, &p2);
-    jo_vectorf_add(result, &p2, result);
-    // fourth term
-    jo_vectorf_muls(&p3, tt * t, &p3);
-    jo_vectorf_add(result, &p3, result);
+    __jo_vectorf_to_fixed(&p0, &f0);
+    __jo_vectorf_to_fixed(&p1, &f1);
+    __jo_vectorf_to_fixed(&p2, &f2);
+    __jo_vectorf_to_fixed(&p3, &f3);
+    jo_vector_fixed_compute_bezier_point(jo_float2fixed(t), f0, f1, f2, f3, &r);
+    __jo_vector_fixed_to_float(&r, 0, result);
 }
 
 /*
@@ -718,23 +913,405 @@ jo_fixed        jo_fixed_rsqrt(jo_fixed value)
 */
 float               jo_rsqrt(float value)
 {
-    // A union avoids the strict aliasing issue of *(int *)&y (undefined behavior with -O2)
-    union
-    {
-        float       f;
-        int         i;
-    }               bits;
-    float           x2;
-    float           y;
-    const float     threehalfs = 1.5f;
+    unsigned int    bits;
+    int             exponent;
+    jo_fixed        m;
 
-    x2 = value * 0.5f;
-    bits.f = value;
-    bits.i = 0x5f3759df - (bits.i >> 1);
-    y = bits.f;
-    y = y * (threehalfs - (x2 * y * y));
-    y = y * (threehalfs - (x2 * y * y));
-    return (y);
+    bits = __jo_float_bits(value);
+    // (0 or negative: the largest float)
+    if ((bits & 0x7F800000u) == 0 || (bits & 0x80000000u))
+        return (__jo_float_from_bits(0x7F7FFFFFu));
+    // (value = m x 2^exponent with m from 1 to 2 (Q16); an odd exponent: m from 2 to 4, the root of 2^exponent is then
+    // 2^(exponent / 2). 1 / sqrt(m) in fixed numbers (about 17 bits of precision), the power of 2 put back)
+    exponent = (int)((bits >> 23) & 0xFF) - 127;
+    m = (jo_fixed)(((bits & 0x7FFFFFu) | 0x800000u) >> 7);
+    if (exponent & 1)
+    {
+        m += m;
+        --exponent;
+    }
+    return (__jo_float_scale2(jo_fixed2float(jo_fixed_div(JO_FIXED_1, jo_fixed_sqrt(m))), -exponent / 2));
+}
+
+/*
+** The vectors and the matrices of floats: converted to fixed numbers, computed with them (see math.h)
+*/
+
+void jo_vectorf_add(const jo_vectorf * const a, const jo_vectorf * const b, jo_vectorf * const result)
+{
+    result->x = jo_fixed2float(jo_float2fixed(a->x) + jo_float2fixed(b->x));
+    result->y = jo_fixed2float(jo_float2fixed(a->y) + jo_float2fixed(b->y));
+    result->z = jo_fixed2float(jo_float2fixed(a->z) + jo_float2fixed(b->z));
+}
+
+void jo_vectorf_adds(const jo_vectorf * const a, const float s, jo_vectorf * const result)
+{
+    jo_fixed    fs;
+
+    fs = jo_float2fixed(s);
+    result->x = jo_fixed2float(jo_float2fixed(a->x) + fs);
+    result->y = jo_fixed2float(jo_float2fixed(a->y) + fs);
+    result->z = jo_fixed2float(jo_float2fixed(a->z) + fs);
+}
+
+void jo_vectorf_sub(const jo_vectorf * const a, const jo_vectorf * const b, jo_vectorf * const result)
+{
+    result->x = jo_fixed2float(jo_float2fixed(a->x) - jo_float2fixed(b->x));
+    result->y = jo_fixed2float(jo_float2fixed(a->y) - jo_float2fixed(b->y));
+    result->z = jo_fixed2float(jo_float2fixed(a->z) - jo_float2fixed(b->z));
+}
+
+void jo_vectorf_subs(const jo_vectorf * const a, const float s, jo_vectorf * const result)
+{
+    jo_fixed    fs;
+
+    fs = jo_float2fixed(s);
+    result->x = jo_fixed2float(jo_float2fixed(a->x) - fs);
+    result->y = jo_fixed2float(jo_float2fixed(a->y) - fs);
+    result->z = jo_fixed2float(jo_float2fixed(a->z) - fs);
+}
+
+void jo_vectorf_mul(const jo_vectorf * const a, const jo_vectorf * const b, jo_vectorf * const result)
+{
+    result->x = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->x), jo_float2fixed(b->x)));
+    result->y = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->y), jo_float2fixed(b->y)));
+    result->z = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->z), jo_float2fixed(b->z)));
+}
+
+void jo_vectorf_muls(const jo_vectorf * const a, const float s, jo_vectorf * const result)
+{
+    jo_fixed    fs;
+
+    fs = jo_float2fixed(s);
+    result->x = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->x), fs));
+    result->y = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->y), fs));
+    result->z = jo_fixed2float(jo_fixed_mult(jo_float2fixed(a->z), fs));
+}
+
+void jo_vectorf_div(const jo_vectorf * const a, const jo_vectorf * const b, jo_vectorf * const result)
+{
+    result->x = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->x), jo_float2fixed(b->x)));
+    result->y = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->y), jo_float2fixed(b->y)));
+    result->z = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->z), jo_float2fixed(b->z)));
+}
+
+void jo_vectorf_divs(const jo_vectorf * const a, const float s, jo_vectorf * const result)
+{
+    jo_fixed    fs;
+
+    fs = jo_float2fixed(s);
+    result->x = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->x), fs));
+    result->y = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->y), fs));
+    result->z = jo_fixed2float(__jo_fixed_div_or_max(jo_float2fixed(a->z), fs));
+}
+
+float  jo_vectorf_length(const jo_vectorf * const a)
+{
+    jo_vector_fixed     f;
+    int                 shift;
+
+    // (the largest axis between 2^13 and 2^14: the length fits in a jo_fixed, then the power of 2 given back)
+    shift = __jo_floats_to_fixed_scaled(&a->x, &f.x, 3, 13);
+    return (__jo_float_scale2(jo_fixed2float(jo_vector_fixed_length(&f)), -shift));
+}
+
+float  jo_vectorf_dot(const jo_vectorf * const a, const jo_vectorf * const b)
+{
+    jo_vector_fixed     fa;
+    jo_vector_fixed     fb;
+    int                 shift;
+
+    // (each vector between 2^6 and 2^7: the sum of the products fits in a jo_fixed)
+    shift = __jo_floats_to_fixed_scaled(&a->x, &fa.x, 3, 6);
+    shift += __jo_floats_to_fixed_scaled(&b->x, &fb.x, 3, 6);
+    return (__jo_float_scale2(jo_fixed2float(jo_vector_fixed_dot(&fa, &fb)), -shift));
+}
+
+void jo_vectorf_normalize(const jo_vectorf * const a, jo_vectorf * const result)
+{
+    jo_vector_fixed     f;
+
+    // (0, 0, 0 stays 0, 0, 0)
+    __jo_floats_to_fixed_scaled(&a->x, &f.x, 3, 13);
+    jo_vector_fixed_normalize(&f, &f);
+    __jo_vector_fixed_to_float(&f, 0, result);
+}
+
+void jo_vectorf_proj(const jo_vectorf * const v, const jo_vectorf * const onto, jo_vectorf * const result)
+{
+    jo_vector_fixed     fv;
+    jo_vector_fixed     fo;
+    jo_fixed            k;
+    int                 shift;
+
+    // (onto x (v . onto) / (onto . onto): with v x 2^sv and onto x 2^so, the factor is k x 2^(sv - so), the result
+    // x 2^sv)
+    shift = __jo_floats_to_fixed_scaled(&v->x, &fv.x, 3, 6);
+    __jo_floats_to_fixed_scaled(&onto->x, &fo.x, 3, 6);
+    k = __jo_fixed_div_or_max(jo_vector_fixed_dot(&fv, &fo), jo_vector_fixed_dot(&fo, &fo));
+    jo_vector_fixed_muls(&fo, k, &fo);
+    __jo_vector_fixed_to_float(&fo, -shift, result);
+}
+
+void jo_vectorf_cross(const jo_vectorf * const a, const jo_vectorf * const b, jo_vectorf * const result)
+{
+    jo_vector_fixed     fa;
+    jo_vector_fixed     fb;
+    jo_vector_fixed     fr;
+    int                 shift;
+
+    // (each vector between 2^5 and 2^6: the products fit in a jo_fixed)
+    shift = __jo_floats_to_fixed_scaled(&a->x, &fa.x, 3, 5);
+    shift += __jo_floats_to_fixed_scaled(&b->x, &fb.x, 3, 5);
+    jo_vector_fixed_cross(&fa, &fb, &fr);
+    __jo_vector_fixed_to_float(&fr, -shift, result);
+}
+
+float jo_vectorf_angle_between_radf(const jo_vectorf * const a, const jo_vectorf * const b)
+{
+    jo_vector_fixed     fa;
+    jo_vector_fixed     fb;
+    jo_fixed            cosinus;
+
+    __jo_floats_to_fixed_scaled(&a->x, &fa.x, 3, 13);
+    __jo_floats_to_fixed_scaled(&b->x, &fb.x, 3, 13);
+    jo_vector_fixed_normalize(&fa, &fa);
+    jo_vector_fixed_normalize(&fb, &fb);
+    // (a vector 0, 0, 0: the cosinus 1, as before)
+    if ((fa.x | fa.y | fa.z) == 0 || (fb.x | fb.y | fb.z) == 0)
+        cosinus = JO_FIXED_1;
+    else
+        cosinus = JO_MAX(-JO_FIXED_1, JO_MIN(JO_FIXED_1, jo_vector_fixed_dot(&fa, &fb)));
+    // (the straight line of jo_acos_radf())
+    return (jo_fixed2float(jo_fixed_mult(JO_FIXED_PI_DIV_2, JO_FIXED_1 - cosinus)));
+}
+
+void   jo_matrixf_mul(const jo_matrixf * const a, const jo_matrixf * const b, jo_matrixf * const result)
+{
+    jo_matrix                   fa;
+    jo_matrix                   fb;
+    jo_matrix                   fr;
+
+    __jo_matrixf_to_fixed(a, &fa);
+    __jo_matrixf_to_fixed(b, &fb);
+    jo_matrix_mul(&fa, &fb, &fr);
+    __jo_matrix_to_float(&fr, result);
+}
+
+void   jo_matrixf_rotation(const float angle_in_rad, const jo_vectorf * const axis, jo_matrixf * const result)
+{
+    jo_vector_fixed             n;
+    jo_matrix                   r;
+    jo_fixed                    c;
+    jo_fixed                    s;
+    jo_fixed                    a;
+
+    __jo_floats_to_fixed_scaled(&axis->x, &n.x, 3, 13);
+    jo_vector_fixed_normalize(&n, &n);
+    jo_sincos_angle(jo_fixed_rad2ANGLE(jo_float2fixed(angle_in_rad)), &s, &c);
+    a = JO_FIXED_1 - c;
+    jo_matrix_identity(&r);
+    r.m00 = c + jo_fixed_mult(jo_fixed_mult(n.x, n.x), a);
+    r.m10 = jo_fixed_mult(jo_fixed_mult(n.x, n.y), a) - jo_fixed_mult(n.z, s);
+    r.m20 = jo_fixed_mult(jo_fixed_mult(n.x, n.z), a) + jo_fixed_mult(n.y, s);
+    r.m01 = jo_fixed_mult(jo_fixed_mult(n.y, n.x), a) + jo_fixed_mult(n.z, s);
+    r.m11 = c + jo_fixed_mult(jo_fixed_mult(n.y, n.y), a);
+    r.m21 = jo_fixed_mult(jo_fixed_mult(n.y, n.z), a) - jo_fixed_mult(n.x, s);
+    r.m02 = jo_fixed_mult(jo_fixed_mult(n.z, n.x), a) - jo_fixed_mult(n.y, s);
+    r.m12 = jo_fixed_mult(jo_fixed_mult(n.z, n.y), a) + jo_fixed_mult(n.x, s);
+    r.m22 = c + jo_fixed_mult(jo_fixed_mult(n.z, n.z), a);
+    __jo_matrix_to_float(&r, result);
+}
+
+void jo_matrixf_ortho(const float left, const float right, const float bottom, const float top,
+                                                   const float back, const float front, jo_matrixf * const result)
+{
+    jo_matrix                   m;
+    jo_fixed                    l;
+    jo_fixed                    r;
+    jo_fixed                    b;
+    jo_fixed                    t;
+    jo_fixed                    k;
+    jo_fixed                    f;
+
+    l = jo_float2fixed(left);
+    r = jo_float2fixed(right);
+    b = jo_float2fixed(bottom);
+    t = jo_float2fixed(top);
+    k = jo_float2fixed(back);
+    f = jo_float2fixed(front);
+    jo_matrix_identity(&m);
+    m.m00 = __jo_fixed_div_or_max(2 * JO_FIXED_1, r - l);
+    m.m11 = __jo_fixed_div_or_max(2 * JO_FIXED_1, t - b);
+    m.m22 = __jo_fixed_div_or_max(2 * JO_FIXED_1, k - f);
+    m.m30 = -__jo_fixed_div_or_max(r + l, r - l);
+    m.m31 = -__jo_fixed_div_or_max(t + b, t - b);
+    m.m32 = -__jo_fixed_div_or_max(k + f, k - f);
+    __jo_matrix_to_float(&m, result);
+}
+
+void jo_matrixf_perspective(const float vertical_field_of_view_in_deg, const float aspect_ratio,
+                                                    const float near_view_distance, const float far_view_distance, jo_matrixf * const result)
+{
+    jo_matrix                   m;
+    jo_fixed                    n;
+    jo_fixed                    f;
+
+    n = jo_float2fixed(near_view_distance);
+    f = jo_float2fixed(far_view_distance);
+    jo_matrix_identity(&m);
+    m.m11 = __jo_fixed_div_or_max(JO_FIXED_1, jo_tan_angle((jo_angle)(jo_DEGtoANG(vertical_field_of_view_in_deg) / 2)));
+    m.m00 = __jo_fixed_div_or_max(m.m11, jo_float2fixed(aspect_ratio));
+    m.m22 = __jo_fixed_div_or_max(f + n, n - f);
+    // (2 far near on 64 bits (Q32), divided by near - far (Q16))
+    m.m32 = n == f ? JO_FIXED_MIN : (jo_fixed)(((long long)f * n * 2) / (n - f));
+    m.m23 = -JO_FIXED_1;
+    m.m33 = 0;
+    __jo_matrix_to_float(&m, result);
+}
+
+void   jo_matrixf_look_at(const jo_vectorf * const from, const jo_vectorf * const to,
+                                                     const jo_vectorf * const up, jo_matrixf * const result)
+{
+    jo_matrix                   m;
+    jo_vector_fixed             ff;
+    jo_vector_fixed             fu;
+    jo_vector_fixed             tmp;
+    jo_vector_fixed             x;
+    jo_vector_fixed             y;
+    jo_vector_fixed             z;
+
+    __jo_vectorf_to_fixed(from, &ff);
+    __jo_vectorf_to_fixed(to, &tmp);
+    // (only the direction of up matters: normalized first, any size)
+    __jo_floats_to_fixed_scaled(&up->x, &fu.x, 3, 13);
+    jo_vector_fixed_normalize(&fu, &fu);
+    jo_vector_fixed_sub(&tmp, &ff, &tmp);
+    jo_vector_fixed_normalize(&tmp, &tmp);
+    z.x = -tmp.x;
+    z.y = -tmp.y;
+    z.z = -tmp.z;
+    jo_vector_fixed_cross(&fu, &z, &tmp);
+    jo_vector_fixed_normalize(&tmp, &x);
+    jo_vector_fixed_cross(&z, &x, &y);
+    jo_matrix_identity(&m);
+    m.m00 = x.x;
+    m.m10 = x.y;
+    m.m20 = x.z;
+    m.m30 = -jo_vector_fixed_dot(&ff, &x);
+    m.m01 = y.x;
+    m.m11 = y.y;
+    m.m21 = y.z;
+    m.m31 = -jo_vector_fixed_dot(&ff, &y);
+    m.m02 = z.x;
+    m.m12 = z.y;
+    m.m22 = z.z;
+    m.m32 = -jo_vector_fixed_dot(&ff, &z);
+    __jo_matrix_to_float(&m, result);
+}
+
+void jo_matrixf_invert_affine(const jo_matrixf * const matrix, jo_matrixf * const result)
+{
+    jo_matrix                   a;
+    jo_matrix                   r;
+    jo_fixed                    c00;
+    jo_fixed                    c10;
+    jo_fixed                    c20;
+    jo_fixed                    c01;
+    jo_fixed                    c11;
+    jo_fixed                    c21;
+    jo_fixed                    c02;
+    jo_fixed                    c12;
+    jo_fixed                    c22;
+    jo_fixed                    det;
+    jo_fixed                    size;
+    int                         i;
+
+    __jo_matrixf_to_fixed(matrix, &a);
+    c00 = jo_fixed_mult(a.m11, a.m22) - jo_fixed_mult(a.m12, a.m21);
+    c10 = -(jo_fixed_mult(a.m01, a.m22) - jo_fixed_mult(a.m02, a.m21));
+    c20 = jo_fixed_mult(a.m01, a.m12) - jo_fixed_mult(a.m02, a.m11);
+    det = jo_fixed_mult(a.m00, c00) + jo_fixed_mult(a.m10, c10) + jo_fixed_mult(a.m20, c20);
+    size = 0;
+    for (i = 0; i < 3; ++i)
+    {
+        size = JO_MAX(size, JO_ABS(a.m[i][0]));
+        size = JO_MAX(size, JO_ABS(a.m[i][1]));
+        size = JO_MAX(size, JO_ABS(a.m[i][2]));
+    }
+    jo_matrix_identity(&r);
+    // (singular: the determinant under 0.00001 x the cube of the largest value of the 3 x 3 part, as before: the identity)
+    size = JO_MIN(size, 256 * JO_FIXED_1);
+    if (size == 0 || (long long)JO_ABS(det) * 100000 < (((((long long)size * size) >> 16) * size) >> 16))
+    {
+        __jo_matrix_to_float(&r, result);
+        return;
+    }
+    c01 = -(jo_fixed_mult(a.m10, a.m22) - jo_fixed_mult(a.m12, a.m20));
+    c11 = jo_fixed_mult(a.m00, a.m22) - jo_fixed_mult(a.m02, a.m20);
+    c21 = -(jo_fixed_mult(a.m00, a.m12) - jo_fixed_mult(a.m02, a.m10));
+    c02 = jo_fixed_mult(a.m10, a.m21) - jo_fixed_mult(a.m11, a.m20);
+    c12 = -(jo_fixed_mult(a.m00, a.m21) - jo_fixed_mult(a.m01, a.m20));
+    c22 = jo_fixed_mult(a.m00, a.m11) - jo_fixed_mult(a.m01, a.m10);
+    r.m00 = jo_fixed_div(c00, det);
+    r.m10 = jo_fixed_div(c01, det);
+    r.m20 = jo_fixed_div(c02, det);
+    r.m01 = jo_fixed_div(c10, det);
+    r.m11 = jo_fixed_div(c11, det);
+    r.m21 = jo_fixed_div(c12, det);
+    r.m02 = jo_fixed_div(c20, det);
+    r.m12 = jo_fixed_div(c21, det);
+    r.m22 = jo_fixed_div(c22, det);
+    r.m30 = -(jo_fixed_mult(r.m00, a.m30) + jo_fixed_mult(r.m10, a.m31) + jo_fixed_mult(r.m20, a.m32));
+    r.m31 = -(jo_fixed_mult(r.m01, a.m30) + jo_fixed_mult(r.m11, a.m31) + jo_fixed_mult(r.m21, a.m32));
+    r.m32 = -(jo_fixed_mult(r.m02, a.m30) + jo_fixed_mult(r.m12, a.m31) + jo_fixed_mult(r.m22, a.m32));
+    __jo_matrix_to_float(&r, result);
+}
+
+void jo_matrixf_mul_pos(const jo_matrixf * const matrix, const jo_vectorf * const position,
+                                                     jo_vectorf * const result)
+{
+    jo_matrix                   m;
+    jo_vector_fixed             p;
+    jo_vector_fixed             r;
+    jo_fixed                    w;
+
+    __jo_matrixf_to_fixed(matrix, &m);
+    __jo_vectorf_to_fixed(position, &p);
+    w = jo_fixed_mult(m.m03, p.x) + jo_fixed_mult(m.m13, p.y) + jo_fixed_mult(m.m23, p.z) + m.m33;
+    r.x = jo_fixed_mult(m.m00, p.x) + jo_fixed_mult(m.m10, p.y) + jo_fixed_mult(m.m20, p.z) + m.m30;
+    r.y = jo_fixed_mult(m.m01, p.x) + jo_fixed_mult(m.m11, p.y) + jo_fixed_mult(m.m21, p.z) + m.m31;
+    r.z = jo_fixed_mult(m.m02, p.x) + jo_fixed_mult(m.m12, p.y) + jo_fixed_mult(m.m22, p.z) + m.m32;
+    if (w != 0 && w != JO_FIXED_1)
+    {
+        r.x = jo_fixed_div(r.x, w);
+        r.y = jo_fixed_div(r.y, w);
+        r.z = jo_fixed_div(r.z, w);
+    }
+    __jo_vector_fixed_to_float(&r, 0, result);
+}
+
+void jo_matrixf_mul_dir(const jo_matrixf * const matrix, const jo_vectorf * const direction,
+                                                     jo_vectorf * const result)
+{
+    jo_matrix                   m;
+    jo_vector_fixed             p;
+    jo_vector_fixed             r;
+    jo_fixed                    w;
+
+    __jo_matrixf_to_fixed(matrix, &m);
+    __jo_vectorf_to_fixed(direction, &p);
+    w = jo_fixed_mult(m.m03, p.x) + jo_fixed_mult(m.m13, p.y) + jo_fixed_mult(m.m23, p.z);
+    r.x = jo_fixed_mult(m.m00, p.x) + jo_fixed_mult(m.m10, p.y) + jo_fixed_mult(m.m20, p.z);
+    r.y = jo_fixed_mult(m.m01, p.x) + jo_fixed_mult(m.m11, p.y) + jo_fixed_mult(m.m21, p.z);
+    r.z = jo_fixed_mult(m.m02, p.x) + jo_fixed_mult(m.m12, p.y) + jo_fixed_mult(m.m22, p.z);
+    if (w != 0 && w != JO_FIXED_1)
+    {
+        r.x = jo_fixed_div(r.x, w);
+        r.y = jo_fixed_div(r.y, w);
+        r.z = jo_fixed_div(r.z, w);
+    }
+    __jo_vector_fixed_to_float(&r, 0, result);
 }
 
 /*

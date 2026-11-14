@@ -3173,12 +3173,12 @@ void	                        jo_vdp2_move_nbg1(const int x, const int y)
 
 void	                        jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor)
 {
-    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG0, JO_FLOAT_TO_FIXED(width_factor), JO_FLOAT_TO_FIXED(height_factor));
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG0, jo_float2fixed(width_factor), jo_float2fixed(height_factor));
 }
 
 void	                        jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor)
 {
-    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, JO_FLOAT_TO_FIXED(width_factor), JO_FLOAT_TO_FIXED(height_factor));
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, jo_float2fixed(width_factor), jo_float2fixed(height_factor));
 }
 
 void                            jo_vdp2_draw_rbg0_plane_a(const bool use_scroll_format_matrix)

@@ -35,7 +35,7 @@
 #include "model.h"
 
 static jo_camera    cam;
-static float        rx, ry;
+static jo_angle     rx, ry;
 static bool         use_screen_doors;
 static bool         use_light = true;
 static bool         use_texture = true;
@@ -47,8 +47,8 @@ void			    my_draw(void)
     jo_3d_camera_look_at(&cam);
     jo_3d_push_matrix();
     {
-        jo_3d_rotate_matrix_rad_x(rx);
-        jo_3d_rotate_matrix_rad_y(ry);
+        jo_3d_rotate_matrix_angle_x(rx);
+        jo_3d_rotate_matrix_angle_y(ry);
         /* Use Jo Map Editor (v5.0 or superior) to convert mesh for the Sega Saturn */
         display_rock1_mesh();
     }
@@ -73,14 +73,15 @@ void            apply_effect(void)
 
 void			my_gamepad(void)
 {
+    // (0.05 radian per frame, in jo_angle: no float computed)
     if (jo_is_pad1_key_pressed(JO_KEY_UP))
-        rx -= 0.05f;
+        rx -= JO_RAD_TO_ANGLE(0.05);
     else if (jo_is_pad1_key_pressed(JO_KEY_DOWN))
-        rx += 0.05f;
+        rx += JO_RAD_TO_ANGLE(0.05);
     else if (jo_is_pad1_key_pressed(JO_KEY_LEFT))
-        ry += 0.05f;
+        ry += JO_RAD_TO_ANGLE(0.05);
     else if (jo_is_pad1_key_pressed(JO_KEY_RIGHT))
-        ry -= 0.05f;
+        ry -= JO_RAD_TO_ANGLE(0.05);
     if (jo_is_pad1_key_down(JO_KEY_A))
     {
         use_screen_doors ^= true;

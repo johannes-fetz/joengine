@@ -58,7 +58,7 @@ inline void     sonic_running_animation_handling(void)
         if (jo_is_sprite_anim_stopped(player.walking_anim_id))
             jo_start_sprite_anim_loop(player.walking_anim_id);
         // The faster Sonic runs, the faster the animation: 9 frames per image when he walks, 3 from the speed 6
-        speed_step = (int)JO_ABS(physics.speed);
+        speed_step = jo_fixed2int(JO_ABS(jo_float2fixed(physics.speed)));
         jo_set_sprite_anim_frame_rate(player.walking_anim_id, 9 - JO_MIN(speed_step, 6));
     }
 }

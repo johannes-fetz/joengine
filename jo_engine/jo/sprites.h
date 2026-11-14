@@ -365,13 +365,22 @@ static  __jo_force_inline void	jo_sprite_disable_horizontal_flip(void)
  */
 # define JO_NO_ZOOM             (65536)
 
+/** @brief Change scale for every sprite displayed after this call using fixed number
+ *  @param scale Sprite scale (both axes)
+ */
+static  __jo_force_inline void	jo_sprite_change_sprite_scale_fixed(const jo_fixed scale)
+{
+    __jo_sprite_attributes.fixed_scale_x = scale;
+    __jo_sprite_attributes.fixed_scale_y = scale;
+}
+
 /** @brief Change scale for every sprite displayed after this call
  *  @param scale Sprite scale
+ *  @remarks A constant is converted by the compiler; a computed scale: prefer jo_sprite_change_sprite_scale_fixed()
  */
 static  __jo_force_inline void	jo_sprite_change_sprite_scale(const float scale)
 {
-    __jo_sprite_attributes.fixed_scale_x = jo_float2fixed(scale);
-    __jo_sprite_attributes.fixed_scale_y = __jo_sprite_attributes.fixed_scale_x;
+    jo_sprite_change_sprite_scale_fixed(jo_float2fixed(scale));
 }
 
 /** @brief Change scale for every sprite displayed after this call

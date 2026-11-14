@@ -903,9 +903,9 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_z(short z)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, float z)
 {
-    __jo_3d_rotate(JO_3D_AXIS_X, JO_RAD_TO_ANGLE(x));
-    __jo_3d_rotate(JO_3D_AXIS_Y, JO_RAD_TO_ANGLE(y));
-    __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
+    __jo_3d_rotate(JO_3D_AXIS_X, jo_fixed_rad2ANGLE(jo_float2fixed(x)));
+    __jo_3d_rotate(JO_3D_AXIS_Y, jo_fixed_rad2ANGLE(jo_float2fixed(y)));
+    __jo_3d_rotate(JO_3D_AXIS_Z, jo_fixed_rad2ANGLE(jo_float2fixed(z)));
 }
 
 /** @brief Rotate 3D matrix using radian (X axis)
@@ -913,7 +913,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad(float x, float y, fl
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
 {
-    __jo_3d_rotate(JO_3D_AXIS_X, JO_RAD_TO_ANGLE(x));
+    __jo_3d_rotate(JO_3D_AXIS_X, jo_fixed_rad2ANGLE(jo_float2fixed(x)));
 }
 
 /** @brief Rotate 3D matrix using radian (Y axis)
@@ -921,7 +921,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_x(float x)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
 {
-    __jo_3d_rotate(JO_3D_AXIS_Y, JO_RAD_TO_ANGLE(y));
+    __jo_3d_rotate(JO_3D_AXIS_Y, jo_fixed_rad2ANGLE(jo_float2fixed(y)));
 }
 
 /** @brief Rotate 3D matrix using radian (Z axis)
@@ -929,7 +929,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_rad_y(float y)
  */
 static  __jo_force_inline void      jo_3d_rotate_matrix_rad_z(float z)
 {
-    __jo_3d_rotate(JO_3D_AXIS_Z, JO_RAD_TO_ANGLE(z));
+    __jo_3d_rotate(JO_3D_AXIS_Z, jo_fixed_rad2ANGLE(jo_float2fixed(z)));
 }
 
 /** @brief Rotate 3D matrix using jo_angle (0x10000 = 360 degrees: a fraction of degree, no float)
@@ -986,7 +986,7 @@ static  __jo_force_inline void      jo_3d_rotate_matrix_angle_z(const jo_angle z
  */
 static  __jo_force_inline void      jo_3d_translate_matrixf(float x, float y, float z)
 {
-    __jo_3d_translate(JO_FLOAT_TO_FIXED(x), JO_FLOAT_TO_FIXED(y), JO_FLOAT_TO_FIXED(z));
+    __jo_3d_translate(jo_float2fixed(x), jo_float2fixed(y), jo_float2fixed(z));
 }
 
 /** @brief Translate 3D matrix
@@ -1188,7 +1188,7 @@ static  __jo_force_inline void      jo_3d_draw_scaled_billboard(const int sprite
  */
 static  __jo_force_inline void      jo_3d_set_scalef(const float x, const float y, const float z)
 {
-    __jo_3d_scale(JO_FLOAT_TO_FIXED(x), JO_FLOAT_TO_FIXED(y), JO_FLOAT_TO_FIXED(z));
+    __jo_3d_scale(jo_float2fixed(x), jo_float2fixed(y), jo_float2fixed(z));
 }
 
 /** @brief Change scale

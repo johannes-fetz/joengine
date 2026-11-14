@@ -46,7 +46,7 @@ jo_software_renderer_gfx                *gfx2;
 
 void			                        my_soft_render_for_gfx1(void)
 {
-    static float                        rad = 0.0f;
+    static jo_angle                     angle = 0;
     jo_software_renderer_triangle       tri;
     jo_matrix                           transform_matrix;
 
@@ -71,8 +71,9 @@ void			                        my_soft_render_for_gfx1(void)
     tri.v2.pos.w = jo_float2fixed(1);
 
     jo_matrix_identity(&transform_matrix);
-    jo_matrix_rotation_z_rad(rad, &transform_matrix);
-    rad += 0.05f;
+    jo_matrix_rotation_z_angle(angle, &transform_matrix);
+    // (0.05 radian per frame, in jo_angle: no float computed)
+    angle += JO_RAD_TO_ANGLE(0.05);
 
     jo_software_renderer_draw_triangle(gfx1, &tri, &transform_matrix);
 

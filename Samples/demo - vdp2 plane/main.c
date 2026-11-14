@@ -33,14 +33,20 @@
 ** You just need an 8 bits TGA image (255 colors maximum) with a 90° clockwise rotation (open SKY.TGA and you will understand)
 */
 
-jo_pos3Df                   pos;
-jo_rot3Df                   rot;
+/** @brief The camera (fixed numbers, the angles in radian: no float computed) */
+jo_pos3D_fixed              pos;
+struct
+{
+    jo_fixed                rx;
+    jo_fixed                ry;
+    jo_fixed                rz;
+}                           rot;
 jo_palette                  image_pal;
 
 void                        my_input(void)
 {
     static int              movement_speed = 0;
-    static float            angle_increment = 0.0f;
+    static jo_fixed         angle_increment = 0;
 
 	if (jo_is_pad1_key_pressed(JO_KEY_UP))
 	{
@@ -60,21 +66,21 @@ void                        my_input(void)
 		movement_speed = 0;
 
 	if (jo_is_pad1_key_pressed(JO_KEY_RIGHT))
-		angle_increment += 1.5;
+		angle_increment += jo_float2fixed(1.5f);
 	else if (jo_is_pad1_key_pressed(JO_KEY_LEFT))
-        angle_increment -= 1.5;
+        angle_increment -= jo_float2fixed(1.5f);
 
     if (jo_is_pad1_key_pressed(JO_KEY_L))
-        pos.z += 1.0;
+        pos.z += JO_FIXED_1;
 	else if (jo_is_pad1_key_pressed(JO_KEY_R))
-        pos.z -= 1.0;
+        pos.z -= JO_FIXED_1;
 
-    rot.ry = -JO_DEG_TO_RAD(angle_increment);
-    rot.rz += JO_DEG_TO_RAD(angle_increment) / 2.0;
-    angle_increment = angle_increment * 4.0 / 5.0;
+    rot.ry = -jo_fixed_deg2rad(angle_increment);
+    rot.rz += jo_fixed_deg2rad(angle_increment) / 2;
+    angle_increment = angle_increment * 4 / 5;
 
-    pos.x -= movement_speed * jo_sin_radf(rot.rz) / 10.0;
-	pos.y -= movement_speed * jo_cos_radf(rot.rz) / 10.0;
+    pos.x -= movement_speed * jo_fixed_sin(rot.rz) / 10;
+	pos.y -= movement_speed * jo_fixed_cos(rot.rz) / 10;
 }
 
 void                            draw_3d_planes(void)
@@ -82,16 +88,16 @@ void                            draw_3d_planes(void)
     // FLOOR
     jo_3d_push_matrix();
 	{
-		jo_3d_rotate_matrix_rad(rot.rx, rot.ry, rot.rz);
-		jo_3d_translate_matrixf(pos.x, pos.y, pos.z);
+		jo_3d_rotate_matrix_angle(jo_fixed_rad2ANGLE(rot.rx), jo_fixed_rad2ANGLE(rot.ry), jo_fixed_rad2ANGLE(rot.rz));
+		jo_3d_translate_matrix_fixed(pos.x, pos.y, pos.z);
         jo_background_3d_plane_a_draw(true);
 	}
 	jo_3d_pop_matrix();
     //SKY
 	jo_3d_push_matrix();
 	{
-	    jo_3d_translate_matrix(rot.rz * 100, 110 - 112 * jo_cos_radf(rot.rx), 100);
-        jo_3d_rotate_matrix_rad_z(-rot.ry);
+	    jo_3d_translate_matrix(jo_fixed_mult_to_int(rot.rz, jo_int2fixed(100)), 110 - jo_fixed_mult_to_int(jo_fixed_cos(rot.rx), jo_int2fixed(112)), 100);
+        jo_3d_rotate_matrix_angle_z(jo_fixed_rad2ANGLE(-rot.ry));
         jo_background_3d_plane_b_draw(false);
 	}
 	jo_3d_pop_matrix();
@@ -134,13 +140,13 @@ void                jo_main(void)
 
     init_3d_planes();
 
-    pos.x = 800.0;
-	pos.y = 800.0;
-	pos.z = -35.0;
+    pos.x = jo_int2fixed(800);
+	pos.y = jo_int2fixed(800);
+	pos.z = jo_int2fixed(-35);
 
-	rot.rx = JO_DEG_TO_RAD(90.0);
-	rot.ry = JO_DEG_TO_RAD(0.0);
-	rot.rz = JO_DEG_TO_RAD(45.0);
+	rot.rx = JO_FIXED_PI_DIV_2;
+	rot.ry = 0;
+	rot.rz = JO_FIXED_PI_DIV_2 / 2;
 
 	jo_core_add_callback(my_input);
 	jo_core_add_callback(draw_3d_planes);

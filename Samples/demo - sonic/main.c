@@ -52,7 +52,7 @@ void            reset_demo(void)
 bool          has_vertical_collision(void)
 {
     player.can_jump = false;
-    if (physics.speed_y < 0.0f)
+    if (jo_float2fixed(physics.speed_y) < 0)
     {
         physics.is_in_air = true;
         return false;
@@ -94,14 +94,15 @@ void     sonic_collision_handling(void)
     else
     {
         jo_physics_apply_gravity(&physics);
-        player.y += physics.speed_y;
+        // (the speeds of the physics in fixed numbers: no float computed)
+        player.y += jo_fixed2int(jo_float2fixed(physics.speed_y));
     }
     if (has_horizontal_collision())
         physics.speed = 0.0f;
-    else if (physics.speed > 0.0f)
-        map_pos_x += physics.speed < 1.0f ? 1.0f : physics.speed;
-    else if (physics.speed < 0.0f)
-        map_pos_x += physics.speed > -1.0f ? -1.0f : physics.speed;
+    else if (jo_physics_is_going_on_the_right(&physics))
+        map_pos_x += jo_fixed2int(JO_MAX(JO_FIXED_1, jo_float2fixed(physics.speed)));
+    else if (jo_physics_is_going_on_the_left(&physics))
+        map_pos_x += jo_fixed2int(JO_MIN(-JO_FIXED_1, jo_float2fixed(physics.speed)));
 }
 
 static inline void     camera_handling(int prev_y)

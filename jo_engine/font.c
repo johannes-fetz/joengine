@@ -176,6 +176,7 @@ jo_font             *jo_font_load(const char * const sub_dir, const char * const
 void            jo_font_print(const jo_font * const font, int x, int y, float scale, char *str)
 {
     int         spacing;
+    jo_fixed    fixed_scale;
 
     if (font == JO_NULL)
     {
@@ -191,8 +192,10 @@ void            jo_font_print(const jo_font * const font, int x, int y, float sc
 #endif
         return ;
     }
-    jo_sprite_change_sprite_scale(scale);
-    spacing = font->spacing * scale;
+    // (the scale in fixed numbers: no float computed)
+    fixed_scale = jo_float2fixed(scale);
+    jo_sprite_change_sprite_scale_fixed(fixed_scale);
+    spacing = jo_fixed2int(font->spacing * fixed_scale);
     while (*str)
     {
         if (*str == '\t')
@@ -209,6 +212,7 @@ void            jo_font_print_centered(const jo_font * const font, int x, int y,
 {
     int         spacing;
     int         len;
+    jo_fixed    fixed_scale;
 
     if (font == JO_NULL)
     {
@@ -225,9 +229,10 @@ void            jo_font_print_centered(const jo_font * const font, int x, int y,
         return ;
     }
     len = jo_strlen(str);
-    jo_sprite_change_sprite_scale(scale);
-    spacing = font->spacing * scale;
-    x -= JO_DIV_BY_2((int)((len - 1) * font->spacing * scale));
+    fixed_scale = jo_float2fixed(scale);
+    jo_sprite_change_sprite_scale_fixed(fixed_scale);
+    spacing = jo_fixed2int(font->spacing * fixed_scale);
+    x -= JO_DIV_BY_2(jo_fixed2int((len - 1) * font->spacing * fixed_scale));
     while (*str)
     {
         if (*str == '\t')
