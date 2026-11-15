@@ -204,7 +204,10 @@ static const unsigned char      *jo_video_file_data(const unsigned int offset, c
     unsigned int                start;
 
     m = &__jo_video_movie;
-    if (offset < m->window_start)
+    // (an offset or a size of a damaged file near 4 GB: offset + size wrapped around 32 bits, a pointer far from the buffer
+    // was returned without reading anything)
+    if (offset < m->window_start || size > m->buffer_size - JO_VIDEO_SECTOR_SIZE ||
+        offset > 0xFFFFFFFFu - JO_VIDEO_SECTOR_SIZE - size)
         return (JO_NULL);
     if (offset + size + JO_VIDEO_SECTOR_SIZE > m->window_start + m->buffer_size)
     {
@@ -283,7 +286,8 @@ static bool                     jo_video_read_header(void)
             if (m->sample_count > (size - pos - 16) / 16)
                 m->sample_count = (size - pos - 16) / 16;
         }
-        if (length < 8)
+        // (a length past the header: pos wrapped around 32 bits, the same chunks were read again without end)
+        if (length < 8 || length > size - pos)
             break;
         pos += length;
     }
@@ -585,7 +589,8 @@ static void                     jo_video_decode_frame(const unsigned char *p, co
     strips = jo_video_be16(p + 8);
     p += 10;
     // Some FILM files have 2 more bytes before the first strip
-    if (strips && (p[0] != JO_VIDEO_STRIP_INTRA && p[0] != JO_VIDEO_STRIP_INTER) && (p[2] == JO_VIDEO_STRIP_INTRA || p[2] == JO_VIDEO_STRIP_INTER))
+    if (strips && p + 3 <= end && (p[0] != JO_VIDEO_STRIP_INTRA && p[0] != JO_VIDEO_STRIP_INTER) &&
+        (p[2] == JO_VIDEO_STRIP_INTRA || p[2] == JO_VIDEO_STRIP_INTER))
         p += 2;
     JO_ZERO(y);
     for (JO_ZERO(s); s < strips && s < JO_VIDEO_MAX_STRIPS && p + 12 <= end; ++s)
@@ -908,14 +913,18 @@ bool					        jo_video_open_file(const char *const filename)
         jo_video_stop();
         return (false);
     }
-#ifdef JO_DEBUG
-    if (JO_MOD_POW2(m->header.width, 8) != 0)
+    // The size of a sprite of the VDP1 (a width multiple of 8 up to 504, up to 255 lines). Checked without JO_DEBUG too: the
+    // blocks are drawn 32 bits at a time (an address error with another width), and the size of a damaged header wrapped
+    // the size of the decode buffer around 32 bits (the frames were written far past a small block)
+    if (m->header.width == 0 || JO_MOD_POW2(m->header.width, 8) != 0 || m->header.width > 504 ||
+        m->header.height == 0 || m->header.height > 255)
     {
-        jo_core_error("%s: Video width must be a multiple of 8", filename);
+#ifdef JO_DEBUG
+        jo_core_error("%s: Video width must be a multiple of 8 (up to 504), height up to 255", filename);
+#endif
         jo_video_stop();
         return (false);
     }
-#endif
     if ((m->decode_buffer = jo_malloc_with_behaviour(m->header.width * m->header.height * sizeof(jo_color), JO_MALLOC_TRY_REUSE_BLOCK)) == JO_NULL)
     {
 #ifdef JO_DEBUG

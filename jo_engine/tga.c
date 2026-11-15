@@ -244,7 +244,11 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     // (1 color mapped, 2 true color, 3 gray; 9 to 11: the same compressed (RLE), see jo_tga_rle_unpack())
     // (a file shorter than its header says, or than a header: the pixels were read after its end. Compressed: the pixels
     // stop at the end of the file)
+    // (the colors of a palette: 2, 3 or 4 bytes (15 or 16, 24, 32 bits). Another size of a damaged header: read as 3 bytes
+    // each, after the bytes checked below)
     if (!JO_TGA_SUPPORTED_FORMAT(*bits) || (header->image_type & ~JO_TGA_RLE) < 1 || (header->image_type & ~JO_TGA_RLE) > 3 ||
+        (*bits == JO_TGA_8_BITS && header->color_map_length != 0 &&
+         (JO_DIV_BY_8(header->color_map_entry_depth + 1) < 2 || JO_DIV_BY_8(header->color_map_entry_depth + 1) > 4)) ||
         (len > 0 && ((unsigned int)len < sizeof(*header) ||
                      (unsigned long long)len < sizeof(*header) + header->id_length +
                      (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth + 1) : 0) +
