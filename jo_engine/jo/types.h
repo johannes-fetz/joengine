@@ -38,6 +38,17 @@
 /** @brief force inline attribute (and prevent Doxygen prototype parsing bug) */
 # define __jo_force_inline                  __attribute__((always_inline)) inline
 
+/** @brief The memory of an object of another type can be accessed through this type (the strict aliasing rule of the
+ *  compiler, -O2, does not apply to it: a store and a load of the same bytes through two struct types are kept in order)
+ */
+# define __jo_may_alias                     __attribute__((__may_alias__))
+
+/** @brief 32 bits word of any memory (the copies and the fills of buffers of another type by words) */
+typedef unsigned int __jo_may_alias         __jo_uint32_alias;
+
+/** @brief 16 bits word of any memory (see __jo_uint32_alias) */
+typedef unsigned short __jo_may_alias       __jo_uint16_alias;
+
 /** @brief 15 bits color type */
 typedef unsigned short jo_color;
 
@@ -242,8 +253,10 @@ typedef struct
     unsigned char   *data;
 }					jo_img_8bits;
 
-/** @brief Raw image struct */
-typedef struct
+/** @brief Raw image struct
+ *  @remarks Accessed as jo_img or jo_img_8bits (may alias)
+ */
+typedef struct __jo_may_alias
 {
     unsigned short	width;
     unsigned short	height;

@@ -488,7 +488,7 @@ int                                 jo_memcmp(const void * const p1, const void 
         for (; (((unsigned int)s1) & 3) != 0; --num, ++s1, ++s2)
             if (*s1 != *s2)
                 return (*s1 - *s2);
-        for (; num >= 4 && *(const unsigned int *)s1 == *(const unsigned int *)s2; num -= 4, s1 += 4, s2 += 4)
+        for (; num >= 4 && *(const __jo_uint32_alias *)s1 == *(const __jo_uint32_alias *)s2; num -= 4, s1 += 4, s2 += 4)
             ;
     }
     for (; num > 0; --num, ++s1, ++s2)
@@ -517,7 +517,7 @@ int                                 jo_strcmp(const char * restrict p1, const ch
 
 void                        jo_memset(const void * const restrict ptr, const int value, unsigned int num)
 {
-    register unsigned int   * restrict p;
+    register __jo_uint32_alias  * restrict p;
     register unsigned char  * restrict pp;
     unsigned int            tail;
     unsigned int            x;
@@ -535,7 +535,7 @@ void                        jo_memset(const void * const restrict ptr, const int
         *pp++ = xx;
         --num;
     }
-    p = (unsigned int*)pp;
+    p = (__jo_uint32_alias *)pp;
     tail = num & 3;
     x |= x << 8;
     x |= x << 16;
@@ -560,10 +560,10 @@ void                            jo_memcpy(void * const restrict dst, const void 
 {
     register unsigned char          *d8;
     register const unsigned char    *s8;
-    register unsigned int           *d32;
-    register const unsigned int     *s32;
-    register unsigned short         *d16;
-    register const unsigned short   *s16;
+    register __jo_uint32_alias          *d32;
+    register const __jo_uint32_alias    *s32;
+    register __jo_uint16_alias          *d16;
+    register const __jo_uint16_alias    *s16;
 
     d8 = (unsigned char *)dst;
     s8 = (const unsigned char *)src;
@@ -595,8 +595,8 @@ void                            jo_memcpy(void * const restrict dst, const void 
             --size;
         }
         offset = ((unsigned int)s8) & 3;
-        s32 = (const unsigned int *)(s8 - offset);
-        d32 = (unsigned int *)d8;
+        s32 = (const __jo_uint32_alias *)(s8 - offset);
+        d32 = (__jo_uint32_alias *)d8;
         w = *s32++;
         if (offset == 1)
             for (; size >= 4; size -= 4)
@@ -617,8 +617,8 @@ void                            jo_memcpy(void * const restrict dst, const void 
     }
     if (((((unsigned int)d8) | ((unsigned int)s8)) & 3) == 0)
     {
-        d32 = (unsigned int *)d8;
-        s32 = (const unsigned int *)s8;
+        d32 = (__jo_uint32_alias *)d8;
+        s32 = (const __jo_uint32_alias *)s8;
         for (; size >= 16; size -= 16)
         {
             d32[0] = s32[0];
@@ -635,8 +635,8 @@ void                            jo_memcpy(void * const restrict dst, const void 
     }
     else if (((((unsigned int)d8) | ((unsigned int)s8)) & 1) == 0)
     {
-        d16 = (unsigned short *)d8;
-        s16 = (const unsigned short *)s8;
+        d16 = (__jo_uint16_alias *)d8;
+        s16 = (const __jo_uint16_alias *)s8;
         // (unrolled like the 32 bits copy: the keys of the commands of the slave CPU, for instance)
         for (; size >= 8; size -= 8)
         {

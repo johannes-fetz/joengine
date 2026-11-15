@@ -204,8 +204,10 @@ typedef struct
     jo_angle        z_angle;
 }                   jo_camera;
 
-/** @brief Quadrilateral shape structure */
-typedef struct
+/** @brief Quadrilateral shape structure
+ *  @remarks Accessed as jo_3d_mesh (may alias)
+ */
+typedef struct __jo_may_alias
 {
     jo_3d_polygon_data       data;
     jo_3d_polygon_attribute        attribute;

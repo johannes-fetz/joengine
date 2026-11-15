@@ -434,7 +434,7 @@ static int                      jo_cd_get_sectors(const unsigned int n, unsigned
         // Fast path: a whole sector in an aligned buffer (4 words per iteration)
         if (bytes >= JO_SECTOR_SIZE && ((unsigned int)buf & 3) == 0)
         {
-            unsigned int    *d32 = (unsigned int *)buf;
+            __jo_uint32_alias   *d32 = (__jo_uint32_alias *)buf;
 
             for (JO_ZERO(w); w < JO_SECTOR_SIZE / 4; w += 4)
             {
@@ -454,7 +454,7 @@ static int                      jo_cd_get_sectors(const unsigned int n, unsigned
             if (bytes >= 4)
             {
                 if (((unsigned int)buf & 3) == 0)
-                    *(unsigned int *)buf = value;
+                    *(__jo_uint32_alias *)buf = value;
                 else
                 {
                     buf[0] = value >> 24;

@@ -129,13 +129,13 @@ void                            __jo_input_frame_start(void)
 void                            jo_get_inputs_vblank(void)
 {
     register unsigned int       i;
-    unsigned int                *src;
-    unsigned int                *dest;
+    const __jo_uint32_alias     *src;
+    __jo_uint32_alias           *dest;
     jo_peripheral_gun           *gun;
 
     //We get the first 6 inputs
-    src = (unsigned int *)__jo_smpc_peripherals;
-    dest = (unsigned int *)&jo_inputs[0];
+    src = (const __jo_uint32_alias *)__jo_smpc_peripherals;
+    dest = (__jo_uint32_alias *)&jo_inputs[0];
     for (JO_ZERO(i); i < __JO_SIZEOF_6_PerDigital_SIZE_DIV_SIZEOF_INT; ++i)
         *dest++ = *src++;
     //Then, we get the last 6 inputs for the second multitap

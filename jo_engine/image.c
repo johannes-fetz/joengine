@@ -58,15 +58,15 @@ extern int      __jo_hash_table[JO_MAX_SPRITE];
  */
 static void             jo_bin_copy_pixels(jo_color *dest, const unsigned short *src, int size, const jo_color transparent_color)
 {
-    unsigned int        *d32;
-    const unsigned int  *s32;
+    __jo_uint32_alias       *d32;
+    const __jo_uint32_alias *s32;
     unsigned int        w;
     register int        i;
 
     if ((((unsigned int)dest | (unsigned int)src) & 3) == 0)
     {
-        d32 = (unsigned int *)dest;
-        s32 = (const unsigned int *)src;
+        d32 = (__jo_uint32_alias *)dest;
+        s32 = (const __jo_uint32_alias *)src;
         for (i = size >> 1; i > 0; --i)
         {
             w = *s32++;

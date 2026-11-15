@@ -220,7 +220,7 @@ typedef struct
 /** @brief Analog peripheral data (racing wheel, mission stick, 3D pad)
  *  @remarks Inherits from jo_peripheral (cast friendly)
  */
-typedef struct
+typedef struct __jo_may_alias
 {
     unsigned char       id;
     unsigned char       size;
@@ -237,7 +237,7 @@ typedef struct
 /** @brief Pointing peripheral data (mouse)
  *  @remarks Inherits from jo_peripheral (cast friendly)
  */
-typedef struct
+typedef struct __jo_may_alias
 {
     unsigned char       id;
     unsigned char       size;
@@ -252,7 +252,7 @@ typedef struct
 /** @brief Light gun data (Internal usage, see jo_get_input_gun_position())
  *  @remarks Inherits from jo_peripheral (cast friendly)
  */
-typedef struct
+typedef struct __jo_may_alias
 {
     unsigned char       id;
     unsigned char       size;
@@ -269,7 +269,7 @@ typedef struct
 /** @brief Keyboard data
  *  @remarks Inherits from jo_peripheral (cast friendly)
  */
-typedef struct
+typedef struct __jo_may_alias
 {
     unsigned char       id;
     unsigned char       size;
