@@ -119,6 +119,9 @@ static  __jo_force_inline void      __jo_core_set_sr(const unsigned int sr)
     __asm__ volatile ("ldc %0, sr" : : "r" (sr) : "memory");
 }
 
+/** @brief true while jo_core_run() runs the callbacks of a frame (Internal usage, see __jo_vdp2_end_frame()) */
+extern volatile bool                __jo_core_frame_open;
+
 /** @brief Mask all interrupts (Internal usage)
  *  @return Previous status register for __jo_core_restore_interrupts()
  */

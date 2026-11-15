@@ -235,6 +235,8 @@ static  __jo_force_inline void  jo_background_3d_plane_far_limit(const int max_z
 
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 static  __jo_force_inline void  jo_background_3d_plane_a_draw(const bool use_scroll_format_matrix)
 {
@@ -243,6 +245,8 @@ static  __jo_force_inline void  jo_background_3d_plane_a_draw(const bool use_scr
 
 /** @brief Draw plane B
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scroll_format_matrix)
 {
@@ -254,6 +258,8 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw(const bool use_scr
  *  @param y Vertical position in the image of the top of the screen (pixels)
  *  @remarks The plane B is displayed where the plane A is transparent (above its horizon). Above the image, the top left
  *  cell (8 x 8 pixels) of the image is repeated (see jo_vdp2_draw_rbg0_plane_b_flat())
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 static  __jo_force_inline void  jo_background_3d_plane_b_draw_flat(const int x, const int y)
 {

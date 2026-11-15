@@ -40,6 +40,8 @@ void                    jo_main(void)
     steps[count++] = (jt_step){JT_STEP_RUN, "unit", unit_tests, JO_NULL, JO_NULL, JO_NULL, 0};
     for (i = 0; i < t_leak_step_count; ++i)
         steps[count++] = t_leak_steps[i];
+    steps[count++] = (jt_step){JT_STEP_BENCH, "vdp2_frames", t_vdp2_frames_setup, t_vdp2_frames_draw, t_vdp2_frames_measure,
+                               t_vdp2_frames_cleanup, 64};
     // (the memory measured before the fuzz: it leaves the heap in other blocks)
     steps[count++] = (jt_step){JT_STEP_RUN, "memory", memory_metrics, JO_NULL, JO_NULL, JO_NULL, 0};
     // (after the leak checks: the fuzz uses the files of cd/FUZZ, made by rom/gen_fuzz.py)

@@ -281,6 +281,8 @@ void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
 /** @brief Move NBG1 (scrolling)
  *  @param x horizontal location
  *  @param y vertical location
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void	jo_vdp2_move_nbg1(const int x, const int y);
 
@@ -301,6 +303,8 @@ static  __jo_force_inline void	jo_vdp2_zoom_nbg1(const float factor)
 /** @brief Move NBG0 (scrolling)
  *  @param x horizontal location
  *  @param y vertical location
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void	jo_vdp2_move_nbg0(const int x, const int y);
 
@@ -450,11 +454,15 @@ void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_
 
 /** @brief Draw plane A
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_draw_rbg0_plane_a(const bool use_scroll_format_matrix);
 
 /** @brief Draw plane B
   * @param use_scroll_format_matrix Convert current matrix to scroll format matrix
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_draw_rbg0_plane_b(const bool use_scroll_format_matrix);
 
@@ -466,6 +474,8 @@ void    jo_vdp2_draw_rbg0_plane_b(const bool use_scroll_format_matrix);
  *  the top of the image must be one color (the top of the sky). Below the image, the image is repeated (hidden by the plane A)
  *  @remarks The image (jo_vdp2_set_rbg0_plane_b_8bits_image()) must be as wide as the plane (512 pixels) or a divisor of it
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_draw_rbg0_plane_b_flat(const int x, const int y);
 

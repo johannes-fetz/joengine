@@ -11,6 +11,12 @@ void    t_logic(void);
 /** @brief State of the engine and of the hardware after the API calls (t_state.c) */
 void    t_state(void);
 
+/** @brief The VDP2 applied with the image of its frame: a step of a few frames (t_state.c) */
+void    t_vdp2_frames_setup(void);
+void    t_vdp2_frames_draw(void);
+void    t_vdp2_frames_measure(void);
+void    t_vdp2_frames_cleanup(void);
+
 /** @brief More math and lists (t_more.c) */
 void    t_more(void);
 

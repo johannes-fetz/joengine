@@ -59,6 +59,17 @@ void    __jo_vdp2_nbg1_bitmap_fill(const int x, const int y, int width, int heig
  */
 void    __jo_vdp2_nbg1_bitmap_blit(const jo_img * const img, const int src_x, const int src_y, int width, int height, const int x, const int y);
 
+/** @brief End of a frame of the game (Internal usage, called by __jo_core_synch() before __jo_vdp1_end_frame()): the
+ *  scroll registers and the rotation parameters set by the frame are kept with its number (__jo_vdp1_frame_tag()) and
+ *  applied at the VBLANK where the VDP1 displays its image (see __jo_vdp1_displayed_frame_changed())
+ */
+void            __jo_vdp2_end_frame(void);
+
+/** @brief Number of the last frame whose VDP2 state was applied (Internal usage, the test ROM)
+ *  @return Frame number (see __jo_vdp1_frame_tag())
+ */
+unsigned int    __jo_vdp2_applied_frame_tag(void);
+
 #endif /* !__JO_INTERNAL_VDP2_H__ */
 
 /*

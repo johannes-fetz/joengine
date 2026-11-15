@@ -49,6 +49,7 @@
 #include "jo/list.h"
 #include "jo/3d.h"
 #include "internal/core.h"
+#include "internal/vdp1_command_pipeline.h"
 #include "internal/vdp2_malloc.h"
 #include "internal/vdp2.h"
 
@@ -297,7 +298,93 @@ static unsigned short               __jo_vdp2_shadow[JO_VDP2_REG_COUNT];
 static volatile unsigned int        __jo_vdp2_dirty[(JO_VDP2_REG_COUNT + 31) / 32];
 static unsigned short               __jo_vdp2_tvmd;
 
-/** @brief Set a VDP2 register (applied during the next VBLANK)
+/*
+** The VDP2 with the image of the VDP1 (see __jo_vdp2_end_frame()): the VDP2 applies a register at the VBLANK after it
+** is set, the VDP1 displays the image of a frame later (the table of the frame is sorted and copied, then given to the
+** VDP1 at a VBLANK, drawn and displayed in the field after): a VDP2 plane or scroll moved by a frame was displayed 1 to 2
+** frames before the sprites and polygons of the same frame (a band of sky under the polygons of the horizon when the
+** camera turns, the sprites ahead of a scrolling background), and two frames ending in the same field (1.2 and 0.5
+** fields) showed the VDP2 of only one of them (the VDP2 at 30 frames per second, the VDP1 at 60). The scroll registers
+** and the rotation parameters set by the frame callbacks of jo_core_run() are kept with the number of the frame and
+** applied at the VBLANK where the VDP1 displays its image, as the glows do. The other registers (modes, priorities,
+** colors...) and the changes made before jo_core_run() or in a VBLANK callback: at the next VBLANK, as before.
+*/
+/** @brief Registers applied with the image of their frame (see jo_vdp2_frame_register()) */
+# define JO_VDP2_FRAME_REGISTERS            (14)
+
+/** @brief Registers of the current frame (bits of jo_vdp2_frame_register()) */
+static unsigned int                 __jo_vdp2_frame_dirty = 0;
+/** @brief The rotation parameters set by the current frame */
+static bool                         __jo_vdp2_frame_rparams = false;
+
+/** @brief The registers applied with the image of their frame: the scroll of NBG0 to NBG3, and the registers of the
+ *  rotation parameter B set with its matrix (coefficient table, character over the planes)
+ *  @param index Register index (JO_VDP2_REG_INDEX())
+ *  @return Bit of the register in the state of a frame, -1: applied at the next VBLANK
+ *  @remarks Not the zoom: its reduction bits (ZMCTL) and the VRAM cycles go with it, at the next VBLANK
+ */
+static  __jo_force_inline int       jo_vdp2_frame_register(const unsigned int index)
+{
+    // SCXIN0, SCXDN0, SCYIN0, SCYDN0
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_SCXIN0) < 4)
+        return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_SCXIN0)));
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_SCXIN1) < 4)
+        return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_SCXIN1)) + 4);
+    // SCXN2, SCYN2, SCXN3, SCYN3
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_SCXN2) < 4)
+        return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_SCXN2)) + 8);
+    if (index == JO_VDP2_REG_INDEX(JO_VDP2_KTCTL))
+        return (12);
+    if (index == JO_VDP2_REG_INDEX(JO_VDP2_OVPNRB))
+        return (13);
+    return (-1);
+}
+
+/** @brief Register index of a bit of jo_vdp2_frame_register()
+ *  @param n Bit (0 to JO_VDP2_FRAME_REGISTERS - 1)
+ *  @return Register index (JO_VDP2_REG_INDEX())
+ */
+static  __jo_force_inline unsigned int  jo_vdp2_frame_register_index(const int n)
+{
+    if (n < 4)
+        return (JO_VDP2_REG_INDEX(JO_VDP2_SCXIN0) + (unsigned int)n);
+    if (n < 8)
+        return (JO_VDP2_REG_INDEX(JO_VDP2_SCXIN1) + (unsigned int)(n - 4));
+    if (n < 12)
+        return (JO_VDP2_REG_INDEX(JO_VDP2_SCXN2) + (unsigned int)(n - 8));
+    return (n == 12 ? JO_VDP2_REG_INDEX(JO_VDP2_KTCTL) : JO_VDP2_REG_INDEX(JO_VDP2_OVPNRB));
+}
+
+/** @brief A change made by the frame callbacks of jo_core_run(): applied with the image of the frame
+ *  @param sr Status register of the caller (before its interrupts were masked)
+ *  @return true in a frame of jo_core_run(), out of the interrupt handlers (the VBLANK callbacks: at the next VBLANK)
+ */
+static  __jo_force_inline bool      jo_vdp2_in_frame(const unsigned int sr)
+{
+    return (__jo_core_frame_open && (sr & JO_SH2_SR_INTERRUPT_MASK) == 0);
+}
+
+/** @brief Mark a register changed: applied at the next VBLANK, or with the image of the frame
+ *  @param index Register index (JO_VDP2_REG_INDEX())
+ *  @param sr Status register of the caller (before its interrupts were masked)
+ */
+static  __jo_force_inline void      jo_vdp2_shadow_mark(const unsigned int index, const unsigned int sr)
+{
+    int                             n;
+
+    n = jo_vdp2_frame_register(index);
+    if (n >= 0 && jo_vdp2_in_frame(sr))
+    {
+        __jo_vdp2_frame_dirty |= 1u << n;
+        // (a value set before the frame and not applied yet: replaced by the one of the frame)
+        __jo_vdp2_dirty[index >> 5] &= ~(1u << (index & 31));
+    }
+    else
+        __jo_vdp2_dirty[index >> 5] |= (1u << (index & 31));
+}
+
+/** @brief Set a VDP2 register (applied during the next VBLANK, or with the image of the frame: see
+ *  jo_vdp2_frame_register())
  *  @param index Register index (JO_VDP2_REG_INDEX())
  *  @param value Register value
  */
@@ -307,11 +394,11 @@ static void                         jo_vdp2_shadow_set(const unsigned int index,
 
     sr = __jo_core_disable_interrupts();
     __jo_vdp2_shadow[index] = value;
-    __jo_vdp2_dirty[index >> 5] |= (1u << (index & 31));
+    jo_vdp2_shadow_mark(index, sr);
     __jo_core_restore_interrupts(sr);
 }
 
-/** @brief Set some bits of a VDP2 register (applied during the next VBLANK)
+/** @brief Set some bits of a VDP2 register (applied during the next VBLANK, or with the image of the frame)
  *  @param index Register index (JO_VDP2_REG_INDEX())
  *  @param mask Bits to change
  *  @param value New value of the bits
@@ -323,7 +410,7 @@ static void                         jo_vdp2_shadow_set_bits(const unsigned int i
     // (the read and the write with the interrupts masked: a VBLANK callback changing the same register in between)
     sr = __jo_core_disable_interrupts();
     __jo_vdp2_shadow[index] = (__jo_vdp2_shadow[index] & ~mask) | (value & mask);
-    __jo_vdp2_dirty[index >> 5] |= (1u << (index & 31));
+    jo_vdp2_shadow_mark(index, sr);
     __jo_core_restore_interrupts(sr);
 }
 
@@ -1111,6 +1198,129 @@ static volatile bool                __jo_vdp2_rparams_dirty = false;
 static unsigned int                 __jo_vdp2_rparams_offset = 0;
 static unsigned int                 __jo_vdp2_ktable_offset[2] = {0, 0};
 
+/** @brief States of the frames waiting for their image (see __jo_vdp2_end_frame()): the CPUs are 2 to 3 frames ahead of
+ *  the image displayed at most */
+# define JO_VDP2_FRAME_STATES               (4)
+
+/** @brief What a frame changed in the VDP2 (applied with its image) */
+typedef struct
+{
+    unsigned int                    tag;            // Frame (see __jo_vdp1_frame_tag())
+    unsigned int                    dirty;          // Registers (bits of jo_vdp2_frame_register())
+    bool                            rparams;        // The rotation parameters
+    unsigned short                  registers[JO_VDP2_FRAME_REGISTERS];
+    jo_vdp2_rotation_parameter      rparam[2];
+}                                   jo_vdp2_frame_state;
+
+static jo_vdp2_frame_state          __jo_vdp2_frame_states[JO_VDP2_FRAME_STATES];
+/** @brief The states waiting: the oldest one, their count (written with the interrupts masked, read in the VBLANK) */
+static unsigned int                 __jo_vdp2_frame_first = 0;
+static unsigned int                 __jo_vdp2_frame_count = 0;
+/** @brief Frame of the last state applied (see __jo_vdp2_applied_frame_tag()) */
+static volatile unsigned int        __jo_vdp2_frame_applied = 0;
+
+/** @brief The rotation parameters were changed: copied to the VRAM at the next VBLANK, or with the image of the frame */
+static void                         jo_vdp2_rparams_changed(void)
+{
+    unsigned int                    sr;
+
+    sr = __jo_core_disable_interrupts();
+    if (jo_vdp2_in_frame(sr))
+    {
+        __jo_vdp2_frame_rparams = true;
+        // (the parameters set before the frame and not copied yet: replaced by the ones of the frame)
+        __jo_vdp2_rparams_dirty = false;
+    }
+    else
+        __jo_vdp2_rparams_dirty = true;
+    __jo_core_restore_interrupts(sr);
+}
+
+/** @brief The rotation parameters waiting are not copied (the table moves or is freed: see jo_vdp2_disable_rbg0()) */
+static void                         jo_vdp2_rparams_forget(void)
+{
+    unsigned int                    sr;
+    int                             i;
+
+    sr = __jo_core_disable_interrupts();
+    __jo_vdp2_rparams_dirty = false;
+    __jo_vdp2_frame_rparams = false;
+    for (JO_ZERO(i); i < JO_VDP2_FRAME_STATES; ++i)
+        __jo_vdp2_frame_states[i].rparams = false;
+    __jo_core_restore_interrupts(sr);
+}
+
+void                                __jo_vdp2_end_frame(void)
+{
+    jo_vdp2_frame_state             *state;
+    unsigned int                    sr;
+    unsigned int                    bits;
+    int                             n;
+
+    if (!__jo_vdp2_frame_dirty && !__jo_vdp2_frame_rparams)
+        return;
+    sr = __jo_core_disable_interrupts();
+    if (__jo_vdp2_frame_count < JO_VDP2_FRAME_STATES)
+    {
+        state = &__jo_vdp2_frame_states[(__jo_vdp2_frame_first + __jo_vdp2_frame_count) & (JO_VDP2_FRAME_STATES - 1)];
+        JO_ZERO(state->dirty);
+        state->rparams = false;
+        ++__jo_vdp2_frame_count;
+    }
+    else
+    {
+        // (the VDP1 more than JO_VDP2_FRAME_STATES frames behind the CPUs: the newest state waits for this frame too)
+        state = &__jo_vdp2_frame_states[(__jo_vdp2_frame_first + JO_VDP2_FRAME_STATES - 1) & (JO_VDP2_FRAME_STATES - 1)];
+    }
+    state->tag = __jo_vdp1_frame_tag();
+    state->dirty |= __jo_vdp2_frame_dirty;
+    for (JO_ZERO(n), bits = __jo_vdp2_frame_dirty; bits; ++n, bits >>= 1)
+        if (bits & 1)
+            state->registers[n] = __jo_vdp2_shadow[jo_vdp2_frame_register_index(n)];
+    if (__jo_vdp2_frame_rparams)
+    {
+        state->rparams = true;
+        jo_memcpy(state->rparam, __jo_vdp2_rparams, sizeof(state->rparam));
+    }
+    JO_ZERO(__jo_vdp2_frame_dirty);
+    __jo_vdp2_frame_rparams = false;
+    __jo_core_restore_interrupts(sr);
+}
+
+/** @brief Apply the states of the frames displayed from this field (see __jo_vdp2_end_frame())
+ *  @remarks Called during VBLANK-IN, after the VDP1 (see __jo_vdp1_displayed_frame_changed())
+ */
+static void                         jo_vdp2_frame_vblank(void)
+{
+    const jo_vdp2_frame_state       *state;
+    unsigned int                    tag;
+    unsigned int                    bits;
+    int                             n;
+
+    if (__jo_vdp2_frame_count == 0 || !__jo_vdp1_displayed_frame_changed(&tag))
+        return;
+    // The states of this frame and of the frames before it (a frame whose image was never displayed: with the next one)
+    while (__jo_vdp2_frame_count > 0)
+    {
+        state = &__jo_vdp2_frame_states[__jo_vdp2_frame_first];
+        if ((int)(state->tag - tag) > 0)
+            break;
+        for (JO_ZERO(n), bits = state->dirty; bits; ++n, bits >>= 1)
+            if (bits & 1)
+                ((volatile unsigned short *)JO_VDP2_REG)[jo_vdp2_frame_register_index(n)] = state->registers[n];
+        if (state->rparams && rbg0_rtable != JO_NULL)
+            jo_memcpy((void *)(JO_VDP2_VRAM + __jo_vdp2_rparams_offset), state->rparam, 2 * JO_VDP2_RPARAM_SIZE);
+        __jo_vdp2_frame_applied = state->tag;
+        __jo_vdp2_frame_first = (__jo_vdp2_frame_first + 1) & (JO_VDP2_FRAME_STATES - 1);
+        --__jo_vdp2_frame_count;
+    }
+}
+
+unsigned int                        __jo_vdp2_applied_frame_tag(void)
+{
+    return (__jo_vdp2_frame_applied);
+}
+
 /** @brief Format a value for the rotation parameter table
  *  @param v Fixed number
  *  @return Value with the 6 low bits cleared
@@ -1146,7 +1356,8 @@ static void                         jo_vdp2_set_default_rotation_parameter(jo_vd
  */
 static void                         jo_vdp2_rotation_vblank(void)
 {
-    if (!__jo_vdp2_rparams_dirty)
+    // (no table: RBG0 disabled, see jo_vdp2_disable_rbg0())
+    if (!__jo_vdp2_rparams_dirty || rbg0_rtable == JO_NULL)
         return;
     __jo_vdp2_rparams_dirty = false;
     jo_memcpy((void *)(JO_VDP2_VRAM + __jo_vdp2_rparams_offset), &__jo_vdp2_rparams[0], JO_VDP2_RPARAM_SIZE);
@@ -1160,6 +1371,8 @@ static void                         jo_vdp2_init_rotation_parameters(void *addr)
 {
     unsigned int                    offset;
 
+    // (the parameters of the frames waiting: for the table before)
+    jo_vdp2_rparams_forget();
     __jo_vdp2_rparams_offset = jo_vdp2_vram_offset(addr);
     jo_vdp2_set_default_rotation_parameter(&__jo_vdp2_rparams[0], __jo_vdp2_ktable_offset[0]);
     jo_vdp2_set_default_rotation_parameter(&__jo_vdp2_rparams[1], __jo_vdp2_ktable_offset[1]);
@@ -1300,7 +1513,7 @@ static bool                         jo_vdp2_invert_matrix(const jo_fixed *m, jo_
  *  @param parameter 0: rotation parameter A, 1: rotation parameter B
  *  @param use_scroll_format_matrix Convert the matrix to the scroll format
  *  @remarks The plane drawn is the local XY plane of the current matrix
- *  @remarks The table is copied to the VRAM during the next VBLANK
+ *  @remarks The table is copied to the VRAM during the next VBLANK (by a frame callback: with the image of the frame)
  */
 static void                         jo_vdp2_set_rotation_matrix(const int parameter, const bool use_scroll_format_matrix)
 {
@@ -1376,7 +1589,7 @@ static void                         jo_vdp2_set_rotation_matrix(const int parame
     p->kast = ((unsigned int)ka) & JO_VDP2_ROTATION_VALUE_MASK;
     p->dkast = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][1]) >> 16)) << (16 + __jo_screen.interlace), t[2]));
     p->dkax = jo_vdp2_rotation_value((jo_fixed)jo_vdp2_div64((((q * inv[2][0]) >> 16)) << (16 + __jo_screen.hires), t[2]));
-    __jo_vdp2_rparams_dirty = true;
+    jo_vdp2_rparams_changed();
 }
 
 /*
@@ -1411,6 +1624,7 @@ void                                __jo_vdp2_vblank(void)
         __jo_vdp2_set_tv_display(true);
     jo_vdp2_commit();
     jo_vdp2_rotation_vblank();
+    jo_vdp2_frame_vblank();
 }
 
 /*
@@ -2166,6 +2380,8 @@ void                            jo_vdp2_disable_rbg0(void)
 
     // (the VDP2 reads the tables until the registers are written: now, not at the next VBLANK)
     jo_vdp2_flush_now();
+    // (the parameters waiting are not copied into the table freed)
+    jo_vdp2_rparams_forget();
     if (rbg0_ktable != JO_NULL)
     {
         jo_vdp2_free(rbg0_ktable);
@@ -3210,7 +3426,7 @@ void                            jo_vdp2_draw_rbg0_plane_b_flat(const int x, cons
     jo_vdp2_set_default_rotation_parameter(p, __jo_vdp2_ktable_offset[1]);
     p->mx = jo_vdp2_rotation_value(JO_MULT_BY_65536(JO_MOD_POW2(x, JO_VDP2_PLANE_PIXELS) + JO_VDP2_PLANE_PIXELS));
     p->my = jo_vdp2_rotation_value(JO_MULT_BY_65536(y));
-    __jo_vdp2_rparams_dirty = true;
+    jo_vdp2_rparams_changed();
 }
 
 /*

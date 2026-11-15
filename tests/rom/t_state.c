@@ -5,6 +5,7 @@
 
 #include "jt.h"
 #include "tests.h"
+#include "internal/vdp2.h"
 
 #define T_VDP2_REGS             (0x120 / 2)
 #define T_REG(ADDRESS)          (jo_vdp2_get_registers()[((ADDRESS) - 0x25F80000) / 2])
@@ -741,6 +742,99 @@ static void                     t_files(void)
     JT_TRUE(data != JO_NULL && len == 44);
     if (data != JO_NULL)
         jo_free(data);
+}
+
+/*
+** The VDP2 with the image of its frame (see __jo_vdp2_end_frame()): each frame sets the NBG0 scroll, the frames are
+** 1.2 and 0.5 field long in turn (two frames can end in the same field). At each VBLANK where the VDP1 displays a new
+** image, the VDP2 state applied is the one of that frame, and no state is applied at the other VBLANKs
+*/
+static int                      t_vdp2_frames_vblank_id = -1;
+static volatile bool            t_vdp2_frames_on = false;
+static unsigned int             t_vdp2_frames_first;
+static unsigned int             t_vdp2_frames_count;
+static volatile unsigned int    t_vdp2_frames_shown;
+static volatile unsigned int    t_vdp2_frames_wrong;
+static volatile unsigned int    t_vdp2_frames_early;
+static volatile unsigned int    t_vdp2_frames_applied;
+
+static void                     t_vdp2_frames_vblank(void)
+{
+    unsigned int                applied;
+    unsigned int                tag;
+
+    if (!t_vdp2_frames_on)
+        return;
+    applied = __jo_vdp2_applied_frame_tag();
+    if (__jo_vdp1_displayed_frame_changed(&tag))
+    {
+        if ((int)(tag - t_vdp2_frames_first) >= 0)
+        {
+            ++t_vdp2_frames_shown;
+            if (applied != tag)
+                ++t_vdp2_frames_wrong;
+        }
+    }
+    else if (applied != t_vdp2_frames_applied)
+        ++t_vdp2_frames_early;
+    t_vdp2_frames_applied = applied;
+}
+
+void                            t_vdp2_frames_setup(void)
+{
+    t_vdp2_frames_count = 0;
+    t_vdp2_frames_shown = 0;
+    t_vdp2_frames_wrong = 0;
+    t_vdp2_frames_early = 0;
+    t_vdp2_frames_applied = __jo_vdp2_applied_frame_tag();
+    // (the frame built now is the first one of the test)
+    t_vdp2_frames_first = __jo_vdp1_frame_tag();
+    if (t_vdp2_frames_vblank_id < 0)
+        t_vdp2_frames_vblank_id = jo_core_add_vblank_callback(t_vdp2_frames_vblank);
+    t_vdp2_frames_on = true;
+}
+
+void                            t_vdp2_frames_draw(void)
+{
+    unsigned int                vblank;
+    int                         start;
+
+    ++t_vdp2_frames_count;
+    jo_vdp2_move_nbg0((int)(t_vdp2_frames_count & 255), 0);
+    if (t_vdp2_frames_count & 1)
+    {
+        // About 1.2 field: past the next VBLANK, then 1/5 field
+        vblank = jo_core_get_vblank_count();
+        while (jo_core_get_vblank_count() == vblank)
+            ;
+        start = jo_time_get_frc();
+        while (((jo_time_get_frc() - start) & 0xFFFF) < 2800)
+            ;
+    }
+    else
+    {
+        // About 0.5 field
+        start = jo_time_get_frc();
+        while (((jo_time_get_frc() - start) & 0xFFFF) < 7000)
+            ;
+    }
+}
+
+void                            t_vdp2_frames_measure(void)
+{
+    jt_group("vdp2.frames");
+    JT_TRUE(t_vdp2_frames_shown > 30);
+    JT_EQ(t_vdp2_frames_wrong, 0);
+    JT_EQ(t_vdp2_frames_early, 0);
+}
+
+void                            t_vdp2_frames_cleanup(void)
+{
+    t_vdp2_frames_on = false;
+    if (t_vdp2_frames_vblank_id >= 0)
+        jo_core_remove_vblank_callback(t_vdp2_frames_vblank_id);
+    t_vdp2_frames_vblank_id = -1;
+    jo_vdp2_move_nbg0(0, 0);
 }
 
 void                            t_state(void)

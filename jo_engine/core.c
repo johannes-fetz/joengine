@@ -111,6 +111,7 @@ void                                        __jo_smpc_init(void);
 void                                        __jo_smpc_vblank_in(void);
 void                                        __jo_vdp2_init_registers(void);
 void                                        __jo_vdp2_vblank(void);
+void                                        __jo_vdp2_end_frame(void);
 void                                        __jo_time_vblank(void);
 void                                        __jo_vdp2_set_tv_display(const bool on);
 void                                        __jo_vdp2_set_priority(const jo_scroll_screen screen, const unsigned short priority);
@@ -126,6 +127,7 @@ char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 /** @brief Number of VBLANK since startup */
 volatile unsigned int                       __jo_core_vblank_count = 0;
 static unsigned int                         __jo_core_last_synch_vblank = 0;
+volatile bool                               __jo_core_frame_open = false;
 int                                         __jo_core_fps = 0;
 unsigned int                                __jo_core_late_frames = 0;
 static unsigned int                         __jo_core_fps_frames = 0;
@@ -468,6 +470,8 @@ void                                        __jo_core_synch(void)
 {
     unsigned int                            target;
 
+    // (the VDP2 scroll and rotation parameters of the frame: with the number of the frame, before it changes)
+    __jo_vdp2_end_frame();
     __jo_vdp1_end_frame();
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     jo_profile_count(JO_PROFILE_POLYGONS, jo_3d_get_displayed_polygon_count());
@@ -915,6 +919,9 @@ void			        jo_core_run(void)
     jo_profile_begin(JO_PROFILE_FRAME);
     for (;;)
     {
+        // The callbacks of a frame: their VDP2 scroll and rotation parameters are applied with its image (see
+        // __jo_vdp2_end_frame())
+        __jo_core_frame_open = true;
 #ifdef JO_TEST_PCPROF_FRAME
         {
             static int pcprof_frame;
@@ -976,6 +983,7 @@ void			        jo_core_run(void)
         }
 #endif
 
+        __jo_core_frame_open = false;
         __jo_core_synch();
         __jo_gouraud_shading_runtime_index = -1;
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT

@@ -387,6 +387,9 @@ static  __jo_force_inline int       jo_core_get_fps(void)
 /** @brief Get the count of the late frames since startup
  *  @return Frames that took more VBLANK than JO_FRAMERATE (the game missed the end of a frame: it slows down)
  *  @remarks The first frame is not counted (the loading before it)
+ *  @remarks As the images of the VDP1: a frame of 1.2 field followed by a frame of 0.5 field is not late (the table of
+ *  the second frame waits for its VBLANK: each image stays one field, 60 images per second). Measured: the count is the
+ *  fields that showed the image before again
  */
 static  __jo_force_inline unsigned int  jo_core_get_late_frame_count(void)
 {
