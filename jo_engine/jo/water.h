@@ -429,6 +429,38 @@ jo_fixed    jo_water_wave_height(const jo_water * const w, const int x, const in
  */
 void        jo_water_sample(const jo_water * const w, const int x, const int z, jo_water_point * const point);
 
+/** @brief An object that falls in the water and floats on the waves (a crate, a barrel, a buoy): see jo_water_float() */
+typedef struct
+{
+    int                     x;              // Position (units): moved by the game
+    int                     z;
+    jo_fixed                y;              // Height of its middle above the calm sea (jo_fixed units, up)
+    jo_fixed                vy;             // Vertical speed (jo_fixed units per frame, up)
+    int                     half;           // Half its height (units): it touches the water when y - half reaches the surface
+    int                     sink;           // It floats this much in the water (units, < 2 x half)
+    jo_angle                tilt_x;         // Its tilt on the slope of the surface (rotate around x, then z, then its heading)
+    jo_angle                tilt_z;
+    bool                    in_water;
+}                           jo_water_floating;
+
+/** @brief Start an object above the water (it falls, see jo_water_float())
+ *  @param f Object
+ *  @param x Position (units)
+ *  @param z Position (units)
+ *  @param height Height of its middle above the calm sea (units)
+ *  @param half Half its height (units)
+ *  @param sink It floats this much in the water (units)
+ */
+void        jo_water_floating_init(jo_water_floating * const f, const int x, const int z, const int height, const int half, const int sink);
+
+/** @brief Move a floating object (once per frame, after jo_water_update()): it falls (gravity), splashes in the water (a ring
+ *  of waves as high as its speed, see jo_water_drop()), then floats: a damped spring toward the surface under it, tilted
+ *  with the slope of the surface (jo_water_sample())
+ *  @param f Object
+ *  @remarks Draw it at (x, -y, z) (y down), rotated by tilt_x, then tilt_z
+ */
+void        jo_water_float(jo_water * const w, jo_water_floating * const f);
+
 /** @brief Change the swell (a calm sea, a storm, the wind turns)
  *  @param waves Waves (copied)
  *  @param count JO_WATER_MAX_WAVES at most

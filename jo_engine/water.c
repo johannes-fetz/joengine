@@ -553,6 +553,56 @@ void                        jo_water_drop(jo_water * const w, const int x, const
     s->height = jo_int2fixed(height);
 }
 
+/*
+** Floating objects (see jo_water_float()): gravity in the air; in the water a spring toward the surface under the object
+** (FLOAT_SPRING of the distance a frame), damped (FLOAT_DAMPING of the speed); the tilt: the slopes of the surface (a small
+** slope in radians is about its tangent, x RADIAN_TO_ANGLE)
+*/
+# define FLOAT_GRAVITY      (JO_FIXED_1 / 5)
+# define FLOAT_SPRING       (JO_FIXED_1 / 12)
+# define FLOAT_DAMPING      (JO_FIXED_1 / 7)
+# define RADIAN_TO_ANGLE    (10430)
+
+void                        jo_water_floating_init(jo_water_floating * const f, const int x, const int z, const int height, const int half,
+                                                   const int sink)
+{
+    f->x = x;
+    f->z = z;
+    f->y = jo_int2fixed(height);
+    JO_ZERO(f->vy);
+    f->half = half;
+    f->sink = sink;
+    JO_ZERO(f->tilt_x);
+    JO_ZERO(f->tilt_z);
+    f->in_water = false;
+}
+
+void                        jo_water_float(jo_water * const w, jo_water_floating * const f)
+{
+    jo_water_point          point;
+    jo_fixed                speed;
+
+    jo_water_sample(w, f->x, f->z, &point);
+    if (!f->in_water)
+    {
+        f->vy -= FLOAT_GRAVITY;
+        f->y += f->vy;
+        if (f->y - jo_int2fixed(f->half) <= point.height)
+        {
+            // (the splash: waves as high as the speed of the fall, the object goes under a bit)
+            f->in_water = true;
+            speed = -f->vy;
+            jo_water_drop(w, f->x, f->z, JO_MIN(18, jo_fixed2int(speed) * 3 + 4));
+            f->vy = -speed / 4;
+        }
+        return;
+    }
+    f->vy += jo_fixed_mult(point.height + jo_int2fixed(f->half - f->sink) - f->y, FLOAT_SPRING) - jo_fixed_mult(f->vy, FLOAT_DAMPING);
+    f->y += f->vy;
+    f->tilt_x = (jo_angle)jo_fixed_mult(point.slope_z, RADIAN_TO_ANGLE);
+    f->tilt_z = (jo_angle)-jo_fixed_mult(point.slope_x, RADIAN_TO_ANGLE);
+}
+
 void                        jo_water_wave_front(jo_water * const w, const int x, const int z, const jo_angle direction, const int height,
                                              const int width)
 {
