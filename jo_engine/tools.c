@@ -115,8 +115,13 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
                 zero = true;
             else if (*format == '+')
                 plus = '+';
-            else if (*format == ' ' && plus == '\0')
-                plus = ' ';
+            else if (*format == ' ')
+            {
+                // (a space after a + or a second space: still a flag. It ended the flags, the conversion was written as it
+                // is and its argument not taken: the next conversions read the wrong arguments)
+                if (plus == '\0')
+                    plus = ' ';
+            }
             else
                 break;
         }

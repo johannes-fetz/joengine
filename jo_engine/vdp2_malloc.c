@@ -368,7 +368,10 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
                     __jo_a0_segments[i].is_free = false;
                     return (__jo_a0_segments[i].ptr);
                 }
-                if (__jo_a0_segments[i].is_free && __jo_a0_segments[i].size >= n)
+                // (the cells of the rotation screen: the same end as a new block, a freed bitmap of A0 and A1 reused for them went
+                // over its coefficient table. The other blocks are all before B0)
+                if (__jo_a0_segments[i].is_free && __jo_a0_segments[i].size >= n &&
+                    (usage != JO_VDP2_RAM_CELL_RBG0 || __jo_a0_segments[i].ptr + n <= (unsigned char *)JO_VDP2_VRAM_A1))
                     return (jo_vdp2_reuse(__jo_a0_segments, A0_SEGMENT_COUNT, i, __jo_a0_segments[i].ptr, __jo_a0_segments[i].ptr + n));
             }
 #ifdef JO_DEBUG

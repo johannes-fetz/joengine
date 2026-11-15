@@ -17,6 +17,10 @@ static void             t_sprintf_bugs(void)
     JT_EQ(jo_strcmp(b, "+5 7"), 0);
     jo_sprintf(b, "% d|%+d", 5, -5);
     JT_EQ(jo_strcmp(b, " 5|-5"), 0);
+    // (a space after a + or 2 spaces: still flags. The conversion was written as it is, its argument not taken: the next
+    // conversions read the wrong arguments)
+    jo_sprintf(b, "%+ d|%  s|%d", 5, "x", 7);
+    JT_EQ(jo_strcmp(b, "+5|x|7"), 0);
     jo_sprintf(b, "%.3d|%5.2s|%.1s", 7, "abc", "xyz");
     JT_EQ(jo_strcmp(b, "007|   ab|x"), 0);
     // (an unsupported conversion: its argument skipped, the next ones right)
