@@ -1379,6 +1379,112 @@ static void             t_round6_b_bugs(void)
         jo_sprite_free_from(first);
 }
 
+/** @brief A JOM file in memory: 4 points, 1 polygon, then a chunk of the kind (see t_round7_bugs())
+ *  @param kind 0: none, 1: "QMAT" of 0 materials, 2: a group, 3: a group of 5 polygons, 4: normals of the corners, 5: a
+ *  normal out of its table, 6: the colors of 2 points
+ *  @return Size in bytes */
+static unsigned int     t_jom7(unsigned int * const w, const int kind)
+{
+    unsigned int        n;
+
+    jo_memset(w, 0, 128 * sizeof(unsigned int));
+    t_jom_tag(w, "JOM1");
+    w[1] = 0x00010000;
+    n = 6;
+    t_jom_tag(&w[n], "PNTS");
+    w[n + 1] = 4 + 4 * 12;
+    w[n + 2] = 4;
+    n += 3 + 12;
+    t_jom_tag(&w[n], "QUAD");
+    w[n + 1] = 4 + 20;
+    w[n + 2] = 1;
+    w[n + 5] = JO_FIXED_1;
+    w[n + 6] = (0u << 16) | 1u;
+    w[n + 7] = (2u << 16) | 3u;
+    n += 8;
+    if (kind == 1)
+    {
+        t_jom_tag(&w[n], "QMAT");
+        w[n + 1] = 4;
+        n += 3;
+    }
+    else if (kind == 2 || kind == 3)
+    {
+        t_jom_tag(&w[n], "GRUP");
+        w[n + 1] = 4 + 24;
+        w[n + 2] = 1;
+        w[n + 3] = 0x47000000;
+        w[n + 7] = (0u << 16) | 4u;
+        w[n + 8] = (0u << 16) | (kind == 2 ? 1u : 5u);
+        n += 9;
+    }
+    else if (kind == 4 || kind == 5)
+    {
+        t_jom_tag(&w[n], "NTAB");
+        w[n + 1] = 4 + 12;
+        w[n + 2] = 1;
+        w[n + 5] = JO_FIXED_1;
+        n += 6;
+        t_jom_tag(&w[n], "CNRM");
+        w[n + 1] = 4 + 8;
+        w[n + 2] = 4;
+        w[n + 4] = kind == 4 ? 0u : 1u;
+        n += 5;
+    }
+    else if (kind == 6)
+    {
+        t_jom_tag(&w[n], "VCOL");
+        w[n + 1] = 4 + 2 * 12;
+        w[n + 2] = 2;
+        n += 3 + 6;
+    }
+    t_jom_tag(&w[n], "END ");
+    n += 2;
+    return (n * sizeof(unsigned int));
+}
+
+/** @brief Review 7 (files read on a big endian CPU with the address sanitizer): each check failed before its fix */
+static void             t_round7_bugs(void)
+{
+    static const bool   good[7] = {true, false, true, false, true, false, false};
+    jo_3d_model         *model;
+    unsigned int        size;
+    int                 k;
+
+    jt_group("bugs.round7");
+    // jo_3d_create_model_from_memory(): the tables given to the game in their chunks ("QMAT" of 0 materials read for each
+    // polygon, a group out of the mesh, normals of the corners or colors of the points shorter than the polygons or the
+    // points, a normal out of its table): the model refused
+    for (k = 0; k < 7; ++k)
+    {
+        size = t_jom7(t_jom_words, k);
+        jt_expect_errors(!good[k]);
+        model = jo_3d_create_model_from_memory((const unsigned char *)t_jom_words, size);
+        jt_expect_errors(false);
+        JT_EQ(model != JO_NULL, good[k]);
+        if (model != JO_NULL)
+            jo_3d_free_model(model);
+    }
+#ifdef JO_COMPILE_WITH_TGA_SUPPORT
+    static const jo_tile tile = {0, 0, 8, 8};
+    int                 last;
+    int                 id;
+
+    // jo_sprite_add_tga_tileset() of a compressed TGA of 43691 x 32768 pixels: the size of the unpacked pixels (x 3)
+    // wrapped to 32 KB, its runs wrote 115 KB in the block
+    last = jo_get_last_sprite_id();
+    jt_expect_errors(true);
+    id = jo_sprite_add_tga_tileset(JO_ROOT_DIR, "BIGRLE.TGA", JO_COLOR_Transparent, &tile, 1);
+    jt_expect_errors(false);
+    JT_EQ(id, -1);
+    JT_EQ(jo_get_last_sprite_id(), last);
+    // jo_set_background_tga() of a 8 bits TGA: a byte per pixel, the background read 2 per pixel
+    jt_expect_errors(true);
+    JT_TRUE(!jo_set_background_tga(JO_ROOT_DIR, "P8.TGA", JO_COLOR_Transparent));
+    jt_expect_errors(false);
+#endif
+}
+
 void                    t_bugs(void)
 {
     t_3d_bugs();
@@ -1401,4 +1507,5 @@ void                    t_bugs(void)
     t_round6_d_bugs();
     t_round6_a_bugs();
     t_round6_b_bugs();
+    t_round7_bugs();
 }

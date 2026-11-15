@@ -1185,6 +1185,8 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     unsigned int                            storage_polygons;
     unsigned int                            storage_textures;
     unsigned int                            qmat_count;
+    unsigned int                            cnrm_count;
+    unsigned int                            vcol_count;
     unsigned int                            gouraud_size;
     unsigned int                            anim_size;
     unsigned int                            seen;
@@ -1193,6 +1195,8 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
 
     wrong = false;
     JO_ZERO(qmat_count);
+    JO_ZERO(cnrm_count);
+    JO_ZERO(vcol_count);
     JO_ZERO(gouraud_size);
     JO_ZERO(anim_size);
     if (data == JO_NULL || size < JO_3D_MODEL_HEADER_SIZE || !jo_3d_model_is_tag(data, "JOM1") ||
@@ -1315,9 +1319,15 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             model->normals = (jo_pos3D_fixed *)jo_3d_model_copy(model, p + 12, count * sizeof(jo_pos3D_fixed));
         }
         else if (jo_3d_model_is_tag(p, "CNRM"))
+        {
+            cnrm_count = count;
             model->corner_normals = (unsigned short *)jo_3d_model_copy(model, p + 12, count * sizeof(unsigned short));
+        }
         else if (jo_3d_model_is_tag(p, "VCOL"))
+        {
+            vcol_count = count;
             model->vertex_colors = (jo_pos3D_fixed *)jo_3d_model_copy(model, p + 12, count * sizeof(jo_pos3D_fixed));
+        }
         else if (jo_3d_model_is_tag(p, "GOUR"))
         {
             gouraud = (const unsigned short *)(p + 12);
@@ -1357,8 +1367,22 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             polygon->vertices[2] >= point_count || polygon->vertices[3] >= point_count)
             wrong = true;
     }
-    if ((qmat_count != 0 && qmat_count < polygon_count) || (gouraud != JO_NULL && gouraud_size < polygon_count * 4 * sizeof(unsigned short)))
+    // (a "QMAT" chunk of 0 materials: its table was read for each polygon, after its end)
+    if ((model->polygon_materials != JO_NULL && qmat_count < polygon_count) ||
+        (gouraud != JO_NULL && gouraud_size < polygon_count * 4 * sizeof(unsigned short)))
         wrong = true;
+    // (the tables given to the game shorter than the points or the polygons, a normal out of its table: read after their end)
+    if ((model->corner_normals != JO_NULL && cnrm_count < polygon_count * 4) ||
+        (model->vertex_colors != JO_NULL && vcol_count < point_count))
+        wrong = true;
+    for (JO_ZERO(k); !wrong && model->corner_normals != JO_NULL && k < polygon_count * 4; ++k)
+        if (model->corner_normals[k] >= model->normal_count)
+            wrong = true;
+    // (the groups out of the points or of the polygons: jo_3d_model_find_group() gave them to the game, drawn after the mesh)
+    for (JO_ZERO(k); !wrong && model->groups != JO_NULL && k < model->group_count; ++k)
+        if ((unsigned int)model->groups[k].first_point + model->groups[k].point_count > point_count ||
+            (unsigned int)model->groups[k].first_polygon + model->groups[k].polygon_count > polygon_count)
+            wrong = true;
     if (!wrong && !jo_3d_model_animations_fit(model, anim_size))
         JO_ZERO(model->animation_count);
     if (wrong || points == JO_NULL || polygons == JO_NULL)
@@ -1593,7 +1617,8 @@ bool                                        jo_3d_model_set_environment(jo_3d_mo
     if (model->materials == JO_NULL || model->polygon_materials == JO_NULL)
         return (true);
     for (JO_ZERO(k); k < mesh->data.polygon_count; ++k)
-        if (model->materials[model->polygon_materials[k]].flags & material_flags)
+        // (a material out of the table: none, as jo_3d_model_set_attributes())
+        if (model->polygon_materials[k] < model->material_count && (model->materials[model->polygon_materials[k]].flags & material_flags))
             jo_3d_set_mesh_polygon_environment(mesh, k);
     return (true);
 }
