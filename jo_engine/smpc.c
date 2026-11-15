@@ -339,6 +339,9 @@ static unsigned int                     jo_smpc_parse_port(unsigned int pos, con
             JO_ZERO(size);
         else if (size == JO_SMPC_PERIPHERAL_EXTENDED_SIZE && pos < __jo_smpc_intback_length)
             size = __jo_smpc_intback_buffer[pos++];
+        // (a truncated report: only the bytes received, nothing read after them)
+        if (size > __jo_smpc_intback_length - pos)
+            size = __jo_smpc_intback_length - pos;
         if (index < first_index + JO_SMPC_PERIPHERAL_PER_PORT)
         {
             if (id == JO_PERIPHERAL_ID_NOT_CONNECTED)

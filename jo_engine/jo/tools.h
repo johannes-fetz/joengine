@@ -276,10 +276,26 @@ static  __jo_force_inline bool        jo_tools_is_whitespace(const char c)
 /** @brief Create an hash code based on the first four character of the string
  *  @param str String
  *  @return the hashcode (integer)
+ *  @remarks Stops at the end of a shorter string (nothing read after its NUL)
  */
 static  __jo_force_inline int        jo_4_char_hash(const char * const str)
 {
-    return (int)str[0] | (((int)str[1]) << 8) | (((int)str[2]) << 16) | (((int)str[3]) << 24);
+    const unsigned char * const     s = (const unsigned char *)str;
+    unsigned int                    hash;
+
+    // (unsigned: a character over 127 does not fill the bytes above it)
+    hash = s[0];
+    if (s[0] != 0)
+    {
+        hash |= (unsigned int)s[1] << 8;
+        if (s[1] != 0)
+        {
+            hash |= (unsigned int)s[2] << 16;
+            if (s[2] != 0)
+                hash |= (unsigned int)s[3] << 24;
+        }
+    }
+    return ((int)hash);
 }
 
 /** @brief DateTime struct

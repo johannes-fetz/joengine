@@ -201,11 +201,11 @@ typedef struct
 /** @brief Textured sprite with horizontal and vertical flip */
 # define JO_VDP1_SPRITE_HV_FLIP             ((3 << 4) | JO_VDP1_FUNCTION_TEXTURE | (JO_VDP1_OPTION_USE_TEXTURE << 16))
 /** @brief Flat color polygon */
-# define JO_VDP1_POLYGON                    (JO_VDP1_FUNCTION_POLYGON | ((JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24))
+# define JO_VDP1_POLYGON                    ((int)(JO_VDP1_FUNCTION_POLYGON | ((unsigned int)(JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24)))
 /** @brief Flat color polyline */
-# define JO_VDP1_POLYLINE                   (JO_VDP1_FUNCTION_POLYLINE | ((JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24))
+# define JO_VDP1_POLYLINE                   ((int)(JO_VDP1_FUNCTION_POLYLINE | ((unsigned int)(JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24)))
 /** @brief Flat color line */
-# define JO_VDP1_LINE                       (JO_VDP1_FUNCTION_LINE | ((JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24))
+# define JO_VDP1_LINE                       ((int)(JO_VDP1_FUNCTION_LINE | ((unsigned int)(JO_VDP1_END_CODE_DISABLE | JO_VDP1_TRANSPARENT_PIXEL_DISABLE) << 24)))
 
 /** @brief Command bits of a direction attribute (drawing function and flip)
  *  @param DIRECTION JO_VDP1_SPRITE_NO_FLIP, JO_VDP1_POLYGON, etc
