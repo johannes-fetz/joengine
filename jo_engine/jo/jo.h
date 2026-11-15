@@ -73,6 +73,7 @@
 #include "light.h"
 #include "glow.h"
 #include "level.h"
+#include "water.h"
 #include "entity.h"
 #include "cell.h"
 #include "weapon.h"
