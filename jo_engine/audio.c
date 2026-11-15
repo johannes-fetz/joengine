@@ -2187,8 +2187,11 @@ static bool                         jo_audio_music_header(const unsigned char * 
         __jo_audio_music.block_align = __jo_audio_music.channels * (bits >> 3);
         __jo_audio_music.frame_size = __jo_audio_music.block_align;
     }
+    // (stereo: groups of 8 bytes, 4 of each channel, after the header of the block: another size, the last group was read
+    // past the block)
     else if (format == 0x11 && bits == 4 && __jo_audio_music.block_align > 4 * __jo_audio_music.channels &&
-             __jo_audio_music.block_align <= JO_AUDIO_MUSIC_MAX_BLOCK && (__jo_audio_music.block_align & 3) == 0)
+             __jo_audio_music.block_align <= JO_AUDIO_MUSIC_MAX_BLOCK &&
+             (__jo_audio_music.block_align & (4 * __jo_audio_music.channels - 1)) == 0)
     {
         __jo_audio_music.format = JoAudioMusicImaAdpcm;
         __jo_audio_music.samples_per_block = (__jo_audio_music.block_align - 4 * __jo_audio_music.channels) * 2 / __jo_audio_music.channels + 1;
@@ -2236,6 +2239,14 @@ bool                                jo_audio_play_music(const char * const filen
     }
     if (__jo_audio_music.data_end > size)
         __jo_audio_music.data_end = size - (size - __jo_audio_music.data_start) % __jo_audio_music.block_align;
+    // (a file cut before its first whole block of samples: nothing to play, its reads were started again at each frame)
+    if (__jo_audio_music.data_end <= __jo_audio_music.data_start)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: no samples", filename);
+#endif
+        return (false);
+    }
     if (__jo_audio_music_sound_ram == 0)
     {
         if (__jo_audio_resident_start < JO_AUDIO_PCM_AREA_START + JO_AUDIO_COPIED_ROOM + JO_AUDIO_MUSIC_SOUND_RAM_SIZE)
