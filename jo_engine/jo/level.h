@@ -161,6 +161,33 @@ bool                                jo_level_set_textures16_palette(jo_level * c
 bool                                jo_level_add_textures16(jo_level * const level, const jo_palette * const palette,
                                                             const int first, const int count, int * const sprite_ids);
 
+/*
+** Textures of 256 colors (section TX08): a byte a pixel, one palette of 255 colors for all of them (photographs, painted
+** textures: more colors than 16 a texture, opaque over a see-through bottom). A texture can bring its smaller copies (half
+** and quarter size, made by the tool: Compiler/COMMON/jo_level/quantize.py), used when it is drawn small (the VDP1 reads all
+** the texels of a texture). The fields of the game (TX08.value) and the sizes: JO_LEVEL_RECORDS(level, TX08, tx08, &count)
+*/
+
+/** @brief Copy the palette of the textures of 256 colors of a level in a palette
+ *  @param level Level
+ *  @param palette Palette (jo_create_palette()): the pixel value n of the textures is its color n (palette->data[n - 1])
+ *  @return false if the level has no textures of 256 colors, or no colors, or more than JO_PALETTE_MAX_COLORS
+ */
+bool                                jo_level_set_textures8_palette(jo_level * const level, const jo_palette * const palette);
+
+/** @brief Make the sprites of textures of 256 colors of a level, and of their smaller copies (the sprites after each
+ *  texture, given to jo_3d_set_texture_mipmap_copies() with the 3D support)
+ *  @param level Level
+ *  @param first First texture (0: the first one of the level)
+ *  @param count Number of textures
+ *  @param sprite_ids Output: the sprite Id of each texture (count values)
+ *  @return false if the level has not these textures (or a texture is damaged: nothing made) or if the VDP1 memory is full
+ *  (the sprites already made stay, see jo_sprite_free_from())
+ *  @remarks Draw a polygon with one of them and its palette: jo_3d_set_mesh_polygon_texture_palette()
+ */
+bool                                jo_level_add_textures8(jo_level * const level, const int first, const int count,
+                                                           int * const sprite_ids);
+
 #endif /* !JO_COMPILE_WITH_FS_SUPPORT */
 
 #endif /* !__JO_LEVEL_H__ */

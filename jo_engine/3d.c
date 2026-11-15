@@ -8953,6 +8953,21 @@ void                        jo_3d_set_mesh_polygon_texture_bank(jo_3d_mesh * con
     attribute->color = (unsigned short)(palette->id * 256 + bank * 16);
 }
 
+void                        jo_3d_set_mesh_polygon_texture_palette(jo_3d_mesh * const mesh, const int sprite_id, const jo_palette * const palette,
+                                                                   const unsigned int index)
+{
+#ifdef JO_DEBUG
+    if (palette == JO_NULL)
+    {
+        jo_core_error("palette is null");
+        return ;
+    }
+#endif
+    jo_3d_set_mesh_polygon_texture(mesh, sprite_id, index);
+    // (the color bank of a 256 colors texture: the first color of the palette, see jo_create_palette())
+    mesh->data.attributes[index].color = (unsigned short)(palette->id * 256);
+}
+
 void                        jo_3d_set_mesh_texture(jo_3d_mesh * const mesh, const int sprite_id)
 {
     unsigned int            i;

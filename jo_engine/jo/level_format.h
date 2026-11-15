@@ -376,6 +376,38 @@ typedef struct
 /** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
 # define JO_LEVEL_TX16_RECORD_DEFAULTS      {}
 
+/*
+** TX08: Textures of 256 colors (version 1)
+*/
+# define JO_LEVEL_SECTION_TX08               JO_LEVEL_ID('T', 'X', '0', '8')
+# define JO_LEVEL_TX08_VERSION               (1)
+
+/** @brief Textures of 256 colors: header (16 bytes) */
+typedef struct
+{
+    unsigned short              color_count;         // v1: Colors of the palette (0 to 255): the pixel value n (1 to color_count) is the color colors[n - 1], 0 is transparent
+    unsigned short              flags;               // v1: Reserved (0)
+    unsigned int                colors;              // v1: Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see jo_vdp2_blend_rgb_sprites_only())
+    unsigned int                pixel_size;          // v1: Bytes of pixels
+    unsigned int                pixels;              // v1: Pixels of the textures: a byte a pixel; each texture at a multiple of 4 bytes, then each of its copies at the next multiple of 4 bytes
+}                               jo_level_tx08_header;
+
+/** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
+# define JO_LEVEL_TX08_HEADER_DEFAULTS      {}
+
+/** @brief Textures of 256 colors: record (12 bytes) */
+typedef struct
+{
+    unsigned short              width;               // v1: Width (a multiple of 8) (pixels)
+    unsigned short              height;              // v1: Height (pixels)
+    unsigned int                pixels;              // v1: Offset of the pixels of the texture in the array pixels (a multiple of 4): width x height bytes, then its copies
+    unsigned short              value;               // v1: Of the game (the engine does not use it)
+    unsigned short              copies;              // v1: Smaller copies after its pixels: 0, 1 (half size) or 2 (half and quarter size); the width of a copy is a multiple of 8
+}                               jo_level_tx08_record;
+
+/** @brief Default values (the fields missing in an older file, see jo_level_get_records()) */
+# define JO_LEVEL_TX08_RECORD_DEFAULTS      {}
+
 /** @brief Events of an entity (LINK.event): what happened to the source */
 # define JO_LEVEL_EVENT_TRIGGER             (0)
 # define JO_LEVEL_EVENT_ENTER               (1)

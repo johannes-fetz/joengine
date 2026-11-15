@@ -278,6 +278,48 @@ class Level:
         _align(pixels)
         return self.add('TX16', records=records, arrays=dict(colors=[int(c) for c in palette], pixels=pixels))
 
+    def add_textures8(self, textures, palette):
+        """Add textures of 256 colors and their palette (section TX08) from a list of dictionaries:
+
+            dict(width=64, height=32, pixels=[[0, 1, 2, ...], ...], copies=[half, quarter], value=0)
+
+        pixels: rows of pixel values (0 to 255, 0: transparent, n: the color palette[n - 1]) or bytes (a byte a pixel);
+        copies (optional): its smaller copies, half and quarter size, in the same form (see quantize.encode(): the means
+        of 2 x 2 pixels in the colors of the palette), each one with a width multiple of 8; value (optional): of the game.
+        The width is a multiple of 8. palette: the colors (255 at most), Saturn colors (see saturn_color()): their MSB as
+        in the color RAM (cleared: opaque over a see-through bottom)
+        """
+        if len(palette) > 255:
+            raise ValueError('TX08: %d colors, 255 at most' % len(palette))
+        records = []
+        pixels = bytearray()
+
+        def as_bytes(k, p, w, h):
+            if not isinstance(p, (bytes, bytearray)):
+                rows = [list(r) for r in p]
+                if len(rows) != h or any(len(r) != w for r in rows):
+                    raise ValueError('TX08[%d]: the pixels are not %d x %d' % (k, w, h))
+                if any(not 0 <= int(v) <= len(palette) for r in rows for v in r):
+                    raise ValueError('TX08[%d]: a pixel value outside of the palette (%d colors)' % (k, len(palette)))
+                p = bytes(int(v) for r in rows for v in r)
+            if w <= 0 or h <= 0 or w % 8 or len(p) != w * h:
+                raise ValueError('TX08[%d]: %d x %d (the width a multiple of 8), %d bytes of pixels' % (k, w, h, len(p)))
+            return p
+
+        for k, t in enumerate(textures):
+            w, h = t['width'], t['height']
+            copies = list(t.get('copies', []))
+            if len(copies) > 2:
+                raise ValueError('TX08[%d]: 2 smaller copies at most' % k)
+            _align(pixels)
+            records.append(dict(width=w, height=h, pixels=len(pixels), value=t.get('value', 0), copies=len(copies)))
+            pixels += as_bytes(k, t['pixels'], w, h)
+            for c, copy in enumerate(copies):
+                _align(pixels)
+                pixels += as_bytes(k, copy, w >> (c + 1), h >> (c + 1))
+        _align(pixels)
+        return self.add('TX08', records=records, arrays=dict(colors=[int(c) for c in palette], pixels=pixels))
+
     # Writing
 
     def _section_bytes(self, s):
@@ -444,6 +486,23 @@ def validate(data):
                                  'aligned' % (k, r['width'], r['height']))
             if max(r['colors']) > h['color_count'] or max(r['ratios']) > 3:
                 raise ValueError('TX16[%d]: a color outside of the palette or a ratio outside of 0 to 3' % k)
+    tx08 = next((s for e, s in sections if e['name'] == 'TX08'), None)
+    if tx08 is not None:
+        h = tx08.header
+        if h['color_count'] > 255:
+            raise ValueError('TX08: %d colors, 255 at most' % h['color_count'])
+        for k, r in enumerate(tx08.records):
+            w, ht, end = r['width'], r['height'], r['pixels']
+            if w == 0 or ht == 0 or w % 8 or end % 4 or r['copies'] > 2:
+                raise ValueError('TX08[%d]: %d x %d (the width a multiple of 8), not aligned or more than 2 copies' % (k, w, ht))
+            end += w * ht
+            for c in range(r['copies']):
+                cw, ch = w >> (c + 1), ht >> (c + 1)
+                if cw == 0 or ch == 0 or cw % 8:
+                    raise ValueError('TX08[%d]: its copy %d is %d x %d (the width a multiple of 8)' % (k, c + 1, cw, ch))
+                end = (end + 3) // 4 * 4 + cw * ch
+            if end > h['pixel_size']:
+                raise ValueError('TX08[%d]: its pixels outside of the array' % k)
     return True
 
 

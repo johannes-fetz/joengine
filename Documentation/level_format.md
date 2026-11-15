@@ -354,6 +354,39 @@ Arrays (after the header and the records, aligned on 4 bytes):
 - `colors`: u16, color_count elements (offset: `colors`). Colors of the palette.
 - `pixels`: u8, pixel_size elements (offset: `pixels`). Pixels of the textures.
 
+### TX08: Textures of 256 colors (version 1)
+
+Textures of 256 colors (a byte a pixel: half the VRAM of RGB) sharing one palette of 255 colors, read when the game starts (not in the program): photographs, painted textures (more colors than 16 a texture, opaque over a see-through bottom: palette colors). A texture can bring its smaller copies (half and quarter size, made by the tool: the means of 2 x 2 pixels in the colors of the palette), used when it is drawn small (the VDP1 reads all the texels of a texture). The engine copies the palette in the color RAM (jo_level_set_textures8_palette()) and makes a sprite of each texture and of its copies (jo_level_add_textures8()); a polygon draws it with the palette (jo_3d_set_mesh_polygon_texture_palette()). See jo_engine/jo/level.h.
+
+Header:
+
+| Offset | Field | Type | Default | Since | Description |
+|---|---|---|---|---|---|
+| 0 | `color_count` | u16 | 0 | v1 | Colors of the palette (0 to 255): the pixel value n (1 to color_count) is the color colors[n - 1], 0 is transparent |
+| 2 | `flags` | u16 | 0 | v1 | Reserved (0) |
+| 4 | `colors` | offset | 0 | v1 | Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see jo_vdp2_blend_rgb_sprites_only()) |
+| 8 | `pixel_size` | u32 | 0 | v1 | Bytes of pixels |
+| 12 | `pixels` | offset | 0 | v1 | Pixels of the textures: a byte a pixel; each texture at a multiple of 4 bytes, then each of its copies at the next multiple of 4 bytes |
+
+Size: 16 bytes.
+
+Record:
+
+| Offset | Field | Type | Default | Since | Description |
+|---|---|---|---|---|---|
+| 0 | `width` | u16 | 0 | v1 | Width (a multiple of 8) (pixels) |
+| 2 | `height` | u16 | 0 | v1 | Height (pixels) |
+| 4 | `pixels` | u32 | 0 | v1 | Offset of the pixels of the texture in the array pixels (a multiple of 4): width x height bytes, then its copies |
+| 8 | `value` | u16 | 0 | v1 | Of the game (the engine does not use it) |
+| 10 | `copies` | u16 | 0 | v1 | Smaller copies after its pixels: 0, 1 (half size) or 2 (half and quarter size); the width of a copy is a multiple of 8 |
+
+Size: 12 bytes.
+
+Arrays (after the header and the records, aligned on 4 bytes):
+
+- `colors`: u16, color_count elements (offset: `colors`). Colors of the palette.
+- `pixels`: u8, pixel_size elements (offset: `pixels`). Pixels of the textures.
+
 ## Enumerations
 
 ### EVENT

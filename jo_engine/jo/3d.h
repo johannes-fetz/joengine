@@ -548,6 +548,16 @@ void                                jo_3d_set_mesh_polygon_texture(jo_3d_mesh * 
 void                                jo_3d_set_mesh_polygon_texture_bank(jo_3d_mesh * const mesh, const int sprite_id, const jo_palette * const palette,
                                                                         const int bank, const unsigned int index);
 
+/** @brief Set a texture of 256 colors on one polygon, its colors taken in a palette (its pixel value n: the color n of the
+ *  palette): opaque over a see-through bottom where the MSB of the colors is cleared, see jo_vdp2_blend_rgb_sprites_only()
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param sprite_id Sprite ID (256 colors: jo_sprite_add_8bits_image(), jo_level_add_textures8())
+ *  @param palette Palette (jo_create_palette(), see jo_level_set_textures8_palette())
+ *  @param index polygon index on the mesh
+ */
+void                                jo_3d_set_mesh_polygon_texture_palette(jo_3d_mesh * const mesh, const int sprite_id, const jo_palette * const palette,
+                                                                           const unsigned int index);
+
 /** @brief Set a texture on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param sprite_id Sprite ID

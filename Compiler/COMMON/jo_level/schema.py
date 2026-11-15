@@ -457,6 +457,36 @@ SECTIONS = [
         Array('colors', 'u16', 'Colors of the palette', 'colors', count_field='color_count'),
         Array('pixels', 'u8', 'Pixels of the textures', 'pixels', count_field='pixel_size'),
     ]),
+
+    Section('TX08', 1, 'Textures of 256 colors', "Textures of 256 colors (a byte a pixel: half the VRAM of RGB) sharing "
+            "one palette of 255 colors, read when the game starts (not in the program): photographs, painted textures (more "
+            "colors than 16 a texture, opaque over a see-through bottom: palette colors). A texture can bring its smaller "
+            "copies (half and quarter size, made by the tool: the means of 2 x 2 pixels in the colors of the palette), "
+            "used when it is drawn small (the VDP1 reads all the texels of a texture). The engine copies the palette in "
+            "the color RAM (jo_level_set_textures8_palette()) and makes a sprite of each texture and of its copies "
+            "(jo_level_add_textures8()); a polygon draws it with the palette (jo_3d_set_mesh_polygon_texture_palette()). "
+            "See jo_engine/jo/level.h", header=[
+        Field('color_count', 'u16', 'Colors of the palette (0 to 255): the pixel value n (1 to color_count) is the color '
+              'colors[n - 1], 0 is transparent'),
+        Field('flags', 'u16', 'Reserved (0)'),
+        Field('colors', 'offset', 'Colors of the palette: color_count Saturn colors (RGB 555), their MSB as in the color '
+              'RAM (cleared: the pixel is not mixed by the color calculation of the sprites, see '
+              'jo_vdp2_blend_rgb_sprites_only())'),
+        Field('pixel_size', 'u32', 'Bytes of pixels'),
+        Field('pixels', 'offset', 'Pixels of the textures: a byte a pixel; each texture at a multiple of 4 bytes, then '
+              'each of its copies at the next multiple of 4 bytes'),
+    ], record=[
+        Field('width', 'u16', 'Width (a multiple of 8)', unit='pixels'),
+        Field('height', 'u16', 'Height', unit='pixels'),
+        Field('pixels', 'u32', 'Offset of the pixels of the texture in the array pixels (a multiple of 4): width x '
+              'height bytes, then its copies'),
+        Field('value', 'u16', 'Of the game (the engine does not use it)'),
+        Field('copies', 'u16', 'Smaller copies after its pixels: 0, 1 (half size) or 2 (half and quarter size); the '
+              'width of a copy is a multiple of 8'),
+    ], arrays=[
+        Array('colors', 'u16', 'Colors of the palette', 'colors', count_field='color_count'),
+        Array('pixels', 'u8', 'Pixels of the textures', 'pixels', count_field='pixel_size'),
+    ]),
 ]
 
 # Identifiers reserved for the next versions of the engine (see the design notes): they must not be used by a game

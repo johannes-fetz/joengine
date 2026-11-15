@@ -44,6 +44,10 @@
 #include "jo/sprites.h"
 #include "jo/palette.h"
 #include "jo/level.h"
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+# include "jo/list.h"
+# include "jo/3d.h"
+#endif
 
 /** @brief Sections known by this engine and their versions: a required section must be known (else the level is refused) */
 static const unsigned int           __jo_level_known[][2] =
@@ -63,6 +67,7 @@ static const unsigned int           __jo_level_known[][2] =
     {JO_LEVEL_SECTION_PRTL, JO_LEVEL_PRTL_VERSION},
     {JO_LEVEL_SECTION_WEAP, JO_LEVEL_WEAP_VERSION},
     {JO_LEVEL_SECTION_TX16, JO_LEVEL_TX16_VERSION},
+    {JO_LEVEL_SECTION_TX08, JO_LEVEL_TX08_VERSION},
 };
 
 /** @brief Refuse a level (the reason is printed with JO_DEBUG) */
@@ -379,6 +384,111 @@ bool                                jo_level_add_textures16(jo_level * const lev
         if ((sprite_ids[k] = jo_sprite_add_4bits_lut(pixels + t->pixels, t->width, t->height, lut)) < 0)
             return (false);
     }
+    return (true);
+}
+
+/*
+** Textures of 256 colors (section TX08)
+*/
+
+bool                                jo_level_set_textures8_palette(jo_level * const level, const jo_palette * const palette)
+{
+    const jo_level_tx08_header      *header;
+    const jo_color                  *colors;
+    int                             k;
+
+#ifdef JO_DEBUG
+    if (level == JO_NULL || palette == JO_NULL)
+    {
+        jo_core_error("level or palette is null");
+        return (false);
+    }
+#endif
+    header = JO_LEVEL_HEADER(level, TX08, tx08);
+    if (header == JO_NULL || header->color_count == 0 || header->color_count > JO_PALETTE_MAX_COLORS || palette->data == JO_NULL ||
+        (colors = (const jo_color *)jo_level_array_in_section(level, JO_LEVEL_SECTION_TX08, header->colors,
+                                                              header->color_count * sizeof(jo_color), sizeof(jo_color))) == JO_NULL)
+        return (false);
+    // (the color RAM: written 16 bits at a time; the pixel value n is the color n of the palette: its data[n - 1])
+    for (JO_ZERO(k); k < header->color_count; ++k)
+        palette->data[k] = colors[k];
+    return (true);
+}
+
+/** @brief The bytes of a texture of 256 colors and of its copies (each one at a multiple of 4 bytes) */
+static unsigned int                 jo_level_texture8_size(const jo_level_tx08_record * const t)
+{
+    unsigned int                    size;
+    int                             c;
+
+    size = (unsigned int)t->width * t->height;
+    for (JO_ZERO(c); c < t->copies; ++c)
+        size = ((size + 3) & ~3u) + (unsigned int)(t->width >> (c + 1)) * (t->height >> (c + 1));
+    return (size);
+}
+
+bool                                jo_level_add_textures8(jo_level * const level, const int first, const int count,
+                                                           int * const sprite_ids)
+{
+    const jo_level_tx08_header      *header;
+    const jo_level_tx08_record      *records;
+    const jo_level_tx08_record      *t;
+    const unsigned char             *pixels;
+    jo_img_8bits                    img;
+    unsigned int                    record_count;
+    unsigned int                    offset;
+    int                             k;
+    int                             c;
+    int                             id;
+
+#ifdef JO_DEBUG
+    if (level == JO_NULL || sprite_ids == JO_NULL)
+    {
+        jo_core_error("level or sprite_ids is null");
+        return (false);
+    }
+#endif
+    header = JO_LEVEL_HEADER(level, TX08, tx08);
+    records = JO_LEVEL_RECORDS(level, TX08, tx08, &record_count);
+    if (header == JO_NULL || records == JO_NULL || first < 0 || count < 0 || (unsigned int)count > record_count ||
+        (unsigned int)first > record_count - (unsigned int)count)
+        return (false);
+    pixels = (const unsigned char *)jo_level_array_in_section(level, JO_LEVEL_SECTION_TX08, header->pixels, header->pixel_size, 4);
+    if (pixels == JO_NULL)
+        return (false);
+    // The textures checked first: a damaged one, no sprite made (the pixels and the copies in the array, aligned for the DMA)
+    for (t = records + first, k = 0; k < count; ++k, ++t)
+    {
+        if (t->width == 0 || (t->width & 7) != 0 || t->height == 0 || (t->pixels & 3) != 0 || t->copies > 2 ||
+            t->pixels > header->pixel_size || jo_level_texture8_size(t) > header->pixel_size - t->pixels)
+            return (false);
+        for (c = 1; c <= t->copies; ++c)
+            if ((t->width >> c) == 0 || ((t->width >> c) & 7) != 0 || (t->height >> c) == 0)
+                return (false);
+    }
+    for (t = records + first, k = 0; k < count; ++k, ++t)
+    {
+        // (the texture, then its copies: the sprites after it, see jo_3d_set_texture_mipmap_copies())
+        offset = t->pixels;
+        for (JO_ZERO(c); c <= t->copies; ++c)
+        {
+            offset = (offset + 3) & ~3u;
+            img.width = (unsigned short)(t->width >> c);
+            img.height = (unsigned short)(t->height >> c);
+            img.data = (unsigned char *)pixels + offset;
+            if ((id = jo_sprite_add_8bits_image(&img)) < 0)
+                return (false);
+            if (c == 0)
+                sprite_ids[k] = id;
+            offset += (unsigned int)img.width * img.height;
+        }
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+        if (t->copies > 0)
+            jo_3d_set_texture_mipmap_copies(sprite_ids[k], sprite_ids[k] + 1, t->copies);
+#endif
+    }
+    // (the pixels copied to the VRAM by the DMA from the level: the game may free it next)
+    jo_dma_wait();
     return (true);
 }
 
