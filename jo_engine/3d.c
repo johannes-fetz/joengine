@@ -3726,11 +3726,14 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
 }
 
 
-/** @brief Bytes of a line of a texture: 2 per pixel (RGB), 2 pixels per byte (16 colors) */
+/** @brief Bytes of a line of a texture: 2 per pixel (RGB), 1 per pixel (256 colors), 2 pixels per byte (16 colors) */
 static  __jo_force_inline int               jo_3d_tile_line_bytes(const jo_texture_definition * const texture)
 {
-    return (__jo_sprite_pic[texture - __jo_sprite_def].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS ?
-            JO_DIV_BY_2(texture->width) : JO_MULT_BY_2(texture->width));
+    const int                               mode = __jo_sprite_pic[texture - __jo_sprite_def].color_mode;
+
+    if (mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
+        return (JO_DIV_BY_2(texture->width));
+    return (mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS ? texture->width : JO_MULT_BY_2(texture->width));
 }
 
 /** @brief Tiles per side of a level (no shift by a variable amount: the SH-2 has no barrel shifter) */
@@ -5521,6 +5524,51 @@ static bool                                 jo_3d_set_texture_subdivision_4bits(
     return (tiles->levels != 0);
 }
 
+/** @brief The tiles of a 256 colors texture (see jo_3d_set_texture_subdivision()): a byte per pixel, drawn with the bank
+ *  of the polygon (its palette) */
+static bool                                 jo_3d_set_texture_subdivision_8bits(jo_3d_texture_tiles * const tiles,
+                                                                            const jo_texture_definition * const texture,
+                                                                            const unsigned char * const pixels)
+{
+    jo_img_8bits                            img;
+    unsigned char                           *data;
+    int                                     n;
+    int                                     level;
+    int                                     i;
+    int                                     j;
+    int                                     y;
+    int                                     id;
+    int                                     tw;
+    int                                     th;
+
+    for (level = 0, n = 2; level < JO_3D_TILE_LEVELS; ++level, n *= 2)
+    {
+        // (a line of a tile: a multiple of 8 bytes, the unit of the addresses of the VDP1)
+        tw = texture->width / n;
+        th = texture->height / n;
+        if (JO_MOD_POW2(tw, 8) != 0 || tw == 0 || th == 0)
+            break;
+        // The tiles one under the other: tile (i, j) from the line (j * n + i) * th
+        data = (unsigned char *)jo_malloc(tw * th * n * n);
+        if (data == JO_NULL)
+            break;
+        for (JO_ZERO(j); j < n; ++j)
+            for (JO_ZERO(i); i < n; ++i)
+                for (JO_ZERO(y); y < th; ++y)
+                    jo_memcpy(data + ((j * n + i) * th + y) * tw, pixels + (j * th + y) * texture->width + i * tw, tw);
+        img.width = (unsigned short)tw;
+        img.height = (unsigned short)(th * n * n);
+        img.data = data;
+        id = jo_sprite_add_8bits_image(&img);
+        jo_free(data);
+        if (id < 0)
+            break;
+        tiles->sprite[level] = (unsigned short)id;
+        tiles->levels = level + 1;
+    }
+    return (tiles->levels != 0);
+}
+
 /** @brief Make the tiles of a texture (see jo_3d_set_texture_subdivision()) */
 static bool                                 jo_3d_make_texture_subdivision(const int sprite_id)
 {
@@ -5541,9 +5589,10 @@ static bool                                 jo_3d_make_texture_subdivision(const
         return (false);
     if (__jo_3d_tiles[sprite_id] != JO_NULL && __jo_3d_tiles[sprite_id]->levels != 0)
         return (true);
-    // RGB and 16 colors textures (the tiles are copies of parts of the texture in the VRAM, a 16 colors tile uses the color
-    // lookup table of the texture)
+    // RGB, 256 colors and 16 colors textures (the tiles are copies of parts of the texture in the VRAM, a 16 colors tile
+    // uses the color lookup table of the texture, a 256 colors one the bank of the polygon)
     if (__jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS &&
+        __jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS &&
         __jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
         return (false);
     // (the entry given back by jo_3d_update_texture_flags() when no tile is made)
@@ -5553,6 +5602,8 @@ static bool                                 jo_3d_make_texture_subdivision(const
     pixels = (const unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
     if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
         return (jo_3d_set_texture_subdivision_4bits(sprite_id, tiles, texture, (const unsigned char *)pixels));
+    if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
+        return (jo_3d_set_texture_subdivision_8bits(tiles, texture, (const unsigned char *)pixels));
     for (level = 0, n = 2; level < JO_3D_TILE_LEVELS; ++level, n *= 2)
     {
         // The width of a texture is a multiple of 8 pixels
@@ -5587,7 +5638,9 @@ bool                                        jo_3d_set_texture_subdivision_fine(c
     const unsigned char                     *pixels;
     unsigned char                           *data;
     jo_img                                  img;
+    jo_img_8bits                            img8;
     bool                                    four_bits;
+    bool                                    eight_bits;
     int                                     fw;
     int                                     th8;
     int                                     height;
@@ -5618,6 +5671,7 @@ bool                                        jo_3d_set_texture_subdivision_fine(c
         return (JO_3D_TILE_LEVEL_COUNT(tiles) == JO_3D_TILE_FINE_LEVELS);
     texture = &__jo_sprite_def[sprite_id];
     four_bits = __jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS;
+    eight_bits = __jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS;
     // The width of the tiles in the sprite: the one of the 8 x 8 tiles, 8 pixels at least (16 for 16 colors: a line of 8
     // bytes, the unit of the addresses of the VDP1, see jo_3d_emit_near_tile()); a narrower tile has each texel repeated
     // (the VDP1 spreads the width of the tile over the line: the same place on the screen)
@@ -5627,7 +5681,7 @@ bool                                        jo_3d_set_texture_subdivision_fine(c
         return (false);
     th8 = texture->height / 8;
     height = 64 * th8 + 256 * (th8 / 2);
-    data = (unsigned char *)jo_malloc(four_bits ? fw * height / 2 : fw * height * (int)sizeof(jo_color));
+    data = (unsigned char *)jo_malloc(four_bits ? fw * height / 2 : eight_bits ? fw * height : fw * height * (int)sizeof(jo_color));
     if (data == JO_NULL)
         return (false);
     pixels = (const unsigned char *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
@@ -5654,12 +5708,21 @@ bool                                        jo_3d_set_texture_subdivision_fine(c
                             else
                                 data[(row * fw + x) >> 1] = (unsigned char)(c << 4);
                         }
+                        else if (eight_bits)
+                            data[row * fw + x] = pixels[(j * th + y) * texture->width + col];
                         else
                             ((jo_color *)data)[row * fw + x] = ((const jo_color *)pixels)[(j * th + y) * texture->width + col];
                     }
     }
     if (four_bits)
         id = __jo_sprite_add_4bits(data, fw, height, __jo_sprite_lut[sprite_id]);
+    else if (eight_bits)
+    {
+        img8.width = (unsigned short)fw;
+        img8.height = (unsigned short)height;
+        img8.data = data;
+        id = jo_sprite_add_8bits_image(&img8);
+    }
     else
     {
         img.width = fw;
@@ -7822,6 +7885,36 @@ bool                                        jo_3d_set_texture_mipmaps(const int 
     result = jo_3d_make_texture_mipmaps(sprite_id);
     jo_3d_update_texture_flags(sprite_id);
     return (result);
+}
+
+bool                                        jo_3d_set_texture_mipmap_copies(const int sprite_id, const int half_id, const int levels)
+{
+    jo_3d_texture_mipmaps                   *mip;
+    const jo_texture_definition             *texture;
+    const jo_texture_definition             *copy;
+    int                                     level;
+
+    if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || levels < 1 || levels > 2 || half_id <= sprite_id ||
+        half_id + levels - 1 > jo_get_last_sprite_id())
+        return (false);
+    if (__jo_3d_mipmaps[sprite_id] != JO_NULL && __jo_3d_mipmaps[sprite_id]->levels != 0)
+        return (false);
+    // The copies: the same color mode, half and quarter size (as made by jo_3d_set_texture_mipmaps())
+    texture = &__jo_sprite_def[sprite_id];
+    for (level = 1; level <= levels; ++level)
+    {
+        copy = &__jo_sprite_def[half_id + level - 1];
+        if (__jo_sprite_pic[half_id + level - 1].color_mode != __jo_sprite_pic[sprite_id].color_mode ||
+            copy->width != (texture->width >> level) || copy->height != (texture->height >> level))
+            return (false);
+    }
+    if ((mip = jo_3d_mipmaps_for_write(sprite_id)) == JO_NULL)
+        return (false);
+    mip->first = (unsigned short)half_id;
+    mip->levels = (unsigned char)levels;
+    jo_3d_mipmap_limits(mip, texture);
+    jo_3d_update_texture_flags(sprite_id);
+    return (true);
 }
 
 void                                        jo_3d_set_front_layer(const int shift)

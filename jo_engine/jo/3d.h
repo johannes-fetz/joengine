@@ -1637,7 +1637,8 @@ jo_3d_mesh                          *jo_3d_create_indexed_mesh(const unsigned in
 
 /** @brief Draw the polygons that use a texture in parts when they are near the camera (2 x 2 or 4 x 4 parts, each part
  *  with its tile of the texture)
- *  @param sprite_id Texture (RGB sprite, width multiple of 16: 2 x 2 tiles, of 32: 4 x 4 tiles too)
+ *  @param sprite_id Texture (RGB, 256 colors or 16 colors sprite, width multiple of 16: 2 x 2 tiles, of 32: 4 x 4 tiles
+ *  too; a 256 colors tile is drawn with the bank of the polygon: its palette)
  *  @return true if the tiles were created
  *  @remarks The VDP1 maps a texture without perspective: a big polygon near the camera (a wall, the ground) is distorted,
  *  and the parts of a polygon clipped by the near plane get the whole texture. In parts, each part keeps its piece of the
@@ -1657,11 +1658,11 @@ bool                                jo_3d_set_texture_subdivision(const int spri
  *  its texture is squeezed by up to a tile, 8 texels of a 32 x 32 texture with the 4 x 4 tiles, 2 with the 16 x 16 tiles.
  *  For a texture magnified near the camera (texels of more than about 10 pixels: a texture of a few texels on a big wall,
  *  a big floor)
- *  @param sprite_id Texture (RGB or 16 colors sprite, width and height multiples of 16)
+ *  @param sprite_id Texture (RGB, 256 colors or 16 colors sprite, width and height multiples of 16)
  *  @return true if the tiles were created (with the 2 x 2 and 4 x 4 tiles if they were not)
  *  @remarks One more sprite, the tiles one under the other, 1/8 of the width of the texture and at least 8 pixels wide (16 for
- *  16 colors: a narrower tile has its texels repeated): 3 times the VRAM of the texture (64 pixels wide and more, RGB; 128,
- *  16 colors), 6 times for a 32 x 32 RGB texture. More parts near the camera (CPU time, VDP1 commands)
+ *  16 colors: a narrower tile has its texels repeated): 3 times the VRAM of the texture (64 pixels wide and more, RGB and
+ *  256 colors; 128, 16 colors), 6 times for a 32 x 32 RGB texture. More parts near the camera (CPU time, VDP1 commands)
  */
 bool                                jo_3d_set_texture_subdivision_fine(const int sprite_id);
 
@@ -1711,6 +1712,20 @@ void                                jo_3d_set_fewer_parts(const bool enabled);
  *  its lines along the whole polygon (about the square of its length in pixels, 10 to 20 % of a frame on a hilly ground)
  */
 bool                                jo_3d_set_texture_mipmaps(const int sprite_id);
+
+/** @brief Give a texture its smaller copies made beforehand (see jo_3d_set_texture_mipmaps()): for the textures it can't
+ *  reduce itself (256 colors: their palette is chosen per polygon), or reduced better by a tool (the averages in the colors
+ *  of the palette, a mean color searched among 255 at the loading took seconds)
+ *  @param sprite_id Texture
+ *  @param half_id The copy of half size (width and height), added after the texture; the copy of quarter size: the sprite
+ *  after it
+ *  @param levels 1: the half size only, 2: the half and quarter sizes
+ *  @return false if the copies are not of the color mode of the texture, not of its half and quarter sizes, or if it has
+ *  copies already
+ *  @remarks Drawn with the bank of the polygon (a 256 colors copy: its palette). A thin polygon far away is not drawn of
+ *  the mean color of these textures (see jo_3d_set_texture_mipmaps(): no mean color is known)
+ */
+bool                                jo_3d_set_texture_mipmap_copies(const int sprite_id, const int half_id, const int levels);
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 
