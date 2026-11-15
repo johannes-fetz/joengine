@@ -43,7 +43,7 @@
 
 static jo_camera            cam;
 static jo_water             *sea;
-static jo_3d_mesh           *crate_mesh;
+static jo_3d_quad           crate[6];
 static jo_water_floating    crates[CRATE_COUNT];
 static jo_angle             crate_heading[CRATE_COUNT];
 static jo_angle             orbit;
@@ -51,31 +51,12 @@ static int                  height = 60;
 static int                  look = JO_WATER_LOOK_TROPICAL_TEAL;
 static int                  swell = JO_WATER_SWELL_CHOPPY;
 
-/** @brief A face of the crate: 4 corners (+1 / -1 for each axis, clockwise seen from outside: the top left of the texture
- *  first), its texture */
-static void                 crate_face(const int face, const int corners[4][3], const int sprite)
-{
-    int                     k;
-
-    for (JO_ZERO(k); k < 4; ++k)
-        jo_3d_set_mesh_vertice(crate_mesh, jo_int2fixed(corners[k][0] * CRATE_HALF), jo_int2fixed(corners[k][1] * CRATE_HALF),
-                               jo_int2fixed(corners[k][2] * CRATE_HALF), (unsigned int)(face * 4 + k));
-    jo_3d_set_mesh_polygon_texture(crate_mesh, sprite, (unsigned int)face);
-}
-
-/** @brief The crate: a box of 6 faces (y down: the top is at y = -CRATE_HALF), its textures (cd/CRATE.TGA, CRATETOP.TGA:
- *  tools/make_crate.py), the top in the sun
+/** @brief The crate: a cube (see JO_3D_CUBE_VERTICES(): its 6 faces, the 5th one on top, y down), its textures
+ *  (cd/CRATE.TGA, CRATETOP.TGA: tools/make_crate.py), the top in the sun
  *  @return false if a texture is missing */
 static bool                 create_crate(void)
 {
-    static const int        faces[6][4][3] = {
-        {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1}},       // Front (-z)
-        {{1, -1, 1}, {-1, -1, 1}, {-1, 1, 1}, {1, 1, 1}},           // Back (+z)
-        {{-1, -1, 1}, {-1, -1, -1}, {-1, 1, -1}, {-1, 1, 1}},       // Left (-x)
-        {{1, -1, -1}, {1, -1, 1}, {1, 1, 1}, {1, 1, -1}},           // Right (+x)
-        {{-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}},       // Top (-y)
-        {{-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1}}            // Bottom (+y)
-    };
+    static jo_vertice       vertices[] = JO_3D_CUBE_VERTICES(CRATE_HALF);
     int                     side;
     int                     top;
     int                     k;
@@ -83,9 +64,9 @@ static bool                 create_crate(void)
     if ((side = jo_sprite_add_tga(JO_ROOT_DIR, "CRATE.TGA", JO_COLOR_Transparent)) < 0 ||
         (top = jo_sprite_add_tga(JO_ROOT_DIR, "CRATETOP.TGA", JO_COLOR_Transparent)) < 0)
         return (false);
-    crate_mesh = jo_3d_create_mesh(6);
+    jo_3d_create_cube(crate, vertices);
     for (JO_ZERO(k); k < 6; ++k)
-        crate_face(k, faces[k], k == 4 ? top : side);
+        jo_3d_set_texture(&crate[k], k == 4 ? top : side);
     return (true);
 }
 
@@ -115,7 +96,7 @@ static void                 draw_crates(void)
             jo_3d_rotate_matrix_angle_x(crates[k].tilt_x);
             jo_3d_rotate_matrix_angle_z(crates[k].tilt_z);
             jo_3d_rotate_matrix_angle_y(crate_heading[k]);
-            jo_3d_mesh_draw(crate_mesh);
+            jo_3d_draw_array(crate, 6);
         }
         jo_3d_pop_matrix();
     }
