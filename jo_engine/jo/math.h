@@ -503,10 +503,6 @@ static __jo_force_inline int            jo_fixed2int(const jo_fixed x)
     return JO_FIXED_TO_INT(x);
 }
 
-/** @brief Convert float to jo engine fixed (avoid usage of GCC Soft Float)
- *  @param x Float to convert
- *  @return Fixed value
- */
 /*
 ** The float API of the engine works on the bits of the floats with integers: no float computation, no float routine
 ** of libgcc (the SH-2 has no FPU: each float operation was a call of about 100 cycles). A constant is converted by the
