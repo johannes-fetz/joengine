@@ -62,7 +62,7 @@
 
 /** @brief Textures of the models kept in the program (the next ones: in a bigger table allocated, see
  *  jo_3d_model_add_texture()): a quarter of the sprites, most of them are not textures of models (the textures of the
- *  program, the smaller copies, the tiles), 282 of 1600 in the rally demo */
+ *  program, the smaller copies, the tiles), 282 of 1600 in a 3D game */
 #ifndef JO_3D_MODEL_KEPT_TEXTURES
 # define JO_3D_MODEL_KEPT_TEXTURES              (JO_3D_MODEL_MAX_TEXTURES / 4 < 32 ? 32 : JO_3D_MODEL_MAX_TEXTURES / 4)
 #endif
@@ -1946,7 +1946,7 @@ jo_3d_model                                 *jo_3d_model_pool_read(jo_3d_model_p
         return (JO_NULL);
     // The chunks used only while the model was created, last in the file: the embedded textures, the names of the
     // textures, the gouraud colors are in the VRAM now. The next model is read over them, an end chunk in their place
-    // (rally demo: about 150 KB less for a track)
+    // (about 150 KB less for a level of a 3D game)
     used = size4;
     cut = JO_NULL;
     for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 8 <= data + size; p += 8 + chunk)

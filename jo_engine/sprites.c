@@ -363,7 +363,7 @@ int                         jo_sprite_add_image_4bits_lut(const jo_img * const i
     // The table: the colors of the image in the order of their first pixel (0: transparent, the entry 0 of the table),
     // and the pixels, 2 per byte, the left pixel in the high bits. In one pass, the color of the previous pixel kept (most
     // pixels have it: the table searched for about 1 pixel in 10; 2 passes and a search per pixel were 5 % of the loading
-    // of the rally demo)
+    // of a 3D game)
     lut[0] = JO_COLOR_Transparent;
     colors = 1;
     last = JO_COLOR_Transparent;

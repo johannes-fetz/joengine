@@ -1718,7 +1718,7 @@ void                                jo_3d_set_texture_subdivision_error(const in
  *  (the VDP1 draws their pixels out of the screen too)
  *  @param enabled true: fewer parts (the CPU time of the parts saved), false: the default
  *  @remarks For both CPUs. A split screen (2 views per frame, each one half as high: the texture slides less, the VDP1 has
- *  time to spare): about 10 % of the time of the CPUs (Mednafen emulated the split screen of the rally demo 10 % faster)
+ *  time to spare): about 10 % of the time of the CPUs (Mednafen emulated a split screen of a 3D game 10 % faster)
  */
 void                                jo_3d_set_fewer_parts(const bool enabled);
 

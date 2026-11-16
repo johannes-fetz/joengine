@@ -832,7 +832,7 @@ static void                         jo_vdp2_update_cycle_patterns(void)
         // T0 to T3 full (4 screens in one bank, like the 2 glow layers with the map of NBG1): the characters in T4 to T7,
         // taken from the CPU. In normal resolution the character reads of a pattern name read at Tn can be from Tn+4 to
         // T7 (VDP2 manual, chapter 3: T0 -> T4-T7, T1 -> T5-T7, T2 -> T6-T7, T3 -> T7); in high resolution never. Without
-        // a slot the screen was not displayed at all (the second glow, NBG3, never seen in the demo rally)
+        // a slot the screen was not displayed at all (the second glow, NBG3, never seen in a game)
         if (i < count && !__jo_screen.hires)
         {
             for (first = pattern_name_slot + 4; i < count && first < 8; ++first)

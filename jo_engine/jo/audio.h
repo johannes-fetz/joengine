@@ -72,7 +72,7 @@ typedef struct
 
 /** @brief Start the sound again as jo_core_init() does: the program of the 68000 (the sound driver, or its idle loop), the
  *  slots keyed off, the sounds loaded forgotten
- *  @remarks After the game used the 68000 and the sound RAM by itself (see the video player of the demo "video hd")
+ *  @remarks After the game used the 68000 and the sound RAM by itself (a video player that decodes its sound on the 68000)
  */
 void	jo_audio_init(void);
 

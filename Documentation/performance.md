@@ -1,11 +1,8 @@
-# VDP1 and memory: the settings on by default
+# VDP1 and memory: the settings on by default {#performance_guide}
 
 Two settings of the 3D make the VDP1 draw the same scenes in less time. They are **on by default** since November 2026.
 A third one, for the memory, is **off by default** and must be turned on in the makefile. This page says what each one
 does, what it changes in the picture, and when to turn it off.
-
-Measures: the rally demo (`Projects/demo - rally`), one lap, Mednafen. The Saturn may differ: measure your game on a
-console when you can.
 
 ## High speed shrink: `jo_3d_set_high_speed_shrink()`
 
@@ -25,8 +22,7 @@ texel: the line takes about half the time on a console. A texture drawn at its s
 
 ## Flat gouraud drawn without gouraud: `jo_3d_set_uniform_gouraud_skipped()`
 
-A polygon whose 4 gouraud colors are the same (a flat light, most of the polygons of a level: 4000 to 8000 per track in
-the rally demo) is drawn without gouraud, the light put in its color. The picture is the same (checked frame by frame in
+A polygon whose 4 gouraud colors are the same is drawn without gouraud, the light put in its color. The picture is the same (checked frame by frame in
 Mednafen); the VDP1 draws a polygon without gouraud faster.
 
 - **On by default**, for the models created or loaded from now on (`jo_3d_load_model()`, `jo_3d_create_model...()`,
@@ -59,13 +55,13 @@ read faster there (a read from the low work RAM takes about twice the time).
 
 - **Turn it on** in the makefile of your game:
 
-  ```
+  ```c
   JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1
   ```
 
   and mark the functions of your game that are not called at each frame:
 
-  ```c
+  ```
   JO_LOW_WORK_RAM_CODE void load_level(int k) { ... }
   ```
 
@@ -74,5 +70,3 @@ read faster there (a read from the low work RAM takes about twice the time).
   buffer at a fixed address) must start at `JO_LOW_WORK_RAM_FREE`, or it writes over the code of the engine: the game
   crashes later, without an error message. This is why the option is off by default.
 - **Not for a function called at each frame:** its instructions are read from the low work RAM too.
-- **Measured:** the rally demo, 57 KB of code out of the high work RAM; with its opponents loaded in the high work RAM,
-  the master CPU goes from 19.54 to 19.03 ms per frame, the slave from 18.17 to 17.66 ms.

@@ -691,7 +691,7 @@ static void                     jo_dma_purge_cache(const void * const addr, cons
     if (a >= 0x20000000)
         return;
     // As big as the cache (4 KB) or more: the whole cache purged at once (a write per line of 16 bytes: the sectors of the
-    // CD read by the DMA, 1.2 % of the loading of the rally demo). The cache disabled while it is purged
+    // CD read by the DMA, 1.2 % of the loading of a 3D game). The cache disabled while it is purged
     if (size >= 4096)
     {
         unsigned char           ccr;

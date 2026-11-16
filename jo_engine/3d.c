@@ -302,7 +302,7 @@ typedef struct
 
 /* The tiles of each texture: a pointer per sprite (JO_NULL: none), the tiles in a pool (see jo_3d_tiles_for_write()). Most
    sprites have none (the smaller copies and the tiles of a texture are sprites too): 4 bytes per sprite instead of 12 (with
-   the smaller copies: 51 KB for the 1600 sprites of the rally demo, 27 textures with smaller copies and 38 with tiles) */
+   the smaller copies: 51 KB for the 1600 sprites of a 3D game, 27 textures with smaller copies and 38 with tiles) */
 /* (read by the assembly polygon loop: kept with their names by the link time optimization) */
 jo_3d_texture_tiles                         *__jo_3d_tiles[JO_MAX_SPRITE] __attribute__((used, externally_visible));
 
@@ -3392,7 +3392,7 @@ static  __jo_force_inline int               jo_3d_subdivision_level_unbudgeted(j
     // facing the camera 25 units away (no perspective to correct) was cut by the edges of the screen and got its whole
     // texture on the screen (tests/harness/glitch.py, the room)
     // (fewer parts, see jo_3d_set_fewer_parts(): 2 x 2 parts. Clipped by the CPU at the edges of the screen as one polygon,
-    // the texture of a polygon near the camera broke: the lines of a road, the facades of the split screen of the rally demo)
+    // the texture of a polygon near the camera broke: the lines of a road, the facades of a split screen)
     if (any & JO_3D_CODE_GUARD)
         return (*(volatile bool *)JO_CACHE_THROUGH(&__jo_3d_fewer_parts) || JO_3D_TILE_LEVEL_COUNT(tiles) < 2 ? 2 : 4);
     // Size on the screen (the vertices are projected)

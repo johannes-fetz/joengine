@@ -1100,8 +1100,7 @@ WARN_LOGFILE           =
 
 INPUT                  = mainpage.md \
                          ../jo_engine/jo \
-                         ../Documentation/level_format.md \
-                         ../Documentation/model_format.md
+                         ../Documentation
 
 # Cette balise peut être utilisée pour spécifier l'encodage de caractères des
 # fichiers sources que Doxygen analyse. Interne Doxygen utilise l'encodage

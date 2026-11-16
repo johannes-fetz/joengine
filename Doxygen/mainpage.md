@@ -155,8 +155,17 @@ File formats
 | \ref model_format | 3D models (.JOM): points, polygons, materials, textures, vertex colors, groups, skeletons and animations |
 | \ref level_format | Levels (.JOL): the sections of a level file (terrain, cells and portals, entities, weapons, vehicles, etc) |
 
-The sources of these pages are in the `Documentation` folder (`level_format.md` is generated from the schema of
-`Compiler/COMMON/jo_level`).
+Guides
+------
+
+| Page | Content |
+|------|---------|
+| \ref water_guide | The sea and its waves, the objects on and under the water, the sun and its lens flare (\ref water.h, \ref sun.h) |
+| \ref performance_guide | The settings of the VDP1 on by default (high speed shrink, flat gouraud) and the code in the low work RAM |
+
+The sources of these pages are in the `Documentation` folder: every Markdown file there is a page of this documentation
+(give its first title a label, `# Title {#label}`, to link it from here with `\ref label`). `level_format.md` is
+generated from the schema of `Compiler/COMMON/jo_level`.
 
 Samples
 -------

@@ -2216,7 +2216,7 @@ static void                 level_light(const int k, const int first, const int 
                 foam = foam_of(foam_cell_at(x, z), w->frame, foam_region(x, z));
             if (shallow)
                 depth = depth_at(w, x, z);
-            // (the surf: the foam of the vertex, see vertex_color(); the texture only for the foam of the jet ski)
+            // (the surf: the foam of the vertex, see vertex_color(); the texture only for the foam of a boat)
             g->foam[n] = (unsigned char)foam;
             g->depth[n] = (unsigned char)depth;
             // Slopes: height differences over 2 cells (1 on the edge), by a product (a division is a call on the SH-2)
@@ -2704,7 +2704,7 @@ static void                 animate_foam(jo_water * const w)
     water_color = w->config.color;
     foam_color = w->config.foam_color;
     // (the first time all of them: the tables not made yet were the zeros of the block, transparent, a hole in the water
-    // where the jet ski first made foam: the black screen or the sprites behind it, under the jet ski at the start)
+    // where a boat first made foam: the black screen or the sprites behind it, under the boat at the start)
     first = w->foam_filled ? (w->updates & 3) * (FOAM_LUTS / 4) : 0;
     last = w->foam_filled ? ((w->updates & 3) + 1) * (FOAM_LUTS / 4) : FOAM_LUTS;
     w->foam_filled = true;

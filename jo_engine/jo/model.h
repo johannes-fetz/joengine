@@ -297,7 +297,7 @@ bool                                        jo_3d_model_set_environment(jo_3d_mo
 # define JO_3D_MODEL_POOL_MAX_BLOCKS            (256)
 
 /** @brief Models read one after the other from a file (the parts of a level) into big memory blocks, used in place
- *  (jo_3d_create_model_in_place()): no copy, no small memory blocks for each model. Measured (rally demo, about 1000
+ *  (jo_3d_create_model_in_place()): no copy, no small memory blocks for each model. Measured (a 3D game, about 1000
  *  models): the copies of jo_3d_create_model_from_memory() took 11 s (about 12 memory blocks each, every block allocated
  *  after a search among the ones before)
  */

@@ -614,7 +614,7 @@ void        jo_water_reshape(jo_water_object * const o);
 /** @brief Change the distance where an object is not drawn any more (units: |dx| + |dz|) */
 void        jo_water_set_far(jo_water_object * const o, const int far);
 
-/** @brief An object above the water in front of which the objects under the water stay (the jet ski, a buoy, a boat):
+/** @brief An object above the water in front of which the objects under the water stay (a jet ski, a buoy, a boat):
  *  an object under the water that it covers on the screen is sorted behind it. Call it each frame before
  *  jo_water_draw_with() (forgotten after it)
  *  @param x Its center (units)

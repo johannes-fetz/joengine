@@ -56,7 +56,7 @@ typedef struct
     unsigned char       *end;
     unsigned char       *first_free;    // A block at or before the first free block of the zone (the search of a free
                                         // block starts there: from the start, it went through all the blocks in use, about
-                                        // 2 % of the loading of a track of the rally demo)
+                                        // 2 % of the loading of a level of a 3D game)
 }                       jo_memory_zone;
 
 static jo_memory_zone   memory_zones[JO_MALLOC_MAX_MEMORY_ZONE];

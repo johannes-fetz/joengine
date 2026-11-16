@@ -1535,7 +1535,7 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
         jo_free(p);
     }
     // (4 bytes at once: file is the start of a block of jo_malloc(), aligned on 4 bytes; byte by byte, 1.4 % of the loading
-    // of the rally demo)
+    // of a 3D game)
     if (bits == 16)
     {
         for (JO_ZERO(k); k + 3 < size; k += 4)

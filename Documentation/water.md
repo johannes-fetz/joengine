@@ -1,11 +1,10 @@
-# Water and sun
+# Water and sun {#water_guide}
 
 The water of the engine (`jo/water.h`): a sea with waves around the camera, objects that float on it or are seen through
 it, and the sun in the sky with its lens flare (`jo/sun.h`). It needs the 3D module and the 2 CPUs (the dual CPU support,
 on by default). As with every module, a game links only the functions it calls.
 
 - Sample: `Samples/demo - 3D water`: the sea, crates that fall in it and float, the looks and the swells.
-- Full game: `Projects/demo - ocean water`: a jet ski race on a bay, with everything below.
 
 Units: 1 unit = 1/16 m. Y goes down: the calm surface is at y = 0 and a crest at y < 0. Heights are given up (> 0: a
 crest). Time is counted in frames at 60 per second (`jo_core_get_vblank_count()`), whatever the frame rate of the game.
@@ -80,7 +79,7 @@ the water. These objects are:
   (a 32-byte table each) and RGB textures (copied) all work.
 - **sorted with the water.** Each object is sorted where its line of sight goes into the water, and drawn scaled around
   the camera so that its polygons keep their order. An object stays behind what covers it above the water:
-  `jo_water_add_above()`, called each frame for the jet ski or a buoy.
+  `jo_water_add_above()`, called each frame for a jet ski or a buoy.
 
 `jo_water_place()`, `jo_water_show()`, `jo_water_reshape()` and `jo_water_set_far()` move, hide, update or limit them.
 
@@ -118,13 +117,3 @@ jo_sun_draw_flare(&sun);                                  // after the rest, bef
   - `flare(kind, color)`: the pieces, dithered between the blend ratios.
   - `pack16(sprites)`: one palette and the textures, ready for `Level.add_textures16()`.
 
-## Cost (demo ocean water, Mednafen, 30 images per second)
-
-| What | Measured |
-| --- | --- |
-| Master CPU | 24 to 29 ms per image |
-| Slave CPU | 18 to 20 ms per image |
-| VDP1 | 12 to 19 ms per image |
-| Late frames (PAL, one race) | 0 |
-
-These figures cover the whole game, not just the water: the water, a jet ski, a course, the scenery and the HUD.

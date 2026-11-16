@@ -40,7 +40,7 @@
 ** Its keys in a band of UNDER_BAND units: the object drawn scaled around the camera (its points nearer by a scale, as far
 ** on the screen: the same image; its depths, its keys smaller by the scale), its farthest key at its sort key (a depth bias):
 ** its polygons keep their order, the object stays in front of the water that covers it and between the objects around it
-** (one key per object: its polygons in the wrong order; its own depths: its nearest polygons in front of the jet ski over
+** (one key per object: its polygons in the wrong order; its own depths: its nearest polygons in front of a jet ski over
 ** it). The scale keeps its points farther than the near plane (else they are cut). Then:
 **   - an object under the water that covers a farther one on the screen: in front of it
 **   - in front of it, the objects above the water that cover it on the screen, and UNDER_MIN_KEY: the object pushed back
@@ -370,7 +370,7 @@ static void                 prepare_objects(const jo_water * const w)
     // it (from the nearest); its depth bias: its farthest key at the top of its band
     for (JO_ZERO(k); k < over_count; ++k)
         to_view(over_water[k].place[0], over_water[k].place[1], over_water[k].place[2], over_water[k].view);
-    // (pushed back, only its polygons that an object above the water covers: pushed behind the jet ski, a rock near the
+    // (pushed back, only its polygons that an object above the water covers: pushed behind a jet ski, a rock near the
     // camera went behind the water in front of the jet ski, all of it)
     for (i = in_view_count - 1; i >= 0; --i)
     {
