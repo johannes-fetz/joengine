@@ -46,6 +46,8 @@ Material options (MTL, after newmtl, besides Kd, Ns, d and map_Kd):
     jo_end_codes 1          the texture stops each line after its last visible pixel (jo_sprite_add_end_codes())
     jo_mipmaps 1            smaller copies of the texture far away (jo_3d_set_texture_mipmaps())
     jo_subdivision 1        the polygons near the camera are drawn in parts (jo_3d_set_texture_subdivision())
+    jo_high_speed_shrink 1  the VDP1 reads every other texel of the texture drawn smaller than it is: faster far away,
+                            a little less sharp (all the textures: jo_3d_set_high_speed_shrink())
     jo_subdivision 2        only the polygons that cross the near plane (jo_3d_set_texture_subdivision_near_only())
     jo_subdivision_error N  distortion in pixels over which the polygons are drawn in parts (1 to 255, default 8, see
                             jo_3d_set_texture_subdivision_error()): 4 for a pattern with straight lines (a tiled floor)
@@ -95,6 +97,7 @@ MAT_FLIP_V = 1 << 8
 MAT_END_CODES = 1 << 9
 MAT_MIPMAPS = 1 << 10
 MAT_SUBDIVISION = 1 << 11
+MAT_HIGH_SPEED_SHRINK = 1 << 13
 MAT_SUBDIVISION_NEAR = 1 << 12
 
 
@@ -186,6 +189,8 @@ def read_mtl(path, materials, warnings):
                     if not 0 <= int(args[0]) <= 255:
                         raise ValueError('jo_subdivision_error: 0 to 255')
                     current.subdivision_error = int(args[0])
+                elif key == 'jo_high_speed_shrink' and int(args[0]):
+                    current.flags |= MAT_HIGH_SPEED_SHRINK
                 elif key == 'jo_lut':
                     current.lut = bool(int(args[0]))
                 elif key == 'jo_user':

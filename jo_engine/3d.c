@@ -371,6 +371,9 @@ _Static_assert(__builtin_offsetof(jo_3d_texture_mipmaps, first) == 2 && __builti
 # define JO_3D_TEXTURE_HAS_TILES            (1)
 # define JO_3D_TEXTURE_HAS_MIPMAPS          (2)
 unsigned char                               __jo_3d_texture_flags[JO_MAX_SPRITE] __attribute__((used, externally_visible));
+/** @brief JO_VDP1_HIGH_SPEED_SHRINK: added to the draw mode of every textured polygon (see jo_3d_set_high_speed_shrink(),
+ *  on by default) */
+unsigned int                                __jo_3d_high_speed_shrink __attribute__((used, externally_visible)) = JO_VDP1_HIGH_SPEED_SHRINK;
 
 /** @brief Compute the flags of a texture again (after a change of its tiles or of its smaller copies)
  *  @param sprite_id Texture
@@ -440,6 +443,7 @@ static  __jo_force_inline const jo_3d_texture_tiles *jo_3d_tiles_of(const int sp
 }
 
 /** @brief Give back the tiles of a texture */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_tiles_release(const int sprite_id)
 {
     if (__jo_3d_tiles[sprite_id] == JO_NULL)
@@ -462,6 +466,7 @@ static jo_3d_texture_mipmaps                *jo_3d_mipmaps_for_write(const int s
 }
 
 /** @brief Give back the smaller copies of a texture */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_mipmaps_release(const int sprite_id)
 {
     if (__jo_3d_mipmaps[sprite_id] == JO_NULL)
@@ -471,6 +476,7 @@ static void                                 jo_3d_mipmaps_release(const int spri
     __jo_3d_mipmaps[sprite_id] = JO_NULL;
 }
 
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_update_texture_flags(const int sprite_id)
 {
     const jo_3d_texture_tiles               *tiles;
@@ -836,6 +842,7 @@ typedef struct
 static jo_3d_fade_sprite                    __jo_3d_fade_sprites[JO_3D_FADE_SPRITES];
 static int                                  __jo_3d_fade_sprite_count = 0;
 
+JO_LOW_WORK_RAM_CODE
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
 {
     int                                     i;
@@ -2667,6 +2674,7 @@ int __attribute__((noinline, used, externally_visible)) __jo_3d_mipmap_select(co
  *  winning), as long as the copy is not magnified more than 2.5 times along a side. The copy is magnified rather than the
  *  texture reduced (as much texture read for the same pixels, and the pattern flickers)
  */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_mipmap_limits(jo_3d_texture_mipmaps * const mip, const jo_texture_definition * const texture)
 {
     mip->area[0] = JO_3D_MIPMAP_LIMIT(JO_DIV_BY_2(texture->width)) * JO_3D_MIPMAP_LIMIT(JO_DIV_BY_2(texture->height));
@@ -2893,6 +2901,8 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     ++*ctx->displayed_polygon_count;
     function = a->direction & JO_VDP1_DIRECTION_FUNCTION_MASK;
     pmod = a->draw_mode | ctx->clip_mode;
+    if (a->sort & JO_3D_USE_TEXTURE)
+        pmod |= __jo_3d_high_speed_shrink;
     // (the pre-clipping disabled for a polygon inside of the screen, see jo_3d_pre_clipping(): a window without clipping,
     // the system clipping area. The sign bits of the packed positions (x, y) and of the packed distances to the right and
     // bottom sides: a borrow of y into x only comes with a y out of the area, found by its own sign. The test of the 8
@@ -4847,6 +4857,8 @@ static __attribute__((noinline)) bool       jo_3d_emit_part(const jo_3d_subdivis
     *s->used = used + 1;
     ++*ctx->displayed_polygon_count;
     pmod = a->draw_mode | ctx->clip_mode;
+    if (a->sort & JO_3D_USE_TEXTURE)
+        pmod |= __jo_3d_high_speed_shrink;
     // (the pre-clipping, see jo_3d_emit_polygon())
     if (ctx->clip_mode == 0)
     {
@@ -5570,6 +5582,7 @@ static bool                                 jo_3d_set_texture_subdivision_8bits(
 }
 
 /** @brief Make the tiles of a texture (see jo_3d_set_texture_subdivision()) */
+JO_LOW_WORK_RAM_CODE
 static bool                                 jo_3d_make_texture_subdivision(const int sprite_id)
 {
     jo_3d_texture_tiles                     *tiles;
@@ -5752,6 +5765,7 @@ bool                                        jo_3d_set_texture_subdivision(const 
     return (result);
 }
 
+JO_LOW_WORK_RAM_CODE
 void                                        jo_3d_set_texture_subdivision_depth(const int sprite_id, const jo_fixed depth)
 {
     jo_3d_texture_tiles                     *tiles;
@@ -5915,6 +5929,50 @@ static  __jo_force_inline bool              jo_3d_is_sliver(jo_3d_vertex * const
     return (extent >= JO_3D_SLIVER_EXTENT && cross < JO_MULT_BY_2(JO_3D_SLIVER_WIDTH) * extent);
 }
 
+/** @brief The color of a textured polygon drawn as a thin line (see jo_3d_emit_sliver()): the mean color of its
+ *  texture, with the light of its copy of the color lookup table (jo_3d_set_uniform_gouraud_skipped(): the light is in the
+ *  copy, the polygon has no gouraud table any more)
+ *  @param a Attribute of the polygon
+ *  @return The color
+ */
+static unsigned short                       jo_3d_sliver_color(const jo_3d_polygon_attribute * const a)
+{
+    const volatile unsigned short           *lut;
+    const volatile unsigned short           *copy;
+    unsigned int                            color;
+    unsigned int                            result;
+    unsigned int                            shift;
+    int                                     from;
+    int                                     to;
+    int                                     i;
+
+    color = __jo_sprite_mean_color[a->texture_id];
+    if ((a->draw_mode & JO_VDP1_COLOR_MODE_MASK) != JO_VDP1_COLOR_MODE_16_LOOKUP || (a->draw_mode & JO_VDP1_COLOR_CALC_GOURAUD) ||
+        __jo_sprite_lut[a->texture_id] == 0 || a->color == __jo_sprite_lut[a->texture_id])
+        return ((unsigned short)color);
+    lut = (const volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[a->texture_id]));
+    copy = (const volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(a->color));
+    // (the light of each component: the difference of an RGB color of the table and of its copy, a copy not saturated
+    // (between 1 and 30); the mean color with it, between 0 and 31 as the VDP1)
+    result = JO_COLOR_SATURN_MSB;
+    for (JO_ZERO(shift); shift < 15; shift += 5)
+    {
+        to = (int)((color >> shift) & 31);
+        for (i = 1; i < 16; ++i)
+        {
+            if (!(lut[i] & JO_COLOR_SATURN_MSB))
+                continue;
+            from = (int)((copy[i] >> shift) & 31);
+            if (from < 1 || from > 30)
+                continue;
+            to += from - (int)((lut[i] >> shift) & 31);
+            break;
+        }
+        result |= (unsigned int)JO_MIN(31, JO_MAX(0, to)) << shift;
+    }
+    return ((unsigned short)result);
+}
+
 /** @brief Draw a textured polygon seen as a thin line (see JO_3D_SLIVER_EXTENT) as a polygon of the mean color of its
  *  texture: the strip along the line that holds its 4 corners, the VDP1 draws it in a few lines as long as the strip
  *  (the textured polygon cost about the square of its length)
@@ -5991,7 +6049,7 @@ static bool                                 jo_3d_emit_sliver(const jo_3d_polygo
     }
     // (the sort key of the polygon itself: its 4 depths, see jo_3d_emit_polygon(); the strip has the depths of its ends
     // twice)
-    s->ctx->sliver_color = __jo_sprite_mean_color[a->texture_id];
+    s->ctx->sliver_color = jo_3d_sliver_color(a);
     result = jo_3d_emit_polygon_call(s->ctx, &strip[0], &strip[1], &strip[2], &strip[3], JO_NULL, p, a, k->commands, k->keys,
                                      k->reserved, k->used, s->light);
     s->ctx->sliver_color = 0;
@@ -6200,6 +6258,7 @@ static bool                                 jo_3d_draw_environment_polygon(const
 static bool                                 (*__jo_3d_environment_polygon)(const jo_3d_polygon_loop * const k, const jo_3d_polygon * const p,
                                                                            const jo_3d_polygon_attribute * const a) = JO_NULL;
 
+JO_LOW_WORK_RAM_CODE
 bool                                        jo_3d_set_mesh_environment(jo_3d_mesh * const mesh, const int sprite_id, const int tiles)
 {
     jo_3d_environment                       *e;
@@ -6981,7 +7040,12 @@ __asm__(
 "    bra 7f\n"
 "    nop\n"
      /* texture: distorted sprite with the flips, the end codes disabled by a horizontal flip, the smaller copy for the size */
-"33: mov.w @(10, r9), r0\n"
+"33: mov.l @(12, r15), r0\n"             /* (the high speed shrink of all the textures, see jo_3d_set_high_speed_shrink()) */
+"    mov.l 29f, r2\n"
+"    mov.l @r2, r2\n"
+"    or r2, r0\n"
+"    mov.l r0, @(12, r15)\n"
+"    mov.w @(10, r9), r0\n"
 "    extu.w r0, r12\n"
 "    and #48, r0\n"
 "    or #2, r0\n"
@@ -7118,6 +7182,7 @@ __asm__(
 "25: .long ___jo_sprite_def\n"
 "26: .long ___jo_3d_draw_polygon_slow\n"
 "28: .long ___jo_3d_light_command\n"
+"29: .long ___jo_3d_high_speed_shrink\n"
      /* --- an untextured polygon: its vertices rotated by one when the VDP1 draws it faster (see the label 7) */
 "40: mov.l @r4, r4\n"
 "    mov.l @r5, r5\n"
@@ -7610,6 +7675,7 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
 }
 
 /** @brief Average of 2 x 2 pixels of a texture (RGB 555): transparent when 2 pixels or more are transparent */
+JO_LOW_WORK_RAM_CODE
 static jo_color                             jo_3d_average_pixels(const jo_color a, const jo_color b, const jo_color c, const jo_color d)
 {
     const jo_color                          pixels[4] = {a, b, c, d};
@@ -7680,6 +7746,7 @@ static int                                  jo_3d_nearest_lut_color(const jo_col
  *  @param count Pixel count
  *  @return The color (its high bit set), 0: all transparent
  */
+JO_LOW_WORK_RAM_CODE
 static unsigned short                       jo_3d_mean_color(const jo_color * const pixels, const int count)
 {
     unsigned int                            sum[3];
@@ -7876,6 +7943,7 @@ static bool                                 jo_3d_make_texture_mipmaps(const int
     return (mip->levels != 0);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                                        jo_3d_set_texture_mipmaps(const int sprite_id)
 {
     bool                                    result;
@@ -8724,6 +8792,11 @@ void                        jo_3d_create_cube(jo_3d_quad * const array, jo_verti
     jo_3d_create_plane(array + 3, vertices + 12);
     jo_3d_create_plane(array + 4, vertices + 16);
     jo_3d_create_plane(array + 5, vertices + 20);
+}
+
+void                        jo_3d_set_high_speed_shrink(const bool enabled)
+{
+    __jo_3d_high_speed_shrink = enabled ? JO_VDP1_HIGH_SPEED_SHRINK : 0;
 }
 
 /** @brief Draw mode options kept when the texture, the color or the wireframe mode of a polygon changes
@@ -9759,6 +9832,7 @@ void                                        jo_3d_free_gouraud_tables(const unsi
         jo_sprite_free_from(id);
 }
 
+JO_LOW_WORK_RAM_CODE
 unsigned short                              jo_3d_add_gouraud_tables(const jo_color * const tables, const unsigned int count)
 {
     jo_img                                  img;

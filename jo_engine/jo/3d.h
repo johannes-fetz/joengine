@@ -638,6 +638,18 @@ void                                jo_3d_set_mesh_polygon_high_speed_shrink(jo_
  */
 void                                jo_3d_set_mesh_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled);
 
+/** @brief High speed shrink for every textured polygon drawn from now on (models, meshes, levels), whatever their own
+ *  setting (default: on); can be changed at any time (a scene, a view)
+ *  @param enabled true: all of them, false: back to their own setting (jo_3d_set_mesh_high_speed_shrink(), the materials
+ *  JO_3D_MATERIAL_HIGH_SPEED_SHRINK): a texture whose details of one texel must stay sharp far away (a small text)
+ *  @remarks A texture drawn smaller than it is on a line (far away, seen at an angle): the VDP1 reads every other texel
+ *  (the even ones) instead of all of them, the line takes about half the time on a console (any shrink, even a small
+ *  one). No change for the textures drawn at their size or bigger. The cost: a little less sharp far away, a detail of one
+ *  texel (a thin line, a small text) can flicker or vanish between two copies of the mipmaps (jo_3d_set_texture_mipmaps())
+ *  @remarks Mednafen draws the picture of the high speed shrink but not its gain: measure on a console
+ */
+void                                jo_3d_set_high_speed_shrink(const bool enabled);
+
 /*
 ███╗   ███╗███████╗███████╗██╗  ██╗    ██╗   ██╗███████╗██████╗ ████████╗██╗ ██████╗███████╗       ██╗       ███╗   ██╗ ██████╗ ██████╗ ███╗   ███╗ █████╗ ██╗
 ████╗ ████║██╔════╝██╔════╝██║  ██║    ██║   ██║██╔════╝██╔══██╗╚══██╔══╝██║██╔════╝██╔════╝       ██║       ████╗  ██║██╔═══██╗██╔══██╗████╗ ████║██╔══██╗██║

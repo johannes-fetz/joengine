@@ -116,6 +116,9 @@
 /** @brief Material: only the polygons that cross the near plane are drawn in parts (jo_3d_set_texture_subdivision_near_only(),
  *  MTL: jo_subdivision 2) */
 # define JO_3D_MATERIAL_SUBDIVISION_NEAR        (1 << 12)
+/** @brief Material: the VDP1 reads every other texel of a texture drawn smaller than it is (JO_VDP1_HIGH_SPEED_SHRINK,
+ *  MTL: jo_high_speed_shrink 1; all the textures: jo_3d_set_high_speed_shrink()) */
+# define JO_3D_MATERIAL_HIGH_SPEED_SHRINK       (1 << 13)
 /** @brief First flag of the program (bits 16 to 31, MTL: jo_user) */
 # define JO_3D_MATERIAL_USER(N)                 (1 << (16 + (N)))
 
@@ -354,14 +357,31 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
  */
 void                                        jo_3d_set_unique_gouraud_tables(const bool unique);
 
-/** @brief The next models created or loaded draw without gouraud the polygons whose 4 gouraud colors leave the
- *  texels as they are (16, 16, 16 each): the same picture (default: off)
- *  @param skipped true: those polygons without gouraud
- *  @remarks Mednafen emulates a pixel with gouraud slower than one without (the gouraud of every polygon of a split
- *  screen: 6 % of its time). Not for a model whose tables the game writes again (a light, a tint): those polygons have
- *  no table any more. Not with jo_3d_set_unique_gouraud_tables()
+/** @brief The next models created or loaded draw without gouraud only the polygons whose 4 gouraud colors leave the
+ *  texels as they are (16, 16, 16 each): the same picture (see jo_3d_set_uniform_gouraud_skipped(), on by default, that
+ *  does it too)
+ *  @param skipped true: only those polygons without gouraud; false: all the polygons keep their gouraud table
+ *  @remarks Not for a model whose tables the game writes again (a light, a tint): those polygons have no table any more.
+ *  Not with jo_3d_set_unique_gouraud_tables()
  */
 void                                        jo_3d_set_neutral_gouraud_skipped(const bool skipped);
+
+/** @brief The next models created or loaded draw without gouraud the polygons whose 4 gouraud colors are the same (a
+ *  flat light), the light put in their color: the same picture, the VDP1 draws them faster (default: on)
+ *  @param skipped true: those polygons without gouraud (the neutral ones too, see jo_3d_set_neutral_gouraud_skipped());
+ *  false: all the polygons keep their gouraud table (the models that the game tints or lights by their tables, see
+ *  below). Both: the copies of the color lookup tables made until then are not shared with the next models any more
+ *  @remarks An untextured polygon: its RGB color + the light. A texture of 16 colors (color lookup table): a copy of
+ *  the table with the light (32 bytes of the VRAM with the gouraud tables of the model, shared by the next models until
+ *  sprites are freed or until this function is called). The other textures (RGB, palette) and the lit polygons
+ *  (JO_3D_MATERIAL_LIGHT) keep their gouraud, the models of the entities (a tint) and of the cells (the point lights)
+ *  too
+ *  @remarks Load between jo_3d_set_uniform_gouraud_skipped(false) and (true) a model that the game tints
+ *  (jo_3d_set_tint()), adds to the point lights (jo_3d_point_lights_add_mesh()), whose gouraud tables or polygon colors
+ *  it writes again: the polygons without gouraud would not get the tint or the light, a color changed would lose the
+ *  light put in it. Not with jo_3d_set_unique_gouraud_tables() (those models keep all their tables)
+ */
+void                                        jo_3d_set_uniform_gouraud_skipped(const bool skipped);
 
 /** @brief Get the sprite id of a texture of the models (loaded the first time: a texture shared by several models,
  *         or by the program, is loaded once)

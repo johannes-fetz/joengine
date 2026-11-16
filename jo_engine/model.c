@@ -81,6 +81,7 @@ static short                                *__jo_3d_model_texture_ids = __jo_3d
 static int                                  __jo_3d_model_texture_capacity = JO_3D_MODEL_KEPT_TEXTURES;
 static int                                  __jo_3d_model_texture_count = 0;
 
+JO_LOW_WORK_RAM_CODE
 static jo_3d_model                          *jo_3d_create_model(const unsigned char * const data, const unsigned int size, void * const file,
                                                                 unsigned char * const storage);
 static void                                 jo_3d_model_free(jo_3d_model * const model, const bool free_file);
@@ -256,6 +257,7 @@ static int                                  jo_3d_model_find_texture(const char 
  *  @param capacity JO_3D_MODEL_KEPT_TEXTURES: the tables kept in the program, more: a table allocated
  *  @return false if out of memory (the tables used stay)
  */
+JO_LOW_WORK_RAM_CODE
 static bool                                 jo_3d_model_texture_tables(const int capacity)
 {
     jo_3d_model_texture_name                *names;
@@ -284,6 +286,7 @@ static bool                                 jo_3d_model_texture_tables(const int
 }
 
 /** @brief Keep the name of a texture of the models (it is loaded once) */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_model_add_texture(const char * const name, const int id)
 {
     if (id < 0 || __jo_3d_model_texture_count >= JO_3D_MODEL_MAX_TEXTURES)
@@ -297,6 +300,7 @@ static void                                 jo_3d_model_add_texture(const char *
     __jo_3d_model_texture_ids[__jo_3d_model_texture_count++] = (short)id;
 }
 
+JO_LOW_WORK_RAM_CODE
 void                                        jo_3d_model_free_textures_from(const int sprite_id)
 {
     register int                            i;
@@ -436,6 +440,7 @@ static bool                                 jo_3d_model_read_textures(jo_file * 
     return (true);
 }
 
+JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *jo_3d_load_model(const char * const filename)
 {
     jo_file                                 file;
@@ -488,9 +493,35 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
 
 /** @brief A gouraud table per polygon (the cells, lit by the point lights, see __jo_3d_load_model_for_lights()) */
 static bool                                 __jo_3d_model_unique_gouraud_tables = false;
-/** @brief The polygons whose gouraud table leaves the texels as they are: drawn without gouraud (see
- *  jo_3d_set_neutral_gouraud_skipped()) */
-static bool                                 __jo_3d_model_skip_neutral_gouraud = false;
+/** @brief The polygons drawn without gouraud: 1 those whose gouraud table leaves the texels as they are (see
+ *  jo_3d_set_neutral_gouraud_skipped()), 2 those whose 4 colors are the same too (see jo_3d_set_uniform_gouraud_skipped(),
+ *  the default) */
+static unsigned char                        __jo_3d_model_skip_gouraud = 2;
+/** @brief The copies of the color lookup tables with a light (see jo_3d_set_uniform_gouraud_skipped()): the table, the
+ *  light (a gouraud color), the copy (VRAM / 8, 0: free entry) */
+#define JO_3D_MODEL_LIT_LUTS                (256)
+/** @brief The hash of the copies: 2 x JO_3D_MODEL_LIT_LUTS entries (bits of the index) */
+#define JO_3D_MODEL_LIT_HASH_BITS           (9)
+typedef struct
+{
+    unsigned short                          lut;
+    unsigned short                          light;
+    unsigned short                          copy;
+}                                           jo_3d_model_lit_lut;
+/** @brief The copies, a hash of them (entry + 1, 0: free), the copies to make for a model (2.5 KB): forgotten by
+ *  jo_3d_set_uniform_gouraud_skipped(), when sprites are freed (their copies may be among them) and when half of them are
+ *  used at the start of a model (the next ones make their copies again) */
+typedef struct
+{
+    jo_3d_model_lit_lut                     entries[JO_3D_MODEL_LIT_LUTS];
+    unsigned short                          hash[JO_3D_MODEL_LIT_LUTS * 2];
+    unsigned short                          pending[JO_3D_MODEL_LIT_LUTS];
+}                                           jo_3d_model_lit_lut_set;
+static jo_3d_model_lit_lut_set              __jo_3d_model_lit_set;
+static unsigned int                         __jo_3d_model_lit_lut_count = 0;
+#define __jo_3d_model_lit_luts              (__jo_3d_model_lit_set.entries)
+#define __jo_3d_model_lit_lut_hash          (__jo_3d_model_lit_set.hash)
+#define __jo_3d_model_lit_pending           (__jo_3d_model_lit_set.pending)
 /** @brief A gouraud color that leaves the texel as it is (16, 16, 16) */
 #define JO_3D_MODEL_NEUTRAL_GOURAUD         (0xC210)
 
@@ -498,6 +529,178 @@ static bool                                 __jo_3d_model_skip_neutral_gouraud =
 static  __jo_force_inline unsigned int      jo_3d_model_gouraud_hash(const unsigned short * const t)
 {
     return ((((unsigned int)t[0] * 31u + t[1]) * 31u + t[2]) * 31u + t[3]) * 0x9E3779B1u;
+}
+
+/** @brief A component of a color + a gouraud one: what the VDP1 draws (saturated between 0 and 31, as Mednafen)
+ *  @param sum The component + the gouraud one
+ *  @return The component
+ */
+static  __jo_force_inline unsigned int      jo_3d_model_lit_component(const int sum)
+{
+    return ((unsigned int)JO_MIN(31, JO_MAX(0, sum - 16)));
+}
+
+/** @brief An RGB color with a gouraud color: what the VDP1 draws (each component + the gouraud one - 16, between 0 and 31)
+ *  @param color RGB color (a palette color, without its MSB: as it is, the VDP1 does not shade it)
+ *  @param light Gouraud color
+ *  @return The color
+ */
+static  __jo_force_inline unsigned short    jo_3d_model_lit_color(const unsigned short color, const unsigned short light)
+{
+    if (!(color & JO_COLOR_SATURN_MSB))
+        return (color);
+    return ((unsigned short)(JO_COLOR_SATURN_MSB |
+                             (jo_3d_model_lit_component((int)JO_COLOR_SATURN_GET_B(color) + (int)JO_COLOR_SATURN_GET_B(light)) << 10) |
+                             (jo_3d_model_lit_component((int)JO_COLOR_SATURN_GET_G(color) + (int)JO_COLOR_SATURN_GET_G(light)) << 5) |
+                             jo_3d_model_lit_component((int)JO_COLOR_SATURN_GET_R(color) + (int)JO_COLOR_SATURN_GET_R(light))));
+}
+
+/** @brief The copy of a color lookup table with a light (see jo_3d_set_uniform_gouraud_skipped())
+ *  @param lut Color lookup table (VRAM / 8)
+ *  @param light Gouraud color
+ *  @return Its entry (copy: 0 if not made yet), JO_NULL if the list is full
+ */
+JO_LOW_WORK_RAM_CODE
+static jo_3d_model_lit_lut                  *jo_3d_model_find_lit_lut(const unsigned short lut, const unsigned short light)
+{
+    jo_3d_model_lit_lut                     *entry;
+    unsigned int                            slot;
+
+    // (a hash of the entries + 1, 0: free; thousands of polygons in a track, the list in one loop took 0.4 s)
+    if (__jo_3d_model_lit_lut_count == 0)
+        jo_memset(__jo_3d_model_lit_lut_hash, 0, sizeof(__jo_3d_model_lit_lut_hash));
+    for (slot = ((unsigned int)lut * 31u + light) * 0x9E3779B1u >> (32 - JO_3D_MODEL_LIT_HASH_BITS);;
+         slot = (slot + 1) & (JO_3D_MODEL_LIT_LUTS * 2 - 1))
+    {
+        if (__jo_3d_model_lit_lut_hash[slot] == 0)
+            break;
+        entry = &__jo_3d_model_lit_luts[__jo_3d_model_lit_lut_hash[slot] - 1];
+        if (entry->lut == lut && entry->light == light)
+            return (entry);
+    }
+    if (__jo_3d_model_lit_lut_count >= JO_3D_MODEL_LIT_LUTS)
+        return (JO_NULL);
+    entry = &__jo_3d_model_lit_luts[__jo_3d_model_lit_lut_count++];
+    __jo_3d_model_lit_lut_hash[slot] = (unsigned short)__jo_3d_model_lit_lut_count;
+    entry->lut = lut;
+    entry->light = light;
+    entry->copy = 0;
+    return (entry);
+}
+
+/** @brief The polygons whose 4 gouraud colors are the same: without gouraud, the light in their color (see
+ *  jo_3d_set_uniform_gouraud_skipped())
+ *  @param model Model (gouraud_table of an attribute: the index of the polygon + 1 when it uses its table)
+ *  @param gouraud The table of each polygon (4 colors)
+ *  @param pending The copies of color lookup tables to make for this model (output: indexes in __jo_3d_model_lit_luts)
+ *  @param pending_count Their count (output)
+ *  @remarks The polygons of a texture whose copy is to make: the index of the entry in their color until it is made
+ *           (+ JO_3D_MODEL_LIT_PENDING), see jo_3d_model_make_lit_luts()
+ */
+#define JO_3D_MODEL_LIT_PENDING             (0x8000)
+JO_LOW_WORK_RAM_CODE
+static void                                 jo_3d_model_skip_uniform_gouraud(jo_3d_model * const model, const unsigned short * const gouraud,
+                                                                             unsigned short * const pending, unsigned int * const pending_count)
+{
+    jo_3d_polygon_attribute                 *a;
+    jo_3d_model_lit_lut                     *entry;
+    const unsigned short                    *t;
+    unsigned int                            n;
+    unsigned int                            k;
+    unsigned int                            i;
+    unsigned int                            j;
+    unsigned short                          light;
+
+    n = model->mesh->data.polygon_count;
+    for (JO_ZERO(k); k < n; ++k)
+    {
+        a = &model->mesh->data.attributes[k];
+        t = &gouraud[k * 4];
+        if (a->gouraud_table == 0 || t[0] != t[1] || t[0] != t[2] || t[0] != t[3] || (a->sort & JO_3D_USE_LIGHT))
+            continue;
+        light = (unsigned short)(t[0] | JO_COLOR_SATURN_MSB);
+        if (light == JO_3D_MODEL_NEUTRAL_GOURAUD)
+            ;
+        else if (!(a->sort & JO_3D_USE_TEXTURE))
+        {
+            // (a palette color: the VDP1 does not shade it, as it is)
+            a->color = jo_3d_model_lit_color(a->color, light);
+        }
+        else if ((a->draw_mode & JO_VDP1_COLOR_MODE_MASK) == JO_VDP1_COLOR_MODE_16_LOOKUP && a->color != 0 &&
+                 (entry = jo_3d_model_find_lit_lut(a->color, light)) != JO_NULL)
+        {
+            if (entry->copy != 0)
+                a->color = entry->copy;
+            else
+            {
+                // (a copy to make: once per model)
+                i = (unsigned int)(entry - __jo_3d_model_lit_luts);
+                for (JO_ZERO(j); j < *pending_count && pending[j] != i; ++j)
+                    ;
+                if (j >= *pending_count)
+                    pending[(*pending_count)++] = (unsigned short)i;
+                a->color = (unsigned short)(JO_3D_MODEL_LIT_PENDING + i);
+            }
+        }
+        else
+            continue;
+        a->gouraud_table = 0;
+        a->draw_mode &= ~JO_VDP1_COLOR_CALC_GOURAUD;
+    }
+}
+
+/** @brief The copies of the color lookup tables with their light (see jo_3d_model_skip_uniform_gouraud())
+ *  @param compact Where to write them (16 colors each: the VRAM)
+ *  @param pending Their entries
+ *  @param count Their count
+ */
+JO_LOW_WORK_RAM_CODE
+static void                                 jo_3d_model_write_lit_luts(volatile unsigned short * const compact, const unsigned short * const pending,
+                                                                       const unsigned int count)
+{
+    const volatile unsigned short           *src;
+    const jo_3d_model_lit_lut               *entry;
+    unsigned int                            k;
+    unsigned int                            i;
+
+    for (JO_ZERO(k); k < count; ++k)
+    {
+        entry = &__jo_3d_model_lit_luts[pending[k]];
+        src = (const volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(entry->lut));
+        for (JO_ZERO(i); i < 16; ++i)
+            compact[k * 16 + i] = jo_3d_model_lit_color(src[i], entry->light);
+    }
+}
+
+/** @brief The polygons that wait for a copy of their color lookup table: its address, or their table back without the
+ *  copy (base 0: out of VRAM)
+ *  @param model Model
+ *  @param pending The entries of the copies made
+ *  @param count Their count
+ *  @param base The first copy (VRAM / 8, a multiple of 4, the next ones 4 tables after), 0: not made
+ */
+JO_LOW_WORK_RAM_CODE
+static void                                 jo_3d_model_set_lit_luts(jo_3d_model * const model, const unsigned short * const pending,
+                                                                     const unsigned int count, const unsigned short base)
+{
+    jo_3d_polygon_attribute                 *a;
+    unsigned int                            k;
+    unsigned int                            i;
+
+    for (JO_ZERO(i); i < count; ++i)
+        __jo_3d_model_lit_luts[pending[i]].copy = base != 0 ? (unsigned short)(base + i * 4) : 0;
+    for (JO_ZERO(k); k < model->mesh->data.polygon_count; ++k)
+    {
+        a = &model->mesh->data.attributes[k];
+        if (!(a->sort & JO_3D_USE_TEXTURE) || (a->draw_mode & JO_VDP1_COLOR_MODE_MASK) != JO_VDP1_COLOR_MODE_16_LOOKUP ||
+            a->color < JO_3D_MODEL_LIT_PENDING || a->color >= JO_3D_MODEL_LIT_PENDING + JO_3D_MODEL_LIT_LUTS)
+            continue;
+        i = a->color - JO_3D_MODEL_LIT_PENDING;
+        // (no copy: the table of the texture, without the light; the entry forgotten for the next models)
+        a->color = __jo_3d_model_lit_luts[i].copy != 0 ? __jo_3d_model_lit_luts[i].copy : __jo_3d_model_lit_luts[i].lut;
+    }
+    if (base == 0)
+        __jo_3d_model_lit_lut_count = 0;
 }
 
 /** @brief The gouraud tables of the polygons of a model in the VRAM: the polygons with the same 4 colors share one table
@@ -513,6 +716,7 @@ static  __jo_force_inline unsigned int      jo_3d_model_gouraud_hash(const unsig
 static unsigned short                       __jo_3d_model_gouraud_hash[JO_3D_MODEL_GOURAUD_HASH];
 static unsigned short                       __jo_3d_model_gouraud_compact[JO_3D_MODEL_GOURAUD_COMPACT * 4];
 
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_model_add_gouraud_tables(jo_3d_model * const model, const unsigned short * const gouraud)
 {
     jo_3d_polygon_attribute                 *attributes;
@@ -526,13 +730,21 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     unsigned int                            count;
     unsigned int                            first;
     unsigned int                            k;
+    unsigned int                            luts;
+    unsigned int                            reserved;
     unsigned short                          base;
 
     attributes = model->mesh->data.attributes;
     n = model->mesh->data.polygon_count;
+    JO_ZERO(luts);
     // (the polygons whose 4 colors leave the texels as they are: without gouraud, the same picture; Mednafen emulates a
     // pixel of gouraud slower: the gouraud of all the polygons of a split screen cost 6 % of its time)
-    if (__jo_3d_model_skip_neutral_gouraud && !__jo_3d_model_unique_gouraud_tables)
+    // (half of the copies of the color lookup tables known: forgotten, room for those of this model)
+    if (__jo_3d_model_lit_lut_count >= JO_3D_MODEL_LIT_LUTS / 2)
+        __jo_3d_model_lit_lut_count = 0;
+    if (__jo_3d_model_skip_gouraud == 2 && !__jo_3d_model_unique_gouraud_tables)
+        jo_3d_model_skip_uniform_gouraud(model, gouraud, __jo_3d_model_lit_pending, &luts);
+    else if (__jo_3d_model_skip_gouraud && !__jo_3d_model_unique_gouraud_tables)
         for (JO_ZERO(k); k < n; ++k)
             if (attributes[k].gouraud_table != 0 &&
                 (gouraud[k * 4] | 0x8000) == JO_3D_MODEL_NEUTRAL_GOURAUD &&
@@ -546,7 +758,7 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     for (JO_ZERO(k), JO_ZERO(used); k < n; ++k)
         if (attributes[k].gouraud_table != 0)
             ++used;
-    if (used == 0)
+    if (used == 0 && luts == 0)
         return;
     hash = JO_NULL;
     if (!__jo_3d_model_unique_gouraud_tables && n < 0xFFFF)
@@ -559,6 +771,11 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     }
     if (hash == JO_NULL)
     {
+        // (the copies of the color lookup tables not made: the tables of the textures, without the light)
+        if (luts != 0)
+            jo_3d_model_set_lit_luts(model, __jo_3d_model_lit_pending, luts, 0);
+        if (used == 0)
+            return;
         // A table per polygon (the tables of a room lit by the point lights, see __jo_3d_load_model_for_lights())
         base = jo_3d_add_gouraud_tables((const jo_color *)gouraud, n);
         model->gouraud_tables = base;
@@ -595,10 +812,15 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     }
     if (hash != __jo_3d_model_gouraud_hash)
         jo_free(hash);
-    compact = ((count + 1) & ~1u) <= JO_3D_MODEL_GOURAUD_COMPACT ? __jo_3d_model_gouraud_compact :
-              (unsigned short *)jo_malloc(((count + 1) & ~1u) * 4 * sizeof(unsigned short));
+    // (the copies of the color lookup tables first: 4 tables each, at an address multiple of 32 bytes (the VDP1 reads a
+    // table there: the 2 low bits of the color ignored), then the gouraud tables)
+    reserved = luts != 0 ? luts * 4 + 4 : 0;
+    compact = ((reserved + count + 1) & ~1u) <= JO_3D_MODEL_GOURAUD_COMPACT ? __jo_3d_model_gouraud_compact :
+              (unsigned short *)jo_malloc(((reserved + count + 1) & ~1u) * 4 * sizeof(unsigned short));
     if (compact == JO_NULL)
     {
+        if (luts != 0)
+            jo_3d_model_set_lit_luts(model, __jo_3d_model_lit_pending, luts, 0);
         // (the first polygon of each table: its own table)
         base = jo_3d_add_gouraud_tables((const jo_color *)gouraud, n);
         model->gouraud_tables = base;
@@ -611,9 +833,10 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
                 attributes[k].draw_mode &= ~JO_VDP1_COLOR_CALC_GOURAUD;
         return;
     }
+    jo_memset(compact, 0, reserved * 4 * sizeof(unsigned short));
     // The different tables in the order of their first polygon: the index of the table of a polygon (the polygons before
     // it already have theirs, its first polygon too)
-    for (JO_ZERO(k), JO_ZERO(count); k < n; ++k)
+    for (JO_ZERO(k), count = reserved; k < n; ++k)
     {
         if (attributes[k].gouraud_table == 0)
             continue;
@@ -632,6 +855,14 @@ static void                                 jo_3d_model_add_gouraud_tables(jo_3d
     base = jo_3d_add_gouraud_tables((const jo_color *)compact, count);
     if (compact != __jo_3d_model_gouraud_compact)
         jo_free(compact);
+    if (base != 0 && luts != 0)
+    {
+        first = (base + 3u) & ~3u;
+        jo_3d_model_write_lit_luts((unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(first)), __jo_3d_model_lit_pending, luts);
+        jo_3d_model_set_lit_luts(model, __jo_3d_model_lit_pending, luts, (unsigned short)first);
+    }
+    else if (luts != 0)
+        jo_3d_model_set_lit_luts(model, __jo_3d_model_lit_pending, luts, 0);
     model->gouraud_tables = base;
     model->gouraud_table_count = base != 0 ? (unsigned short)count : 0;
     for (JO_ZERO(k); k < n; ++k)
@@ -653,13 +884,27 @@ void                                        jo_3d_set_unique_gouraud_tables(cons
     __jo_3d_model_unique_gouraud_tables = unique;
 }
 
+void                                        __jo_3d_model_forget_lit_luts(void)
+{
+    // (the copies stay with the models that made them: not shared with the next ones)
+    __jo_3d_model_lit_lut_count = 0;
+}
+
 void                                        jo_3d_set_neutral_gouraud_skipped(const bool skipped)
 {
-    __jo_3d_model_skip_neutral_gouraud = skipped;
+    __jo_3d_model_forget_lit_luts();
+    __jo_3d_model_skip_gouraud = skipped ? 1 : 0;
+}
+
+void                                        jo_3d_set_uniform_gouraud_skipped(const bool skipped)
+{
+    __jo_3d_model_forget_lit_luts();
+    __jo_3d_model_skip_gouraud = skipped ? 2 : 0;
 }
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
+JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename)
 {
     jo_3d_model                             *model;
@@ -670,9 +915,24 @@ jo_3d_model                                 *__jo_3d_load_model_for_lights(const
     return (model);
 }
 
+JO_LOW_WORK_RAM_CODE
+jo_3d_model                                 *__jo_3d_load_model_for_tint(const char * const filename)
+{
+    jo_3d_model                             *model;
+    unsigned char                           skip;
+
+    // (all the polygons keep their gouraud table: the tint is a copy of the tables, see jo_3d_set_tint())
+    skip = __jo_3d_model_skip_gouraud;
+    __jo_3d_model_skip_gouraud = 0;
+    model = jo_3d_load_model(filename);
+    __jo_3d_model_skip_gouraud = skip;
+    return (model);
+}
+
 #endif /* JO_COMPILE_WITH_FS_SUPPORT */
 
 /** @brief Set the attributes of the polygons from their materials */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_model_set_attributes(jo_3d_model * const model, const unsigned short * const gouraud)
 {
     register unsigned int                   k;
@@ -708,6 +968,8 @@ static void                                 jo_3d_model_set_attributes(jo_3d_mod
             jo_3d_set_mesh_polygon_transparency(mesh, true, k);
         if (m->flags & JO_3D_MATERIAL_SCREEN_DOORS)
             jo_3d_set_mesh_polygon_screen_doors(mesh, true, k);
+        if (texture >= 0 && (m->flags & JO_3D_MATERIAL_HIGH_SPEED_SHRINK))
+            a->draw_mode |= JO_VDP1_HIGH_SPEED_SHRINK;
         if (texture >= 0 && (m->flags & JO_3D_MATERIAL_FLIP_H))
             a->direction |= JO_VDP1_H_FLIP;
         if (texture >= 0 && (m->flags & JO_3D_MATERIAL_FLIP_V))
@@ -724,6 +986,7 @@ static void                                 jo_3d_model_set_attributes(jo_3d_mod
 }
 
 /** @brief Apply the texture options of the materials (once per texture) */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_model_set_texture_options(const jo_3d_model * const model)
 {
     register unsigned int                   k;
@@ -1436,11 +1699,13 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     return (model);
 }
 
+JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *jo_3d_create_model_from_memory(const unsigned char * const data, const unsigned int size)
 {
     return (jo_3d_create_model(data, size, JO_NULL, JO_NULL));
 }
 
+JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *jo_3d_create_model_in_place(const unsigned char * const data, const unsigned int size)
 {
     jo_3d_model                             *model;
@@ -1478,6 +1743,7 @@ jo_3d_model                                 *jo_3d_create_model_in_place(const u
     return (model);
 }
 
+JO_LOW_WORK_RAM_CODE
 void                                        jo_3d_free_model(jo_3d_model * const model)
 {
     jo_3d_model_free(model, true);
@@ -1486,6 +1752,7 @@ void                                        jo_3d_free_model(jo_3d_model * const
 /** @brief Free a model
  *  @param free_file Free the data of the file too (else the caller frees them)
  */
+JO_LOW_WORK_RAM_CODE
 static void                                 jo_3d_model_free(jo_3d_model * const model, const bool free_file)
 {
     if (model == JO_NULL)
@@ -1625,6 +1892,7 @@ bool                                        jo_3d_model_set_environment(jo_3d_mo
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
+JO_LOW_WORK_RAM_CODE
 void                                        jo_3d_model_pool_init(jo_3d_model_pool * const pool, const unsigned int block_size,
                                                                   const unsigned int bytes)
 {
@@ -1635,6 +1903,7 @@ void                                        jo_3d_model_pool_init(jo_3d_model_po
     JO_ZERO(pool->block_count);
 }
 
+JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *jo_3d_model_pool_read(jo_3d_model_pool * const pool, jo_file * const file, const unsigned int size)
 {
     unsigned int                            size4;
@@ -1708,6 +1977,7 @@ jo_3d_model                                 *jo_3d_model_pool_read(jo_3d_model_p
     return (model);
 }
 
+JO_LOW_WORK_RAM_CODE
 void                                        jo_3d_model_pool_free(jo_3d_model_pool * const pool)
 {
     register int                            k;
