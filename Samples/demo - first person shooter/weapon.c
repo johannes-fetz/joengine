@@ -163,6 +163,8 @@ void                            weapon_load(void)
     int                         k;
     jo_3d_quad                  *quad;
 
+    // (the weapons are drawn with the tint of the lamps (jo_3d_set_tint()): all their polygons keep their gouraud table)
+    jo_3d_set_uniform_gouraud_skipped(false);
     for (k = 0; k < jo_weapons_count() && k < MAX_WEAPONS; ++k)
     {
         const jo_weapon_def     *d;
@@ -181,6 +183,7 @@ void                            weapon_load(void)
         load_sound(d->sound_shot, &shot_sounds[k]);
         shot_sounds[k].volume = (unsigned char)JO_MIN(127, d->shot_volume);
     }
+    jo_3d_set_uniform_gouraud_skipped(true);
     def = jo_weapons_def(jo_weapons_current());
     model = models[jo_weapons_current()];
     tex_impact = jo_sprite_add_bin_4bits_lut(JO_ROOT_DIR, "IMPACT.BIN", JO_COLOR_Transparent);

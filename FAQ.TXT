@@ -109,3 +109,25 @@ A:	Yes. Build the SH-2 toolchain once with Compiler/MACOS/build_toolchain.sh (se
 Q:	I changed the engine. How do I check that nothing is broken?
 A:	Run tests\run_tests.bat (about 1 minute): it builds the samples and a test ROM, runs them in Mednafen and compares
 	the results with references. See tests/README.md (Mednafen 1.29 and the Saturn BIOS are needed).
+
+Q:	Since the update of November 2026, the far textures of my 3D look a little less sharp. Why?
+A:	The high speed shrink is on by default: the VDP1 reads every other texel of a texture drawn smaller than it is,
+	about twice as fast on a Saturn. To turn it off (for a scene, a view, or the whole game):
+		jo_3d_set_high_speed_shrink(false);
+	See Documentation/performance.md.
+
+Q:	A model I tint (jo_3d_set_tint()), light with the point lights or whose colors I change has parts that don't change.
+A:	The polygons of a flat light are drawn without gouraud by default (the light is put in their color: faster).
+	Load such a model with all its gouraud tables:
+		jo_3d_set_uniform_gouraud_skipped(false);
+		model = jo_3d_load_model("MODEL.JOM");
+		jo_3d_set_uniform_gouraud_skipped(true);
+	See Documentation/performance.md and the sample "demo - first person shooter" (weapon.c).
+
+Q:	My 3D game is short of high work RAM. Can the engine use the low work RAM for its code?
+A:	Yes, for the functions read rarely (loading, creation of the models, menus). Add in your makefile:
+		JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1
+	and mark your own functions that are not called at each frame with JO_LOW_WORK_RAM_CODE.
+	The low work RAM free then starts at JO_LOW_WORK_RAM_FREE, not at 0x00200000: jo_add_memory_zone() skips the code
+	by itself, but a buffer of your game at a fixed address of the low work RAM would write over it.
+	See Documentation/performance.md.

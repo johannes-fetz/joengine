@@ -1554,6 +1554,7 @@ void                    jo_fs_get_read_stats(unsigned int * const vblanks, unsig
     }
 }
 
+JO_LOW_WORK_RAM_CODE
 char                    *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len)
 {
     int			        fid;
@@ -1685,6 +1686,7 @@ char*					jo_fs_read_file_in_dir(const char *const filename, const char *const s
     return stream;
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                    jo_fs_open(jo_file * const file, const char *const filename)
 {
 #ifdef JO_DEBUG
@@ -1816,6 +1818,7 @@ int                     jo_fs_read_next_bytes(jo_file * const file, char *buffer
     return (jo_fs_read_raw(file, buffer, nbytes, &file->read, file->size));
 }
 
+JO_LOW_WORK_RAM_CODE
 void                    jo_fs_close(jo_file * const file)
 {
 #ifdef JO_DEBUG

@@ -100,6 +100,8 @@ static unsigned short               rbg0_over_mode_b = 0;
 //OTHER
 static unsigned int                 screen_flags = 0;
 static void                         *back_color = JO_NULL;
+/** @brief The back screen color (see jo_vdp2_restore()) */
+static jo_color                     back_color_value = JO_COLOR_Black;
 
 /*
 ██████╗ ███████╗ ██████╗ ██╗███████╗████████╗███████╗██████╗ ███████╗
@@ -1982,6 +1984,7 @@ void                                jo_set_default_background_color(const jo_col
 {
     if (back_color == JO_NULL)
         back_color = jo_vdp2_malloc_autosize(JO_VDP2_RAM_BACK_COLOR);
+    back_color_value = background_color;
     jo_vdp2_set_back_color(back_color, background_color);
 }
 
@@ -3961,6 +3964,27 @@ void                                    jo_vdp2_disable_mosaic(void)
 const unsigned short                    *jo_vdp2_get_registers(void)
 {
     return (__jo_vdp2_shadow);
+}
+
+void                                    jo_vdp2_restore(void)
+{
+    unsigned int                        sr;
+    unsigned int                        i;
+
+    // The VRAM cleared (the backgrounds of the game: their places stay reserved), the font of jo_printf() and the back
+    // screen color again
+    for (JO_ZERO(i); i < JO_VDP2_VRAM_SIZE; i += 4)
+        *(volatile unsigned int *)(JO_VDP2_VRAM + i) = 0;
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+    jo_init_nbg0_printf();
+#endif
+    if (back_color != JO_NULL)
+        jo_vdp2_set_back_color(back_color, back_color_value);
+    // All the registers again from the values of the engine, at the next VBLANK
+    sr = __jo_core_disable_interrupts();
+    for (JO_ZERO(i); i < (sizeof(__jo_vdp2_dirty) / sizeof(*__jo_vdp2_dirty)); ++i)
+        __jo_vdp2_dirty[i] = ~0u;
+    __jo_core_restore_interrupts(sr);
 }
 
 void                                    jo_vdp2_set_hires_sprite_mode(const jo_vdp2_hires_sprite_mode mode)

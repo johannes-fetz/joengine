@@ -916,6 +916,14 @@ void    jo_vdp2_disable_mosaic(void);
  */
 const unsigned short    *jo_vdp2_get_registers(void);
 
+/** @brief Give the VDP2 back to the engine after the game wrote its registers and its VRAM by itself (a video in full
+ *  screen, see the demo "video hd"): the registers again as the engine set them (at the next VBLANK), the VRAM cleared,
+ *  the font of jo_printf() and the back screen color drawn again
+ *  @remarks The backgrounds of the game are lost (their places in the VRAM stay reserved): the game sets them again. The
+ *  color RAM is not changed
+ */
+void                    jo_vdp2_restore(void);
+
 #endif /* !__JO_VDP2_H__ */
 
 /*

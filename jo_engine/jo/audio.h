@@ -70,6 +70,12 @@ typedef struct
 
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
+/** @brief Start the sound again as jo_core_init() does: the program of the 68000 (the sound driver, or its idle loop), the
+ *  slots keyed off, the sounds loaded forgotten
+ *  @remarks After the game used the 68000 and the sound RAM by itself (see the video player of the demo "video hd")
+ */
+void	jo_audio_init(void);
+
 /** @brief Play a track from the CD
  *  @param from_track First track index to play
  *  @param to_track Last track index to play

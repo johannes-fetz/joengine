@@ -58,6 +58,19 @@ _jo_start:
         mov     #JO_CCR_CACHE_ENABLE, r0
         mov.b   r0, @r1
 
+        /* The functions read rarely (JO_LOW_WORK_RAM_CODE) to the low work RAM, before .bss is cleared: they are stored
+           where .bss starts (see jo.linker; none without JO_COMPILE_WITH_LOW_WORK_RAM_CODE) */
+        mov.l   .low_load, r1
+        mov.l   .low_start, r2
+        mov.l   .low_end, r3
+6:
+        cmp/hs  r3, r2
+        bt      7f
+        mov.l   @r1+, r0
+        mov.l   r0, @r2
+        bra     6b
+        add     #4, r2
+7:
         /* Clear .bss */
         mov.l   .bss_start, r1
         mov.l   .bss_end, r2
@@ -95,6 +108,9 @@ _jo_start:
 .work_start:    .long   __jo_work_start
 .work_end:      .long   __jo_work_end
 .main:          .long   _main
+.low_load:      .long   ___jo_low_work_ram_load
+.low_start:     .long   ___jo_low_work_ram_start
+.low_end:       .long   ___jo_low_work_ram_end
 
 /*
 ** END OF FILE

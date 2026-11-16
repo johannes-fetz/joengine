@@ -1285,6 +1285,7 @@ void                jo_audio_free_pcm(jo_sound *sound)
     JO_ZERO(sound->resident);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                jo_audio_make_resident(jo_sound *sound)
 {
     unsigned int    size;
@@ -1392,6 +1393,7 @@ bool                jo_audio_load_pcm_async(const char * const filename, const j
     return true;
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                jo_audio_load_pcm(const char * const filename, const jo_sound_mode mode, jo_sound *sound)
 {
     char            *pcm;
@@ -1436,6 +1438,7 @@ static unsigned int                 jo_audio_wav_format(const unsigned char * co
     return (format);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                jo_audio_load_wav(const char * const filename, jo_sound *sound)
 {
     unsigned char   *file;

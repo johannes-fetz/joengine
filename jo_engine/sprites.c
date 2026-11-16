@@ -48,6 +48,8 @@
 #include "internal/vdp1_command_pipeline.h"
 #include "internal/sprites.h"
 #include "internal/3d.h"
+#include "jo/model.h"
+#include "internal/model.h"
 
 /*
 ** MACROS
@@ -218,6 +220,7 @@ int				            jo_sprite_replace(const jo_img * const img, const int sprite_
  *  @param prefix Bytes kept free before the pixels (a multiple of 32: the color lookup table of a 16 colors texture, see
  *  jo_sprite_add_4bits_lut()), freed with the sprite
  */
+JO_LOW_WORK_RAM_CODE
 static int                  __internal_jo_sprite_add_prefix(void * const data, const unsigned short width, const unsigned short height,
                                                             const unsigned short cmode, const unsigned int prefix)
 {
@@ -294,6 +297,7 @@ int				jo_sprite_add(const jo_img * const img)
     return __internal_jo_sprite_add(img->data, img->width, img->height, JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS);
 }
 
+JO_LOW_WORK_RAM_CODE
 int                         __jo_sprite_add_4bits(const void * const pixels, const unsigned short width, const unsigned short height,
                                                   const unsigned short lut)
 {
@@ -305,6 +309,7 @@ int                         __jo_sprite_add_4bits(const void * const pixels, con
     return (id);
 }
 
+JO_LOW_WORK_RAM_CODE
 int                         jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsigned short width, const unsigned short height,
                                                     const jo_color * const lut)
 {
@@ -327,6 +332,7 @@ int                         jo_sprite_add_4bits_lut(const unsigned char * const 
     return (id);
 }
 
+JO_LOW_WORK_RAM_CODE
 int                         jo_sprite_add_image_4bits_lut(const jo_img * const img)
 {
     jo_color                lut[16];
@@ -400,6 +406,7 @@ int                         jo_sprite_add_image_4bits_lut(const jo_img * const i
     return (id);
 }
 
+JO_LOW_WORK_RAM_CODE
 int				            jo_sprite_add_8bits_image(const jo_img_8bits * const img)
 {
 #ifdef JO_DEBUG
@@ -412,6 +419,7 @@ int				            jo_sprite_add_8bits_image(const jo_img_8bits * const img)
     return __internal_jo_sprite_add(img->data, img->width, img->height, JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                        jo_sprite_add_end_codes(const int sprite_id)
 {
     jo_color                *line;
@@ -458,6 +466,8 @@ void                        jo_sprite_free_from(const int sprite_id)
     // The mipmaps, the tiles and the flags of the textures freed
     __jo_3d_forget_sprites_from(sprite_id);
     __jo_3d_gouraud_pool_freed(sprite_id);
+    // (the copies of the color lookup tables of the models: maybe among the sprites freed)
+    __jo_3d_model_forget_lit_luts();
     // The last sprite is included
     for (i = sprite_id; i <= __jo_sprite_id; ++i)
     {

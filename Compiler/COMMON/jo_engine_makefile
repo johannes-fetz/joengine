@@ -300,6 +300,14 @@ else
 	endif
 endif
 
+# (JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1: the functions marked JO_LOW_WORK_RAM_CODE (loading, creation, menus: read rarely)
+# run in the low work RAM, the high work RAM they leave goes to jo_malloc(); the low work RAM free starts at
+# JO_LOW_WORK_RAM_FREE (jo_add_memory_zone() skips them by itself, see jo.linker). Off by default: a program that writes in
+# the low work RAM from 0x00200000 by itself would write over them)
+ifeq (1,${JO_COMPILE_WITH_LOW_WORK_RAM_CODE})
+	CCFLAGS += -DJO_COMPILE_WITH_LOW_WORK_RAM_CODE
+endif
+
 ifeq (${JO_COMPILE_WITH_DUAL_CPU_MODULE},)
 	CCFLAGS += -DJO_COMPILE_WITH_DUAL_CPU_SUPPORT
 	SRCS += $(JO_ENGINE_SRC_DIR)/slave.c

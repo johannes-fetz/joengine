@@ -108,6 +108,8 @@ void            jo_reduce_memory_fragmentation(void);
  *  @param ptr Pointer to the beginning of the memory segment
  *  @param size_in_bytes Size of the memory segment in bytes
  *  @remarks See also JO_MALLOC_MAX_MEMORY_ZONE
+ *  @remarks A zone in the low work RAM starts after the functions of the engine there (JO_LOW_WORK_RAM_FREE, see
+ *  JO_LOW_WORK_RAM_CODE): jo_add_memory_zone(JO_WORK_RAM_LOW, size) gives what is free after them
  */
 void            jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes);
 

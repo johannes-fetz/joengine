@@ -4,6 +4,10 @@
 ** 0x06004000 - ...        : program and user data, then the engine work area (VDP1 command lists, 3D buffers...)
 ** ...        - 0x060FBC00 : free (given to jo_malloc(), see jo_init_memory())
 ** 0x060FBC00 - 0x060FFC00 : master CPU stack
+** 0x00200000 - ...        : the functions and data read rarely (JO_LOW_WORK_RAM_CODE, with
+**                           JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1 in the makefile): stored after .data, copied to the
+**                           low work RAM at startup (start.S), their place given to .bss; the low work RAM free from
+**                           ___jo_low_work_ram_end (JO_LOW_WORK_RAM_FREE, jo_add_memory_zone() skips the functions)
 */
 SECTIONS {
     JO_START 0x06004000 : {
@@ -37,7 +41,18 @@ SECTIONS {
         *(.data.*)
         __edata = . ;
     }
-    .bss ALIGN(0x10) (NOLOAD) :
+    /* (the functions read rarely, see above: in the program file after .data, run in the low work RAM; empty without
+       JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1) */
+    ___jo_low_work_ram_load = ALIGN(__edata, 4);
+    JO_LOW_WORK_RAM 0x00200000 : AT(___jo_low_work_ram_load)
+    {
+        ___jo_low_work_ram_start = . ;
+        *(JO_LOW_WORK_RAM)
+        *(JO_LOW_WORK_RAM.*)
+        . = ALIGN(4);
+        ___jo_low_work_ram_end = . ;
+    }
+    .bss ALIGN(__edata, 0x10) (NOLOAD) :
     {
         __bstart = . ;
         *(.bss)

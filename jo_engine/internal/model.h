@@ -46,6 +46,22 @@
  */
 jo_3d_model                                 *__jo_3d_load_model_for_lights(const char * const filename);
 
+/** @brief Load a model whose polygons all keep their gouraud table (Internal usage: the models of the entities, drawn with a
+ *  tint, see jo_3d_set_tint(); jo_3d_load_model() draws the polygons of a flat light without gouraud, see
+ *  jo_3d_set_uniform_gouraud_skipped())
+ *  @param filename File name
+ *  @return The model, JO_NULL if not loaded
+ */
+jo_3d_model                                 *__jo_3d_load_model_for_tint(const char * const filename);
+
+#endif
+
+#if defined(JO_COMPILE_WITH_3D_SUPPORT)
+
+/** @brief Sprites freed (Internal usage, see jo_sprite_free_from()): the copies of the color lookup tables with a light
+ *  (see jo_3d_set_uniform_gouraud_skipped()) are not shared with the next models any more */
+void                                        __jo_3d_model_forget_lit_luts(void);
+
 #endif
 
 #endif /* !__JO_INTERNAL_MODEL_H__ */

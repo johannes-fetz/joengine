@@ -203,6 +203,7 @@ static jo_backup_config     __jo_backup_cntb[3];
 /** @brief Initialize the backup library
  *  @return false if out of memory
  */
+JO_LOW_WORK_RAM_CODE
 static bool                     jo_backup_init(void)
 {
     if ((__jo_backup_lib_space = (unsigned int *)jo_malloc_with_behaviour(JO_BACKUP_LIB_SPACE_SIZE, JO_FAST_ALLOCATION)) == JO_NULL)
@@ -235,6 +236,7 @@ static bool                     jo_backup_init(void)
 ** PUBLIC FUNCTIONS
 */
 
+JO_LOW_WORK_RAM_CODE
 int                         jo_backup_get_free_block_count(const jo_backup_device backup_device)
 {
     if (!__jo_backup_devices[backup_device].is_mounted)
@@ -247,6 +249,7 @@ int                         jo_backup_get_free_block_count(const jo_backup_devic
     return (__jo_backup_devices[backup_device].sttb.freeblock);
 }
 
+JO_LOW_WORK_RAM_CODE
 int                         jo_backup_get_total_block_count(const jo_backup_device backup_device)
 {
     if (!__jo_backup_devices[backup_device].is_mounted)
@@ -259,6 +262,7 @@ int                         jo_backup_get_total_block_count(const jo_backup_devi
     return (__jo_backup_devices[backup_device].sttb.totalblock);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                        jo_backup_format_device(const jo_backup_device backup_device)
 {
     if (!__jo_backup_devices[backup_device].is_mounted)
@@ -275,6 +279,7 @@ bool                        jo_backup_format_device(const jo_backup_device backu
     return (__jo_backup_devices[backup_device].status == 0);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                        jo_backup_mount(const jo_backup_device backup_device)
 {
 
@@ -300,6 +305,7 @@ bool                        jo_backup_mount(const jo_backup_device backup_device
     return (__jo_backup_devices[backup_device].is_mounted);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                            jo_backup_read_device(const jo_backup_device backup_device, jo_list * const filenames)
 {
     register int                i;
@@ -363,6 +369,7 @@ bool                            jo_backup_read_device(const jo_backup_device bac
  *  @param dir Output: its information
  *  @return 1 if the file is found, else 0
  */
+JO_LOW_WORK_RAM_CODE
 static int                      jo_backup_find_file(const jo_backup_device backup_device, const char * const fname, jo_backup_file * const dir)
 {
     static jo_backup_file       found[8];
@@ -401,6 +408,7 @@ static int                      jo_backup_find_file(const jo_backup_device backu
     return (result);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                            jo_backup_file_exists(const jo_backup_device backup_device, const char * const fname)
 {
     register unsigned short     partition_number;
@@ -429,6 +437,7 @@ bool                            jo_backup_file_exists(const jo_backup_device bac
     return (false);
 }
 
+JO_LOW_WORK_RAM_CODE
 unsigned short                  jo_backup_get_file_partition(const jo_backup_device backup_device, const char * const fname)
 {
     register unsigned short     partition_number;
@@ -457,6 +466,7 @@ unsigned short                  jo_backup_get_file_partition(const jo_backup_dev
     return (-1);
 }
 
+JO_LOW_WORK_RAM_CODE
 void                jo_backup_init_file(jo_backup * file)
 {
     if (file == JO_NULL)
@@ -477,6 +487,7 @@ void                jo_backup_init_file(jo_backup * file)
     JO_ZERO(file->partition_number);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                jo_backup_save(jo_backup * file)
 {
     jo_backup_date  date;
@@ -606,6 +617,7 @@ bool                jo_backup_save(jo_backup * file)
     return (__jo_backup_devices[file->backup_device].status == 0);
 }
 
+JO_LOW_WORK_RAM_CODE
 unsigned char                   *jo_backup_load_file_comment(const jo_backup_device backup_device, const char * const fname)
 {
     register unsigned short     partition_number;
@@ -647,6 +659,7 @@ unsigned char                   *jo_backup_load_file_comment(const jo_backup_dev
     return (JO_NULL);
 }
 
+JO_LOW_WORK_RAM_CODE
 void                            *jo_backup_load_file_contents(const jo_backup_device backup_device, const char * const fname, unsigned int *length)
 {
     register unsigned short     partition_number;
@@ -698,6 +711,7 @@ void                            *jo_backup_load_file_contents(const jo_backup_de
     return (JO_NULL);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                            jo_backup_delete_file(const jo_backup_device backup_device, const char * const fname)
 {
     register unsigned short     partition_number;
@@ -728,6 +742,7 @@ bool                            jo_backup_delete_file(const jo_backup_device bac
     return (false);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                        jo_backup_unmount(const jo_backup_device backup_device)
 {
     if (!__jo_backup_devices[backup_device].is_mounted)
@@ -749,6 +764,7 @@ bool                        jo_backup_unmount(const jo_backup_device backup_devi
     return (true);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                            jo_backup_get_file_last_modified_date(const jo_backup_device backup_device, const char * const fname, jo_datetime *datetime)
 {
     register unsigned short     partition_number;
@@ -791,11 +807,13 @@ bool                            jo_backup_get_file_last_modified_date(const jo_b
     return (false);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                            jo_backup_get_file_size(const jo_backup_device backup_device, const char * const fname, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
     return jo_backup_get_file_info(backup_device, fname, JO_NULL, JO_NULL, JO_NULL, num_bytes, num_blocks);
 }
 
+JO_LOW_WORK_RAM_CODE
 bool                jo_backup_get_file_info(const jo_backup_device backup_device, const char * const fname, char* const comment, unsigned char* const language_num, unsigned int* const date, unsigned int* const num_bytes, unsigned int* const num_blocks)
 {
     register unsigned short     partition_number;

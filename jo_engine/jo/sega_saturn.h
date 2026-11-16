@@ -463,6 +463,24 @@ extern unsigned int                             _jo_work_start;
 /** @brief A-bus refresh for the extended RAM cartridge (JO_SCU_AREF) */
 # define JO_RAM_CARTRIDGE_AREF                  (0x00000013)
 
+/** @brief A function read rarely (the loading, the creation of the objects, the menus) run from the low work RAM when the
+ *  makefile has JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1 (off by default): the high work RAM it leaves goes to jo_malloc()
+ *  (the data read at each frame: a read from the low work RAM takes about twice the time); else nothing changes
+ *  @remarks Example: JO_LOW_WORK_RAM_CODE void load_level(int k) { ... }. Not for a function called at each frame: the
+ *  instructions read from the low work RAM are slower too (the cache of the CPU keeps a small loop)
+ *  @remarks The low work RAM free starts at JO_LOW_WORK_RAM_FREE, not at JO_WORK_RAM_LOW: jo_add_memory_zone() skips the
+ *  functions there by itself, a program that writes in the low work RAM by itself must start at JO_LOW_WORK_RAM_FREE
+ */
+#ifdef JO_COMPILE_WITH_LOW_WORK_RAM_CODE
+# define JO_LOW_WORK_RAM_CODE                   __attribute__((section("JO_LOW_WORK_RAM"), noinline))
+#else
+# define JO_LOW_WORK_RAM_CODE
+#endif
+/** @brief The end of the functions JO_LOW_WORK_RAM_CODE in the low work RAM (see jo.linker): the low work RAM free after it
+ *  (JO_WORK_RAM_LOW without JO_COMPILE_WITH_LOW_WORK_RAM_CODE) */
+extern unsigned char                            __jo_low_work_ram_end[];
+# define JO_LOW_WORK_RAM_FREE                   ((unsigned char *)__jo_low_work_ram_end)
+
 /** @brief Put a variable in the engine work area (not cleared by the program loader, cleared at startup) */
 # define JO_WORK_RAM_ENGINE_WORK_SECTION        __attribute__((section("JO_WORK")))
 /** @brief Engine work area, for a buffer aligned on a big boundary (placed first: no hole in the work area) */

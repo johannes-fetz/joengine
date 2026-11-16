@@ -66,6 +66,7 @@
 #include "jo/light.h"
 #include "jo/time.h"
 #include "internal/vehicle.h"
+#include "internal/model.h"
 
 /** @brief Events and actions sent at once in a row at most (then they wait for the next update: no endless loop) */
 #define JO_ENTITY_MAX_DEPTH                 (8)
@@ -258,7 +259,8 @@ jo_3d_model                         *jo_entity_get_model(const char * const file
 #endif
         return (JO_NULL);
     }
-    model = jo_3d_load_model(filename);
+    // (drawn with a tint: every polygon keeps its gouraud table, see jo_3d_set_tint())
+    model = __jo_3d_load_model_for_tint(filename);
     jo_memcpy(__jo_entity_models[__jo_entity_model_count].filename, filename, jo_strlen(filename) + 1);
     __jo_entity_models[__jo_entity_model_count].model = model;
     ++__jo_entity_model_count;

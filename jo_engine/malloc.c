@@ -61,7 +61,7 @@ typedef struct
 
 static jo_memory_zone   memory_zones[JO_MALLOC_MAX_MEMORY_ZONE];
 
-void                    jo_add_memory_zone(unsigned char *ptr, const unsigned int size_in_bytes)
+void                    jo_add_memory_zone(unsigned char *ptr, unsigned int size_in_bytes)
 {
 #ifdef JO_DEBUG
     if (__jo_memory_zone_index >= JO_MALLOC_MAX_MEMORY_ZONE)
@@ -70,6 +70,19 @@ void                    jo_add_memory_zone(unsigned char *ptr, const unsigned in
         return ;
     }
 #endif
+    // (the functions of the low work RAM (JO_LOW_WORK_RAM_CODE, see jo.linker): a zone that starts on them starts after
+    // them, a game that gives the low work RAM from 0x00200000 keeps working)
+    if (((unsigned int)ptr & 0x0FFFFFFF) < ((unsigned int)JO_LOW_WORK_RAM_FREE & 0x0FFFFFFF) &&
+        ((unsigned int)ptr & 0x0FFFFFFF) + size_in_bytes > JO_WORK_RAM_LOW)
+    {
+        unsigned int    skipped;
+
+        skipped = ((((unsigned int)JO_LOW_WORK_RAM_FREE & 0x0FFFFFFF) + 3u) & ~3u) - ((unsigned int)ptr & 0x0FFFFFFF);
+        if (skipped >= size_in_bytes)
+            return ;
+        ptr += skipped;
+        size_in_bytes -= skipped;
+    }
     memory_zones[__jo_memory_zone_index].begin = ptr;
     memory_zones[__jo_memory_zone_index].high = ptr;
     memory_zones[__jo_memory_zone_index].first_free = ptr;
