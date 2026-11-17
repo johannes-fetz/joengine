@@ -1,11 +1,60 @@
-# Materials of the house (options: see Compiler/COMMON/jo_model.py)
+newmtl boards
+Kd 1 1 1
+map_Kd boards.png
+
 newmtl brick
 Kd 1 1 1
 map_Kd brick.png
-jo_gouraud 0
-jo_mipmaps 1
 
-newmtl roof
-Kd 0.6 0.25 0.15
-jo_gouraud 1
+newmtl concrete
+Kd 1 1 1
+map_Kd concrete.png
+
+newmtl door
+Kd 1 1 1
+map_Kd door.png
+
+newmtl eave
+Kd 1 1 1
+map_Kd eave.png
+
+newmtl eave_verge
+Kd 1 1 1
+map_Kd eave_verge.png
+
+newmtl fascia
+Kd 1 1 1
+map_Kd fascia.png
+
+newmtl lawn
+Kd 1 1 1
+map_Kd lawn.png
+
+newmtl plain
+Kd 1 1 1
+map_Kd plain.png
+
+newmtl soffit
+Kd 1 1 1
+map_Kd soffit.png
+
+newmtl step
+Kd 1 1 1
+map_Kd concrete.png
+
+newmtl tiles
+Kd 1 1 1
+map_Kd tiles.png
+
+newmtl verge
+Kd 1 1 1
+map_Kd verge.png
+
+newmtl window_a
+Kd 1 1 1
+map_Kd window_a.png
+
+newmtl window_b
+Kd 1 1 1
+map_Kd window_b.png
 
