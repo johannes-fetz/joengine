@@ -174,7 +174,7 @@ endif
 
 ifeq (1,${JO_COMPILE_WITH_3D_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_3D_SUPPORT
-	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c $(JO_ENGINE_SRC_DIR)/model.c $(JO_ENGINE_SRC_DIR)/light.c $(JO_ENGINE_SRC_DIR)/glow.c $(JO_ENGINE_SRC_DIR)/water.c $(JO_ENGINE_SRC_DIR)/water_objects.c $(JO_ENGINE_SRC_DIR)/sun.c
+	SRCS += $(JO_ENGINE_SRC_DIR)/3d.c $(JO_ENGINE_SRC_DIR)/model.c $(JO_ENGINE_SRC_DIR)/light.c $(JO_ENGINE_SRC_DIR)/glow.c $(JO_ENGINE_SRC_DIR)/water.c $(JO_ENGINE_SRC_DIR)/water_objects.c $(JO_ENGINE_SRC_DIR)/sun.c $(JO_ENGINE_SRC_DIR)/transparency.c
 endif
 
 # Levels (.JOL files, see Documentation/level_format.md)
