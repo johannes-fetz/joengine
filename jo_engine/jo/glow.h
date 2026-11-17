@@ -68,6 +68,14 @@ typedef enum
     JO_3D_GLOW_FRAME = 3        // The outline of a rectangle, its light on both sides of the line (a neon tube)
 }                                   jo_3d_glow_shape;
 
+/** @brief Where the glows are drawn (see jo_3d_glows_set_mode())
+ */
+typedef enum
+{
+    JO_3D_GLOW_VDP2 = 0,        // The cells of a VDP2 screen (NBG2): the default (see the remarks of this file)
+    JO_3D_GLOW_LAYER = 1        // Sprites of the VDP1 in the transparency layer (see jo/transparency.h)
+}                                   jo_3d_glow_mode;
+
 /** @brief Add a glow
  *  @param position Position (world)
  *  @param r Red (0 to 255): the color added at its middle with the intensity 256
@@ -134,6 +142,23 @@ void                                jo_3d_glows_clear(void);
  *  @param diagonal_light Light of the 4 shorter rays on the diagonals (100 by default)
  */
 void                                jo_3d_glows_set_rays(const int light, const int diagonal_light);
+
+/** @brief Where the glows are drawn, before jo_3d_glows_enable() (or the glows turned off and on again)
+ *  @param mode JO_3D_GLOW_VDP2 (default) or JO_3D_GLOW_LAYER: a sprite of the VDP1 for each glow, in the transparency
+ *  layer (jo/transparency.h, started by the program in the additive mode: jo_3d_transparency_set_blend(JO_VDP2_BLEND_ADD,
+ *  0)). Up to JO_3D_GLOW_LAYER_SHOWN glows, each one placed and sized to the pixel of the layer, sorted with the other
+ *  objects of the layer (its masks hide them to the pixel); no VRAM of the VDP2 (the rotation screen stays), about 8 KB of
+ *  the VRAM of the VDP1. Where 2 glows overlap, the nearer one is drawn over the other (the VDP1 doesn't add them). The
+ *  occlusion (jo_3d_glows_set_occlusion()) and the clip (jo_3d_glows_set_clip()) work the same way: up to
+ *  JO_3D_GLOW_LAYER_RECTS rectangles of clip in a frame
+ */
+void                                jo_3d_glows_set_mode(const jo_3d_glow_mode mode);
+
+/** @brief Glows drawn at the same time in the layer (JO_3D_GLOW_LAYER), the brightest ones */
+# define JO_3D_GLOW_LAYER_SHOWN             (24)
+/** @brief Rectangles of clip in a frame in the layer (JO_3D_GLOW_LAYER, see jo_3d_glows_set_clip()): the glows clipped by
+ *  another rectangle are not drawn */
+# define JO_3D_GLOW_LAYER_RECTS             (4)
 
 /** @brief Turn the glows on or off: the VDP2 layers (see the remarks of this file: the 3D planes are hidden while they are on)
  *  @param enabled true: the glows are displayed (the first call builds their characters in the VRAM)
