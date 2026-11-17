@@ -86,6 +86,36 @@
 /** @brief Vertice structure */
 typedef jo_pos3D    jo_vertice;
 
+/** @brief Vertex count of a quad (jo_3d_create_mesh_from_vertices() takes 4 vertices for each quad) */
+# define JO_3D_QUAD_VERTEX_COUNT    (4)
+
+/** @brief Fill the 4 vertices of a quad (a parallelogram) from its center and 2 half edges, in the order of
+ *  JO_3D_PLANE_VERTICES(): center - right - down, center + right - down, center + right + down, center - right + down
+ *  @param vertices The 4 vertices to fill (for instance a part of the table given to jo_3d_create_mesh_from_vertices())
+ *  @param center Center of the quad
+ *  @param right Half of the edge from the first vertex to the second one (the top edge of the texture, left to right)
+ *  @param down Half of the edge from the first vertex to the fourth one (the left edge of the texture, top to bottom)
+ *  @remarks The front face is the side opposite to the cross product right x down: seen from there, the vertices turn
+ *  clockwise (Y down). For instance right = (S, 0, 0) and down = (0, S, 0) give JO_3D_PLANE_VERTICES(S), facing -Z;
+ *  right = (S, 0, 0) and down = (0, 0, -S) give a floor tile facing up (-Y) with the top of its texture toward +Z
+ */
+static  __jo_force_inline void      jo_3d_set_quad_vertices(jo_vertice * const vertices, const jo_vertice * const center,
+                                                            const jo_vertice * const right, const jo_vertice * const down)
+{
+    vertices[0].x = center->x - right->x - down->x;
+    vertices[0].y = center->y - right->y - down->y;
+    vertices[0].z = center->z - right->z - down->z;
+    vertices[1].x = center->x + right->x - down->x;
+    vertices[1].y = center->y + right->y - down->y;
+    vertices[1].z = center->z + right->z - down->z;
+    vertices[2].x = center->x + right->x + down->x;
+    vertices[2].y = center->y + right->y + down->y;
+    vertices[2].z = center->z + right->z + down->z;
+    vertices[3].x = center->x - right->x + down->x;
+    vertices[3].y = center->y - right->y + down->y;
+    vertices[3].z = center->z - right->z + down->z;
+}
+
 /** @brief Default perspective angle in degree (see jo_3d_perspective_angle()) */
 # define JO_3D_DEFAULT_PERSPECTIVE_ANGLE    (90)
 
