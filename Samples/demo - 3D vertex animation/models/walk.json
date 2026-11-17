@@ -1,0 +1,12 @@
+{
+ "animations": [
+  {
+   "name": "walk",
+   "frames": "frames/walk_%02d.obj",
+   "first": 0,
+   "last": 19,
+   "frame_time": 0.05,
+   "loop": true
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 # Jo Engine 3D model file (JOM) {#model_format}
 
-A model (`.JOM`) holds a mesh made with a 3D software: points, polygons, materials, textures, vertex colors, groups, and optionally a rigid skeleton with its animations. The engine loads it with `jo_3d_load_model()` (`JO_COMPILE_WITH_3D_SUPPORT`, see `jo_engine/jo/model.h`); the converter `Compiler/COMMON/jo_model.py` writes it from a Wavefront OBJ file (and its MTL materials). `jo_model.py --info FILE.JOM` prints the content of a file.
+A model (`.JOM`) holds a mesh made with a 3D software: points, polygons, materials, textures, vertex colors, groups, and optionally a rigid skeleton with its animations, or vertex animations (the points of each frame). The engine loads it with `jo_3d_load_model()` (`JO_COMPILE_WITH_3D_SUPPORT`, see `jo_engine/jo/model.h`); the converter `Compiler/COMMON/jo_model.py` writes it from a Wavefront OBJ file (and its MTL materials). `jo_model.py --info FILE.JOM` prints the content of a file.
 
 The data of a JOM file are in the memory format of the Saturn: the points and the polygons are copied as they are, nothing is converted when the file is loaded (`jo_3d_create_model_in_place()` even uses the content of the file in place).
 
@@ -10,7 +10,7 @@ The data of a JOM file are in the memory format of the Saturn: the points and th
 2. The file starts with a header (24 bytes), then chunks until the `END ` chunk.
 3. A chunk is an identifier of 4 characters, the size of its data (u32) and the data. The loader skips the chunks it doesn't know (a file written by a newer converter is read by an older engine).
 4. The counts are `u32`, the indexes are `u16` (at most 65535 points, polygons, normals or materials).
-5. The structures of the chunks `MATL`, `GRUP`, `BONE` and `ANIM` have the same layout as the C structures `jo_3d_material`, `jo_3d_model_group`, `jo_3d_bone` and `jo_3d_animation` of `model.h`.
+5. The structures of the chunks `MATL`, `GRUP`, `BONE`, `ANIM`, `MRPH` and `SKIN` have the same layout as the C structures `jo_3d_material`, `jo_3d_model_group`, `jo_3d_bone`, `jo_3d_animation`, `jo_3d_morph` and `jo_3d_skin_point` of `model.h`.
 6. A new kind of data is a new chunk: the layout of a chunk never changes (the version in the header is for the header itself and the rules above).
 
 ## Types
@@ -66,6 +66,8 @@ Most chunks start with a `u32` count, then `count` records. A chunk of records o
 | `GRUP` | when the OBJ has `o` or `g` | Groups |
 | `BONE` | with `--skeleton` | Bones of the rigid skeleton |
 | `ANIM` | with `--skeleton` | Animations of the skeleton |
+| `MRPH` | with `--morph` | Vertex animations (morph targets) |
+| `SKIN` | with `--skeleton`, when polygons join 2 bones (by default) | Points that follow 2 bones |
 | `END ` | always (last chunk, size 0) | End of the file |
 
 ### TIMG: embedded textures
@@ -205,6 +207,52 @@ A key (the keys of an animation follow each other):
 
 The engine interpolates between the keys (`jo_3d_model_get_pose()`) and draws the pose (`jo_3d_model_draw_pose()`).
 
+### SKIN: skin of a skeleton
+
+`u32 count`, then `count` points of 8 bytes (`jo_3d_skin_point`): the points near a joint follow both bones, the skin bends instead of folding like rigid parts. The converter writes it for the joints between a bone and its parent when polygons use points of both groups (a skin stretched between them, not a cap or a weapon): the points of the child nearer to the joint than a radius (7 % of the height of the model, or `"skin": {"radius": r}` in the JSON of `--skeleton`; `"skin": false`: none) follow the parent too, up to half at the joint. `jo_model.py --add-skin FILE.JOM` adds it to a file already converted.
+
+| Offset | Field | Type | Description |
+|---|---|---|---|
+| 0 | `point` | u16 | Index of the point |
+| 2 | `bone` | u8 | The bone of its group (the bone that draws it) |
+| 3 | `other` | u8 | The other bone |
+| 4 | `weight` | u16 | Weight of the other bone (`JO_3D_SKIN_ONE` = 32768: 1.0) |
+| 6 | | u16 | 0 |
+
+`jo_3d_model_draw_pose()` moves each of these points toward where the other bone puts it (in a buffer of the model, one per CPU), then draws the bones as before. A wrong chunk (a point or a bone out of the model, a weight over 1.0) is ignored: the skeleton is rigid.
+
+### MRPH: vertex animations
+
+The position of each point at each frame (morph targets): the skin bends (a knee, a cloth, a face), unlike the rigid parts of a skeleton. Written from the JSON file of `--morph` and one OBJ per frame, with the same points and faces as the model (see the usage of `jo_model.py`).
+
+| Offset | Field | Type | Description |
+|---|---|---|---|
+| 0 | `count` | u32 | Number of vertex animations |
+| 4 | `shift` | u16 | A value of a frame x 2<sup>shift</sup> is a fixed point number (0 to 16): the smallest shift for the largest value |
+| 6 | `flags` | u16 | Bit 0: the frames have the normals of the polygons |
+| 8 | | | `count` vertex animations of 28 bytes (`jo_3d_morph`), then the frames of all the animations |
+
+A vertex animation:
+
+| Offset | Field | Type | Description |
+|---|---|---|---|
+| 0 | `name` | char[16] | Name of the animation (`jo_3d_model_find_morph()`) |
+| 16 | `frame_count` | u16 | Number of frames (at least 1) |
+| 18 | `frame_ticks` | u16 | Time between 2 frames in ticks (60 per second) |
+| 20 | `flags` | u16 | `JO_3D_MORPH_LOOP` (bit 0): the last frame goes back to the first one |
+| 22 | `duplicate` | u16 | 0 in the file (set by the loader: 1 when an animation before has the same name) |
+| 24 | `offset` | u32 | Offset of the frames from the start of the data of the chunk (the `count`), a multiple of 4 |
+
+A frame (the frames of an animation follow each other, each of the same size):
+
+| Offset | Field | Type | Description |
+|---|---|---|---|
+| 0 | `points` | i16[points][3] | x, y, z of each point of `PNTS` (x 2<sup>shift</sup>: fixed) |
+| | `normals` | u8[polygons] | With the flag 1: the normal of each polygon of `QUAD`, an index in a table of 256 directions (`jo_3d_morph_normal()`, the same as `morph_normal_table()` of `jo_model.py`) |
+| | pad | | Up to a multiple of 4 bytes |
+
+The engine interpolates the points of the 2 frames around a time in a buffer of the model (`jo_3d_model_draw_morph()`): the model itself doesn't change, several characters are drawn with it at different times. The lit polygons take the normal of the nearest frame. The bounding sphere of the header includes all the frames. A wrong chunk (a shift over 16, frames past its end, an offset not aligned) is ignored: the model is loaded without its vertex animations.
+
 ## Layout of a file
 
 ```
@@ -219,5 +267,7 @@ Header (24 bytes)
 "VCOL" chunk, "GOUR" chunk (optional)
 "GRUP" chunk (optional)
 "BONE" chunk, "ANIM" chunk (optional)
+"SKIN" chunk (optional)
+"MRPH" chunk (optional)
 "END " chunk (size 0)
 ```

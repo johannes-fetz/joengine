@@ -1,0 +1,100 @@
+newmtl cotton
+Kd 1 1 1
+map_Kd cotton.png
+
+newmtl denim
+Kd 1 1 1
+map_Kd denim.png
+
+newmtl face00
+Kd 1 1 1
+map_Kd face00.png
+
+newmtl face01
+Kd 1 1 1
+map_Kd face01.png
+
+newmtl face02
+Kd 1 1 1
+map_Kd face02.png
+
+newmtl face03
+Kd 1 1 1
+map_Kd face03.png
+
+newmtl face10
+Kd 1 1 1
+map_Kd face10.png
+
+newmtl face11
+Kd 1 1 1
+map_Kd face11.png
+
+newmtl face12
+Kd 1 1 1
+map_Kd face12.png
+
+newmtl face13
+Kd 1 1 1
+map_Kd face13.png
+
+newmtl face20
+Kd 1 1 1
+map_Kd face20.png
+
+newmtl face21
+Kd 1 1 1
+map_Kd face21.png
+
+newmtl face22
+Kd 1 1 1
+map_Kd face22.png
+
+newmtl face23
+Kd 1 1 1
+map_Kd face23.png
+
+newmtl face30
+Kd 1 1 1
+map_Kd face30.png
+
+newmtl face31
+Kd 1 1 1
+map_Kd face31.png
+
+newmtl face32
+Kd 1 1 1
+map_Kd face32.png
+
+newmtl face33
+Kd 1 1 1
+map_Kd face33.png
+
+newmtl face40
+Kd 1 1 1
+map_Kd face40.png
+
+newmtl face41
+Kd 1 1 1
+map_Kd face41.png
+
+newmtl face42
+Kd 1 1 1
+map_Kd face42.png
+
+newmtl face43
+Kd 1 1 1
+map_Kd face43.png
+
+newmtl hair
+Kd 1 1 1
+map_Kd hair.png
+
+newmtl leather
+Kd 1 1 1
+map_Kd leather.png
+
+newmtl skin
+Kd 1 1 1
+map_Kd skin.png
+

@@ -85,6 +85,7 @@ JO_LOW_WORK_RAM_CODE
 static jo_3d_model                          *jo_3d_create_model(const unsigned char * const data, const unsigned int size, void * const file,
                                                                 unsigned char * const storage);
 static void                                 jo_3d_model_free(jo_3d_model * const model, const bool free_file);
+static void                                 jo_3d_model_update_morph_draw(const jo_3d_model * const model);
 
 /** @brief Compare 4 bytes with a chunk tag */
 static  __jo_force_inline bool              jo_3d_model_is_tag(const unsigned char * const p, const char * const tag)
@@ -121,6 +122,11 @@ static bool                                 jo_3d_model_count_fits(const unsigne
         element = sizeof(jo_3d_bone);
     else if (jo_3d_model_is_tag(p, "ANIM"))
         element = sizeof(jo_3d_animation);
+    else if (jo_3d_model_is_tag(p, "SKIN"))
+        element = sizeof(jo_3d_skin_point);
+    else if (jo_3d_model_is_tag(p, "MRPH"))
+        // (the count, the shift and the flags, then the headers)
+        return (chunk >= 8 && count <= (chunk - 8) / sizeof(jo_3d_morph));
     else
         return (true);
     return (chunk >= 4 && count <= (chunk - 4) / element);
@@ -146,6 +152,35 @@ static bool                                 jo_3d_model_animations_fit(const jo_
         {
 #ifdef JO_DEBUG
             jo_core_error("Wrong animation %d", (int)i);
+#endif
+            return (false);
+        }
+    }
+    return (true);
+}
+
+/** @brief The frames of the vertex animations of a model are in their chunk, at least 1 frame and a time between 2 frames
+ *  @param model Model (its points, its polygons and its vertex animations loaded)
+ *  @param size Size of the chunk of the vertex animations (from its count)
+ *  @return false if a vertex animation is wrong
+ */
+JO_LOW_WORK_RAM_CODE
+static bool                                 jo_3d_model_morphs_fit(const jo_3d_model * const model, const unsigned int size)
+{
+    const jo_3d_morph                       *m;
+    register unsigned int                   i;
+
+    // (a value of a frame x 2^shift: at most 2^16 (a s16 x 2^16 is 2^31: a whole 16.16 fixed))
+    if (model->morph_shift > 16 || model->morph_frame_size == 0)
+        return (false);
+    for (JO_ZERO(i); i < model->morph_count; ++i)
+    {
+        m = &model->morphs[i];
+        if (m->frame_count == 0 || m->frame_ticks == 0 || (m->offset & 3) || m->offset > size ||
+            m->frame_count > (size - m->offset) / model->morph_frame_size)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("Wrong vertex animation %d", (int)i);
 #endif
             return (false);
         }
@@ -209,6 +244,16 @@ static void                                 jo_3d_model_mark_duplicates(const jo
             if (jo_3d_model_same_name(model->animations[j].name, model->animations[k].name))
             {
                 model->animations[k].duplicate = 1;
+                break;
+            }
+    }
+    for (JO_ZERO(k); k < model->morph_count; ++k)
+    {
+        model->morphs[k].duplicate = 0;
+        for (JO_ZERO(j); j < k; ++j)
+            if (jo_3d_model_same_name(model->morphs[j].name, model->morphs[k].name))
+            {
+                model->morphs[k].duplicate = 1;
                 break;
             }
     }
@@ -1274,6 +1319,72 @@ static void                                 jo_3d_model_pose_bone(const jo_3d_mo
         jo_3d_model_pose_bone(model, child, pose, callback, param, m, (const jo_fixed (*)[3])matrix);
 }
 
+/** @brief The matrices of a bone and of its children in the space of the model (without the camera and the root offset
+ *  of the pose: the bones of a skin, see jo_3d_model_skin())
+ *  @param out The matrices of all the bones
+ */
+static void                                 jo_3d_model_bone_space(const jo_3d_model * const model, const int bone,
+                                                                   const jo_3d_pose * const pose, jo_3d_matrix_rows * const out,
+                                                                   const jo_fixed (* const parent)[3])
+{
+    static const jo_angle                   no_angles[3] = {0, 0, 0};
+    int                                     child;
+
+    __jo_3d_bone_matrix(out[bone], parent, &model->bones[bone].pivot, pose != JO_NULL ? pose->angles[bone] : no_angles);
+    for (child = model->bone_children[bone]; child >= 0; child = model->bone_children[model->bone_count + child])
+        jo_3d_model_bone_space(model, child, pose, out, (const jo_fixed (*)[3])out[bone]);
+}
+
+/** @brief The points of the skin of a pose (see jo_3d_skin_point) in the buffer of the model for this CPU: a point drawn
+ *  by the matrix of its bone, moved toward where the other bone puts it: p + weight x (B^-1 x O x p - p), B and O the
+ *  matrices of the 2 bones in the space of the model (rotations and translations: B^-1 is its transpose)
+ *  @return The polygon data to draw (the buffer, or the mesh of the model without a buffer)
+ */
+static const jo_3d_polygon_data            *jo_3d_model_skin(const jo_3d_model * const model, const jo_3d_pose * const pose,
+                                                              jo_3d_polygon_data * const d)
+{
+    static const jo_fixed                   identity[4][3] = {{JO_FIXED_1, 0, 0}, {0, JO_FIXED_1, 0}, {0, 0, JO_FIXED_1}, {0, 0, 0}};
+    jo_3d_matrix_rows                       *bones;
+    const jo_3d_skin_point                  *s;
+    const jo_pos3D_fixed                    *p;
+    jo_pos3D_fixed                          *out;
+    jo_pos3D_fixed                          q;
+    jo_fixed                                weight;
+    jo_fixed                                (*b)[3];
+    register unsigned int                   k;
+
+    if (model->skin_count == 0 || d == JO_NULL)
+        return (&model->mesh->data);
+    // (the matrices at the end of the block of this CPU, see jo_3d_model_create_morph_draw())
+    bones = (jo_3d_matrix_rows *)((unsigned char *)d + ((sizeof(jo_3d_polygon_data) + 3) & ~3u) +
+                                  d->point_count * sizeof(jo_pos3D_fixed) +
+                                  (d->polygons != model->mesh->data.polygons ? d->polygon_count * sizeof(jo_3d_polygon) : 0));
+    for (JO_ZERO(k); k < model->bone_count; ++k)
+        if (model->bones[k].parent < 0)
+            jo_3d_model_bone_space(model, (int)k, pose, bones, identity);
+    // (the other points: the ones of the model (a vertex animation of the same model wrote over them))
+    if (model->morph_count > 0)
+        jo_memcpy(d->points, model->mesh->data.points, d->point_count * sizeof(jo_pos3D_fixed));
+    for (JO_ZERO(k); k < model->skin_count; ++k)
+    {
+        s = &model->skin[k];
+        p = &model->mesh->data.points[s->point];
+        out = &d->points[s->point];
+        // Where the other bone puts the point (in the space of the model), back in the space of its own bone
+        jo_3d_transform_point_by((const jo_fixed (*)[3])bones[s->other], p, &q);
+        b = bones[s->bone];
+        q.x -= b[3][0];
+        q.y -= b[3][1];
+        q.z -= b[3][2];
+        // (JO_3D_SKIN_ONE is 1.0 / 2 in 16.16)
+        weight = s->weight * (JO_FIXED_1 / JO_3D_SKIN_ONE);
+        out->x = p->x + jo_fixed_mult(jo_fixed_dot((const jo_fixed *)&q, b[0]) - p->x, weight);
+        out->y = p->y + jo_fixed_mult(jo_fixed_dot((const jo_fixed *)&q, b[1]) - p->y, weight);
+        out->z = p->z + jo_fixed_mult(jo_fixed_dot((const jo_fixed *)&q, b[2]) - p->z, weight);
+    }
+    return (d);
+}
+
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 /** @brief The matrices of the bones of the pose drawn by the slave CPU (not on its stack: it is small) */
 static jo_3d_model_pose_matrices            __jo_3d_slave_pose_matrices;
@@ -1290,6 +1401,13 @@ void                                        jo_3d_slave_model_draw_pose(const jo
     unsigned int                            hidden;
 #endif
 
+#ifdef JO_DEBUG
+    if (model == JO_NULL)
+    {
+        jo_core_error("model is null");
+        return;
+    }
+#endif
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     // (the bones hidden: in the matrices of the slave CPU, the mask of the master CPU is not changed while it draws)
     m = &__jo_3d_slave_pose_matrices;
@@ -1305,7 +1423,7 @@ void                                        jo_3d_slave_model_draw_pose(const jo
         jo_3d_slave_pop_matrix();
     }
     if (m->part_count > 0)
-        __jo_3d_slave_draw_parts(&model->mesh->data, m->parts, m->part_count);
+        __jo_3d_slave_draw_parts(jo_3d_model_skin(model, pose, model->morph_draw[1]), m->parts, m->part_count);
 #else
     // (without the dual CPU module: drawn by the master CPU, like a job of jo_core_exec_on_slave())
     hidden = __jo_3d_hidden_bones;
@@ -1321,6 +1439,13 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
     jo_3d_model_pose_matrices               m;
     register unsigned int                   k;
 
+#ifdef JO_DEBUG
+    if (model == JO_NULL)
+    {
+        jo_core_error("model is null");
+        return;
+    }
+#endif
     // The matrices of the bones, then one draw: the points of each bone are transformed by its matrix (a draw per bone
     // would cost about 0.1 ms each)
     m.part_count = 0;
@@ -1335,7 +1460,7 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
     }
     jo_3d_pop_matrix();
     if (m.part_count > 0)
-        __jo_3d_draw_parts(&model->mesh->data, m.parts, m.part_count);
+        __jo_3d_draw_parts(jo_3d_model_skin(model, pose, model->morph_draw[0]), m.parts, m.part_count);
 }
 
 /** @brief An address in the high work RAM (cached or not) */
@@ -1399,6 +1524,7 @@ bool                                        jo_3d_model_use_fast_memory(jo_3d_mo
     jo_memcpy(attributes, pdata->attributes, pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
     jo_free(pdata->attributes);
     pdata->attributes = attributes;
+    jo_3d_model_update_morph_draw(model);
     model->fast_block = block;
     return (true);
 }
@@ -1413,6 +1539,234 @@ bool                                        jo_3d_model_use_fast_memory(jo_3d_mo
 #define JO_3D_MODEL_BLOCK_ATTRIBUTES        (JO_3D_MODEL_BLOCK_MESH + ((sizeof(jo_3d_mesh) + 3) & ~3u))
 #define JO_3D_MODEL_BLOCK_TEXTURES(polygons) (JO_3D_MODEL_BLOCK_ATTRIBUTES + (((polygons) * sizeof(jo_3d_polygon_attribute) + 3) & ~3u))
 
+/*
+** Vertex animations (morph targets)
+*/
+
+/** @brief jo_3d_morph_normal(): the golden angle (360 x (1 - 1 / golden ratio) degrees) in jo_angle */
+#define JO_3D_MORPH_GOLDEN_ANGLE                (25033)
+
+void                                        jo_3d_morph_normal(const int index, jo_pos3D_fixed * const normal)
+{
+    jo_fixed                                y;
+    jo_fixed                                r;
+    jo_fixed                                s;
+    jo_fixed                                c;
+    int                                     i;
+
+    // The directions: a golden angle spiral on the sphere, y from 1 to -1 (Compiler/COMMON/jo_model.py
+    // morph_normal_table(): the same directions), computed (a table cost 768 bytes)
+    i = index & (JO_3D_MORPH_NORMALS - 1);
+    y = JO_FIXED_1 - (2 * i + 1) * (JO_FIXED_1 / JO_3D_MORPH_NORMALS);
+    r = jo_fixed_sqrt(JO_FIXED_1 - jo_fixed_mult(y, y));
+    jo_sincos_angle((jo_angle)(i * JO_3D_MORPH_GOLDEN_ANGLE), &s, &c);
+    normal->x = jo_fixed_mult(c, r);
+    normal->y = y;
+    normal->z = jo_fixed_mult(s, r);
+}
+
+/** @brief The polygons of a model are lit (jo_light: the normals of the frames are used) */
+static bool                                 jo_3d_model_has_lit_polygons(const jo_3d_model * const model)
+{
+    register unsigned int                   k;
+
+    for (JO_ZERO(k); k < model->mesh->data.polygon_count; ++k)
+        if (model->mesh->data.attributes[k].sort & JO_3D_USE_LIGHT)
+            return (true);
+    return (false);
+}
+
+/** @brief The polygon data drawn by jo_3d_model_draw_morph() point to the polygons and the attributes of the model (after
+ *  they moved, see jo_3d_model_use_fast_memory()) */
+JO_LOW_WORK_RAM_CODE
+static void                                 jo_3d_model_update_morph_draw(const jo_3d_model * const model)
+{
+    jo_3d_polygon_data                      *d;
+    register unsigned int                   k;
+
+    for (JO_ZERO(k); k < 2; ++k)
+    {
+        d = model->morph_draw[k];
+        if (d == JO_NULL)
+            continue;
+        d->attributes = model->mesh->data.attributes;
+        // (the polygons of the model, or their copy with the normals of the frames: its vertices are the same)
+        if (!(model->morph_normals && jo_3d_model_has_lit_polygons(model)))
+            d->polygons = model->mesh->data.polygons;
+    }
+}
+
+/** @brief Bytes of the matrices of the bones of the skin of a model (see jo_3d_model_skin()) */
+static unsigned int                         jo_3d_model_skin_matrices_size(const jo_3d_model * const model)
+{
+    return (model->skin_count > 0 ? model->bone_count * sizeof(jo_3d_matrix_rows) : 0);
+}
+
+/** @brief The polygon data drawn by jo_3d_model_draw_morph() (one block for each CPU: the polygon data, the points, the
+ *  polygons with the normals of the frames if some are lit)
+ *  @return false if out of memory
+ */
+JO_LOW_WORK_RAM_CODE
+static bool                                 jo_3d_model_create_morph_draw(jo_3d_model * const model)
+{
+    const jo_3d_polygon_data                *src;
+    jo_3d_polygon_data                      *d;
+    unsigned char                           *block;
+    unsigned int                            head;
+    unsigned int                            points;
+    unsigned int                            polygons;
+    register unsigned int                   k;
+
+    src = &model->mesh->data;
+    head = (sizeof(jo_3d_polygon_data) + 3) & ~3u;
+    points = src->point_count * sizeof(jo_pos3D_fixed);
+    polygons = model->morph_normals && jo_3d_model_has_lit_polygons(model) ? src->polygon_count * sizeof(jo_3d_polygon) : 0;
+    for (JO_ZERO(k); k < 2; ++k)
+    {
+        // (then the matrices of the bones of a skin: not on the stack, the one of the slave CPU is small)
+        block = (unsigned char *)jo_malloc(head + points + polygons + jo_3d_model_skin_matrices_size(model));
+        if (block == JO_NULL)
+            return (false);
+        d = (jo_3d_polygon_data *)block;
+        *d = *src;
+        d->points = (jo_pos3D_fixed *)(block + head);
+        jo_memcpy(d->points, src->points, points);
+        if (polygons > 0)
+        {
+            d->polygons = (jo_3d_polygon *)(block + head + points);
+            jo_memcpy(d->polygons, src->polygons, polygons);
+        }
+        model->morph_draw[k] = d;
+    }
+    return (true);
+}
+
+/** @brief Free the polygon data of jo_3d_model_draw_morph() (and the copies of their tints) */
+JO_LOW_WORK_RAM_CODE
+static void                                 jo_3d_model_free_morph_draw(jo_3d_model * const model)
+{
+    register unsigned int                   k;
+
+    for (JO_ZERO(k); k < 2; ++k)
+        if (model->morph_draw[k] != JO_NULL)
+        {
+            __jo_3d_forget_tint(model->morph_draw[k]);
+            jo_free(model->morph_draw[k]);
+            model->morph_draw[k] = JO_NULL;
+        }
+}
+
+int                                         jo_3d_model_find_morph(const jo_3d_model * const model, const char * const name)
+{
+    register unsigned int                   k;
+
+    for (JO_ZERO(k); k < model->morph_count; ++k)
+        if (jo_3d_model_same_name(model->morphs[k].name, name))
+            return ((int)k);
+    return (-1);
+}
+
+int                                         jo_3d_model_morph_duration(const jo_3d_model * const model, const int morph)
+{
+    const jo_3d_morph                       *m;
+
+    if (morph < 0 || morph >= (int)model->morph_count)
+        return (0);
+    m = &model->morphs[morph];
+    return ((m->flags & JO_3D_MORPH_LOOP ? m->frame_count : m->frame_count - 1) * m->frame_ticks);
+}
+
+/** @brief The points (and the normals) of a time of a vertex animation in polygon data of the model
+ *  @param model Model
+ *  @param morph Index of the vertex animation
+ *  @param time Ticks (1/60 s)
+ *  @param d The polygon data written (model->morph_draw[k])
+ *  @return false if there is no such vertex animation
+ */
+static bool                                 jo_3d_model_morph_frame(const jo_3d_model * const model, const int morph, int time,
+                                                                    jo_3d_polygon_data * const d)
+{
+    const jo_3d_morph                       *m;
+    const short                             *f0;
+    const short                             *f1;
+    const unsigned char                     *n;
+    jo_fixed                                *out;
+    unsigned int                            total;
+    int                                     frame;
+    int                                     next;
+    int                                     frac;
+    int                                     scale;
+    int                                     v;
+    register unsigned int                   k;
+
+    if (morph < 0 || morph >= (int)model->morph_count || d == JO_NULL)
+        return (false);
+    m = &model->morphs[morph];
+    if (time < 0)
+        time = 0;
+    // (the frame and the fraction to the next one, like the keys of a skeleton: see jo_3d_model_get_pose())
+    if (m->flags & JO_3D_MORPH_LOOP)
+    {
+        total = (unsigned int)m->frame_count * m->frame_ticks;
+        if (total <= 0x7FFFFFFFu)
+            time -= jo_int_div(time, (int)total) * (int)total;
+        frame = jo_3d_model_key_of(time, m->frame_ticks, &frac);
+        next = frame + 1 < m->frame_count ? frame + 1 : 0;
+    }
+    else if ((unsigned int)time >= (unsigned int)(m->frame_count - 1) * m->frame_ticks)
+    {
+        frame = next = m->frame_count - 1;
+        JO_ZERO(frac);
+    }
+    else
+    {
+        frame = jo_3d_model_key_of(time, m->frame_ticks, &frac);
+        next = frame + 1;
+    }
+    f0 = (const short *)(model->morph_data + m->offset + frame * model->morph_frame_size);
+    f1 = (const short *)(model->morph_data + m->offset + next * model->morph_frame_size);
+    out = (jo_fixed *)d->points;
+    // A value: a + (b - a) x frac / 256 (x 256: under 2^23), then x 2^shift: x 2^(shift - 8), or x 2^shift then / 256 (a
+    // shift of 8 and multiplications: the shifts by a variable count are routines of the library of the compiler on the SH-2)
+    scale = model->morph_shift >= 8 ? 1 << (model->morph_shift - 8) : 1 << model->morph_shift;
+    for (JO_ZERO(k); k < d->point_count * 3; ++k)
+    {
+        v = (f0[k] * 256 + (f1[k] - f0[k]) * frac) * scale;
+        out[k] = model->morph_shift >= 8 ? v : jo_shift_right8(v);
+    }
+    // The normals of the polygons: the ones of the nearest frame (the polygons of the model when none is lit)
+    if (model->morph_normals && d->polygons != model->mesh->data.polygons)
+    {
+        n = (const unsigned char *)((frac < 128 ? f0 : f1) + d->point_count * 3);
+        for (JO_ZERO(k); k < d->polygon_count; ++k)
+            jo_3d_morph_normal(n[k], &d->polygons[k].normal);
+    }
+    return (true);
+}
+
+void                                        jo_3d_model_draw_morph(const jo_3d_model * const model, const int morph, const int time)
+{
+#ifdef JO_DEBUG
+    if (model == JO_NULL)
+    {
+        jo_core_error("model is null");
+        return;
+    }
+#endif
+    if (jo_3d_model_morph_frame(model, morph, time, model->morph_draw[0]))
+        __jo_3d_draw(model->morph_draw[0]);
+    else
+        __jo_3d_draw(&model->mesh->data);
+}
+
+bool                                        jo_3d_slave_model_draw_morph(const jo_3d_model * const model, const int morph, const int time)
+{
+    // (the mesh of the slave CPU: jo_3d_slave_mesh_draw() reads the polygon data of a mesh)
+    if (!jo_3d_model_morph_frame(model, morph, time, model->morph_draw[1]))
+        return (jo_3d_slave_mesh_draw(model->mesh));
+    return (jo_3d_slave_mesh_draw((const jo_3d_mesh *)model->morph_draw[1]));
+}
+
 /** @brief Create a model
  *  @param file The data of the file used in place (JO_NULL: copies)
  *  @param storage One memory block for the model, its mesh, the attributes and the texture ids (see
@@ -1425,7 +1779,7 @@ bool                                        jo_3d_model_use_fast_memory(jo_3d_mo
  */
 static bool                                 jo_3d_model_chunk_seen(const unsigned char * const p, unsigned int * const seen)
 {
-    static const char                       tags[] = "PNTSQUADQMATMATLTIMGTEXTNTABCNRMVCOLGOURGRUPBONEANIM";
+    static const char                       tags[] = "PNTSQUADQMATMATLTIMGTEXTNTABCNRMVCOLGOURGRUPBONEANIMMRPHSKIN";
     unsigned int                            k;
 
     for (JO_ZERO(k); k < sizeof(tags) / 4; ++k)
@@ -1459,6 +1813,7 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     unsigned int                            vcol_count;
     unsigned int                            gouraud_size;
     unsigned int                            anim_size;
+    unsigned int                            morph_size;
     unsigned int                            seen;
     bool                                    wrong;
     register unsigned int                   k;
@@ -1469,6 +1824,7 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     JO_ZERO(vcol_count);
     JO_ZERO(gouraud_size);
     JO_ZERO(anim_size);
+    JO_ZERO(morph_size);
     if (data == JO_NULL || size < JO_3D_MODEL_HEADER_SIZE || !jo_3d_model_is_tag(data, "JOM1") ||
         (data[4] << 8 | data[5]) > JO_3D_MODEL_VERSION)
     {
@@ -1625,6 +1981,26 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
                 jo_3d_model_mark_duplicates(model);
             }
         }
+        else if (jo_3d_model_is_tag(p, "SKIN"))
+        {
+            model->skin = (const jo_3d_skin_point *)jo_3d_model_copy(model, p + 12, count * sizeof(jo_3d_skin_point));
+            if (model->skin != JO_NULL)
+                model->skin_count = count;
+        }
+        else if (jo_3d_model_is_tag(p, "MRPH"))
+        {
+            // (the frames are after the headers: the whole chunk is kept)
+            model->morph_data = (const unsigned char *)jo_3d_model_copy(model, p + 8, chunk);
+            morph_size = chunk;
+            if (model->morph_data != JO_NULL)
+            {
+                model->morph_count = count;
+                model->morph_shift = *(const unsigned short *)(model->morph_data + 4);
+                model->morph_normals = (*(const unsigned short *)(model->morph_data + 6) & 1) != 0;
+                model->morphs = (jo_3d_morph *)(model->morph_data + 8);
+                jo_3d_model_mark_duplicates(model);
+            }
+        }
     }
     // The vertices of the polygons are points of the model, a material and 4 gouraud colors per polygon, the keys of the
     // animations in their chunk
@@ -1655,6 +2031,20 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             wrong = true;
     if (!wrong && !jo_3d_model_animations_fit(model, anim_size))
         JO_ZERO(model->animation_count);
+    // (a frame: the points (3 x s16), the normals of the polygons (u8), 4 bytes aligned)
+    model->morph_frame_size = (point_count * 6 + (model->morph_normals ? polygon_count : 0) + 3) & ~3u;
+    if (!wrong && model->morph_count > 0 && !jo_3d_model_morphs_fit(model, morph_size))
+        JO_ZERO(model->morph_count);
+    // (a point of the skin out of the points, a bone out of the skeleton: the skeleton is rigid)
+    for (JO_ZERO(k); k < model->skin_count; ++k)
+        if (model->skin[k].point >= point_count || model->skin[k].bone >= model->bone_count ||
+            model->skin[k].other >= model->bone_count || model->skin[k].weight > JO_3D_SKIN_ONE)
+        {
+#ifdef JO_DEBUG
+            jo_core_error("Wrong skin point %d", (int)k);
+#endif
+            JO_ZERO(model->skin_count);
+        }
     if (wrong || points == JO_NULL || polygons == JO_NULL)
     {
 #ifdef JO_DEBUG
@@ -1695,6 +2085,14 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     }
     jo_3d_model_set_texture_options(model);
     jo_3d_model_set_attributes(model, gouraud);
+    if ((model->morph_count > 0 || model->skin_count > 0) && !jo_3d_model_create_morph_draw(model))
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Out of memory");
+#endif
+        jo_3d_model_free(model, false);
+        return (JO_NULL);
+    }
     if (model->bone_count > 0 && !jo_3d_model_create_skeleton(model))
     {
 #ifdef JO_DEBUG
@@ -1771,6 +2169,7 @@ static void                                 jo_3d_model_free(jo_3d_model * const
         __jo_3d_forget_tint(&model->mesh->data);
         __jo_3d_forget_environment(&model->mesh->data);
     }
+    jo_3d_model_free_morph_draw(model);
     jo_3d_free_gouraud_tables(model->gouraud_tables, model->gouraud_table_count);
     if (model->single_block)
     {
@@ -1824,6 +2223,10 @@ static void                                 jo_3d_model_free(jo_3d_model * const
         jo_free(model->bone_children);
     if (model->animation_data != JO_NULL)
         jo_free((void *)model->animation_data);
+    if (model->morph_data != JO_NULL)
+        jo_free((void *)model->morph_data);
+    if (model->skin != JO_NULL)
+        jo_free((void *)model->skin);
     jo_free(model);
 }
 

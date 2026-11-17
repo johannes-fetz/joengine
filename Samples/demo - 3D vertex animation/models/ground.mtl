@@ -1,0 +1,5 @@
+newmtl cobbles
+Kd 1 1 1
+map_Kd cobbles.png
+jo_sort max
+jo_subdivision 2
