@@ -1,5 +1,5 @@
 /*
-** Jo Sega Saturn Engine - regression test ROM: more math and lists
+** Jo Sega Saturn Engine - regression test ROM: more math and lists, the vertex animations of the models
 */
 
 #include "jt.h"
@@ -188,9 +188,122 @@ static void             t_gun_more(void)
     JT_EQ(x, -1);
 }
 
+/* The models of cd/ made by gen_models.py: a square of 4 points and its vertex animation "wave" of 2 frames, a skeleton of
+   2 bones and its skin */
+#define T_MORPH_FRAMES          (2)
+#define T_MORPH_TICKS           (8)
+#define T_MORPH_HALF            (T_MORPH_TICKS / 2)
+/* The moves of the points of the frame 1 (x 2^shift: 16.16 fixed) */
+#define T_MORPH_MOVE_X          (3)
+#define T_MORPH_MOVE_Y          (-2)
+/* SKIN.JOM: its skin (the points of the child near the joint, the nearest first), the time of the bent pose */
+#define T_SKIN_POINTS           (4)
+#define T_SKIN_FIRST            (4)
+#define T_SKIN_FAR              (6)
+#define T_SKIN_BENT             (JO_3D_ANIMATION_TICKS_PER_SECOND)
+
+/** @brief A model of the CD loaded, its wrong chunks ignored (an error expected) */
+static jo_3d_model      *t_model_file(const char * const name, const bool wrong)
+{
+    jo_3d_model         *model;
+
+    jt_expect_errors(wrong);
+    model = jo_3d_load_model(name);
+    jt_expect_errors(false);
+    return (model);
+}
+
+/** @brief The point 1 of the square (1, -1) x 2^shift drawn at a time of the vertex animation: moved by the fraction of
+ *  the frame 1 */
+static bool             t_morph_point(const jo_3d_model * const model, const int time, const int shift, const int num,
+                                      const int den)
+{
+    const jo_pos3D_fixed *p;
+
+    jo_3d_push_matrix();
+    jo_3d_model_draw_morph(model, jo_3d_model_find_morph(model, "WAVE"), time);
+    jo_3d_pop_matrix();
+    p = &model->morph_draw[0]->points[1];
+    // (x 2^shift then / den: exact, the fractions are halves)
+    return (p->x == (den + T_MORPH_MOVE_X * num) * (1 << shift) / den &&
+            p->y == (-den + T_MORPH_MOVE_Y * num) * (1 << shift) / den && p->z == 0);
+}
+
+/** @brief How far a point of the skin moved from the point of the model */
+static int              t_skin_move(const jo_3d_model * const model, const int point)
+{
+    const jo_pos3D_fixed *a;
+    const jo_pos3D_fixed *b;
+
+    a = &model->mesh->data.points[point];
+    b = &model->morph_draw[0]->points[point];
+    return (JO_ABS(b->x - a->x) + JO_ABS(b->y - a->y) + JO_ABS(b->z - a->z));
+}
+
+/** @brief Vertex animations (morph targets, "MRPH"): the frames interpolated, both paths of the shift (>= 8: a
+ *  multiplication, < 8: a multiplication then a shift by 8), the loop, the wrong chunks dropped. The skin of a skeleton
+ *  ("SKIN"): the points near the joint follow the parent, the nearest the most, the others rigid */
+static void             t_morph_more(void)
+{
+    static const char * const files[] = {"MRPH12.JOM", "MRPH2.JOM"};
+    static const int    shifts[] = {12, 2};
+    static const char * const wrong[] = {"MRPHB1.JOM", "MRPHB2.JOM", "MRPHB3.JOM"};
+    /* Time, then the fraction of the move of the frame 1 (numerator, denominator) */
+    static const int    times[][3] = {{0, 0, 1}, {T_MORPH_HALF, 1, 2}, {T_MORPH_TICKS, 1, 1},
+                                      {T_MORPH_TICKS + T_MORPH_HALF, 1, 2}, {T_MORPH_FRAMES * T_MORPH_TICKS, 0, 1}};
+    jo_3d_model         *model;
+    jo_3d_pose          pose;
+    unsigned int        k;
+    unsigned int        t;
+
+    jt_group("model.morph");
+    for (k = 0; k < sizeof(shifts) / sizeof(shifts[0]); ++k)
+    {
+        model = t_model_file(files[k], false);
+        JT_TRUE(model != JO_NULL && model->morph_count == 1);
+        if (model == JO_NULL)
+            continue;
+        JT_EQ(jo_3d_model_find_morph(model, "walk"), -1);
+        // (a loop: the last frame goes back to the first one)
+        JT_EQ(jo_3d_model_morph_duration(model, 0), T_MORPH_FRAMES * T_MORPH_TICKS);
+        for (t = 0; t < sizeof(times) / sizeof(times[0]); ++t)
+            JT_TRUE(t_morph_point(model, times[t][0], shifts[k], times[t][1], times[t][2]));
+        // (the model itself doesn't move: the points are interpolated in its buffer)
+        JT_EQ(model->mesh->data.points[1].x, 1 << shifts[k]);
+        jo_3d_free_model(model);
+    }
+    // The model is loaded without a wrong vertex animation
+    for (k = 0; k < sizeof(wrong) / sizeof(wrong[0]); ++k)
+    {
+        model = t_model_file(wrong[k], true);
+        JT_TRUE(model != JO_NULL && model->morph_count == 0);
+        if (model != JO_NULL)
+            jo_3d_free_model(model);
+    }
+    jt_group("model.skin");
+    model = t_model_file("SKIN.JOM", false);
+    JT_TRUE(model != JO_NULL && model->skin_count == T_SKIN_POINTS);
+    if (model != JO_NULL)
+    {
+        jo_3d_model_get_pose(model, 0, T_SKIN_BENT, &pose);
+        jo_3d_push_matrix();
+        jo_3d_model_draw_pose(model, &pose, JO_NULL, JO_NULL);
+        jo_3d_pop_matrix();
+        JT_EQ(t_skin_move(model, 0), 0);
+        JT_TRUE(t_skin_move(model, T_SKIN_FIRST) > t_skin_move(model, T_SKIN_FAR));
+        JT_TRUE(t_skin_move(model, T_SKIN_FAR) > 0);
+        jo_3d_free_model(model);
+    }
+    model = t_model_file("SKINB.JOM", true);
+    JT_TRUE(model != JO_NULL && model->skin_count == 0);
+    if (model != JO_NULL)
+        jo_3d_free_model(model);
+}
+
 void                    t_more(void)
 {
     t_math_more();
     t_list_more();
     t_gun_more();
+    t_morph_more();
 }

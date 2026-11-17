@@ -17,7 +17,7 @@ void    t_vdp2_frames_draw(void);
 void    t_vdp2_frames_measure(void);
 void    t_vdp2_frames_cleanup(void);
 
-/** @brief More math and lists (t_more.c) */
+/** @brief More math and lists, the vertex animations of the models (t_more.c) */
 void    t_more(void);
 
 /** @brief The bugs found by the review of the engine (t_bugs.c) */

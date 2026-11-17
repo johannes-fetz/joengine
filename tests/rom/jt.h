@@ -92,23 +92,25 @@ typedef struct
 }               jt_step;
 
 /*
-** The big buffers of the test ROM in the low work RAM (1 MB at JO_WORK_RAM_LOW): the engine and jo_malloc() don't use it in
-** the test ROM (a game may give it to jo_malloc(), see jo_add_memory_zone()). The high work RAM stays for the program and
-** the engine: the variant all_modules overlapped the stack of the master CPU under the Linux compiler. Not cleared at the
-** start: each buffer is written before it is read
+** The big buffers of the test ROM in the low work RAM (1 MB at JO_WORK_RAM_LOW, after the functions of the engine there:
+** JO_LOW_WORK_RAM_FREE, the variants all_modules have JO_COMPILE_WITH_LOW_WORK_RAM_CODE): the engine and jo_malloc() don't
+** use it in the test ROM (a game may give it to jo_malloc(), see jo_add_memory_zone()). The high work RAM stays for the
+** program and the engine: the variant all_modules overlapped the stack of the master CPU under the Linux compiler (again
+** with the vertex animations and the skin of the models: its loading functions are in the low work RAM). Not cleared at
+** the start: each buffer is written before it is read
 */
 
 /** @brief The records of the report (jt.c) */
-# define JT_LOW_RAM_REPORT          ((unsigned char *)(JO_WORK_RAM_LOW))
+# define JT_LOW_RAM_REPORT          (JO_LOW_WORK_RAM_FREE)
 /** @brief Bytes of the place of the report */
 # define JT_LOW_RAM_REPORT_SIZE     (0x4000)
 /** @brief The steps of the test ROM (main.c) */
-# define JT_LOW_RAM_STEPS           ((jt_step *)(JO_WORK_RAM_LOW + 0x4000))
+# define JT_LOW_RAM_STEPS           ((jt_step *)(JO_LOW_WORK_RAM_FREE + JT_LOW_RAM_REPORT_SIZE))
 /** @brief Count of the steps */
 # define JT_LOW_RAM_STEP_COUNT      (384)
 _Static_assert(JT_LOW_RAM_STEP_COUNT * sizeof(jt_step) <= 0x4000, "the steps of the test ROM overlap the next buffer");
 /** @brief The VDP1 memory after the area of the textures, saved by the fuzz (t_fuzz.c) */
-# define JT_LOW_RAM_VDP1_SAVED      ((unsigned int *)(JO_WORK_RAM_LOW + 0x8000))
+# define JT_LOW_RAM_VDP1_SAVED      ((unsigned int *)(JO_LOW_WORK_RAM_FREE + 0x8000))
 /** @brief Bytes of the place of the VDP1 memory saved */
 # define JT_LOW_RAM_VDP1_SAVED_SIZE (0x8000)
 
