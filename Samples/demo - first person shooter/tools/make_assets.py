@@ -1448,9 +1448,109 @@ CEILING_HALO = 0.9
 CEILING_HALO_DEPTH = 80
 
 
-def bake_light(mesh, lamps, ambient=(0.12, 0.12, 0.14), occluders=()):
+# The light between 2 rooms through their doors and their openings (see bake_light()): the lamps of the next room light a
+# point through the opening, fading to nothing this far outside of its edges (units); the ambient light of the floor goes
+# to the mean of the 2 rooms at the opening, from this far (each room was lit by its own lamps and its own ambient light
+# alone: a step of light on the floor across each door)
+OPENING_LIGHT_SOFT_EDGE = 20
+OPENING_AMBIENT_BLEND = GRID
+# (a point of a floor at most this far from the plane of an opening is on it: the floors of the 2 rooms meet there)
+OPENING_PLANE_EPSILON = 1.0
+
+
+def light_openings(room):
+    """The openings of a room to the rooms next to it with their own light (doors and openings without door, not the
+    windows): (the other room, axis, pos, c0, c1, bottom, top) (Saturn Y: top < bottom)"""
+    result = []
+    if room is None:
+        return result
+    walls = [(a, b, axis, pos, c0, c1, fy, fy - DOOR_HEIGHT) for a, b, axis, pos, c0, c1, fy, _ in DOORS] + list(OPENINGS)
+    for a, b, axis, pos, c0, c1, bottom, top in walls:
+        if room not in (a, b):
+            continue
+        other = b if room == a else a
+        # (the parts of the bottling room share their lamps and their ambient light)
+        if LAMPS[other] is LAMPS[room] and AMBIENT[other] == AMBIENT[room]:
+            continue
+        result.append((other, axis, pos, c0, c1, bottom, top))
+    return result
+
+
+def opening_axes(axis):
+    """The coordinates of a point across the wall of an opening and along it"""
+    return (0, 2) if axis == 'x' else (2, 0)
+
+
+def on_opening_plane(p, opening):
+    """Check if a point of a floor is on the plane of an opening, under it (or under its frame, a cell of the grid on each
+    side): the floors of the 2 rooms meet there"""
+    _, axis, pos, c0, c1, _, _ = opening
+    a, c = opening_axes(axis)
+    return abs(p[a] - pos) <= OPENING_PLANE_EPSILON and c0 - GRID <= p[c] <= c1 + GRID
+
+
+def opening_visibility(p, lamp, opening):
+    """How much of a lamp of the next room lights the point p through the opening: 1 where the line from p to the lamp
+    goes through the opening, fading outside of its edges, 0 if p and the lamp are on the same side"""
+    _, axis, pos, c0, c1, bottom, top = opening
+    a, c = opening_axes(axis)
+    dp = p[a] - pos
+    dl = lamp[a] - pos
+    if abs(dp) <= OPENING_PLANE_EPSILON:
+        dp = 0.0
+    if dp * dl > 0 or dp == dl:
+        return 0.0
+    t = dp / (dp - dl)
+    cc = p[c] + (lamp[c] - p[c]) * t
+    cy = p[1] + (lamp[1] - p[1]) * t
+    outside = max(c0 - cc, cc - c1, top - cy, cy - bottom, 0.0)
+    return max(0.0, 1.0 - outside / OPENING_LIGHT_SOFT_EDGE)
+
+
+def lamp_light(p, n, lamp, shadow=1.0):
+    """The light of a lamp (x, y, z, radius, color) on a point p of a surface of normal n: it falls to half at the radius"""
+    lx, ly, lz, radius, lc = lamp
+    d = np.array((lx, ly, lz)) - p
+    dist = np.linalg.norm(d)
+    # (the lamps on the ceiling light the ceiling around them a little: grazing light)
+    facing = max(0.15, float(np.dot(d / dist, n))) if dist >= 1e-6 else 1.0
+    return np.array(lc) * (1.0 / (1.0 + (dist / radius) ** 2)) * facing * shadow
+
+
+def room_point_light(p, n, room, lamps, ambient, occluders, floor):
+    """The light of a point of a room (without the halo of the lamps on its ceiling, see bake_light()): its ambient light,
+    its lamps, the lamps of the rooms next to it through the openings. The ambient light of a floor near an opening goes
+    to the mean of the 2 rooms on its plane, from OPENING_AMBIENT_BLEND away"""
+    openings = light_openings(room)
+    color = np.array(ambient, dtype=float)
+    for opening in openings:
+        other, axis, pos, c0, c1, _, _ = opening
+        a, c = opening_axes(axis)
+        # The lamps of the next room through the opening
+        for lamp in LAMPS[other]:
+            seen = opening_visibility(p, lamp[:3], opening)
+            if seen > 0:
+                color += lamp_light(p, n, lamp, seen)
+        # (the ambient light: along the wall, the width of the opening and a cell of the grid on each side, the floor
+        # under its frame)
+        if floor and c0 - GRID <= p[c] <= c1 + GRID:
+            w = max(0.0, 1.0 - abs(p[a] - pos) / OPENING_AMBIENT_BLEND)
+            color += (np.array(AMBIENT[other], dtype=float) - np.array(ambient, dtype=float)) * 0.5 * w
+    for lamp in lamps:
+        shadow = 1.0
+        for box in occluders:
+            if segment_hits_box(p, np.array(lamp[:3]), box):
+                shadow = 0.35
+                break
+        color += lamp_light(p, n, lamp, shadow)
+    return color
+
+
+def bake_light(mesh, lamps, ambient=(0.12, 0.12, 0.14), occluders=(), room=None):
     """The light of the lamps on the corners of the quads: colors of the vertices (0.5 = the texture as it is).
-    occluders: boxes (x0, y0, z0, x1, y1, z1) that stop the light (the furniture: a soft shadow under it)"""
+    occluders: boxes (x0, y0, z0, x1, y1, z1) that stop the light (the furniture: a soft shadow under it)
+    room: the name of the room: the lamps of the rooms next to it light it through the doors (see light_openings())"""
+    openings = light_openings(room)
     for q in mesh.quads:
         corners, tex, options, _ = q
         if options.get('unlit'):
@@ -1461,29 +1561,27 @@ def bake_light(mesh, lamps, ambient=(0.12, 0.12, 0.14), occluders=()):
         # ceiling around it, a gradient over about 2 cells of the ceiling; the grazing light alone left it dark around
         # the bright panel). The size of a cell: the quad
         ceiling = n[1] > 0.7
+        # (a floor faces up: Saturn Y)
+        floor = n[1] < -0.7
         cell = float(np.ptp(np.array(corners, dtype=float)[:, [0, 2]], axis=0).max()) if ceiling else 0.0
         cols = []
         for c in corners:
             p = np.array(c, dtype=float)
             # (a little in front of the surface: its own plane doesn't shadow it)
             p -= n * 2
-            color = np.array(ambient, dtype=float)
-            for lx, ly, lz, radius, lc in lamps:
-                d = np.array((lx, ly, lz)) - p
-                dist = np.linalg.norm(d)
-                if dist < 1e-6:
-                    facing = 1.0
-                else:
-                    facing = max(0.15, float(np.dot(d / dist, n)))
-                    # (the lamps on the ceiling light the ceiling around them a little: grazing light)
-                fall = 1.0 / (1.0 + (dist / radius) ** 2)
-                shadow = 1.0
-                for bx0, by0, bz0, bx1, by1, bz1 in occluders:
-                    if segment_hits_box(p, np.array((lx, ly, lz)), (bx0, by0, bz0, bx1, by1, bz1)):
-                        shadow = 0.35
-                        break
-                color += np.array(lc) * fall * facing * shadow
-                if ceiling and 0 <= ly - p[1] < CEILING_HALO_DEPTH and cell > 0:
+            shared = [o for o in openings if floor and on_opening_plane(p, o)]
+            if shared:
+                # The floor where 2 rooms meet: the mean of the light of the 2 rooms (each room computes the same: no
+                # step of light across the door; without the furniture, it is in one room only)
+                other = shared[0][0]
+                color = (room_point_light(p, n, room, lamps, ambient, (), floor) +
+                         room_point_light(p, n, other, LAMPS[other], AMBIENT[other], (), floor)) * 0.5
+            else:
+                color = room_point_light(p, n, room, lamps, ambient, occluders, floor)
+            if ceiling and cell > 0:
+                for lx, ly, lz, radius, lc in lamps:
+                    if not 0 <= ly - p[1] < CEILING_HALO_DEPTH:
+                        continue
                     # (1 at the corners of the cell of the lamp, 0 two cells farther. The red alarms: a softer and wider
                     # halo, 0 four cells farther, the light of the dome all around: a halo of 2 cells on the narrow
                     # gallery was a dark ceiling with a red diamond in it)
@@ -2432,7 +2530,7 @@ def build_washroom():
     # (on the right of the door seen from the room, on the concrete: over the door the strip of wall is too low)
     m.decal([(960, -152, 336), (960, -152, 296), (960, -132, 296), (960, -132, 336)], 'exit')
     occluders = [((sx0 + sx1) / 2 - 15, -38, sz0, (sx0 + sx1) / 2 + 15, 0, sz0 + 36) for sx0, sz0, sx1, sz1 in STALLS]
-    bake_light(m, LAMPS['washroom'], AMBIENT['washroom'], occluders)
+    bake_light(m, LAMPS['washroom'], AMBIENT['washroom'], occluders, room='washroom')
     return m
 
 
@@ -2499,7 +2597,7 @@ def build_corridor():
     # A biohazard sign on the north wall (inside one cell of the wall, on the stone: a decal across 2 cells makes 2 copies
     # of the texture, 4 at a corner of cells)
     m.decal([(1480, -150, 560), (1520, -150, 560), (1520, -110, 560), (1480, -110, 560)], 'biohaz')
-    bake_light(m, LAMPS['corridor'], AMBIENT['corridor'])
+    bake_light(m, LAMPS['corridor'], AMBIENT['corridor'], room='corridor')
     return m
 
 
@@ -2514,7 +2612,7 @@ def build_storage():
     lockers(m, 'z', 800, 2080, 3)
     # The way down: a sign over the door of the stairs (on the stone, on the right of the door)
     m.decal([(2400, -152, 336), (2400, -152, 296), (2400, -132, 296), (2400, -132, 336)], 'exit')
-    bake_light(m, LAMPS['storage'], AMBIENT['storage'], boxes)
+    bake_light(m, LAMPS['storage'], AMBIENT['storage'], boxes, room='storage')
     return m
 
 
@@ -2523,7 +2621,7 @@ def build_hall():
     m = build_room('hall', 'tiles', 'floor', 'ceiling', tex_upper='stone')
     door_frames(m, 'hall')
     windows(m, 'hall')
-    bake_light(m, LAMPS['hall'], AMBIENT['hall'])
+    bake_light(m, LAMPS['hall'], AMBIENT['hall'], room='hall')
     return m
 
 
@@ -2550,7 +2648,7 @@ def build_lab():
     for cx in (1180, 1260):
         m.decal([(cx - 20, -45, 1806), (cx + 20, -45, 1806), (cx + 20, -45, 1786), (cx - 20, -45, 1786)], 'keyboard')
         MONITORS.append((cx, -45, 1774, 0))
-    bake_light(m, LAMPS['lab'], AMBIENT['lab'], boxes)
+    bake_light(m, LAMPS['lab'], AMBIENT['lab'], boxes, room='lab')
     return m
 
 
@@ -2560,7 +2658,7 @@ def build_guards():
     door_frames(m, 'guards')
     lockers(m, 'x', 2400, 880, 5)
     boxes = crates(m, [(2280, 1540, 60), (2220, 1540, 60), (1840, 1260, 60), (1840, 1200, 50)])
-    bake_light(m, LAMPS['guards'], AMBIENT['guards'], boxes)
+    bake_light(m, LAMPS['guards'], AMBIENT['guards'], boxes, room='guards')
     return m
 
 
@@ -2593,7 +2691,7 @@ def build_office():
         computer(m, 1696, cz, -40)
     lockers(m, 'z', 1360, 1672, 1)
     boxes += crates(m, [(1420, 1300, 50)])
-    bake_light(m, LAMPS['office'], AMBIENT['office'], boxes)
+    bake_light(m, LAMPS['office'], AMBIENT['office'], boxes, room='office')
     return m
 
 
@@ -2601,7 +2699,7 @@ def build_airlock():
     """The airlock before the walkway of the bottling room: 2 sliding doors, a yellow lamp"""
     m = build_room('airlock', 'concrete', 'grate', 'ceiling')
     door_frames(m, 'airlock')
-    bake_light(m, LAMPS['airlock'], AMBIENT['airlock'])
+    bake_light(m, LAMPS['airlock'], AMBIENT['airlock'], room='airlock')
     return m
 
 
@@ -2609,7 +2707,7 @@ def build_gallery():
     """The concrete corridor to the security door of the bottling room (yellow and black stripes around it)"""
     m = build_room('gallery', 'concrete', 'floor', 'ceiling')
     door_frames(m, 'gallery')
-    bake_light(m, LAMPS['gallery'], AMBIENT['gallery'])
+    bake_light(m, LAMPS['gallery'], AMBIENT['gallery'], room='gallery')
     return m
 
 
@@ -2692,7 +2790,7 @@ def build_stairs():
     room_side(m, 'stairs', 'x0', ya - H, ya, 'concrete')
     room_side(m, 'stairs', 'x1', yb - H, yb, 'concrete')
     door_frames(m, 'stairs')
-    bake_light(m, LAMPS['stairs'], AMBIENT['stairs'])
+    bake_light(m, LAMPS['stairs'], AMBIENT['stairs'], room='stairs')
     return m
 
 
@@ -2702,7 +2800,7 @@ def build_lowhall():
     door_frames(m, 'lowhall')
     boxes = crates(m, [(3200, 240, 50), (3220, 1120, 60), (3160, 1140, 50)], LOWER)
     m.decal([(3280, LOWER - 152, 760), (3280, LOWER - 152, 720), (3280, LOWER - 112, 720), (3280, LOWER - 112, 760)], 'biohaz')
-    bake_light(m, LAMPS['lowhall'], AMBIENT['lowhall'], boxes)
+    bake_light(m, LAMPS['lowhall'], AMBIENT['lowhall'], boxes, room='lowhall')
     return m
 
 
@@ -2740,7 +2838,7 @@ def build_bottling():
         if y < LOWER:
             face(m, [(xa, y, wz0), (xb, y, wz0), (xb, LOWER, wz0), (xa, LOWER, wz0)], (0, 0, -1), 'stone')
     boxes = [tank(m, cx, cz) for cx, cz in TANKS]
-    bake_light(m, LAMPS['bottling'], AMBIENT['bottling'], boxes)
+    bake_light(m, LAMPS['bottling'], AMBIENT['bottling'], boxes, room='bottling')
     return m
 
 
@@ -2778,7 +2876,7 @@ def build_walkway():
     rail(m, x0, 0, x1, 0, z0 + 2)
     # (as high as the railing: the shots over it at the floor of the bottling room went into an invisible box)
     SOLIDS.append(((x0 + x1) / 2, z0 + 2, (x1 - x0) / 2, 4, 0, RAIL_HEIGHT))
-    bake_light(m, LAMPS['walkway'], AMBIENT['walkway'])
+    bake_light(m, LAMPS['walkway'], AMBIENT['walkway'], room='walkway')
     return m
 
 
@@ -2796,7 +2894,7 @@ def build_stairs2():
         xa, xb = x0 + (x1 - x0) * k / 4, x0 + (x1 - x0) * (k + 1) / 4
         y = LOWER * (k + 1) / 4
         SOLIDS.append(((xa + xb) / 2, z0 + 2, (xb - xa) / 2, 4, y, LOWER / 4 + RAIL_HEIGHT))
-    bake_light(m, LAMPS['stairs2'], AMBIENT['stairs2'])
+    bake_light(m, LAMPS['stairs2'], AMBIENT['stairs2'], room='stairs2')
     return m
 
 
@@ -2808,7 +2906,7 @@ def build_landing():
     m.floor(x0, z0, x1, z1, -H, 'ceiling', up=False)
     m.wall((x1, z1), (x0, z1), -H, LOWER, 'stone', period=GRID * 2)
     m.wall((x1, z0), (x1, z1), -H, LOWER, 'stone', period=GRID * 2)
-    bake_light(m, LAMPS['landing'], AMBIENT['landing'])
+    bake_light(m, LAMPS['landing'], AMBIENT['landing'], room='landing')
     return m
 
 
