@@ -1761,10 +1761,16 @@ void                                        jo_3d_model_draw_morph(const jo_3d_m
 
 bool                                        jo_3d_slave_model_draw_morph(const jo_3d_model * const model, const int morph, const int time)
 {
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     // (the mesh of the slave CPU: jo_3d_slave_mesh_draw() reads the polygon data of a mesh)
     if (!jo_3d_model_morph_frame(model, morph, time, model->morph_draw[1]))
         return (jo_3d_slave_mesh_draw(model->mesh));
     return (jo_3d_slave_mesh_draw((const jo_3d_mesh *)model->morph_draw[1]));
+#else
+    // (without the dual CPU module: drawn by the master CPU, like jo_3d_slave_model_draw_pose())
+    jo_3d_model_draw_morph(model, morph, time);
+    return (true);
+#endif
 }
 
 /** @brief Create a model
