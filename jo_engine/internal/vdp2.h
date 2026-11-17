@@ -70,6 +70,38 @@ void            __jo_vdp2_end_frame(void);
  */
 unsigned int    __jo_vdp2_applied_frame_tag(void);
 
+/** @brief Set the priority of a screen (Internal usage, see jo_core_set_screens_order())
+ *  @param screen Screen (JO_SPRITE_SCREEN: the 8 priority registers of the sprites)
+ *  @param priority 0 (hidden) to 7
+ */
+void            __jo_vdp2_set_priority(const jo_scroll_screen screen, const unsigned short priority);
+
+/** @brief Highest priority of a screen (0: hidden) */
+# define JO_VDP2_MAX_PRIORITY       (7)
+
+/** @brief Priority of a screen (Internal usage)
+ *  @param screen Screen (JO_SPRITE_SCREEN: the priority register 0 of the sprites)
+ *  @return 0 (hidden) to JO_VDP2_MAX_PRIORITY
+ */
+unsigned short  __jo_vdp2_get_priority(const jo_scroll_screen screen);
+
+/** @brief Set NBG0 or NBG1 as a bitmap of 32768 colors (512 x 256), transparent, displayed (Internal usage: the
+ *  transparency layer, see jo/transparency.h)
+ *  @param screen JO_NBG0_SCREEN or JO_NBG1_SCREEN
+ *  @param rows Rows used (the next ones are not displayed: the memory after them can hold other blocks)
+ *  @return The bitmap in the VRAM (the start of a bank: NBG1 its bitmap at the start of A0 if it is free, else the
+ *  first bank free after the blocks allocated, A1 or B0), JO_NULL if the screen shows an image or if no bank is free
+ *  @remarks NBG0 with the text of jo_printf(): the text is hidden until __jo_vdp2_free_rgb_bitmap()
+ */
+void            *__jo_vdp2_set_rgb_bitmap(const jo_scroll_screen screen, const unsigned int rows);
+
+/** @brief Give back a bitmap of __jo_vdp2_set_rgb_bitmap() (Internal usage): NBG0 shows the text of jo_printf() again
+ *  (empty); the bitmap of NBG1 in A0 stays (the drawing functions of NBG1 use it)
+ *  @param screen JO_NBG0_SCREEN or JO_NBG1_SCREEN
+ *  @param bitmap The bitmap (JO_NULL: nothing)
+ */
+void            __jo_vdp2_free_rgb_bitmap(const jo_scroll_screen screen, void * const bitmap);
+
 #endif /* !__JO_INTERNAL_VDP2_H__ */
 
 /*

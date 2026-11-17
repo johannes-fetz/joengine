@@ -40,6 +40,12 @@
 /** @brief 3D windows (internal usage) */
 extern jo_vdp1_window       __jo_vdp1_windows[JO_VDP1_WINDOW_COUNT];
 
+/** @brief Only the off screen window (JO_VDP1_OFF_SCREEN_WINDOW) draws beyond the screen: the system clipping of the
+ *  other windows stays on the screen, whatever the system clipping area (Internal usage: the transparency layer)
+ *  @param only true: the other windows on the screen, false: the system clipping area for all (default)
+ */
+void                        __jo_vdp1_set_off_screen_window(const bool only);
+
 /** @brief Initialize the VDP1 (internal usage) */
 void                        __jo_vdp1_init(void);
 
@@ -166,10 +172,12 @@ bool                        __jo_vdp1_draw_sprite_4p(const jo_pos2D_fixed * cons
  *  @param z Depth
  *  @param attr Sprite attribute
  *  @param window Window (its center and its far limit)
+ *  @param near_z Near clipping distance (of the CPU that draws, see __jo_vdp1_near_clip())
  *  @return false if the sprite is not visible (the command is not written)
  */
 bool                        __jo_vdp1_write_sprite_4p(jo_vdp1_command * const cmd, const jo_pos2D_fixed * const points, const jo_fixed z,
-                                                      const jo_vdp1_sprite_attribute * const attr, const int window);
+                                                      const jo_vdp1_sprite_attribute * const attr, const int window,
+                                                      const jo_fixed near_z);
 
 /** @brief Attribute of a sprite with some sprite attributes (internal usage: the slave CPU uses its copy of them, see
  *  jo_3d_slave_begin())

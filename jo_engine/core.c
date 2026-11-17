@@ -730,11 +730,63 @@ void            jo_goto_boot_menu(void)
 
 #ifdef JO_DEBUG
 
+/** @brief The first error of the slave CPU or of an interrupt (or of code with the interrupts masked), shown by the master
+ *  CPU at the next frame (see jo_core_check_held_error()): the error screen waits for the next frames and for the pad, it
+ *  never ended there (the VBLANK interrupt can't come, the slave CPU doesn't draw the screen) */
+static char                                 __jo_core_held_error[JO_PRINTF_BUF_SIZE];
+static const char                           *__jo_core_held_error_function;
+/** @brief Errors held since the last one shown (written by both CPUs: read and written through the cache-through address) */
+static int                                  __jo_core_held_error_count = 0;
+
+/** @brief Check if an error can't be shown now (see __jo_core_held_error) */
+static  __jo_force_inline bool              jo_core_error_must_wait(void)
+{
+    return (__jo_core_on_slave_cpu() || (__jo_core_get_sr() & JO_SH2_SR_INTERRUPT_MASK) != 0);
+}
+
+/** @brief Show the error held (see jo_core_check_held_error()) */
+static void __attribute__((cold, noinline)) jo_core_check_held_error_now(void)
+{
+    volatile int                            *count;
+    int                                     n;
+
+    count = (volatile int *)JO_CACHE_THROUGH(&__jo_core_held_error_count);
+    n = *count;
+    // (the message written by the other CPU: read through the cache-through address)
+    jo_memcpy(__jo_last_error, (const void *)JO_CACHE_THROUGH(__jo_core_held_error), sizeof(__jo_last_error));
+    *count = 0;
+    if (n > 1)
+        jo_snprintf(__jo_last_error + jo_strlen(__jo_last_error), sizeof(__jo_last_error) - jo_strlen(__jo_last_error),
+                    " (+%d)", n - 1);
+    __jo_core_error(__jo_last_error, *(const char * volatile *)JO_CACHE_THROUGH(&__jo_core_held_error_function));
+}
+
+/** @brief The error of the slave CPU or of an interrupt, at the start of a frame of the master CPU */
+static  __jo_force_inline void              jo_core_check_held_error(void)
+{
+    if (*(volatile int *)JO_CACHE_THROUGH(&__jo_core_held_error_count) != 0)
+        jo_core_check_held_error_now();
+}
+
 void            __jo_core_errorf(const char *function, const char *format, ...)
 {
     va_list     args;
+    volatile int *count;
 
     va_start(args, format);
+    if (jo_core_error_must_wait())
+    {
+        // The first one kept (the others counted), shown by the master CPU at its next frame
+        count = (volatile int *)JO_CACHE_THROUGH(&__jo_core_held_error_count);
+        if (*count == 0)
+        {
+            jo_vsnprintf((char *)JO_CACHE_THROUGH(__jo_core_held_error), sizeof(__jo_core_held_error), format, args);
+            *(const char * volatile *)JO_CACHE_THROUGH(&__jo_core_held_error_function) = function;
+        }
+        ++*count;
+        va_end(args);
+        return;
+    }
     jo_vsnprintf(__jo_last_error, sizeof(__jo_last_error), format, args);
     va_end(args);
     __jo_core_error(__jo_last_error, function);
@@ -965,6 +1017,7 @@ void			        jo_core_run(void)
         jo_core_check_system_keys();
 #ifdef JO_DEBUG
         jo_core_check_null_access();
+        jo_core_check_held_error();
 #endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
         if (__jo_core_music_update != JO_NULL)

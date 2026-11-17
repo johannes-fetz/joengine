@@ -38,6 +38,7 @@
 #include "jo/malloc.h"
 #include "jo/smpc.h"
 #include "jo/core.h"
+#include "internal/core.h"
 
 #define JO_BLOCK_FREE           (~0)
 
@@ -193,6 +194,18 @@ static jo_memory_block  *jo_malloc_new_block(const int zone, const unsigned int 
     return (block);
 }
 
+#ifdef JO_DEBUG
+
+/** @brief Check if the memory is used from the slave CPU or from an interrupt (a VBLANK callback): the blocks of the zones
+ *  are not shared, a jo_malloc() or a jo_free() in the middle of one of the master CPU broke them (any crash later)
+ *  @return true with the error (in the function that uses it) if so
+ */
+# define JO_MALLOC_WRONG_CONTEXT() \
+    ((__jo_core_on_slave_cpu() && (jo_core_error("Not on the slave CPU (only the master CPU allocates)"), true)) || \
+     ((__jo_core_get_sr() & JO_SH2_SR_INTERRUPT_MASK) != 0 && (jo_core_error("Not in an interrupt (a VBLANK callback)"), true)))
+
+#endif
+
 void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_behaviour behaviour)
 {
     register int        zone;
@@ -204,6 +217,8 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
         jo_core_error("n must be greater than zero");
         return (JO_NULL);
     }
+    if (JO_MALLOC_WRONG_CONTEXT())
+        return (JO_NULL);
 #endif
     // (a huge size, a negative number given as a size: n + the header wrapped around, a block smaller than its header)
     if (n > 0xFFFFFFFFu - sizeof(*block) - 3)
@@ -271,6 +286,8 @@ inline void                     jo_free(const void * const p)
 #endif
     block = ((jo_memory_block *)p) - 1;
 #ifdef JO_DEBUG
+    if (JO_MALLOC_WRONG_CONTEXT())
+        return ;
     if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
     {
         jo_core_error("Bad pointer: %x", (unsigned int)p);

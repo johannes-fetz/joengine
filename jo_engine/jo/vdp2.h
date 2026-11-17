@@ -286,11 +286,24 @@ void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
  */
 void	jo_vdp2_move_nbg1(const int x, const int y);
 
+/** @brief Scroll NBG1 with a fraction of pixel (fixed point: 8 bits of fraction are used)
+ *  @param x Horizontal scroll (pixels of NBG1)
+ *  @param y Vertical scroll
+ */
+void    jo_vdp2_move_nbg1_fixed(const jo_fixed x, const jo_fixed y);
+
 /** @brief Zoom NBG1 width and height independently
  *  @param width_factor Width zoom factor
  *  @param height_factor Height zoom factor
  */
 void	jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor);
+
+/** @brief Zoom NBG1 (fixed point: without the float functions of libgcc)
+ *  @param width_factor Coordinate increment (horizontal): JO_FIXED_1 normal, JO_FIXED_1 / 2 twice bigger (8 bits of
+ *  fraction are used)
+ *  @param height_factor Coordinate increment (vertical)
+ */
+void    jo_vdp2_zoom_nbg1_fixed(const jo_fixed width_factor, const jo_fixed height_factor);
 
 /** @brief Zoom NBG1
  *  @param factor Zoom factor
@@ -313,6 +326,19 @@ void	jo_vdp2_move_nbg0(const int x, const int y);
  *  @param height_factor Height zoom factor
  */
 void	jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor);
+
+/** @brief Zoom NBG0 (fixed point: without the float functions of libgcc)
+ *  @param width_factor Coordinate increment (horizontal): JO_FIXED_1 normal, JO_FIXED_1 / 2 twice bigger (8 bits of
+ *  fraction are used)
+ *  @param height_factor Coordinate increment (vertical)
+ */
+void    jo_vdp2_zoom_nbg0_fixed(const jo_fixed width_factor, const jo_fixed height_factor);
+
+/** @brief Scroll NBG0 with a fraction of pixel (fixed point: 8 bits of fraction are used)
+ *  @param x Horizontal scroll (pixels of NBG0)
+ *  @param y Vertical scroll
+ */
+void    jo_vdp2_move_nbg0_fixed(const jo_fixed x, const jo_fixed y);
 
 /** @brief Zoom NBG0
  *  @param factor Zoom factor

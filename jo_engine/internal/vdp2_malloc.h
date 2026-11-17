@@ -51,6 +51,13 @@ bool                            __jo_vdp2_a0_start_is_free(const unsigned int n)
  */
 void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage usage, const unsigned int n);
 
+/** @brief A block at the start of a bank (a bitmap of NBG0 or NBG1 starts at the start of a bank: A0, A1, B0), after
+ *  the blocks already allocated (the space before the start of the bank is in the block). Without error message
+ *  @param n Size in bytes (it can go over the next banks)
+ *  @return The block (free it with jo_vdp2_free()), JO_NULL if no bank is free
+ */
+void                            *__jo_vdp2_malloc_bank(const unsigned int n);
+
 #endif /* !__JO_INTERNAL_VDP2_MALLOC_H__ */
 
 /*

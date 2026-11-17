@@ -172,6 +172,10 @@ static  __jo_force_inline void      __jo_profile_add(jo_profile_cpu * const cpu,
  */
 static  __jo_force_inline void      jo_profile_begin(const jo_profile_slot slot)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(slot, JO_PROFILE_COUNT, "slot"))
+        return;
+#endif
     __jo_profile_current_cpu()->start[slot] = (unsigned short)jo_profile_ticks();
 }
 
@@ -183,6 +187,10 @@ static  __jo_force_inline void      jo_profile_end(const jo_profile_slot slot)
 {
     jo_profile_cpu                  *cpu;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(slot, JO_PROFILE_COUNT, "slot"))
+        return;
+#endif
     cpu = __jo_profile_current_cpu();
     __jo_profile_add(cpu, slot, (jo_profile_ticks() - cpu->start[slot]) & 0xFFFF);
 }
@@ -193,6 +201,10 @@ static  __jo_force_inline void      jo_profile_end(const jo_profile_slot slot)
  */
 static  __jo_force_inline void      jo_profile_count(const jo_profile_slot slot, const unsigned int value)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(slot, JO_PROFILE_COUNT, "slot"))
+        return;
+#endif
     __jo_profile_add(__jo_profile_current_cpu(), slot, value);
 }
 

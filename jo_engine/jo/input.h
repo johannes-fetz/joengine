@@ -126,6 +126,10 @@ jo_gamepad_type                 jo_get_input_type(const int port);
  */
 static __jo_force_inline bool	jo_is_input_analog(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (false);
+#endif
 	// TODO: Add other analog devices (wheel, mission stick)
 	return (jo_inputs[port].id == JO_PERIPHERAL_ID_NIGHTS_PAD);
 }
@@ -136,6 +140,10 @@ static __jo_force_inline bool	jo_is_input_analog(const int port)
  */
 static  __jo_force_inline bool	jo_is_input_available(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (false);
+#endif
     return (jo_inputs[port].id != JO_PERIPHERAL_ID_NOT_CONNECTED);
 }
 
@@ -175,6 +183,10 @@ int                             jo_get_input_axis_centered(const int port, const
  */
 static  __jo_force_inline bool	jo_is_input_key_pressed(const int port, const jo_gamepad_keys key)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (false);
+#endif
     return __JO_KEY_PRESSED(port, key);
 }
 
@@ -184,6 +196,10 @@ static  __jo_force_inline bool	jo_is_input_key_pressed(const int port, const jo_
  */
 static  __jo_force_inline jo_8_directions	jo_get_input_direction_pressed(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (NONE);
+#endif
     if (__JO_KEY_PRESSED(port, JO_KEY_UP))
     {
         if (__JO_KEY_PRESSED(port, JO_KEY_LEFT))
@@ -213,6 +229,10 @@ static  __jo_force_inline jo_8_directions	jo_get_input_direction_pressed(const i
  */
 static  __jo_force_inline unsigned short	jo_get_raw_input_key_pressed(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (0);
+#endif
     return ((unsigned short)jo_inputs[port].data);
 }
 
@@ -223,6 +243,10 @@ static  __jo_force_inline unsigned short	jo_get_raw_input_key_pressed(const int 
  */
 static  __jo_force_inline bool	jo_is_input_key_down(const int port, const jo_gamepad_keys key)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (false);
+#endif
     return ((jo_inputs[port].push & key) == 0);
 }
 
@@ -234,6 +258,10 @@ static  __jo_force_inline bool	jo_is_input_key_down(const int port, const jo_gam
  */
 static  __jo_force_inline int	jo_get_mouse_pos_x(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (0);
+#endif
     return (((jo_peripheral_pointer *)&jo_inputs[port])->x);
 }
 
@@ -243,6 +271,10 @@ static  __jo_force_inline int	jo_get_mouse_pos_x(const int port)
  */
 static  __jo_force_inline int	jo_get_mouse_pos_y(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (0);
+#endif
     return (((jo_peripheral_pointer *)&jo_inputs[port])->y);
 }
 

@@ -39,6 +39,12 @@
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
 
+/** @brief The polygon data of the meshes and the models drawn by the master CPU replaced by this function before they are
+ *  drawn, JO_NULL: none (Internal usage: the masks of the transparency layer, see jo_3d_transparency_mask_begin())
+ *  @return The polygon data to draw, JO_NULL: nothing drawn
+ */
+extern const jo_3d_polygon_data     *(*__jo_3d_master_polygon_filter)(const jo_3d_polygon_data * const pdata);
+
 /** @brief Draw polygons whose points are in parts, each one transformed by its own matrix: the bones of a skeleton
  *  (one draw for the whole model, see jo_3d_model_draw_pose()) (Internal usage)
  *  @param pdata Polygon data (vertices, polygons and attributes)

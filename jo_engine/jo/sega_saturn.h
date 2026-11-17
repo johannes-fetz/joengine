@@ -90,6 +90,8 @@
 # define JO_VDP1_VRAM               (0x25C00000)
 /** @brief VDP1 Frame buffer (256 kilobytes) */
 # define JO_VDP1_FB                 (0x25C80000)
+/** @brief Width of a line of the VDP1 frame buffer (pixels, 16 bits per pixel), whatever the width of the screen */
+# define JO_VDP1_FB_WIDTH           (512)
 /** @brief VDP1 I/O register address */
 # define JO_VDP1_REG                (0x25D00000)
 /** @brief Last VDP1 I/O register address */
@@ -149,6 +151,10 @@
 # define JO_VDP2_VRAM_B1            (0x25E60000)
 /** @brief VDP2 Color RAM (4 kilobytes) */
 # define JO_VDP2_CRAM               (0x25F00000)
+/** @brief Define the maximum of palette (the 256 colors palettes of the color RAM)
+ *  @warning MC Hammer: don't touch this
+ */
+# define JO_PALETTE_MAX             (8)
 /** @brief VDP2 VRAM Bank size (128 kilobytes) */
 # define JO_VDP2_BANK_SIZE          (0x20000)
 
@@ -534,6 +540,16 @@ extern unsigned char                            __jo_low_work_ram_end[];
 # define JO_SCU_DMA_MODE_INDIRECT   (0x01000007)
 /** @brief SCU DMA indirect table: end of the table (read address of the last transfer) */
 # define JO_SCU_DMA_INDIRECT_END    (0x80000000)
+/** @brief SCU DMA indirect table: words of a transfer (byte count, write address, read address) */
+# define JO_SCU_DMA_INDIRECT_WORDS  (3)
+/** @brief SCU DMA add: read address + 4, write address + 4 (A-bus, work RAM) */
+# define JO_SCU_DMA_ADD_READ4_WRITE4    (0x102)
+/** @brief SCU DMA enable: enabled, started by its start factor (see the modes below) */
+# define JO_SCU_DMA_ENABLE_ONLY     (0x100)
+/** @brief SCU DMA mode: indirect mode, started when the VDP1 ends its drawing (start factor "sprite draw end") */
+# define JO_SCU_DMA_MODE_INDIRECT_SPRITE_END    (0x01000006)
+/** @brief Address of a memory for the SCU DMA: its physical address (without the cache bits) */
+# define JO_SCU_ADDRESS(ADDR)       ((unsigned int)(ADDR) & 0x07FFFFFF)
 
 /** @brief SCU interrupt mask bits */
 # define JO_SCU_INT_VBLANK_IN       (1 << 0)

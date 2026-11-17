@@ -60,12 +60,29 @@ typedef struct
  */
 extern jo_sprite_anim		__jo_sprite_anim_tab[JO_MAX_SPRITE_ANIM];
 
+#ifdef JO_DEBUG
+
+/** @brief Check the id of an animation given to a function of the engine (Internal usage, JO_DEBUG)
+ *  @param ANIM_ID Animation id
+ *  @return true with the error (in the function that uses it) if it is not an animation created (-1 of
+ *  jo_create_sprite_anim() with the table full, a removed one): any memory after the table was written
+ */
+# define __JO_SPRITE_ANIM_IS_WRONG(ANIM_ID) \
+    (((unsigned int)(ANIM_ID) >= JO_MAX_SPRITE_ANIM || __jo_sprite_anim_tab[ANIM_ID].frame_count == 0) && \
+     (jo_core_error("Wrong animation id (%d)", (int)(ANIM_ID)), true))
+
+#endif
+
 /** @brief Get animation frame rate
  *  @param anim_id Id returned by jo_create_sprite_anim()
  *  @return animation frame index (from 0 to "number of sprite in animation")
  */
 static  __jo_force_inline unsigned char	jo_get_sprite_anim_frame_rate(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].frame_rate;
 }
 
@@ -75,6 +92,10 @@ static  __jo_force_inline unsigned char	jo_get_sprite_anim_frame_rate(const int 
  */
 static  __jo_force_inline unsigned short	jo_get_sprite_anim_frame_count(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].frame_count;
 }
 
@@ -84,6 +105,10 @@ static  __jo_force_inline unsigned short	jo_get_sprite_anim_frame_count(const in
  */
 static  __jo_force_inline unsigned short	jo_get_sprite_anim_frame(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].cur_frame;
 }
 
@@ -93,6 +118,10 @@ static  __jo_force_inline unsigned short	jo_get_sprite_anim_frame(const int anim
  */
 static __jo_force_inline void	jo_set_sprite_anim_frame(const int anim_id, const unsigned short frame)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     __jo_sprite_anim_tab[anim_id].cur_frame = frame;
 }
 
@@ -101,6 +130,10 @@ static __jo_force_inline void	jo_set_sprite_anim_frame(const int anim_id, const 
  */
 static  __jo_force_inline void	jo_start_sprite_anim_loop(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     __jo_sprite_anim_tab[anim_id].action = JO_SPRITE_ANIM_START;
 }
 
@@ -110,6 +143,10 @@ static  __jo_force_inline void	jo_start_sprite_anim_loop(const int anim_id)
  */
 static  __jo_force_inline bool	jo_is_sprite_anim_stopped(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (true);
+#endif
     return __jo_sprite_anim_tab[anim_id].action == JO_SPRITE_ANIM_STOP;
 }
 
@@ -118,6 +155,10 @@ static  __jo_force_inline bool	jo_is_sprite_anim_stopped(const int anim_id)
  */
 static  __jo_force_inline void	jo_stop_sprite_anim(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     __jo_sprite_anim_tab[anim_id].action = JO_SPRITE_ANIM_STOP;
 }
 
@@ -126,6 +167,10 @@ static  __jo_force_inline void	jo_stop_sprite_anim(const int anim_id)
  */
 static  __jo_force_inline void	jo_start_sprite_anim(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     __jo_sprite_anim_tab[anim_id].action = JO_SPRITE_ANIM_STOP_AT_LAST_FRAME;
 }
 
@@ -134,6 +179,10 @@ static  __jo_force_inline void	jo_start_sprite_anim(const int anim_id)
  */
 static  __jo_force_inline void	jo_reset_sprite_anim(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     jo_stop_sprite_anim(anim_id);
     JO_ZERO(__jo_sprite_anim_tab[anim_id].frame_skip);
     JO_ZERO(__jo_sprite_anim_tab[anim_id].cur_frame);
@@ -144,6 +193,10 @@ static  __jo_force_inline void	jo_reset_sprite_anim(const int anim_id)
  */
 static  __jo_force_inline void	jo_restart_sprite_anim(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     jo_reset_sprite_anim(anim_id);
     jo_start_sprite_anim(anim_id);
 }
@@ -153,6 +206,10 @@ static  __jo_force_inline void	jo_restart_sprite_anim(const int anim_id)
  */
 static  __jo_force_inline int	jo_get_anim_sprite(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].frame0_sprite_id + __jo_sprite_anim_tab[anim_id].cur_frame;
 }
 
@@ -161,6 +218,10 @@ static  __jo_force_inline int	jo_get_anim_sprite(const int anim_id)
  */
 static  __jo_force_inline int	jo_get_anim_sprite_reverse(const int anim_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].frame0_sprite_id + __jo_sprite_anim_tab[anim_id].frame_count - __jo_sprite_anim_tab[anim_id].cur_frame - 1;
 }
 
@@ -170,6 +231,10 @@ static  __jo_force_inline int	jo_get_anim_sprite_reverse(const int anim_id)
  */
 static  __jo_force_inline int	jo_set_sprite_anim_frame_rate(const int anim_id, const unsigned char framerate)
 {
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return (0);
+#endif
     return __jo_sprite_anim_tab[anim_id].frame_rate = framerate;
 }
 

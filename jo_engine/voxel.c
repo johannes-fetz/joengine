@@ -55,6 +55,7 @@
 #include "jo/vdp2_malloc.h"
 #include "jo/software_renderer.h"
 #include "jo/voxel.h"
+#include "internal/core.h"
 
 void            jo_voxel_do_angle_computation(jo_voxel * const voxel_data)
 {
@@ -226,16 +227,6 @@ static void                 jo_voxel_draw_columns(const jo_voxel_columns * const
 }
 
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
-/** @brief Check if the code runs on the slave CPU (its stack is in the first 16 KB of the high work RAM, see
- *  __jo_profile_current_cpu()) */
-static  __jo_force_inline bool  jo_voxel_on_slave_cpu(void)
-{
-    unsigned int                sp;
-
-    __asm__ volatile ("mov r15, %0" : "=r" (sp));
-    return ((sp & 0x000FFFFF) < 0x4000);
-}
-
 /** @brief The columns of the slave CPU (jo_core_exec_on_slave() callback) */
 static void                 jo_voxel_slave_draw_columns(void)
 {
@@ -287,7 +278,7 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
     // The columns shared by the 2 CPUs (each column on its own: the same picture), the left half on the slave CPU (the
     // voxel demo: 21 frames per second on the master CPU alone, 34 with half of the columns on each CPU; 9/16 on the slave
     // CPU: 32). Not when the redraw is a job of the slave CPU itself
-    if (!jo_voxel_on_slave_cpu() && width >= 16)
+    if (!__jo_core_on_slave_cpu() && width >= 16)
     {
         __jo_voxel_slave_columns = columns;
         __jo_voxel_slave_columns.end = JO_DIV_BY_2(width) & ~7;

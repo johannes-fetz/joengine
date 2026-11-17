@@ -172,6 +172,26 @@ static unsigned int                     __jo_vdp1_pre_clip_areas[JO_VDP1_WINDOW_
 /** @brief Area of no position: JO_VDP1_OUTSIDE() always has a sign bit */
 # define JO_VDP1_NO_PRE_CLIP_AREA           (0xFFFFFFFFu)
 
+/** @brief Only the off screen window draws beyond the screen (see __jo_vdp1_set_off_screen_window()) */
+static bool                             __jo_vdp1_off_screen_window_only = false;
+
+/** @brief The right of the system clipping of a window: with __jo_vdp1_off_screen_window_only, the screen at most but for
+ *  the off screen window (JO_VDP1_OFF_SCREEN_WINDOW: the system clipping area bigger than the screen for it only; the
+ *  commands of the other windows near the right of the screen were drawn into the frame buffer beyond it)
+ *  @param window Window (the windows changed during a frame: the window itself, see __jo_vdp1_keep_window())
+ *  @param right System clipping (right)
+ */
+static  __jo_force_inline short         jo_vdp1_window_clip_right(const int window, const short right)
+{
+    return (!__jo_vdp1_off_screen_window_only || window == JO_VDP1_OFF_SCREEN_WINDOW ? right : (short)JO_MIN(right, __jo_screen.width - 1));
+}
+
+/** @brief The bottom of the system clipping of a window (see jo_vdp1_window_clip_right()) */
+static  __jo_force_inline short         jo_vdp1_window_clip_bottom(const int window, const short bottom)
+{
+    return (!__jo_vdp1_off_screen_window_only || window == JO_VDP1_OFF_SCREEN_WINDOW ? bottom : (short)JO_MIN(bottom, __jo_screen.height - 1));
+}
+
 /** @brief Compute the packed areas of the windows for the pre-clipping of the sprites (__jo_vdp1_pre_clip_areas), after a
  *  change of the system clipping area or of the local coordinates of a window */
 static void                             jo_vdp1_update_pre_clip_areas(void)
@@ -180,7 +200,14 @@ static void                             jo_vdp1_update_pre_clip_areas(void)
 
     for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
         __jo_vdp1_pre_clip_areas[i] = (__jo_vdp1_windows[i].origin_x | __jo_vdp1_windows[i].origin_y) ? JO_VDP1_NO_PRE_CLIP_AREA :
-                                      ((unsigned int)__jo_vdp1_system_clip_right << 16) | (unsigned short)__jo_vdp1_system_clip_bottom;
+                                      ((unsigned int)jo_vdp1_window_clip_right(i, __jo_vdp1_system_clip_right) << 16) |
+                                      (unsigned short)jo_vdp1_window_clip_bottom(i, __jo_vdp1_system_clip_bottom);
+}
+
+void                                    __jo_vdp1_set_off_screen_window(const bool only)
+{
+    __jo_vdp1_off_screen_window_only = only;
+    jo_vdp1_update_pre_clip_areas();
 }
 
 /* Depth added to the keys of the commands (see jo_3d_set_depth_bias()) */
@@ -213,6 +240,8 @@ typedef struct
     unsigned int                        tag;                    // Number of the frame (see __jo_vdp1_frame_tag())
     bool                                wireframe;              // The polygons drawn as their outline (see jo_3d_set_wireframe())
     bool                                windows_apart;          // The windows drawn one after the other (see jo_3d_set_windows_apart())
+    bool                                off_screen_apart;       // The off screen window drawn after the others (see
+                                                                // __jo_vdp1_set_off_screen_window())
     // The windows changed during the frame after commands (see __jo_vdp1_keep_window()): the commands before each change
     // keep the window as it was (a header of its own, window JO_VDP1_WINDOW_COUNT + k)
     unsigned int                        window_change_count;
@@ -669,12 +698,15 @@ void                                    __jo_vdp1_commit_commands(const unsigned
 static void                             jo_vdp1_make_header(jo_vdp1_command * const c, const jo_vdp1_frame * const frame, const int window)
 {
     const jo_vdp1_window                *w;
+    int                                 id;
 
     w = window < JO_VDP1_WINDOW_COUNT ? &frame->windows[window] : &frame->window_change_state[window - JO_VDP1_WINDOW_COUNT];
+    // (the window itself: a window changed during the frame is its state before the change)
+    id = window < JO_VDP1_WINDOW_COUNT ? window : frame->window_change_window[window - JO_VDP1_WINDOW_COUNT];
     jo_memset(c, 0, JO_VDP1_HEADER_COMMANDS * sizeof(jo_vdp1_command));
     c[0].ctrl = JO_VDP1_CMD_SYSTEM_CLIP;
-    c[0].xc = frame->system_clip_right;
-    c[0].yc = frame->system_clip_bottom;
+    c[0].xc = jo_vdp1_window_clip_right(id, frame->system_clip_right);
+    c[0].yc = jo_vdp1_window_clip_bottom(id, frame->system_clip_bottom);
     c[1].ctrl = JO_VDP1_CMD_USER_CLIP;
     c[1].xa = w->left;
     c[1].ya = w->top;
@@ -917,6 +949,47 @@ static unsigned short                   *jo_vdp1_group_windows(const jo_vdp1_fra
     for (JO_ZERO(i); i < n; ++i)
         __jo_vdp1_sort_a[first[frame->window[order[i]]]++] = order[i];
     return (__jo_vdp1_sort_a);
+}
+
+/** @brief The command is in the off screen window (JO_VDP1_OFF_SCREEN_WINDOW, or its state before a change in the frame,
+ *  see __jo_vdp1_keep_window())
+ *  @param frame Frame
+ *  @param window Window of the command
+ *  @return true if the command is drawn beyond the screen
+ */
+static  __jo_force_inline bool          jo_vdp1_is_off_screen_window(const jo_vdp1_frame * const frame, const unsigned int window)
+{
+    return (window == JO_VDP1_OFF_SCREEN_WINDOW ||
+            (window >= JO_VDP1_WINDOW_COUNT && frame->window_change_window[window - JO_VDP1_WINDOW_COUNT] == JO_VDP1_OFF_SCREEN_WINDOW));
+}
+
+/** @brief The sorted commands of the off screen window moved after the others, in the order of the sort (the off screen
+ *  window draws beyond the screen, the other windows on the screen only: their order between them doesn't change the
+ *  image). Mixed by depth with the commands of the screen (the masks of the transparency layer: a few commands at each
+ *  depth), a header was inserted at each change of window: the table overflowed and the farthest commands were dropped,
+ *  among them the polygon that clears the layer (what was drawn in the layer stayed there, frame after frame) and the
+ *  far walls of the rooms seen through the doors
+ *  @param frame Frame
+ *  @param order The sorted commands (see jo_vdp1_radix_sort(): __jo_vdp1_sort_a or __jo_vdp1_sort_b)
+ *  @return The commands with the off screen window last (the other buffer of the sort)
+ */
+static unsigned short                   *jo_vdp1_off_screen_window_last(const jo_vdp1_frame * const frame, const unsigned short * const order)
+{
+    unsigned short                      *result;
+    register unsigned int               i;
+    unsigned int                        k;
+    unsigned int                        n;
+
+    result = order == __jo_vdp1_sort_a ? __jo_vdp1_sort_b : __jo_vdp1_sort_a;
+    n = frame->count;
+    JO_ZERO(k);
+    for (JO_ZERO(i); i < n; ++i)
+        if (!jo_vdp1_is_off_screen_window(frame, frame->window[order[i]]))
+            result[k++] = order[i];
+    for (JO_ZERO(i); i < n; ++i)
+        if (jo_vdp1_is_off_screen_window(frame, frame->window[order[i]]))
+            result[k++] = order[i];
+    return (result);
 }
 
 /** @brief Add a transfer to the indirect table of the SCU DMA (the transfers of consecutive sources are merged)
@@ -1208,6 +1281,8 @@ static void                             jo_vdp1_send_frame(void *argument)
     JO_ZERO(windows);
     if (frame->windows_apart)
         order = jo_vdp1_group_windows(frame, order, &windows);
+    else if (frame->off_screen_apart)
+        order = jo_vdp1_off_screen_window_last(frame, order);
     jo_profile_end(JO_PROFILE_VDP1_SORT);
     jo_profile_count(JO_PROFILE_VDP1_COMMANDS, n);
     jo_profile_begin(JO_PROFILE_VDP1_WAIT);
@@ -1406,6 +1481,7 @@ void                                    __jo_vdp1_end_frame(void)
     frame->system_clip_bottom = __jo_vdp1_system_clip_bottom;
     frame->wireframe = __jo_vdp1_wireframe;
     frame->windows_apart = __jo_vdp1_windows_apart;
+    frame->off_screen_apart = __jo_vdp1_off_screen_window_only;
     __jo_vdp1_last_count = frame->count;
     // The pace of the images (see JO_VDP1_PACED): the table is sent in the last field of the frame at the earliest, the
     // VDP1 takes it at the VBLANK that starts the next frame (the master CPU waits for that VBLANK anyway)
@@ -1899,6 +1975,10 @@ static  __jo_force_inline void          jo_vdp1_draw_sprite3D(const int sprite_i
     // (see jo_sprite_draw_rotate(): no sprite (for instance jo_get_video_sprite() when the movie is stopped))
     if (sprite_id < 0)
         return;
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     fz = jo_int2fixed(z);
     if (!jo_vdp1_is_sprite_visible(fz))
         return;
@@ -2002,7 +2082,8 @@ bool                                    __jo_vdp1_draw_sprite_4p(const jo_pos2D_
 }
 
 bool                                    __jo_vdp1_write_sprite_4p(jo_vdp1_command * const cmd, const jo_pos2D_fixed * const points, const jo_fixed z,
-                                                                  const jo_vdp1_sprite_attribute * const attr, const int window)
+                                                                  const jo_vdp1_sprite_attribute * const attr, const int window,
+                                                                  const jo_fixed near_z)
 {
     const jo_vdp1_window                *w;
     jo_vdp1_command_word                *words;
@@ -2015,7 +2096,7 @@ bool                                    __jo_vdp1_write_sprite_4p(jo_vdp1_comman
     unsigned int                        p3;
 
     w = &__jo_vdp1_windows[window];
-    if (z <= __jo_vdp1_near_clip() || z > w->zlimit)
+    if (z <= near_z || z > w->zlimit)
         return (false);
     // (the same command as __jo_vdp1_draw_sprite_4p())
     cx = JO_MULT_BY_65536(w->center_x - w->origin_x);

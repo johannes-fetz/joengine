@@ -81,6 +81,8 @@ typedef enum
  *  @param n Segment size
  *  @param behaviour Allocation Behaviour
  *  @return a pointer to the allocated memory or NULL if failed
+ *  @warning On the master CPU only, not in an interrupt (a VBLANK callback): the blocks are not shared (checked with
+ *  JO_DEBUG, as jo_free())
  */
 void	        *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_behaviour behaviour);
 

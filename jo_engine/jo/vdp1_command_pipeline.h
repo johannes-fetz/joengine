@@ -274,8 +274,13 @@ typedef struct
     bool                    screen;         // Its rectangle is its screen (clipped, windows apart: see jo_3d_window_clip())
 }                           jo_vdp1_window;
 
-/** @brief Number of 3D windows: near (default), far, and a second far window (see jo_3d_select_window()) */
-# define JO_VDP1_WINDOW_COUNT       (3)
+/** @brief Number of 3D windows: near (default), far, a second far window and the window of the transparency layer (see
+ *  jo_3d_select_window()) */
+# define JO_VDP1_WINDOW_COUNT       (4)
+
+/** @brief The window that draws beyond the screen (the frame buffer at its right: the transparency layer, see
+ *  jo/transparency.h): the system clipping of the other windows stays on the screen, whatever the system clipping area */
+# define JO_VDP1_OFF_SCREEN_WINDOW  (3)
 
 /** @brief Current 3D window (internal usage) */
 extern int                  __jo_vdp1_current_window;
@@ -360,7 +365,7 @@ static  __jo_force_inline void jo_3d_set_frame_clear(const bool enabled)
 void                        __jo_vdp1_set_window_clip(const bool clip);
 
 /** @brief Select the 3D window used by the next commands (internal usage)
- *  @param window 0 (near window), 1 (far window) or 2 (second far window)
+ *  @param window 0 (near window), 1 (far window), 2 (second far window) or 3 (transparency layer)
  */
 static  __jo_force_inline void __jo_vdp1_select_window(const int window)
 {

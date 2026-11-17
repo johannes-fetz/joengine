@@ -92,11 +92,40 @@ static  __jo_force_inline void	__internal_jo_sprite_set_position3D(const int x, 
  */
 int     jo_get_last_sprite_id(void);
 
+#ifdef JO_DEBUG
+
+/** @brief Check the id of a sprite given to a function of the engine (Internal usage, JO_DEBUG)
+ *  @param SPRITE_ID Sprite id (negative: no sprite, not checked)
+ *  @return true with the error (in the function that uses it) if it is not the id of a sprite added (or the one of a
+ *  freed sprite): its texture was any data of the VRAM (a glitch)
+ */
+# define __JO_SPRITE_IS_MISSING(SPRITE_ID) \
+    ((int)(SPRITE_ID) > jo_get_last_sprite_id() && \
+     (jo_core_error("Sprite %d not added (last one: %d)", (int)(SPRITE_ID), jo_get_last_sprite_id()), true))
+
+#endif
+
 /** @brief Add a sprite
  *  @param img Pointer to a 15 bits image struct
  *  @return Sprite Id or -1 if failed
  */
 int		jo_sprite_add(const jo_img * const img);
+
+/** @brief Add a sprite from its pixels (jo_sprite_add() without the image struct: a texture in an array of the program)
+ *  @param pixels RGB pixels (JO_COLOR_Transparent: transparent), copied into the VRAM
+ *  @param width Width (multiple of 8)
+ *  @param height Height
+ *  @return Sprite Id or -1 if failed
+ */
+static  __jo_force_inline int   jo_sprite_add_rgb(const jo_color * const pixels, const unsigned short width, const unsigned short height)
+{
+    jo_img                      img;
+
+    img.width = width;
+    img.height = height;
+    img.data = (jo_color *)pixels;
+    return (jo_sprite_add(&img));
+}
 
 /** @brief Add a 8 bits sprite
  *  @param img Pointer to a 8 bits bits image struct
@@ -432,6 +461,10 @@ static  __jo_force_inline void	jo_sprite_restore_sprite_scale(void)
  */
 static  __jo_force_inline void	jo_sprite_set_palette(int palette_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id);
 }
 
@@ -441,6 +474,10 @@ static  __jo_force_inline void	jo_sprite_set_palette(int palette_id)
  */
 static  __jo_force_inline void	jo_sprite_set_additive_palette(int palette_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     // (bits 14 and 13: the priority register 3 of the sprites, see JO_VDP2_ADDITIVE_SPRITE_BANK in jo/vdp2.h)
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id) | 0x6000;
 }
@@ -673,6 +710,10 @@ static  __jo_force_inline bool        jo_sprite_is_pixel_transparent(const jo_co
  */
 static  __jo_force_inline int         jo_sprite_get_width(const int sprite_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return (0);
+#endif
     return (__jo_sprite_def[sprite_id].width);
 }
 
@@ -682,6 +723,10 @@ static  __jo_force_inline int         jo_sprite_get_width(const int sprite_id)
  */
 static  __jo_force_inline int           jo_sprite_get_height(const int sprite_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return (0);
+#endif
     return (__jo_sprite_def[sprite_id].height);
 }
 
@@ -691,6 +736,10 @@ static  __jo_force_inline int           jo_sprite_get_height(const int sprite_id
  */
 static  __jo_force_inline void          *jo_sprite_get_raw_data(const int sprite_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return ((void *)0);
+#endif
     return (__jo_sprite_pic[sprite_id].data);
 }
 
@@ -704,6 +753,10 @@ static  __jo_force_inline void          *jo_sprite_get_raw_data(const int sprite
  */
 static  __jo_force_inline jo_color      *jo_sprite_get_lut(const int sprite_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return ((jo_color *)0);
+#endif
     // ((jo_color *)0: JO_NULL is not known by all the files that include this one)
     return (__jo_sprite_lut[sprite_id] == 0 ? (jo_color *)0 : (jo_color *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[sprite_id])));
 }

@@ -401,6 +401,49 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
     }
 }
 
+/** @brief A new block at the start of a bank of a pool (see __jo_vdp2_malloc_bank())
+ *  @param segments Blocks of the pool
+ *  @param count Block count of the pool
+ *  @param top Top of the pool
+ *  @param end End of the pool
+ *  @param n Size in bytes
+ *  @return The block, JO_NULL if it doesn't fit
+ */
+static void                     *jo_vdp2_malloc_bank_in(jo_vdp2_memory_segment * const segments, const unsigned int count,
+                                                        unsigned char ** const top, const unsigned char * const end,
+                                                        const unsigned int n)
+{
+    register unsigned int       i;
+    unsigned char               *start;
+
+    start = (unsigned char *)(((unsigned int)*top + JO_VDP2_BANK_SIZE - 1) & ~(JO_VDP2_BANK_SIZE - 1));
+    if (start + n > end)
+        return (JO_NULL);
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        if (segments[i].size != 0)
+            continue;
+        // (the space before the start of the bank: in the block, given back with it)
+        segments[i].ptr = *top;
+        segments[i].data = start;
+        segments[i].size = (unsigned int)(start + n - *top);
+        segments[i].is_free = false;
+        *top = start + n;
+        return (start);
+    }
+    return (JO_NULL);
+}
+
+void                            *__jo_vdp2_malloc_bank(const unsigned int n)
+{
+    void                        *ptr;
+
+    // The banks A0 and A1 (the pool of the bitmaps), then B0 (the pool of the maps of NBG1 and RBG0); not B1 (the text)
+    if ((ptr = jo_vdp2_malloc_bank_in(__jo_a0_segments, A0_SEGMENT_COUNT, &__jo_a0, (unsigned char *)JO_VDP2_VRAM_B0, n)) != JO_NULL)
+        return (ptr);
+    return (jo_vdp2_malloc_bank_in(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0, (unsigned char *)JO_VDP2_VRAM_B1, n));
+}
+
 void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage usage, const unsigned int n)
 {
 #ifdef JO_DEBUG

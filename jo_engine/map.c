@@ -91,6 +91,10 @@ int                                     jo_map_per_pixel_vertical_collision(cons
     unsigned char                       *img_data_8bits;
     jo_picture_definition               *current_pic;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return (JO_MAP_NO_COLLISION);
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
@@ -149,6 +153,10 @@ int                                     jo_map_hitbox_detection_custom_boundarie
     register jo_map_tile                *current_tile;
     register int                        i;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return (JO_MAP_NO_COLLISION);
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
@@ -236,11 +244,19 @@ void                        jo_map_add_tile(const unsigned int layer, const shor
 #endif
         const unsigned char attribute)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer") || __JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     __internal_jo_map_add_tile(layer, x, y, sprite_id, false, attribute);
 }
 
 void                        jo_map_add_animated_tile(const unsigned int layer, const short x, const short y, const unsigned char anim_id, const unsigned char attribute)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer") || __JO_SPRITE_ANIM_IS_WRONG(anim_id))
+        return;
+#endif
     __internal_jo_map_add_tile(layer, x, y, anim_id, true, attribute);
 }
 
@@ -250,6 +266,10 @@ void						jo_map_draw_background(const unsigned int layer, const short x, const 
     register int            i;
     jo_img                  img;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
@@ -315,6 +335,10 @@ void						jo_map_scroll_background(const unsigned int layer, const short x, cons
     int                     dx;
     int                     dy;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     // Top-left corner of the screen in the map
     new_x = -x;
     new_y = -y;
@@ -351,6 +375,10 @@ void						jo_map_3d_draw(const unsigned int layer, const int x, const int y, con
     register int		    i;
     register jo_map_tile    *current_tile;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
@@ -367,6 +395,10 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
     register int		    i;
     register jo_map_tile    *current_tile;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
@@ -385,6 +417,10 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
 
 void					jo_map_free(const unsigned int layer)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     if (gl_map[layer] != JO_NULL)
         jo_free(gl_map[layer]);
     gl_map[layer] = JO_NULL;
@@ -535,6 +571,10 @@ void                        jo_map_move_tiles_by_attribute(const unsigned int la
     register int            i;
     register jo_map_tile    *current_tile;
 
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
+        return;
+#endif
     for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];

@@ -39,7 +39,8 @@
 
 #ifdef JO_DEBUG
 
-void    __jo_core_error(char *message, const char *function);
+/** @brief The error screen (or the handler of jo_core_set_error_handler()) (Internal usage): out of the hot code, one copy */
+void    __jo_core_error(char *message, const char *function) __attribute__((cold, noinline));
 
 #endif /* !JO_DEBUG */
 
@@ -109,6 +110,18 @@ static  __jo_force_inline unsigned int  __jo_core_get_sr(void)
 
     __asm__ volatile ("stc sr, %0" : "=r" (sr));
     return (sr);
+}
+
+/** @brief Check if the code runs on the slave CPU (Internal usage)
+ *  @remarks The stack of the slave CPU is at the start of the high work RAM, below JO_WORK_RAM_SLAVE_STACK_TOP
+ */
+static  __jo_force_inline bool      __jo_core_on_slave_cpu(void)
+{
+    unsigned int                    sp;
+
+    __asm__ volatile ("mov r15, %0" : "=r" (sp));
+    sp &= ~JO_CACHE_THROUGH(0);
+    return (sp >= JO_WORK_RAM_HIGH && sp <= JO_WORK_RAM_SLAVE_STACK_TOP);
 }
 
 /** @brief Set CPU status register (Internal usage)

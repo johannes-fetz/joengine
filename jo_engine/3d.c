@@ -266,6 +266,8 @@ typedef struct
     unsigned short                          sliver_color;       // The polygon is drawn as a polygon of this color (see jo_3d_emit_sliver()), 0: none
     const jo_pos3D_fixed                    *points;            // Points of the current object (model space) and their count: the
     unsigned int                            point_count;        // exact view space positions of its vertices (see jo_3d_vertex_view())
+    const jo_fixed                          *projection_distance; // See jo_3d_set_fov() and its near clipping distance (the slave
+    const jo_fixed                          *near_z;            // CPU: its copy, the master CPU changes them while the slave CPU draws)
 }                                           jo_3d_cpu_context;
 
 /** @brief Levels of tiles of a texture (2 x 2, 4 x 4) */
@@ -961,7 +963,7 @@ static jo_3d_cpu_context                    __jo_3d_master = {__jo_3d_vertices, 
                                                               JO_3D_CLIP_GOURAUD_TABLES,
                                                               &__jo_3d_polygon_count, &__jo_3d_vertice_count, &__jo_3d_displayed_polygon_count, false,
                                                               false, 0, JO_NULL, 0, -1, &__jo_3d_guard_band, &__jo_3d_light_direction, 0, 0, 0, -1, 0,
-                                                              JO_NULL, 0};
+                                                              JO_NULL, 0, &__jo_vdp1_projection_distance, &__jo_vdp1_near_z};
 
 /** @brief Reset the statistics of the frame (Internal usage) */
 void                                        __jo_3d_end_frame(void)
@@ -1104,6 +1106,17 @@ static void                                 jo_3d_set_identity(jo_3d_matrix m)
 /** @brief Set the current matrix to the identity (Internal usage) */
 void                                        __jo_3d_reset_matrix(void)
 {
+#ifdef JO_DEBUG
+    // (a jo_3d_push_matrix() of the previous frame without its jo_3d_pop_matrix(): the matrices of this frame are drawn
+    // from the identity anyway, but the stack fills up frame after frame)
+    if (__jo_3d_matrix_level != 0 || __jo_3d_matrix_overflow != 0)
+    {
+        jo_core_error("jo_3d_pop_matrix() missing: %d matrix left at the end of the frame",
+                      __jo_3d_matrix_level + __jo_3d_matrix_overflow);
+        __jo_3d_matrix_level = 0;
+        __jo_3d_matrix_overflow = 0;
+    }
+#endif
     jo_3d_set_identity(JO_3D_CURRENT_MATRIX);
 }
 
@@ -2195,7 +2208,7 @@ static __attribute__((noinline)) void      jo_3d_transform_vertices(jo_3d_cpu_co
 
     if (count == 0)
         return;
-    pd = __jo_vdp1_projection_distance;
+    pd = *ctx->projection_distance;
     guard = *ctx->guard_band;
     k.near_z = near_z;
     k.pd = pd;
@@ -2249,7 +2262,7 @@ static __attribute__((noinline)) void      jo_3d_transform_parts(jo_3d_cpu_conte
     base = ctx->vertices;
     view = ctx->view;
     matrix = ctx->matrix;
-    pd = __jo_vdp1_projection_distance;
+    pd = *ctx->projection_distance;
     guard = *ctx->guard_band;
     k.near_z = near_z;
     k.pd = pd;
@@ -2531,7 +2544,7 @@ static int                                  jo_3d_clip_polygon(const jo_3d_cpu_c
     static const jo_fixed                   u[4] = {0, JO_FIXED_1, JO_FIXED_1, 0};
     static const jo_fixed                   v[4] = {0, 0, JO_FIXED_1, JO_FIXED_1};
 
-    pd = __jo_vdp1_projection_distance;
+    pd = *ctx->projection_distance;
     if (!context->ready)
     {
         context->ready = true;
@@ -2871,8 +2884,8 @@ static  __jo_force_inline bool              jo_3d_emit_polygon(jo_3d_cpu_context
     // A polygon that crosses the near plane (a side of a vehicle next to the camera): its points behind the camera have
     // negative depths. Sorted with them (JO_3D_SORT_MIN), it was drawn over the weapon of the player (in front of the
     // camera): the key is the near plane at least
-    if (key < __jo_vdp1_near_z)
-        key = __jo_vdp1_near_z;
+    if (key < *ctx->near_z)
+        key = *ctx->near_z;
     ctx->previous_polygon_z = key;
     if (*used >= reserved)
     {
@@ -3253,7 +3266,7 @@ static bool                                 jo_3d_emit_clipped_polygon(jo_3d_cpu
         k = screen[0].zc;
         for (i = 1; i < n; ++i)
             k = JO_MIN(k, screen[i].zc);
-        ctx->previous_polygon_z = JO_MAX(__jo_vdp1_near_z, k & ~JO_3D_CODE_MASK);
+        ctx->previous_polygon_z = JO_MAX(*ctx->near_z, k & ~JO_3D_CODE_MASK);
     }
     return (true);
 }
@@ -3266,9 +3279,10 @@ static bool                                 jo_3d_emit_clipped_polygon(jo_3d_cpu
  *  @remarks 64 bits: the point can be very far
  */
 static unsigned int                         jo_3d_view_side_code(const jo_fixed x, const jo_fixed y, const jo_fixed z,
-                                                                 const jo_vdp1_window * const w, const int right, const int bottom)
+                                                                 const jo_vdp1_window * const w, const int right, const int bottom,
+                                                                 const jo_fixed pd)
 {
-    return (jo_3d_side_code(x, y, z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom, __jo_vdp1_projection_distance));
+    return (jo_3d_side_code(x, y, z, JO_3D_WINDOW_CX(w), JO_3D_WINDOW_CY(w), right, bottom, pd));
 }
 
 /** @brief Project points of the view space (see jo_3d_transform_vertices()): the division of the next point is done in the
@@ -3276,11 +3290,12 @@ static unsigned int                         jo_3d_view_side_code(const jo_fixed 
  *  @param v Vertices (output)
  *  @param points View space positions
  *  @param count Point count
+ *  @param pd Projection distance (of the CPU that draws)
  *  @remarks The view space position of a point behind the near plane or very far outside is not kept: the caller has it
  */
 static void                                 jo_3d_project_points(jo_3d_vertex * const v, const jo_fixed (* const points)[3], const int count,
                                                                  const jo_fixed near_z, const jo_vdp1_window * const w, const int right,
-                                                                 const int bottom, const int guard)
+                                                                 const int bottom, const int guard, const jo_fixed pd)
 {
     jo_fixed                                k;
     int                                     sx;
@@ -3293,7 +3308,7 @@ static void                                 jo_3d_project_points(jo_3d_vertex * 
         if (points[next][2] > near_z && !jo_3d_is_far_outside(points[next][0], points[next][1], points[next][2]))
             break;
     if (next < count)
-        jo_fixed_div_start(__jo_vdp1_projection_distance, points[next][2]);
+        jo_fixed_div_start(pd, points[next][2]);
     for (JO_ZERO(i); i < count; ++i)
     {
         if (i != next)
@@ -3301,7 +3316,7 @@ static void                                 jo_3d_project_points(jo_3d_vertex * 
             // Behind the near plane or very far outside of the screen: the caller keeps the view space position (the part is
             // clipped), the sides of the screen it is outside of
             jo_3d_set_vertex(&v[i], 0, 0, points[i][2], (points[i][2] <= near_z ? JO_3D_CODE_NEAR : JO_3D_CODE_GUARD) | JO_3D_CODE_VIEW |
-                             jo_3d_view_side_code(points[i][0], points[i][1], points[i][2], w, right, bottom));
+                             jo_3d_view_side_code(points[i][0], points[i][1], points[i][2], w, right, bottom, pd));
             continue;
         }
         k = jo_fixed_div_result();
@@ -3309,7 +3324,7 @@ static void                                 jo_3d_project_points(jo_3d_vertex * 
             if (points[next][2] > near_z && !jo_3d_is_far_outside(points[next][0], points[next][1], points[next][2]))
                 break;
         if (next < count)
-            jo_fixed_div_start(__jo_vdp1_projection_distance, points[next][2]);
+            jo_fixed_div_start(pd, points[next][2]);
         sx = JO_3D_WINDOW_CX(w) + jo_fixed_mult_to_int(points[i][0], k);
         sy = JO_3D_WINDOW_CY(w) + jo_fixed_mult_to_int(points[i][1], k);
         jo_3d_set_vertex(&v[i], sx, sy, points[i][2], jo_3d_screen_code(sx, sy, right, bottom, guard));
@@ -3572,7 +3587,9 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
     jo_fixed                                clip_z;
     bool                                    anchor[4];
     int                                     limit;
+    jo_fixed                                pd;
 
+    pd = *s->ctx->projection_distance;
     clip_z = s->near_z;
     // (the screen positions are Q16: below 2^15 pixels)
     fixed_limit = jo_int2fixed(JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT);
@@ -3588,7 +3605,7 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
             anchor[i] = false;
             if (in[i].z > clip_z)
             {
-                k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
+                k = jo_fixed_div(pd, in[i].z);
                 // (far from the screen: x * k overflows a jo_fixed, the corner is no anchor)
                 if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) > limit || JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) > limit)
                     continue;
@@ -3618,7 +3635,7 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
         // tests/harness/glitch.py; it is the same corner for all of them this way)
         if (in[i].z <= clip_z && in[i].z > JO_DIV_BY_2(clip_z))
         {
-            k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
+            k = jo_fixed_div(pd, in[i].z);
             if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) <= JO_3D_NEAR_TILE_ANCHOR_LIMIT &&
                 JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) <= JO_3D_NEAR_TILE_ANCHOR_LIMIT)
             {
@@ -3630,7 +3647,7 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
         }
         if (in[i].z > clip_z)
         {
-            k = jo_fixed_div(__jo_vdp1_projection_distance, in[i].z);
+            k = jo_fixed_div(pd, in[i].z);
             if (JO_ABS(jo_fixed_mult_to_int(in[i].x, k)) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT ||
                 JO_ABS(jo_fixed_mult_to_int(in[i].y, k)) > JO_3D_NEAR_TILE_EXTRAPOLATION_LIMIT)
                 return (false);
@@ -3656,20 +3673,20 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
                 switch (j)
                 {
                     case 0:
-                        fa = (long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].x * pd - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].x * pd - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 1:
-                        fa = -(long long)in[n].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].x * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].x * pd - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].x * pd - (long long)JO_MULT_BY_65536(__jo_screen.width_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 2:
-                        fa = (long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = (long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = (long long)in[n].y * pd - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = (long long)in[i].y * pd - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     case 3:
-                        fa = -(long long)in[n].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
-                        fb = -(long long)in[i].y * __jo_vdp1_projection_distance - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
+                        fa = -(long long)in[n].y * pd - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[n].z;
+                        fb = -(long long)in[i].y * pd - (long long)JO_MULT_BY_65536(__jo_screen.height_2 + JO_3D_NEAR_TILE_MARGIN) * in[i].z;
                         break;
                     default:
                         fa = clip_z - in[n].z;
@@ -3699,7 +3716,7 @@ static bool                                 jo_3d_extrapolate_near_tile(const jo
             ex = in[n].x + jo_fixed_mult(dx, t);
             ey = in[n].y + jo_fixed_mult(dy, t);
             ez = in[n].z + jo_fixed_mult(dz, t);
-            k = jo_fixed_div(__jo_vdp1_projection_distance, ez);
+            k = jo_fixed_div(pd, ez);
             // (the point P is near the screen (the margin): P - the anchor is below 2^11 pixels, / t (>= 1 / 4) below 2^13)
             sx[i] += sx[n] + jo_fixed_div(jo_fixed_mult(ex, k) - sx[n], t);
             sy[i] += sy[n] + jo_fixed_div(jo_fixed_mult(ey, k) - sy[n], t);
@@ -4461,7 +4478,7 @@ static bool                                 jo_3d_near_tile_covers(const jo_3d_s
         b = &in[(i + 1) & 3];
         if (a->z >= s->near_z)
         {
-            k = jo_fixed_div(__jo_vdp1_projection_distance, a->z);
+            k = jo_fixed_div(*s->ctx->projection_distance, a->z);
             x[n] = JO_3D_WINDOW_CX(s->w) + jo_fixed_mult_to_int(a->x, k);
             y[n++] = JO_3D_WINDOW_CY(s->w) + jo_fixed_mult_to_int(a->y, k);
         }
@@ -4470,7 +4487,7 @@ static bool                                 jo_3d_near_tile_covers(const jo_3d_s
             t = jo_fixed_div(s->near_z - a->z, b->z - a->z);
             px = a->x + jo_fixed_mult(b->x - a->x, t);
             py = a->y + jo_fixed_mult(b->y - a->y, t);
-            k = jo_fixed_div(__jo_vdp1_projection_distance, s->near_z);
+            k = jo_fixed_div(*s->ctx->projection_distance, s->near_z);
             x[n] = JO_3D_WINDOW_CX(s->w) + jo_fixed_mult_to_int(px, k);
             y[n++] = JO_3D_WINDOW_CY(s->w) + jo_fixed_mult_to_int(py, k);
         }
@@ -4596,12 +4613,12 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
         JO_ZERO(needed_z);
         // (the division of the next point is computed by the divider of the CPU while a point is projected: its result
         // is read before a return, the divider is free after this loop)
-        jo_fixed_div_start(__jo_vdp1_projection_distance, out[0].z);
+        jo_fixed_div_start(*s->ctx->projection_distance, out[0].z);
         for (JO_ZERO(i); i < n; ++i)
         {
             k = jo_fixed_div_result();
             if (i + 1 < n)
-                jo_fixed_div_start(__jo_vdp1_projection_distance, out[i + 1].z);
+                jo_fixed_div_start(*s->ctx->projection_distance, out[i + 1].z);
             x = jo_fixed_mult_to_int(out[i].x, k);
             y = jo_fixed_mult_to_int(out[i].y, k);
             // (the plane moved away: a point of the plane on the screen means that the part of the tile removed is seen,
@@ -4624,7 +4641,7 @@ static int                                  jo_3d_emit_near_tile(const jo_3d_sub
                 }
                 // (64 bits: the product overflowed above 205 world units to the side with the default view, the tile was
                 // drawn with a vertex far outside of the screen)
-                needed = ((long long)JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)) * __jo_vdp1_projection_distance) >> 16;
+                needed = ((long long)JO_MAX(JO_ABS(out[i].x), JO_ABS(out[i].y)) * *s->ctx->projection_distance) >> 16;
                 if (needed > 0x7FFF0000)
                     needed = 0x7FFF0000;
                 // (the division unit, not ___sdivsi3 of libgcc: the same quotient, both positive)
@@ -4848,8 +4865,8 @@ static __attribute__((noinline)) bool       jo_3d_emit_part(const jo_3d_subdivis
         key = ctx->forced_key;
     else
         key = (JO_DIV_BY_4(v0->zc) + JO_DIV_BY_4(v1->zc) + JO_DIV_BY_4(v2->zc) + JO_DIV_BY_4(v3->zc)) & ~JO_3D_CODE_MASK;
-    if (key < __jo_vdp1_near_z)
-        key = __jo_vdp1_near_z;
+    if (key < *ctx->near_z)
+        key = *ctx->near_z;
     ctx->previous_polygon_z = key;
     sort_key = JO_FIXED_TO_INT(key) + *ctx->depth_bias;
     s->keys[used] = sort_key < 0 ? 0 : (sort_key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)sort_key);
@@ -5073,7 +5090,7 @@ static bool                                 jo_3d_emit_tile(const jo_3d_subdivis
             points[1][1][k] = JO_DIV_BY_2(points[0][1][k]) + JO_DIV_BY_2(points[2][1][k]);
         }
         jo_3d_project_points(&projected[0][0], (const jo_fixed (*)[3])points, 9, s->near_z, s->w, s->right, s->bottom,
-                             *s->ctx->guard_band);
+                             *s->ctx->guard_band, *s->ctx->projection_distance);
         if (colors != JO_NULL)
             for (JO_ZERO(j); j < 3; ++j)
                 for (JO_ZERO(i); i < 3; ++i)
@@ -5268,11 +5285,11 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     if (!context->ready)
     {
         context->ready = true;
-        context->inverse_pd = jo_fixed_div(JO_FIXED_1, __jo_vdp1_projection_distance);
-        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CX(w) + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
-        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CX(w)), __jo_vdp1_projection_distance);
-        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CY(w) + JO_3D_CLIP_MARGIN), __jo_vdp1_projection_distance);
-        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CY(w)), __jo_vdp1_projection_distance);
+        context->inverse_pd = jo_fixed_div(JO_FIXED_1, *ctx->projection_distance);
+        context->planes[0] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CX(w) + JO_3D_CLIP_MARGIN), *ctx->projection_distance);
+        context->planes[1] = jo_fixed_div(JO_MULT_BY_65536(right + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CX(w)), *ctx->projection_distance);
+        context->planes[2] = jo_fixed_div(JO_MULT_BY_65536(JO_3D_WINDOW_CY(w) + JO_3D_CLIP_MARGIN), *ctx->projection_distance);
+        context->planes[3] = jo_fixed_div(JO_MULT_BY_65536(bottom + JO_3D_CLIP_MARGIN - JO_3D_WINDOW_CY(w)), *ctx->projection_distance);
     }
     for (JO_ZERO(k); k < 4; ++k)
         jo_3d_vertex_view(ctx, v[k], w, context->inverse_pd, view[k]);
@@ -5365,7 +5382,7 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
             }
         }
         jo_3d_project_points(&grid[j][first], (const jo_fixed (*)[3])&grid_view[j][first], last - first + 1, near_z, w, right, bottom,
-                             *ctx->guard_band);
+                             *ctx->guard_band, *ctx->projection_distance);
     }
     // Sort key: the key of the whole polygon for JO_3D_SORT_MIN and JO_3D_SORT_MAX (for instance the ground under a wall)
     switch (a->sort & JO_3D_SORT_MASK)
@@ -5481,7 +5498,7 @@ static bool                                 jo_3d_emit_subdivided_polygon(jo_3d_
     // key of its nearest vertex (the parts are sorted on their centers: all farther. With the key of the last part, the
     // parts nearer than it were drawn over the picture)
     if (ctx->forced_key < 0)
-        ctx->previous_polygon_z = JO_MAX(__jo_vdp1_near_z, JO_MIN(JO_MIN(v[0]->zc, v[1]->zc), JO_MIN(v[2]->zc, v[3]->zc)) & ~JO_3D_CODE_MASK);
+        ctx->previous_polygon_z = JO_MAX(*ctx->near_z, JO_MIN(JO_MIN(v[0]->zc, v[1]->zc), JO_MIN(v[2]->zc, v[3]->zc)) & ~JO_3D_CODE_MASK);
     ctx->forced_key = -1;
 #ifdef JO_TEST_SUBDIVISION_COUNT
     // Test (not for release): the commands of the parts of each CPU in the frame (the polygons drawn in parts: 1 command
@@ -5672,6 +5689,10 @@ bool                                        jo_3d_set_texture_subdivision_fine(c
 
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     if (!jo_3d_make_texture_subdivision(sprite_id))
     {
         jo_3d_update_texture_flags(sprite_id);
@@ -5757,6 +5778,10 @@ bool                                        jo_3d_set_texture_subdivision(const 
 
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     result = jo_3d_make_texture_subdivision(sprite_id);
     // (all the polygons drawn in parts, also for a texture made "near only" before: its tiles are kept)
     if (__jo_3d_tiles[sprite_id] != JO_NULL)
@@ -5774,6 +5799,10 @@ void                                        jo_3d_set_texture_subdivision_depth(
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || (depth == 0 && __jo_3d_tiles[sprite_id] == JO_NULL) ||
         (tiles = jo_3d_tiles_for_write(sprite_id)) == JO_NULL)
         return;
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     tiles->depth = depth;
     jo_3d_update_texture_flags(sprite_id);
 }
@@ -5791,6 +5820,10 @@ void                                        jo_3d_set_texture_subdivision_error(
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || (pixels <= 0 && __jo_3d_tiles[sprite_id] == JO_NULL) ||
         (tiles = jo_3d_tiles_for_write(sprite_id)) == JO_NULL)
         return;
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     tiles->error = (unsigned char)JO_MIN(JO_MAX(pixels, 0), 255);
     jo_3d_update_texture_flags(sprite_id);
 }
@@ -5799,6 +5832,10 @@ bool                                        jo_3d_set_texture_subdivision_near_o
 {
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     if (!jo_3d_make_texture_subdivision(sprite_id))
     {
         jo_3d_update_texture_flags(sprite_id);
@@ -7467,7 +7504,7 @@ static bool                                 jo_3d_draw_polygons(jo_3d_cpu_contex
     }
     w = &__jo_vdp1_windows[window];
     ctx->clip_mode = w->clip_mode;
-    near_z = __jo_vdp1_near_clip();
+    near_z = *ctx->near_z;
     zlimit = w->zlimit;
     // (a clipped window of windows apart is a screen of its own: its rectangle, see jo_3d_window_clip())
     right = w->screen ? w->right - w->left : __jo_vdp1_system_clip_right;
@@ -7950,6 +7987,10 @@ bool                                        jo_3d_set_texture_mipmaps(const int 
 
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     result = jo_3d_make_texture_mipmaps(sprite_id);
     jo_3d_update_texture_flags(sprite_id);
     return (result);
@@ -7965,6 +8006,10 @@ bool                                        jo_3d_set_texture_mipmap_copies(cons
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || levels < 1 || levels > 2 || half_id <= sprite_id ||
         half_id + levels - 1 > jo_get_last_sprite_id())
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     if (__jo_3d_mipmaps[sprite_id] != JO_NULL && __jo_3d_mipmaps[sprite_id]->levels != 0)
         return (false);
     // The copies: the same color mode, half and quarter size (as made by jo_3d_set_texture_mipmaps())
@@ -8010,7 +8055,9 @@ bool                                        __jo_3d_draw_ranges(const jo_3d_poly
     return (__jo_3d_draw_ranges_from(pdata, 0, point_count, ranges, range_count));
 }
 
-bool                                        __jo_3d_draw_ranges_from(const jo_3d_polygon_data * const pdata, const unsigned int first_point,
+const jo_3d_polygon_data                    *(*__jo_3d_master_polygon_filter)(const jo_3d_polygon_data * const pdata) = JO_NULL;
+
+bool                                        __jo_3d_draw_ranges_from(const jo_3d_polygon_data * pdata, const unsigned int first_point,
                                                                      const unsigned int point_count,
                                                                      const jo_3d_polygon_range * const ranges, const int range_count)
 {
@@ -8020,6 +8067,8 @@ bool                                        __jo_3d_draw_ranges_from(const jo_3d
     unsigned int                            used;
     bool                                    result;
 
+    if (__jo_3d_master_polygon_filter != JO_NULL && (pdata = __jo_3d_master_polygon_filter(pdata)) == JO_NULL)
+        return (true);
     __jo_3d_master.matrix = JO_3D_CURRENT_MATRIX;
     commands = __jo_vdp1_reserve_commands(JO_3D_RESERVE_ALL_COMMANDS, &keys, &reserved);
     JO_ZERO(used);
@@ -8037,10 +8086,11 @@ bool                                        __jo_3d_draw_ranges_from(const jo_3d
  *  @param in Foot (world)
  *  @param v Output: the foot in the view space
  *  @param k Output: the projection distance / the depth (when it is not too near)
+ *  @param pd Projection distance (of the CPU that draws)
  *  @return false if it is too near (or behind the camera): k is not computed
  */
 static  __jo_force_inline bool              jo_3d_standing_sprite_foot(jo_fixed (* const m)[3], const jo_pos3D_fixed * const in,
-                                                                       jo_pos3D_fixed * const v, jo_fixed * const k)
+                                                                       jo_pos3D_fixed * const v, jo_fixed * const k, const jo_fixed pd)
 {
     jo_fixed                                columns[3][3];
 
@@ -8048,7 +8098,7 @@ static  __jo_force_inline bool              jo_3d_standing_sprite_foot(jo_fixed 
     v->z = jo_fixed_dot((const jo_fixed *)in, columns[2]) + m[3][2];
     if (v->z < JO_FIXED_8)
         return (false);
-    jo_fixed_div_start(__jo_vdp1_projection_distance, v->z);
+    jo_fixed_div_start(pd, v->z);
     v->x = jo_fixed_dot((const jo_fixed *)in, columns[0]) + m[3][0];
     v->y = jo_fixed_dot((const jo_fixed *)in, columns[1]) + m[3][1];
     *k = jo_fixed_div_result();
@@ -8149,6 +8199,10 @@ bool                                        jo_3d_set_sprite_fade(const int spri
 
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     // (the sprite forgotten: its bank 0)
     for (JO_ZERO(k); k < __jo_3d_fade_sprite_count && __jo_3d_fade_sprites[k].sprite != sprite_id; ++k)
         ;
@@ -8223,6 +8277,10 @@ static jo_3d_matrix                         __jo_3d_slave_matrix[JO_3D_SLAVE_MAT
 static int                                  __jo_3d_slave_matrix_level;
 static int                                  __jo_3d_slave_depth_bias;
 static int                                  __jo_3d_slave_guard_band;
+/** @brief The projection distance and the near clipping distance of the slave CPU (the ones of the master CPU at
+ *  jo_3d_slave_begin(): the master CPU changes them while the slave CPU draws, for instance to draw in the transparency layer) */
+static jo_fixed                             __jo_3d_slave_projection_distance;
+static jo_fixed                             __jo_3d_slave_near_z;
 static jo_pos3D_fixed                       __jo_3d_slave_light_direction;
 static int                                  __jo_3d_slave_window;
 static unsigned short                       __jo_3d_slave_polygon_count;
@@ -8237,7 +8295,7 @@ static jo_3d_cpu_context                    __jo_3d_slave = {__jo_3d_slave_verti
                                                              &__jo_3d_slave_polygon_count, &__jo_3d_slave_vertice_count,
                                                              &__jo_3d_slave_displayed_polygon_count, true, false, 0, JO_NULL, 0, -1,
                                                              &__jo_3d_slave_guard_band, &__jo_3d_slave_light_direction, 0, 0, 0, -1, 0,
-                                                             JO_NULL, 0};
+                                                             JO_NULL, 0, &__jo_3d_slave_projection_distance, &__jo_3d_slave_near_z};
 
 /** @brief A job of the slave CPU: the end of the copy of its commands by its DMA controller (the next job draws in the
  *  same table) */
@@ -8247,8 +8305,19 @@ static void                                 jo_3d_slave_wait_copy_job(void *argu
     jo_dma_wait();
 }
 
+#ifdef JO_DEBUG
+/** @brief Between jo_3d_slave_begin() and jo_3d_slave_end() (JO_DEBUG: a missing jo_3d_slave_end() lost the commands of
+ *  the slave CPU, the next jo_3d_slave_begin() started them again) */
+static bool                                 __jo_3d_slave_open = false;
+#endif
+
 void                                        jo_3d_slave_begin(void)
 {
+#ifdef JO_DEBUG
+    if (__jo_3d_slave_open)
+        jo_core_error("jo_3d_slave_end() missing");
+    __jo_3d_slave_open = true;
+#endif
     // (a second job of the slave CPU in the frame (a split screen): its commands of the first job are still copied by its
     // DMA controller; its next drawings overwrite them: it waits for the end of the copy first)
     if (__jo_3d_slave_copy_started)
@@ -8259,6 +8328,8 @@ void                                        jo_3d_slave_begin(void)
     __jo_3d_slave_depth_bias = __jo_vdp1_depth_bias;
     // (the master CPU changes them while the slave CPU draws: for instance the guard band of the weapon)
     __jo_3d_slave_guard_band = __jo_3d_guard_band;
+    __jo_3d_slave_projection_distance = __jo_vdp1_projection_distance;
+    __jo_3d_slave_near_z = __jo_vdp1_near_z;
     __jo_3d_slave_light_direction = __jo_3d_light_direction;
     __jo_3d_slave_window = __jo_vdp1_current_window;
     __jo_3d_slave_view_rect = __jo_3d_view_rect;
@@ -8394,14 +8465,19 @@ bool                                        jo_3d_slave_draw_standing_sprite(con
 
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || __jo_3d_slave_command_count >= JO_3D_SLAVE_MAX_COMMANDS)
         return (false);
-    if (!jo_3d_standing_sprite_foot(__jo_3d_slave.matrix, foot, &v, &k) ||
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
+    if (!jo_3d_standing_sprite_foot(__jo_3d_slave.matrix, foot, &v, &k, __jo_3d_slave_projection_distance) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
         return (false);
     // Far away: a smaller copy of the texture. The command of jo_3d_draw_standing_sprite() (the sprite attributes of the
     // master CPU at jo_3d_slave_begin()), with the window and the depth bias of the slave CPU
     __jo_sprite_attributes_of(&attr, jo_3d_mipmap(sprite_id, w, h), &__jo_3d_slave_sprite_attributes);
     jo_3d_fade_attribute(&attr, &__jo_3d_slave_fade, sprite_id, v.z);
-    if (!__jo_vdp1_write_sprite_4p(&__jo_3d_slave_commands[__jo_3d_slave_command_count], points, v.z, &attr, __jo_3d_slave_window))
+    if (!__jo_vdp1_write_sprite_4p(&__jo_3d_slave_commands[__jo_3d_slave_command_count], points, v.z, &attr, __jo_3d_slave_window,
+                                   __jo_3d_slave_near_z))
         return (false);
     key = JO_FIXED_TO_INT(v.z) + __jo_3d_slave_depth_bias;
     __jo_3d_slave_keys[__jo_3d_slave_command_count++] = key < 0 ? 0 : (key > JO_VDP1_MAX_KEY ? JO_VDP1_MAX_KEY : (unsigned short)key);
@@ -8481,6 +8557,9 @@ void                                        jo_3d_slave_end(void)
     unsigned int                            reserved;
     jo_3d_slave_copy                        *c;
 
+#ifdef JO_DEBUG
+    __jo_3d_slave_open = false;
+#endif
     // (the counts of the slave CPU even without command: all its polygons hidden)
     __jo_3d_polygon_count += __jo_3d_slave_polygon_count;
     __jo_3d_vertice_count += __jo_3d_slave_vertice_count;
@@ -8873,6 +8952,46 @@ void                        jo_3d_set_mesh_polygon_screen_doors(jo_3d_mesh * con
         JO_REMOVE_FLAG(mesh->data.attributes[index].draw_mode, JO_VDP1_MESH);
 }
 
+void                        jo_3d_set_mesh_polygon_gouraud(jo_3d_mesh * const mesh, const unsigned short table, const unsigned int index)
+{
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return ;
+    }
+    if (index >= mesh->data.polygon_count)
+    {
+        jo_core_error("index (%d) is too high (max=%d)", (int)index, (int)mesh->data.polygon_count);
+        return ;
+    }
+#endif
+    mesh->data.attributes[index].gouraud_table = table;
+    if (table != JO_VDP1_NO_GOURAUD)
+        JO_ADD_FLAG(mesh->data.attributes[index].draw_mode, JO_VDP1_COLOR_CALC_GOURAUD);
+    else
+        JO_REMOVE_FLAG(mesh->data.attributes[index].draw_mode, JO_VDP1_COLOR_CALC_GOURAUD);
+}
+
+unsigned short              jo_3d_set_mesh_gouraud(jo_3d_mesh * const mesh, const jo_color * const tables)
+{
+    unsigned short          adr;
+    unsigned int            i;
+
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return (0);
+    }
+#endif
+    if (mesh->data.polygon_count == 0 || (adr = jo_3d_add_gouraud_tables(tables, mesh->data.polygon_count)) == 0)
+        return (0);
+    for (JO_ZERO(i); i < mesh->data.polygon_count; ++i)
+        jo_3d_set_mesh_polygon_gouraud(mesh, (unsigned short)(adr + i), i);
+    return (adr);
+}
+
 void                        jo_3d_set_mesh_polygon_high_speed_shrink(jo_3d_mesh * const mesh, const bool enabled, const unsigned int index)
 {
 #ifdef JO_DEBUG
@@ -8974,6 +9093,13 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
         jo_core_error("index (%d) is too high (max=%d)", (int)index, (int)mesh->data.polygon_count);
         return ;
     }
+    if (sprite_id < 0)
+    {
+        jo_core_error("Wrong sprite id (%d)", sprite_id);
+        return ;
+    }
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return ;
 #endif
     use_light = (mesh->data.attributes[index].sort & JO_3D_USE_LIGHT) != 0;
     kept = jo_3d_kept_draw_mode(&mesh->data.attributes[index], true);
@@ -9051,6 +9177,14 @@ void                        jo_3d_set_mesh_texture(jo_3d_mesh * const mesh, cons
         jo_core_error("mesh is null");
         return ;
     }
+    // (once: not an error for each polygon)
+    if (sprite_id < 0)
+    {
+        jo_core_error("Wrong sprite id (%d)", sprite_id);
+        return ;
+    }
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return ;
 #endif
     for (JO_ZERO(i); i < mesh->data.polygon_count; ++i)
         jo_3d_set_mesh_polygon_texture(mesh, sprite_id, i);
@@ -9154,6 +9288,10 @@ bool                jo_3d_create_sprite_quad(const int sprite_id)
     // (created already: kept, a second quad lost the first one)
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
     if (__jo_sprite_quad != JO_NULL && __jo_sprite_quad[sprite_id] != JO_NULL)
         return (true);
     // The table of the quads with the first one
@@ -9695,17 +9833,18 @@ static bool                                 jo_3d_is_sphere_out_of_view_rect(con
 
 /** @brief Check if a sphere can be seen (see jo_3d_is_sphere_visible())
  *  @param r The rectangle of jo_3d_set_view_rect() (of the master CPU, or its copy for the slave CPU)
+ *  @param pd Projection distance (of the CPU that draws)
  */
 static bool                                 jo_3d_is_sphere_visible_in(const jo_3d_view_rect_planes * const r, jo_3d_screen_planes * const s,
                                                                        const jo_pos3D_fixed * const center, const jo_fixed radius,
-                                                                       const jo_fixed max_distance)
+                                                                       const jo_fixed max_distance, const jo_fixed pd)
 {
     if (center->z + radius < JO_FIXED_8 || center->z - radius > max_distance)
         return (false);
     // Side planes |x| = kx * z: the distance to a plane is (|x| - kx * z) / sqrt(1 + kx * kx), and sqrt(1 + a) <= 1 + a / 2
-    if (s->projection_distance != __jo_vdp1_projection_distance || s->height_2 != __jo_screen.height_2)
+    if (s->projection_distance != pd || s->height_2 != __jo_screen.height_2)
     {
-        s->projection_distance = __jo_vdp1_projection_distance;
+        s->projection_distance = pd;
         s->height_2 = __jo_screen.height_2;
         s->kx = jo_fixed_div(jo_int2fixed(__jo_screen.width_2), s->projection_distance);
         s->ky = jo_fixed_div(jo_int2fixed(__jo_screen.height_2), s->projection_distance);
@@ -9725,7 +9864,8 @@ static bool                                 jo_3d_is_sphere_visible_in(const jo_
 
 bool                                        jo_3d_is_sphere_visible(const jo_pos3D_fixed * const center, const jo_fixed radius, const jo_fixed max_distance)
 {
-    return (jo_3d_is_sphere_visible_in(&__jo_3d_view_rect, &__jo_3d_screen_planes, center, radius, max_distance));
+    return (jo_3d_is_sphere_visible_in(&__jo_3d_view_rect, &__jo_3d_screen_planes, center, radius, max_distance,
+                                       __jo_vdp1_projection_distance));
 }
 
 bool                                        jo_3d_slave_is_sphere_visible(const jo_pos3D_fixed * const center, const jo_fixed radius, const jo_fixed max_distance)
@@ -9737,7 +9877,14 @@ bool                                        jo_3d_slave_is_sphere_visible(const 
     r.enabled = ((const volatile jo_3d_view_rect_planes *)JO_CACHE_THROUGH(&__jo_3d_slave_view_rect))->enabled;
     if (r.enabled)
         r = *(const volatile jo_3d_view_rect_planes *)JO_CACHE_THROUGH(&__jo_3d_slave_view_rect);
-    return (jo_3d_is_sphere_visible_in(&r, &__jo_3d_slave_screen_planes, center, radius, max_distance));
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    return (jo_3d_is_sphere_visible_in(&r, &__jo_3d_slave_screen_planes, center, radius, max_distance,
+                                       __jo_3d_slave_projection_distance));
+#else
+    // (no slave CPU: the master CPU runs its jobs)
+    return (jo_3d_is_sphere_visible_in(&r, &__jo_3d_slave_screen_planes, center, radius, max_distance,
+                                       __jo_vdp1_projection_distance));
+#endif
 }
 
 bool                                        jo_3d_draw_standing_sprite(const int sprite_id, const jo_pos3D_fixed * const foot, const jo_fixed width,
@@ -9753,7 +9900,11 @@ bool                                        jo_3d_draw_standing_sprite(const int
     // (as the slave CPU version: jo_3d_mipmap() reads the tables of the sprite)
     if (sprite_id < 0 || sprite_id >= JO_MAX_SPRITE)
         return (false);
-    if (!jo_3d_standing_sprite_foot(JO_3D_CURRENT_MATRIX, foot, &v, &k) ||
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return (false);
+#endif
+    if (!jo_3d_standing_sprite_foot(JO_3D_CURRENT_MATRIX, foot, &v, &k, __jo_vdp1_projection_distance) ||
         !jo_3d_standing_sprite_points(&v, k, width, height, sway, flip, points, &w, &h))
         return (false);
     // Far away: a smaller copy of the texture (the command of jo_sprite_draw_4p_fixed(), its colors in their bank when it fades)

@@ -81,6 +81,10 @@ void        jo_set_palette_register(const unsigned short palette_index, const jo
 
 jo_color    jo_get_palette_register(const unsigned short palette_index)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_index, JO_PALETTE_MAX * (JO_PALETTE_MAX_COLORS + 1), "palette_index"))
+        return (0);
+#endif
     return *(((jo_color *)(JO_VDP2_CRAM)) + palette_index);
 }
 

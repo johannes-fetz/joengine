@@ -209,6 +209,10 @@ bool                            jo_calibrate_input_gun(const int port, const int
 
 jo_gamepad_type                 jo_get_input_type(const int port)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
+        return (JoNotConnectedGamepad);
+#endif
     switch (jo_inputs[port].id)
     {
     case JO_PERIPHERAL_ID_NOT_CONNECTED:

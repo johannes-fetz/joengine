@@ -40,10 +40,8 @@
 */
 # define JO_PALETTE_MAX_COLORS              (255)
 
-/** @brief Define the maximum of palette
- *  @warning MC Hammer: don't touch this
-*/
-# define JO_PALETTE_MAX                     (8)
+/* (JO_PALETTE_MAX, the maximum of palettes: see jo/sega_saturn.h, the functions of the sprites and of the 3D check the
+   ids of the palettes with it) */
 
 /** @brief Create a new palette with 255 entries maximum
  *  @param output The new palette: output->data[k] is the color of the pixels of index k + 1 (the index 0 is transparent;
@@ -75,6 +73,11 @@ void                jo_palette_set_light_shades(jo_palette * const palette, cons
  */
 static  __jo_force_inline jo_color  jo_palette_color(const jo_palette * const palette, const int index)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette->id, JO_PALETTE_MAX, "palette id") || __JO_INDEX_IS_WRONG(index, JO_PALETTE_MAX_COLORS + 1, "color index"))
+        return (0);
+#endif
     return ((jo_color)(palette->id * 256 + index));
 }
 

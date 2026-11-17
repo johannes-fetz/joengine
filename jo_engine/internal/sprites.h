@@ -82,7 +82,8 @@ static  __jo_force_inline void   __jo_sprite_attributes_of_state(jo_vdp1_sprite_
     {
         // 16 colors and their RGB colors in a lookup table: drawn like an RGB texture (gouraud, half transparency)
         attr->draw_mode |= JO_VDP1_COLOR_MODE_16_LOOKUP;
-        attr->color = __jo_sprite_lut[sprite_id];
+        // (a mask: the colors of the table all 0, the pixels of the sprite erase what is under them)
+        attr->color = state->mask_lut != 0 ? (unsigned short)state->mask_lut : __jo_sprite_lut[sprite_id];
     }
     else
     {

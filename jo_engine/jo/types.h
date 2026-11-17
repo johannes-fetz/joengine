@@ -289,6 +289,8 @@ typedef struct
     jo_fixed            fixed_scale_x;
     jo_fixed            fixed_scale_y;
     unsigned int        clipping;
+    unsigned int        mask_lut;           // The 16 colors textures drawn as masks: this color lookup table (VRAM address / 8,
+                                            // all its colors 0) instead of their own, 0: none (see jo_3d_transparency_mask_begin())
 }                       jo_sprite_attributes;
 
 /** @brief Float IEEE 754 format */

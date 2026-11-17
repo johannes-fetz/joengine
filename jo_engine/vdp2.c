@@ -1081,6 +1081,21 @@ void                                __jo_vdp2_set_priority(const jo_scroll_scree
     }
 }
 
+unsigned short                      __jo_vdp2_get_priority(const jo_scroll_screen screen)
+{
+    switch (screen)
+    {
+        case JO_NBG0_SCREEN: return (JO_VDP2_GET(JO_VDP2_PRINA) & JO_VDP2_PRIORITY_LOW_MASK);
+        case JO_NBG1_SCREEN: return ((JO_VDP2_GET(JO_VDP2_PRINA) >> 8) & JO_VDP2_PRIORITY_LOW_MASK);
+        case JO_NBG2_SCREEN: return (JO_VDP2_GET(JO_VDP2_PRINB) & JO_VDP2_PRIORITY_LOW_MASK);
+        case JO_NBG3_SCREEN: return ((JO_VDP2_GET(JO_VDP2_PRINB) >> 8) & JO_VDP2_PRIORITY_LOW_MASK);
+        case JO_RBG0_SCREEN: return (JO_VDP2_GET(JO_VDP2_PRIR) & JO_VDP2_PRIORITY_LOW_MASK);
+        // (the priority register 0 of the sprites)
+        case JO_SPRITE_SCREEN: return (JO_VDP2_GET(JO_VDP2_PRISA) & JO_VDP2_PRIORITY_LOW_MASK);
+        default: return (0);
+    }
+}
+
 /*
 ████████╗██╗   ██╗
 ╚══██╔══╝██║   ██║
@@ -2256,6 +2271,11 @@ void                            jo_vdp2_replace_rbg0_plane_b_8bits_image(jo_img_
 
 void                            jo_vdp2_set_rbg0_plane_a_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_vdp2_rotation_island_map = 0;
     if (rbg0_map_a == JO_NULL)
         rbg0_map_a = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
@@ -2279,6 +2299,11 @@ void                            jo_vdp2_set_rbg0_plane_a_8bits_island(jo_img_8bi
     unsigned short                  border;
     int                             i;
 
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     jo_vdp2_set_rbg0_plane_a_8bits_image(img, palette_id, true, vertical_flip);
     if (rbg0_map_a == JO_NULL || rbg0_cell_a == JO_NULL)
         return;
@@ -2301,6 +2326,11 @@ void                            jo_vdp2_set_rbg0_plane_a_8bits_island(jo_img_8bi
 
 void                            jo_vdp2_set_rbg0_plane_b_8bits_image(jo_img_8bits *img, int palette_id, bool repeat, bool vertical_flip)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     if (rbg0_map_b == JO_NULL)
         rbg0_map_b = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_RBG0, JO_VDP2_MAP_SIZE);
     jo_vdp2_set_rotation_map(1, rbg0_map_b);
@@ -2424,6 +2454,11 @@ void                     jo_init_nbg0_printf(void)
 #else
 void			                jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_switch_to_8bits_mode();
     if (nbg0_cell != JO_NULL)
     {
@@ -2604,6 +2639,11 @@ static void                     jo_vdp2_use_nbg1_native_bitmap(void)
 
 bool                            jo_vdp2_set_nbg1_8bits_bitmap(const int palette_id)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return (false);
+#endif
     if (!jo_vdp2_nbg1_bitmap_ready())
         return (false);
     JO_VDP2_SET_BITS(JO_VDP2_BMPNA, JO_VDP2_BMPN_PALETTE_MASK << 8, (palette_id & JO_VDP2_BMPN_PALETTE_MASK) << 8);
@@ -2704,6 +2744,72 @@ static bool                     jo_vdp2_nbg1_bitmap_ready(void)
     return (false);
 }
 
+void                            *__jo_vdp2_set_rgb_bitmap(const jo_scroll_screen screen, const unsigned int rows)
+{
+    void                        *bitmap;
+    int                         n;
+
+    if (screen == JO_NBG1_SCREEN)
+    {
+        // NBG1 shows an image (its cells): it is used
+        if (nbg1_cell != JO_NULL || nbg1_map != JO_NULL)
+            return (JO_NULL);
+        // Its bitmap (A0 and A1) if the start of A0 is free
+        if (__jo_vdp2_reserve_nbg1_bitmap())
+        {
+            jo_vdp2_use_nbg1_bitmap();
+            jo_dma_fill32(nbg1_bitmap, 0, rows * JO_VDP2_WIDTH * sizeof(jo_color));
+            jo_vdp2_display_nbg1();
+            return (nbg1_bitmap);
+        }
+        n = JO_VDP2_SCREEN_NBG1;
+    }
+    else if (screen == JO_NBG0_SCREEN)
+    {
+#ifndef JO_COMPILE_WITH_PRINTF_SUPPORT
+        // NBG0 shows an image: it is used (with the text of jo_printf(): the text is hidden, given back by
+        // __jo_vdp2_free_rgb_bitmap())
+        if (nbg0_cell != JO_NULL || nbg0_map != JO_NULL)
+            return (JO_NULL);
+#endif
+        n = JO_VDP2_SCREEN_NBG0;
+    }
+    else
+        return (JO_NULL);
+    // A bank of its own, after the blocks already allocated: the rows used only (the lines of a bitmap of 512 x 256 below
+    // them are not displayed: the other blocks after it)
+    if ((bitmap = __jo_vdp2_malloc_bank(rows * JO_VDP2_WIDTH * sizeof(jo_color))) == JO_NULL)
+        return (JO_NULL);
+    jo_dma_fill32(bitmap, 0, rows * JO_VDP2_WIDTH * sizeof(jo_color));
+    jo_vdp2_set_bitmap(n, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, bitmap);
+    if (n == JO_VDP2_SCREEN_NBG1)
+        // (not the bitmap of the drawing functions of NBG1: they set their registers again)
+        __jo_vdp2_nbg1_bitmap_registers = false;
+    JO_ADD_FLAG(screen_flags, screen);
+    jo_vdp2_set_displayed_screens(screen_flags);
+    return (bitmap);
+}
+
+void                            __jo_vdp2_free_rgb_bitmap(const jo_scroll_screen screen, void * const bitmap)
+{
+    if (bitmap == JO_NULL)
+        return;
+    // The bitmap of NBG1 stays (the drawing functions of NBG1 use it)
+    if (screen == JO_NBG1_SCREEN && bitmap == (void *)nbg1_bitmap)
+        return;
+    jo_vdp2_free(bitmap);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+    if (screen == JO_NBG0_SCREEN)
+    {
+        // The text of jo_printf() again (empty)
+        jo_vdp2_init_printf_font();
+        return;
+    }
+#endif
+    JO_REMOVE_FLAG(screen_flags, screen);
+    jo_vdp2_set_displayed_screens(screen_flags);
+}
+
 /** @brief Display NBG1 (nothing is done if it is already displayed) */
 static void                     jo_vdp2_display_nbg1(void)
 {
@@ -2793,6 +2899,11 @@ void                            __jo_vdp2_nbg1_bitmap_blit(const jo_img * const 
 
 void			                jo_vdp2_set_nbg1_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     jo_vdp2_set_nbg1_8bits_image_repeat(img, palette_id, vertical_flip, true);
 }
 
@@ -2822,6 +2933,11 @@ void			                jo_vdp2_set_nbg1_8bits_image_repeat(jo_img_8bits *img, in
 {
     unsigned int                size;
 
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_switch_to_8bits_mode();
     if (nbg1_cell != JO_NULL)
     {
@@ -3017,6 +3133,11 @@ void			                __jo_set_nbg2_8bits_image(jo_img_8bits *img, bool vertica
 
 void			                jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_set_nbg2_8bits_image(img, vertical_flip);
 	__jo_create_map(img, nbg2_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg2_cell));
 	if (enabled)
@@ -3047,6 +3168,11 @@ void			                __jo_set_nbg3_8bits_image(jo_img_8bits *img, bool vertica
 
 void			                jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_set_nbg3_8bits_image(img, vertical_flip);
 	__jo_create_map(img, nbg3_map, palette_id, JO_VDP2_CELL_TO_MAP_OFFSET(nbg3_cell));
 	if (enabled)
@@ -3118,6 +3244,11 @@ void                            jo_nbg2_print(int x, int y, char * str)
 
 void			                jo_vdp2_set_nbg2_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
 #ifdef JO_DEBUG
     if (img->width != 8)
     {
@@ -3198,6 +3329,11 @@ void                            jo_nbg3_print(int x, int y, char * str)
 
 void			                jo_vdp2_set_nbg3_8bits_font(jo_img_8bits *img, char *mapping, int palette_id, bool vertical_flip, bool enabled)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
 #ifdef JO_DEBUG
     if (img->width != 8)
     {
@@ -3390,6 +3526,14 @@ void	                        jo_vdp2_move_nbg1(const int x, const int y)
     JO_VDP2_SET(JO_VDP2_SCYDN1, 0);
 }
 
+void                            jo_vdp2_move_nbg1_fixed(const jo_fixed x, const jo_fixed y)
+{
+    JO_VDP2_SET(JO_VDP2_SCXIN1, (x >> 16) & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCXDN1, x & JO_VDP2_FRACTION_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYIN1, (y >> 16) & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYDN1, y & JO_VDP2_FRACTION_MASK);
+}
+
 void	                        jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor)
 {
     jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG0, jo_float2fixed(width_factor), jo_float2fixed(height_factor));
@@ -3398,6 +3542,24 @@ void	                        jo_vdp2_zoom_nbg0f(const float width_factor, const 
 void	                        jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor)
 {
     jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, jo_float2fixed(width_factor), jo_float2fixed(height_factor));
+}
+
+void                            jo_vdp2_zoom_nbg1_fixed(const jo_fixed width_factor, const jo_fixed height_factor)
+{
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, width_factor, height_factor);
+}
+
+void                            jo_vdp2_zoom_nbg0_fixed(const jo_fixed width_factor, const jo_fixed height_factor)
+{
+    jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG0, width_factor, height_factor);
+}
+
+void                            jo_vdp2_move_nbg0_fixed(const jo_fixed x, const jo_fixed y)
+{
+    JO_VDP2_SET(JO_VDP2_SCXIN0, (x >> 16) & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCXDN0, x & JO_VDP2_FRACTION_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYIN0, (y >> 16) & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYDN0, y & JO_VDP2_FRACTION_MASK);
 }
 
 void                            jo_vdp2_draw_rbg0_plane_a(const bool use_scroll_format_matrix)
@@ -4035,6 +4197,11 @@ void                                    __jo_vdp2_update_tv_mode(void)
 
 void                                    jo_core_set_screen_palette(const int palette_id)
 {
+#ifdef JO_DEBUG
+    // (-1: the palette of jo_create_palette() with the color RAM full)
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     __jo_vdp2_screen_palette = palette_id;
     jo_vdp2_set_tv_mode();
 }

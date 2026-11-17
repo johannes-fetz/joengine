@@ -37,6 +37,9 @@
 #include "jo/core.h"
 #include "jo/tools.h"
 #include "jo/math.h"
+#include "jo/colors.h"
+#include "jo/vdp1_command_pipeline.h"
+#include "jo/sprites.h"
 #include "jo/sprite_animator.h"
 
 jo_sprite_anim		__jo_sprite_anim_tab[JO_MAX_SPRITE_ANIM];
@@ -70,6 +73,17 @@ static void			__jo_internal_frame_animator(void)
     }
 }
 
+#ifdef JO_DEBUG
+
+/** @brief Check the sprites of an animation (JO_DEBUG): FRAME_COUNT sprites added from SPRITE_ID
+ *  @return true with the error (in the function that uses it) if not (no frame: the animation was seen as removed; a sprite
+ *  not added: any data of the VRAM drawn)
+ */
+# define JO_SPRITE_ANIM_FRAMES_ARE_WRONG(SPRITE_ID, FRAME_COUNT) \
+    (((FRAME_COUNT) == 0 && (jo_core_error("No frame"), true)) || __JO_SPRITE_IS_MISSING((SPRITE_ID) + (FRAME_COUNT) - 1))
+
+#endif
+
 int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const unsigned short frame_count, const unsigned char frame_rate)
 {
     // (the last animation created is __jo_sprite_anim_id; checked in all the builds: an index out of the table)
@@ -80,6 +94,10 @@ int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const
 #endif
         return (-1);
     }
+#ifdef JO_DEBUG
+    if (JO_SPRITE_ANIM_FRAMES_ARE_WRONG(sprite_id, frame_count))
+        return (-1);
+#endif
     __jo_sprite_anim_tab[at].action = JO_SPRITE_ANIM_STOP;
     JO_ZERO(__jo_sprite_anim_tab[at].frame_skip);
     JO_ZERO(__jo_sprite_anim_tab[at].cur_frame);
@@ -104,6 +122,10 @@ int			jo_create_sprite_anim(const unsigned short sprite_id, const unsigned short
 {
     int         at;
 
+#ifdef JO_DEBUG
+    if (JO_SPRITE_ANIM_FRAMES_ARE_WRONG(sprite_id, frame_count))
+        return (-1);
+#endif
     // (a removed animation before the last one: its place is used again, else the table was full after many creations and
     // removals in any order)
     for (at = 0; at < __jo_sprite_anim_id; ++at)

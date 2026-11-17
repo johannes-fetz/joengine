@@ -511,6 +511,10 @@ void                                jo_3d_create_triangle(jo_3d_quad * const qua
  */
 static  __jo_force_inline jo_3d_quad    *jo_3d_get_sprite_quad(const int sprite_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return (JO_NULL);
+#endif
     return ((__jo_sprite_quad == JO_NULL || __jo_sprite_quad[sprite_id] == JO_NULL) && !jo_3d_create_sprite_quad(sprite_id) ? JO_NULL : __jo_sprite_quad[sprite_id]);
 }
 
@@ -591,6 +595,11 @@ void                        jo_3d_set_mesh_polygon_wireframe(jo_3d_mesh * const 
  */
 static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * const mesh, const int palette_id, const unsigned int index)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id") ||
+        __JO_INDEX_IS_WRONG(index, mesh->data.polygon_count, "polygon index"))
+        return;
+#endif
     mesh->data.attributes[index].color = JO_MULT_BY_256(palette_id);
 }
 
@@ -600,6 +609,11 @@ static  __jo_force_inline void      jo_3d_set_mesh_polygon_palette(jo_3d_mesh * 
  */
 static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const mesh, const int palette_id)
 {
+    // (once: not an error for each polygon)
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     for (unsigned int i = 0; i < mesh->data.polygon_count; ++i)
         jo_3d_set_mesh_polygon_palette(mesh, palette_id, i);
 }
@@ -610,6 +624,10 @@ static  __jo_force_inline void      jo_3d_set_mesh_palette(jo_3d_mesh * const me
  */
 static  __jo_force_inline void      jo_3d_set_palette(jo_3d_quad * const quad, const int palette_id)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return;
+#endif
     quad->attribute.color = JO_MULT_BY_256(palette_id);
 }
 
@@ -620,6 +638,10 @@ static  __jo_force_inline void      jo_3d_set_palette(jo_3d_quad * const quad, c
  */
 static  __jo_force_inline bool      jo_3d_set_sprite_palette(const int sprite_id, const int palette_id)
 {
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id) || __JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id"))
+        return (false);
+#endif
     if ((__jo_sprite_quad == JO_NULL || __jo_sprite_quad[sprite_id] == JO_NULL) && !jo_3d_create_sprite_quad(sprite_id)) return (false);
     jo_3d_set_palette(__jo_sprite_quad[sprite_id], palette_id);
     return (true);
@@ -668,6 +690,10 @@ void                                jo_3d_set_high_speed_shrink(const bool enabl
  */
 static  __jo_force_inline void      jo_3d_set_mesh_vertice(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(index, mesh->data.point_count, "point index"))
+        return;
+#endif
     mesh->data.points[index].x = x;
     mesh->data.points[index].y = y;
     mesh->data.points[index].z = z;
@@ -682,6 +708,10 @@ static  __jo_force_inline void      jo_3d_set_mesh_vertice(jo_3d_mesh * const me
  */
 static  __jo_force_inline void      jo_3d_set_mesh_normal(jo_3d_mesh * const mesh, const jo_fixed x, const jo_fixed y, const jo_fixed z, const unsigned int index)
 {
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(index, mesh->data.polygon_count, "polygon index"))
+        return;
+#endif
     mesh->data.polygons[index].normal.x = x;
     mesh->data.polygons[index].normal.y = y;
     mesh->data.polygons[index].normal.z = z;
@@ -818,6 +848,27 @@ static  __jo_force_inline void      jo_3d_set_screen_doors(jo_3d_quad *const qua
 {
     jo_3d_set_mesh_polygon_screen_doors((jo_3d_mesh *)quad, enabled, 0);
 }
+
+/******************************************************
+*                  GOURAUD SHADING
+*******************************************************/
+
+/** @brief Give a gouraud table to one polygon of the mesh (the color of each of its 4 vertices is added to its color)
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param table Address / 8 of the table (see jo_3d_add_gouraud_tables()), JO_VDP1_NO_GOURAUD: no gouraud shading
+ *  @param index polygon index on the mesh
+ *  @remarks The light of the mesh (jo_3d_set_mesh_light()) writes its own tables: don't use both on a polygon
+ */
+void                                jo_3d_set_mesh_polygon_gouraud(jo_3d_mesh * const mesh, const unsigned short table, const unsigned int index);
+
+/** @brief Gouraud shading of the whole mesh: one table of 4 colors per polygon (a color per vertex, in the order of the
+ *  vertices of the polygon), added to the VRAM (see jo_3d_add_gouraud_tables())
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param tables Colors: 4 per polygon (JO_COLOR_SATURN_RGB(16, 16, 16): the color of the polygon unchanged; the
+ *  gouraud shading doesn't saturate: a component over 31 wraps around to the dark)
+ *  @return Address / 8 of the first table (the table of the polygon i: + i, to change its colors later), 0 if out of memory
+ */
+unsigned short                      jo_3d_set_mesh_gouraud(jo_3d_mesh * const mesh, const jo_color * const tables);
 
 /*
  ██████╗ ██████╗ ██╗      ██████╗ ██████╗ ███████╗
@@ -1084,6 +1135,13 @@ static  __jo_force_inline void      jo_3d_translate_matrix_z(int z)
  */
 static  __jo_force_inline void      jo_3d_draw(jo_3d_quad *const quad)
 {
+#ifdef JO_DEBUG
+    if (quad == JO_NULL)
+    {
+        jo_core_error("quad is null");
+        return;
+    }
+#endif
     __jo_3d_draw(&quad->data);
 }
 
@@ -1092,6 +1150,13 @@ static  __jo_force_inline void      jo_3d_draw(jo_3d_quad *const quad)
  */
 static  __jo_force_inline void      jo_3d_mesh_draw(jo_3d_mesh *const mesh)
 {
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return;
+    }
+#endif
     __jo_3d_draw(&mesh->data);
 }
 
@@ -1325,8 +1390,11 @@ static  __jo_force_inline void      jo_3d_window_clip(const bool clip)
 /** @brief Second far window for jo_3d_select_window() (a second mirror) */
 # define JO_3D_FAR_WINDOW_2                 (2)
 
+/** @brief Window of the transparency layer (see jo/transparency.h): selected by jo_3d_transparency_begin() */
+# define JO_3D_LAYER_WINDOW                 (JO_VDP1_OFF_SCREEN_WINDOW)
+
 /** @brief Select the window used by jo_3d_window() and by the next drawings
- *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
+ *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW, JO_3D_FAR_WINDOW_2 or JO_3D_LAYER_WINDOW
  */
 static  __jo_force_inline void      jo_3d_select_window(const int window)
 {
@@ -1473,7 +1541,7 @@ void                                jo_3d_transform_point_by(const jo_fixed (* c
 
 /** @brief Select the window of the next drawings of the slave CPU (call it on the slave CPU; jo_3d_slave_begin() selects
  *  the window of the master CPU, see jo_3d_select_window())
- *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW or JO_3D_FAR_WINDOW_2
+ *  @param window JO_3D_NEAR_WINDOW, JO_3D_FAR_WINDOW, JO_3D_FAR_WINDOW_2 or JO_3D_LAYER_WINDOW
  */
 void                                jo_3d_slave_select_window(const int window);
 
@@ -1841,6 +1909,13 @@ bool                                __jo_3d_slave_draw_ranges_from(const jo_3d_m
  */
 static  __jo_force_inline bool      jo_3d_slave_mesh_draw(const jo_3d_mesh * const mesh)
 {
+#ifdef JO_DEBUG
+    if (mesh == JO_NULL)
+    {
+        jo_core_error("mesh is null");
+        return (false);
+    }
+#endif
     return (jo_3d_slave_mesh_draw_ranges(mesh, mesh->data.point_count, JO_NULL, 0));
 }
 

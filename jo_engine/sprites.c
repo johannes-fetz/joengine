@@ -59,7 +59,7 @@
 ** GLOBALS
 */
 
-jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_NO_ZOOM, JO_NO_ZOOM, JO_VDP1_NO_WINDOW};
+jo_sprite_attributes    __jo_sprite_attributes = {0, 0, 0, 0, JO_NO_ZOOM, JO_NO_ZOOM, JO_VDP1_NO_WINDOW, 0};
 jo_pos3D                __jo_sprite_pos = {0, 0, 120};
 jo_texture_definition   __jo_sprite_def[JO_MAX_SPRITE] __attribute__((used, externally_visible));
 jo_picture_definition   __jo_sprite_pic[JO_MAX_SPRITE];
@@ -559,6 +559,10 @@ void                    jo_sprite_draw_4p_fixed(const int sprite_id, const jo_po
 
     if (sprite_id < 0)
         return;
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     __jo_set_sprite_attributes(&attr, sprite_id);
     // (centered: the points as they are, no copy; the standing sprites of the 3D, hundreds a frame)
     if (centered_style_coordinates)
@@ -682,6 +686,10 @@ void                    jo_sprite_draw_rotate(const int sprite_id, const jo_pos3
     // No sprite (for instance jo_get_video_sprite() when the movie is stopped)
     if (sprite_id < 0)
         return;
+#ifdef JO_DEBUG
+    if (__JO_SPRITE_IS_MISSING(sprite_id))
+        return;
+#endif
     jo_sprite_compute_position(sprite_id, pos, centered_style_coordinates, &position);
     __jo_set_sprite_attributes(&attr, sprite_id);
     vdp1_angle = jo_DEGtoANG_int(angle);
