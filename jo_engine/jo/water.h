@@ -368,6 +368,7 @@ static  __jo_force_inline int   jo_water_swell(jo_water_wave * const waves, cons
 jo_water    *jo_water_create(const jo_water_config * const config);
 
 /** @brief Move the waves to the time of the frame and the grid around the camera, compute the heights and the light
+ *  @param w Water (jo_water_create())
  *  @param frame Time (frames, 60 per second: jo_core_get_vblank_count(), the waves move at the same speed at any frame rate)
  *  @param x Camera position (units)
  *  @param y Camera position (units, y down)
@@ -382,6 +383,7 @@ void        jo_water_draw(jo_water * const w);
 /** @brief Draw the water and the objects on it: the master CPU draws some objects while the slave CPU draws the water near
  *  the camera, then other objects (the time of the drawing on both CPUs: the slave CPU computes fewer waves, see the
  *  balance of jo_water_update())
+ *  @param w Water (jo_water_create())
  *  @param objects Draws objects on the master CPU (jo_3d_mesh_draw()...), JO_NULL: none
  *  @param objects_on_slave Draws objects on the slave CPU after the water (jo_3d_slave_mesh_draw()..., the matrix of the
  *  camera; the slave CPU uses the light set before jo_water_draw_with()), JO_NULL: none
@@ -391,6 +393,7 @@ void        jo_water_draw_with(jo_water * const w, void (*objects)(void), void (
 /** @brief Side of the quads of the water drawn at a point (the finest level that covers it, see jo_water_config.levels): an
  *  object seen through the water (under it) is sorted nearer than the point where it is seen by about half of it (a quad
  *  is sorted at its center)
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @return Side (units); the side of the last level outside of the levels
@@ -398,6 +401,7 @@ void        jo_water_draw_with(jo_water * const w, void (*objects)(void), void (
 int         jo_water_quad_side(const jo_water * const w, const int x, const int z);
 
 /** @brief Height of the surface at a point (the waves, the splashes, the wave fronts at the time of jo_water_update())
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @return Height (jo_fixed units, > 0 above the calm sea)
@@ -406,6 +410,7 @@ jo_fixed    jo_water_height(const jo_water * const w, const int x, const int z);
 
 /** @brief Height of the surface as it is drawn at a point (the vertices of the finest level that covers it, interpolated):
  *  cheap (no sine), for many points (along a line of sight); the waves (jo_water_wave_height()) outside of the levels
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @return Height (jo_fixed units, > 0 above the calm sea)
@@ -416,6 +421,7 @@ jo_fixed    jo_water_drawn_height(const jo_water * const w, const int x, const i
 
 /** @brief Height of the waves at a point, without the splashes and the wave fronts (faster than jo_water_height(): many
  *  points, for instance along a line of sight)
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @return Height (jo_fixed units, > 0 above the calm sea)
@@ -423,6 +429,7 @@ jo_fixed    jo_water_drawn_height(const jo_water * const w, const int x, const i
 jo_fixed    jo_water_wave_height(const jo_water * const w, const int x, const int z);
 
 /** @brief Height and slopes of the surface at a point: for an object on the water (its height, its tilt)
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @param point Height and slopes (output)
@@ -456,23 +463,27 @@ void        jo_water_floating_init(jo_water_floating * const f, const int x, con
 /** @brief Move a floating object (once per frame, after jo_water_update()): it falls (gravity), splashes in the water (a ring
  *  of waves as high as its speed, see jo_water_drop()), then floats: a damped spring toward the surface under it, tilted
  *  with the slope of the surface (jo_water_sample())
+ *  @param w Water (jo_water_create())
  *  @param f Object
  *  @remarks Draw it at (x, -y, z) (y down), rotated by tilt_x, then tilt_z
  */
 void        jo_water_float(jo_water * const w, jo_water_floating * const f);
 
 /** @brief Change the swell (a calm sea, a storm, the wind turns)
+ *  @param w Water (jo_water_create())
  *  @param waves Waves (copied)
  *  @param count JO_WATER_MAX_WAVES at most
  */
 void        jo_water_set_waves(jo_water * const w, const jo_water_wave * const waves, const int count);
 
 /** @brief Strength of the swell: the heights of the waves x scale (a storm that grows, a calm that comes)
+ *  @param w Water (jo_water_create())
  *  @param scale jo_fixed (JO_FIXED_1: the heights of the waves as they are)
  */
 void        jo_water_set_swell(jo_water * const w, const jo_fixed scale);
 
 /** @brief An object falls in the water: a ring of waves goes away from the point (near the camera only)
+ *  @param w Water (jo_water_create())
  *  @param x Position (units)
  *  @param z Position (units)
  *  @param height Height of the first wave (units)
@@ -481,6 +492,7 @@ void        jo_water_drop(jo_water * const w, const int x, const int z, const in
 
 /** @brief A straight wave (2 crests, the second one the highest) that goes from a point in a direction: it grows, then
  *  fades out (a half sine over config.front_life frames; near the camera only)
+ *  @param w Water (jo_water_create())
  *  @param x Start (units)
  *  @param z Start (units)
  *  @param direction Direction (jo_angle, 0 = toward +z)
@@ -492,6 +504,7 @@ void        jo_water_wave_front(jo_water * const w, const int x, const int z, co
 /** @brief Foam on the water (a trail, a wake, a splash): a disc of the foam grid (cells of 8 units around the camera,
  *  1024 units: the foam out of it is lost), white at once, it fades out in life frames (the foam already there and longer
  *  is kept). The quads near the camera get the foam texture, more of it with more foam
+ *  @param w Water (jo_water_create())
  *  @param x Center (units)
  *  @param z Center (units)
  *  @param radius Units (8 at least: a cell)
@@ -501,6 +514,7 @@ void        jo_water_foam(jo_water * const w, const int x, const int z, const in
 
 /** @brief The depth of the water around (a map of bytes: 0 the shore, 255 deep): the shallow water is lighter (config.shore),
  *  the waves break on the shore (config.surf)
+ *  @param w Water (jo_water_create())
  *  @param map size x size bytes, the row z then the column x (JO_NULL: no map, deep everywhere)
  *  @param size Cells on a side (a power of 2)
  *  @param shift A cell is 1 << shift units
@@ -515,6 +529,7 @@ void        jo_water_set_depth_map(jo_water * const w, const unsigned char * con
 int         jo_water_foam_at(const jo_water * const w, const int x, const int z);
 
 /** @brief Position of the sun (the light, the glints, the spot)
+ *  @param w Water (jo_water_create())
  *  @param azimuth Direction (jo_angle, 0 = toward +z)
  *  @param elevation Height above the horizon (jo_angle)
  */
@@ -529,6 +544,7 @@ const jo_water_config  *jo_water_get_config(const jo_water * const w);
 /** @brief The color of the water seen from above (its color with the light of config.shallow: the face of a wave toward the
  *  camera), 5 to 21 steps per channel (a gouraud of 16 +/- 5 stays in 0 to 31): the color of an object under the water is
  *  mixed with it
+ *  @param w Water (jo_water_create())
  *  @param object The color of the object
  *  @param amount Of the water (/ 256)
  */
@@ -572,6 +588,7 @@ typedef struct s_jo_water_object   jo_water_object;
  *  a wreck; the whole model if it has no group). Its colors become its colors seen through the water: RGB colors, colors
  *  of the palette, textures of 16 colors (a color lookup table of 32 bytes each, the pixels are not copied) and RGB
  *  textures (copied); its gouraud shading stays, not lit (the light of the sun under the water is diffuse)
+ *  @param w Water (jo_water_create())
  *  @param model Model (jo_3d_load_model(); its points in the world, or in the space of each object: see jo_water_place())
  *  @param amount Of the color of the water seen from above in its colors (/ 256: 0 its own colors)
  *  @param far Not drawn farther from the camera (units: |dx| + |dz|)
@@ -583,6 +600,7 @@ int         jo_water_add_model(jo_water * const w, jo_3d_model * const model, co
 
 /** @brief Put polygons of a mesh under the water (see jo_water_add_model()): a mesh made by the program, its points changed in
  *  any frame (see jo_water_reshape())
+ *  @param w Water (jo_water_create())
  *  @param mesh Mesh
  *  @param first First polygon of the object
  *  @param count Polygons
@@ -594,6 +612,7 @@ jo_water_object *jo_water_add_mesh(jo_water * const w, jo_3d_mesh * const mesh, 
                                 const int far);
 
 /** @brief Place the space of an object (the space of the points of its mesh): the world by default
+ *  @param o Object (jo_water_add_model(), jo_water_add_mesh())
  *  @param x Position (units)
  *  @param y Position (units, y down)
  *  @param z Position (units)
@@ -602,6 +621,7 @@ jo_water_object *jo_water_add_mesh(jo_water * const w, jo_3d_mesh * const mesh, 
 void        jo_water_place(jo_water_object * const o, const int x, const int y, const int z, const jo_angle heading);
 
 /** @brief Show or hide an object, hide some of its polygons
+ *  @param o Object (jo_water_add_model(), jo_water_add_mesh())
  *  @param shown Drawn (when it is in the view and near enough)
  *  @param hidden Polygons not drawn: bit k for the polygon k of the object (the first 32)
  */
@@ -617,6 +637,7 @@ void        jo_water_set_far(jo_water_object * const o, const int far);
 /** @brief An object above the water in front of which the objects under the water stay (a jet ski, a buoy, a boat):
  *  an object under the water that it covers on the screen is sorted behind it. Call it each frame before
  *  jo_water_draw_with() (forgotten after it)
+ *  @param w Water (jo_water_create())
  *  @param x Its center (units)
  *  @param y Its center (units, y down)
  *  @param z Its center (units)
@@ -634,6 +655,7 @@ typedef struct s_jo_water_dip  jo_water_dip;
 
 /** @brief Prepare a floating object: its polygons under the surface take their colors seen through the water, deeper:
  *  more of the water (see jo_water_dip_mesh()); its own attributes are kept for the polygons above the jo_water
+ *  @param w Water (jo_water_create())
  *  @param mesh Mesh (its polygons as drawn above the water)
  *  @param levels Depth levels (JO_WATER_DIP_LEVELS at most)
  *  @param amounts Of the color of the water at each level (/ 256)
@@ -647,6 +669,7 @@ jo_water_dip   *jo_water_add_dip(jo_water * const w, jo_3d_mesh * const mesh, co
 
 /** @brief Set the colors of the polygons of a floating object from the depth of their middles under the surface (call it
  *  before it is drawn)
+ *  @param d Floating object (jo_water_add_dip())
  *  @param surface The surface in the space of the mesh (jo_fixed units, y down: the height of the object - the height of
  *         the water)
  *  @param pitch Its pitch (jo_angle: turned around x after its roll, as drawn)
