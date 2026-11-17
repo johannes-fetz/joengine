@@ -425,11 +425,19 @@ MAKEFILE = makefile
 
 # The objects of the engine are shared by the games (jo_engine/*.o): they are rebuilt when the options change (another
 # game, a module added to the makefile, other test flags). The options of the last build: jo_engine/jo_options.txt
-# (GNU Make 4.2 or more: $(file))
+# GNU Make 4.2 or more: $(file). Older versions (the GNU Make 3.81 of macOS) don't have $(file) to read it (nothing
+# was written and the build stopped on "No rule to make target jo_options.txt"): the shell writes it
 JO_OPTIONS_FILE = $(JO_ENGINE_SRC_DIR)/jo_options.txt
 JO_OPTIONS = $(strip $(CCFLAGS) $(_CCFLAGS) $(DFLAGS))
+ifneq ($(filter 3.% 4.0 4.0.% 4.1 4.1.%,$(MAKE_VERSION)),)
+JO_OPTIONS_LAST := $(shell cat "$(JO_OPTIONS_FILE)" 2>/dev/null)
+ifneq ($(strip $(JO_OPTIONS_LAST)),$(JO_OPTIONS))
+JO_OPTIONS_WRITE := $(shell printf '%s\n' '$(subst ','\'',$(JO_OPTIONS))' > "$(JO_OPTIONS_FILE)")
+endif
+else
 ifneq ($(strip $(file < $(JO_OPTIONS_FILE))),$(JO_OPTIONS))
 $(file > $(JO_OPTIONS_FILE),$(JO_OPTIONS))
+endif
 endif
 
 .PHONY : all clean re
@@ -447,6 +455,8 @@ endif
 endif
 
 $(OBJS) $(SYSOBJS): $(JO_OPTIONS_FILE)
+# (the file could not be written, a read-only folder: the objects are built again instead of stopping the build)
+$(JO_OPTIONS_FILE):
 
 $(TARGET) : $(SYSOBJS) $(OBJS) $(MAKEFILE) $(LDFILE)
 	$(CC) $(LDFLAGS) $(SYSOBJS) $(OBJS) $(LIBS) -o $@

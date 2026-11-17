@@ -14,7 +14,7 @@
 #   ./build_toolchain.sh
 #
 # Optional environment variables:
-#   BINUTILS_VERSION, GCC_VERSION, NEWLIB_VERSION  Versions to build (default: 2.42, 13.2.0 and 4.4.0.20231231)
+#   BINUTILS_VERSION, GCC_VERSION, NEWLIB_VERSION  Versions to build (default: 2.47, 16.2.0 and 4.6.0.20260123)
 #   BINUTILS_SRC, GCC_SRC, NEWLIB_SRC               Use already extracted sources instead of downloading them
 #   JOBS                           Parallel jobs (default: CPU count)
 #
@@ -23,9 +23,9 @@
 
 set -e
 
-BINUTILS_VERSION=${BINUTILS_VERSION:-2.42}
-GCC_VERSION=${GCC_VERSION:-13.2.0}
-NEWLIB_VERSION=${NEWLIB_VERSION:-4.4.0.20231231}
+BINUTILS_VERSION=${BINUTILS_VERSION:-2.47}
+GCC_VERSION=${GCC_VERSION:-16.2.0}
+NEWLIB_VERSION=${NEWLIB_VERSION:-4.6.0.20260123}
 TARGET=sh-elf
 PREFIX="$(cd "$(dirname "$0")" && pwd)"
 WORK="${PREFIX}/build"
