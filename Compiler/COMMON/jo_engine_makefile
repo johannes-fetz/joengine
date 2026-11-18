@@ -87,8 +87,8 @@ endif
 # chosen by the game in its makefile (JO_MINIMAL = 1 and JO_COMPILE_WITH_FS_MODULE = 1: the files of the CD too). The
 # file system is on with the modules that read files (TGA, AUDIO, VIDEO), unless the game sets it.
 # JO_DEBUG keeps its default (1): JO_DEBUG = 0 removes the checks and the error messages too (a release).
-# Sizes of Samples/demo - minimal (game.raw: rectangles, a sprite made in the program, the pad): 29052 bytes with the
-# default engine, 20940 with JO_MINIMAL = 1, 17616 with JO_MINIMAL = 1 and JO_DEBUG = 0 (see also jo/conf.h)
+# Sizes of Samples/demo - minimal (game.raw: rectangles, a sprite made in the program, the pad): 30292 bytes with the
+# default engine, 19652 with JO_MINIMAL = 1, 15432 with JO_MINIMAL = 1 and JO_DEBUG = 0 (see also jo/conf.h)
 ifeq (1,${JO_MINIMAL})
 ifeq (${JO_COMPILE_WITH_FS_MODULE},)
 ifneq ($(filter 1,${JO_COMPILE_WITH_TGA_MODULE} ${JO_COMPILE_WITH_AUDIO_MODULE} ${JO_COMPILE_WITH_VIDEO_MODULE}),)
@@ -393,6 +393,10 @@ endif
 endif
 
 LDFLAGS = -m2
+# Link: the same -O2 -flto as the compilation (as GCC recommends), and each function and variable in its own section
+# with --gc-sections: the code that the LTO makes useless (a function inlined everywhere, the table of a removed
+# function) is not linked (jo.linker keeps the start code with KEEP())
+LDFLAGS += -O2 -flto -ffunction-sections -fdata-sections -Wl,--gc-sections
 LDFLAGS +=-Xlinker -T$(LDFILE) -Xlinker -Map \
           -Xlinker $(MPFILE) -Xlinker -e -Xlinker ___Start -nostartfiles
 ifneq ($(OS), Windows_NT)
