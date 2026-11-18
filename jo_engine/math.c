@@ -38,6 +38,7 @@
 #include "jo/core.h"
 #include "jo/tools.h"
 #include "jo/math.h"
+#include "internal/tools.h"
 
 /*
 ** Sinus table: sin(x) for x in [0, pi/2] (1024 steps, Q16.16)
@@ -189,14 +190,6 @@ const jo_fixed                  __jo_sin_table[1025] =
 **  - https://github.com/johannes-fetz/joengine/pull/19
 */
 
-/** @brief 2^k, k from 0 to 31 */
-static const unsigned int       __jo_pow2[32] =
-{
-    0x1u, 0x2u, 0x4u, 0x8u, 0x10u, 0x20u, 0x40u, 0x80u, 0x100u, 0x200u, 0x400u, 0x800u, 0x1000u, 0x2000u, 0x4000u, 0x8000u,
-    0x10000u, 0x20000u, 0x40000u, 0x80000u, 0x100000u, 0x200000u, 0x400000u, 0x800000u, 0x1000000u, 0x2000000u,
-    0x4000000u, 0x8000000u, 0x10000000u, 0x20000000u, 0x40000000u, 0x80000000u
-};
-
 jo_fixed            jo_fixed_pow(jo_fixed x, jo_fixed y)
 {
     jo_fixed        result;
@@ -274,7 +267,7 @@ int                 jo_gcd(int a, int b)
         v -= u;
     } while (v != 0);
     // (a product: a variable shift is a loop of libgcc)
-    return ((int)(u * __jo_pow2[shift]));
+    return ((int)(u * __jo_bits[shift]));
 }
 
 /** @brief Angle (degree, 0 to 45) of a slope (0 to 1): polynomial approximation of atan(t)
@@ -481,9 +474,9 @@ jo_fixed                        __jo_float_to_fixed(const float x)
     // rounded toward 0 like a cast)
     mantissa = (bits & 0x7FFFFFu) | 0x800000u;
     if (exponent >= 7)
-        v = mantissa * __jo_pow2[exponent - 7];
+        v = mantissa * __jo_bits[exponent - 7];
     else
-        v = (unsigned int)(((unsigned long long)mantissa * __jo_pow2[25 + exponent]) >> 32);
+        v = (unsigned int)(((unsigned long long)mantissa * __jo_bits[25 + exponent]) >> 32);
     return ((bits & 0x80000000u) ? -(jo_fixed)v : (jo_fixed)v);
 }
 
@@ -505,13 +498,13 @@ float                           __jo_fixed_to_float(const jo_fixed x)
     // (the 24 highest bits are the mantissa; more bits: rounded to the nearest, to even on a tie, like the conversion of
     // the compiler)
     if (top <= 23)
-        m = v * __jo_pow2[23 - top];
+        m = v * __jo_bits[23 - top];
     else
     {
         k = top - 23;
-        m = (unsigned int)(((unsigned long long)v * __jo_pow2[32 - k]) >> 32);
-        rest = v - m * __jo_pow2[k];
-        half = __jo_pow2[k - 1];
+        m = (unsigned int)(((unsigned long long)v * __jo_bits[32 - k]) >> 32);
+        rest = v - m * __jo_bits[k];
+        half = __jo_bits[k - 1];
         if (rest > half || (rest == half && (m & 1)))
         {
             ++m;
@@ -687,7 +680,7 @@ jo_fixed        jo_vector_fixed_length(const jo_vector_fixed * const a)
         ++k;
     }
     // (the root shifted back by a product: a variable shift is a loop of libgcc, ___ashlsi3_r0)
-    return ((jo_fixed)(jo_sqrt((unsigned int)square) * __jo_pow2[k]));
+    return ((jo_fixed)(jo_sqrt((unsigned int)square) * __jo_bits[k]));
 }
 
 void            jo_vector_fixed_normalize(const jo_vector_fixed * const a, jo_vector_fixed * const result)

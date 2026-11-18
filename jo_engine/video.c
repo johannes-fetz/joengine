@@ -46,6 +46,10 @@
 #include "internal/sega_saturn.h"
 #include "internal/fs.h"
 #include "internal/sprites.h"
+#ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
+# include "jo/audio.h"
+# include "internal/audio.h"
+#endif
 
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
 
@@ -70,7 +74,7 @@
 /*
 ** INTERNAL MACROS
 */
-/** @brief Audio ring buffer in sound RAM */
+/** @brief Audio ring buffer in sound RAM (with the audio module: the place it gives, see jo_video_queue_audio()) */
 # define JO_VIDEO_PCM_ADDR                  ((unsigned char *)(JO_SOUND_RAM + 0x20000))
 # define JO_VIDEO_PCM_SIZE                  (4096L * 16)
 /** @brief Buffer for the movie file */
@@ -83,7 +87,7 @@
 # define JO_VIDEO_WORK_SIZE                 (40 * 1024)
 /** @brief Maximum size of the FILM header */
 # define JO_VIDEO_MAX_HEADER_BYTES          (JO_VIDEO_WORK_SIZE - JO_VIDEO_MAX_STRIPS * JO_VIDEO_CODEBOOK_BYTES * 2 - 256)
-/** @brief SCSP slots used for the movie audio (left and right) */
+/** @brief SCSP slots used for the movie audio (left and right: the slots of the last channel of the audio module) */
 # define JO_VIDEO_AUDIO_SLOT                (30)
 /** @brief Time stamp of an audio sample in the STAB chunk */
 # define JO_VIDEO_AUDIO_SAMPLE              (0xFFFFFFFF)
@@ -114,6 +118,12 @@
 # define JO_VIDEO_CHUNK_VECTORS_V1_ONLY             (0x3200)
 /** @brief Sector size */
 # define JO_VIDEO_SECTOR_SIZE               (2048)
+/** @brief The sound chip stopped this many VBLANKs after the end of the sound of the movie (in the zeros after it, see
+ *  jo_video_task()): the time played is right within a VBLANK */
+# define JO_VIDEO_AUDIO_GUARD_TICKS         (2)
+/** @brief The sound queued this many VBLANKs before it plays, ahead of its frames when they are decoded late (see
+ *  jo_video_queue_audio_ahead()) */
+# define JO_VIDEO_AUDIO_AHEAD_TICKS         (8)
 
 typedef struct
 {
@@ -145,6 +155,7 @@ typedef struct
     unsigned short              *decode;
     unsigned int                decode_pitch; // In pixels
     unsigned int                next_sample;
+    unsigned int                next_audio; // The sounds before it are queued (see jo_video_queue_audio_ahead())
     bool                        playing;
     bool                        paused;
     bool                        frame_ready;
@@ -154,8 +165,13 @@ typedef struct
     // Audio
     unsigned char               *pcm; // In sound RAM
     unsigned int                pcm_size;
-    unsigned int                pcm_write; // Per channel write position (bytes)
     bool                        audio_started;
+    // The sound played: the ticks at the key on, the samples per tick x 65536, the samples (per channel) written since the
+    // key on and the samples cleared after them (see jo_video_queue_audio())
+    unsigned int                audio_ticks;
+    unsigned int                audio_rate;
+    unsigned int                audio_queued;
+    unsigned int                audio_cleared;
     // Jo Engine
     void                        *movie_buffer;
     void                        *decode_buffer;
@@ -199,6 +215,7 @@ static const unsigned char      *jo_video_file_data(const unsigned int offset, c
 {
     jo_video_movie              *m;
     unsigned int                keep;
+    unsigned int                count;
     int                         read;
 
     unsigned int                start;
@@ -231,12 +248,16 @@ static const unsigned char      *jo_video_file_data(const unsigned int offset, c
             ++m->file_sector;
             continue;
         }
-        __jo_fs_seek_sector(m->file, m->file_sector);
-        read = __jo_fs_read_sectors(m->file, 1, m->buffer + (m->window_end - m->window_start), JO_VIDEO_SECTOR_SIZE);
+        // All the sectors missing in one read: one command of the CD block for a frame instead of one per sector (there
+        // is room for them: offset + size + a sector fits in the window, checked above)
+        count = (offset + size - m->window_end + JO_VIDEO_SECTOR_SIZE - 1) / JO_VIDEO_SECTOR_SIZE;
+        __jo_fs_seek_sector(m->file, (int)m->file_sector);
+        read = __jo_fs_read_sectors(m->file, (int)count, m->buffer + (m->window_end - m->window_start),
+                                    (int)(count * JO_VIDEO_SECTOR_SIZE));
         if (read <= 0)
             return (JO_NULL);
         m->window_end += read;
-        ++m->file_sector;
+        m->file_sector += count;
     }
     return (m->buffer + (offset - m->window_start));
 }
@@ -306,6 +327,14 @@ static void                     jo_video_stop_audio(void)
         JO_SCSP_SLOT(JO_VIDEO_AUDIO_SLOT + 1, JO_SCSP_SLOT_CONTROL) = JO_SCSP_KEY_ON_EXECUTE;
     }
     __jo_video_movie.audio_started = false;
+    JO_ZERO(__jo_video_movie.audio_queued);
+    JO_ZERO(__jo_video_movie.audio_cleared);
+}
+
+/** @brief The samples (per channel) played since the key on, from the time of the movie */
+static unsigned int             jo_video_audio_played(const jo_video_movie * const m)
+{
+    return ((unsigned int)(((unsigned long long)(m->ticks - m->audio_ticks) * m->audio_rate) >> 16));
 }
 
 /** @brief Movie timer (VBLANK callback) */
@@ -643,6 +672,69 @@ static void                     jo_video_decode_frame(const unsigned char *p, co
     }
 }
 
+/** @brief Clear bytes of the audio ring (an odd first byte of 8 bits samples left)
+ *  @param dst First byte
+ *  @param n Bytes
+ */
+static void                     jo_video_clear_audio(unsigned char *dst, unsigned int n)
+{
+    if (((unsigned int)dst & 1) && n > 0)
+    {
+        ++dst;
+        --n;
+    }
+    // (16 bits writes at the ends, the words of 32 bits between them by the DMA controller: jo_dma_fill32() writes words)
+    if (((unsigned int)dst & 2) && n >= 2)
+    {
+        *(volatile unsigned short *)dst = 0;
+        dst += 2;
+        n -= 2;
+    }
+    if (n >= 4)
+    {
+        jo_dma_fill32(dst, 0, n & ~3u);
+        dst += n & ~3u;
+    }
+    if (n & 2)
+        *(volatile unsigned short *)dst = 0;
+}
+
+/** @brief Write samples in the audio ring, or zeros (each channel)
+ *  @param data Samples of the channels one after the other (per_channel bytes each), JO_NULL: zeros
+ *  @param per_channel Bytes of a channel in data
+ *  @param from First sample written (per channel, since the key on)
+ *  @param count Samples written (per channel)
+ */
+static void                     jo_video_write_audio(const unsigned char * const data, const unsigned int per_channel,
+                                                     const unsigned int from, const unsigned int count, const unsigned int channels,
+                                                     const unsigned int half, const unsigned int bytes)
+{
+    jo_video_movie              *m;
+    unsigned int                c;
+    unsigned int                n;
+    unsigned int                pos;
+    unsigned int                done;
+    unsigned char               *dst;
+
+    m = &__jo_video_movie;
+    for (JO_ZERO(c); c < channels; ++c)
+    {
+        pos = (from * bytes) % half;
+        for (JO_ZERO(done); done < count * bytes; done += n)
+        {
+            n = JO_MIN(count * bytes - done, half - pos);
+            dst = m->pcm + c * half + pos;
+            if (data != JO_NULL)
+                jo_dma_copy(data + c * per_channel + done, dst, n);
+            else
+                jo_video_clear_audio(dst, n);
+            pos += n;
+            if (pos >= half)
+                JO_ZERO(pos);
+        }
+    }
+}
+
 /** @brief Copy an audio sample in the audio ring buffer
  *  @param data Audio data (left channel then right channel)
  *  @param size Data size
@@ -655,39 +747,73 @@ static void                     jo_video_queue_audio(const unsigned char *data, 
     unsigned int                half;
     unsigned int                per_channel;
     unsigned int                c;
-    unsigned int                n;
-    unsigned int                pos;
-    unsigned int                done;
     unsigned int                slot;
     unsigned int                offset;
     unsigned int                samples;
+    unsigned int                count;
+    unsigned int                bytes;
+    unsigned int                skip;
+    unsigned int                played;
+    unsigned int                target;
+    unsigned int                end;
     bool                        bits8;
 
     m = &__jo_video_movie;
+#ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
+    // The place of the samples and the last channel taken from the audio module at the first sound of the movie (its
+    // copied sounds and its channels kept away: they played the samples of the movie). No room: no sound
+    if (m->pcm == JO_NULL)
+    {
+        if (m->pcm_size == 0)
+            return;
+        if ((offset = __jo_audio_reserve_movie(m->pcm_size)) == 0)
+        {
+            JO_ZERO(m->pcm_size);
+# ifdef JO_DEBUG
+            jo_core_error("No room in the sound RAM for the sound of the movie: fewer resident sounds");
+# endif
+            return;
+        }
+        m->pcm = (unsigned char *)(JO_SOUND_RAM + offset);
+    }
+#endif
     channels = m->header.audio_channels ? m->header.audio_channels : 1;
     if (channels > 2)
         channels = 2;
     half = (m->pcm_size / channels) & ~3;
     per_channel = size / channels;
-    for (JO_ZERO(c); c < channels; ++c)
+    bits8 = (m->header.audio_bits == 8);
+    bytes = bits8 ? 1 : 2;
+    samples = half / bytes;
+    count = per_channel / bytes;
+    // Late (the window of the file too small to queue it ahead): the samples already played dropped (the estimate is right
+    // within a VBLANK), the next ones written before they play. Written behind the sound chip, they were heard one turn of
+    // the ring later
+    JO_ZERO(skip);
+    JO_ZERO(played);
+    if (m->audio_started)
     {
-        pos = m->pcm_write;
-        for (JO_ZERO(done); done < per_channel; done += n)
-        {
-            n = per_channel - done;
-            if (n > half - pos)
-                n = half - pos;
-            jo_dma_copy(data + c * per_channel + done, m->pcm + c * half + pos, n);
-            pos += n;
-            if (pos >= half)
-                JO_ZERO(pos);
-        }
+        played = jo_video_audio_played(m);
+        target = m->audio_queued + (m->audio_rate >> 16);
+        if (played > target)
+            skip = JO_MIN(played - target, count);
     }
-    m->pcm_write = (m->pcm_write + per_channel) % half;
+    jo_video_write_audio(data + skip * bytes, per_channel, m->audio_queued + skip, count - skip, channels, half, bytes);
+    m->audio_queued += count;
+    // Zeros after the samples written (a quarter of the ring): played instead of the sound of the last turn of the ring when
+    // the movie is late, and at its end before the key off (it cut the sound: a click). Not over the samples not played yet
+    if (m->audio_cleared < m->audio_queued)
+        m->audio_cleared = m->audio_queued;
+    end = m->audio_queued + samples / 4;
+    if (m->audio_queued - JO_MIN(played, m->audio_queued) + samples / 4 <= samples && end > m->audio_cleared)
+    {
+        jo_video_write_audio(JO_NULL, 0, m->audio_cleared, end - m->audio_cleared, channels, half, bytes);
+        m->audio_cleared = end;
+    }
     if (m->audio_started || !m->header.audio_frequency)
         return;
-    bits8 = (m->header.audio_bits == 8);
-    samples = bits8 ? half : (half >> 1);
+    m->audio_ticks = m->ticks;
+    m->audio_rate = jo_uint_div((unsigned int)m->header.audio_frequency << 16, m->fields_per_second);
     for (JO_ZERO(c); c < channels; ++c)
     {
         slot = JO_VIDEO_AUDIO_SLOT + c;
@@ -710,6 +836,44 @@ static void                     jo_video_queue_audio(const unsigned char *data, 
     m->audio_started = true;
 }
 
+/** @brief Queue the sound JO_VIDEO_AUDIO_AHEAD_TICKS before it plays, before the frames that come first in the file: the
+ *  sound is stored at its time in the file, it was late after heavy frames decoded late (the sound of the last turn of the
+ *  ring played). The frames before the sound read with it (kept in the window of the file, if it is big enough)
+ */
+static void                     jo_video_queue_audio_ahead(void)
+{
+    jo_video_movie              *m;
+    const unsigned char         *entry;
+    const unsigned char         *data;
+    unsigned int                offset;
+    unsigned int                length;
+    unsigned int                limit;
+    unsigned int                samples;
+    unsigned int                first;
+
+    m = &__jo_video_movie;
+    if (!m->audio_started)
+        return;
+    samples = (m->pcm_size / (m->header.audio_channels > 1 ? 2 : 1)) / (m->header.audio_bits == 8 ? 1 : 2);
+    limit = jo_video_audio_played(m) + JO_MIN(JO_VIDEO_AUDIO_AHEAD_TICKS * (m->audio_rate >> 16), samples / 4);
+    if (m->next_audio < m->next_sample)
+        m->next_audio = m->next_sample;
+    for (; m->audio_queued < limit && m->next_audio < m->sample_count; ++m->next_audio)
+    {
+        entry = m->stab + JO_MULT_BY_16(m->next_audio);
+        if (jo_video_be32(entry + 8) != JO_VIDEO_AUDIO_SAMPLE)
+            continue;
+        offset = jo_video_be32(entry) + m->header_size;
+        length = jo_video_be32(entry + 4);
+        // (the data of the file from the next frame: the data before it is not used anymore)
+        first = jo_video_be32(m->stab + JO_MULT_BY_16(m->next_sample)) + m->header_size;
+        if (offset < first || offset - first + length + JO_VIDEO_SECTOR_SIZE > m->buffer_size ||
+            (data = jo_video_file_data(first, offset - first + length)) == JO_NULL)
+            return;
+        jo_video_queue_audio(data + (offset - first), length);
+    }
+}
+
 /** @brief Decode the next frames (called every frame)
  *  @remarks Audio samples are queued until the next video frame. A video frame is decoded when its time has come
  */
@@ -727,6 +891,7 @@ static void                     jo_video_task(void)
     if (!m->playing || m->paused || m->ended)
         return;
     now = (unsigned int)(((unsigned long long)m->ticks * m->time_base) / m->fields_per_second);
+    jo_video_queue_audio_ahead();
     while (m->next_sample < m->sample_count)
     {
         entry = m->stab + JO_MULT_BY_16(m->next_sample);
@@ -735,6 +900,12 @@ static void                     jo_video_task(void)
         stamp = jo_video_be32(entry + 8);
         if (stamp == JO_VIDEO_AUDIO_SAMPLE)
         {
+            // (queued ahead)
+            if (m->next_sample < m->next_audio)
+            {
+                ++m->next_sample;
+                continue;
+            }
             if ((data = jo_video_file_data(offset, length)) != JO_NULL)
                 jo_video_queue_audio(data, length);
 #ifdef JO_DEBUG
@@ -758,6 +929,9 @@ static void                     jo_video_task(void)
     }
     if (!m->frame_ready)
     {
+        // (the sound queued played to its end first: stopped in the zeros after it, without a click)
+        if (m->audio_started && jo_video_audio_played(m) < m->audio_queued + JO_VIDEO_AUDIO_GUARD_TICKS * (m->audio_rate >> 16))
+            return;
         m->playing = false;
         jo_video_stop_audio();
         m->ended = true;
@@ -776,6 +950,13 @@ void                            jo_video_stop(void)
     m = &__jo_video_movie;
     m->playing = false;
     jo_video_stop_audio();
+#ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
+    if (m->pcm != JO_NULL)
+    {
+        __jo_audio_release_movie();
+        m->pcm = JO_NULL;
+    }
+#endif
     if (m->event_id != -1)
     {
         jo_core_remove_callback(m->event_id);
@@ -817,6 +998,14 @@ void                            jo_video_stop(void)
     }
 }
 
+void                            __jo_video_sprites_freed(const int sprite_id)
+{
+    if (__jo_video_sprite_id >= sprite_id)
+        __jo_video_sprite_id = -1;
+    if (__jo_video_back_sprite_id >= sprite_id)
+        __jo_video_back_sprite_id = -1;
+}
+
 /** @brief Movie callback (called every frame)
  *  @remarks Updates the sprite when a frame is ready and stops at the end of the movie
  */
@@ -827,14 +1016,18 @@ static void			            jo_video_callback(void)
     jo_video_task();
     if (__jo_video_movie.frame_ready)
     {
-        // The new frame goes in the hidden sprite, then the sprites are swapped
-        __jo_video_movie.img.data = __jo_video_movie.decode_buffer;
-        // The frame is copied by the DMA controller while the game continues (jo_dma_wait() before the next decoding
-        // and before the end of the frame)
-        __jo_sprite_replace(&__jo_video_movie.img, __jo_video_back_sprite_id, true);
-        frame_sprite_id = __jo_video_back_sprite_id;
-        __jo_video_back_sprite_id = __jo_video_sprite_id;
-        __jo_video_sprite_id = frame_sprite_id;
+        // (the sprites freed while the movie plays: the frames are not displayed)
+        if (__jo_video_back_sprite_id >= 0 && __jo_video_sprite_id >= 0)
+        {
+            // The new frame goes in the hidden sprite, then the sprites are swapped
+            __jo_video_movie.img.data = __jo_video_movie.decode_buffer;
+            // The frame is copied by the DMA controller while the game continues (jo_dma_wait() before the next decoding
+            // and before the end of the frame)
+            __jo_sprite_replace(&__jo_video_movie.img, __jo_video_back_sprite_id, true);
+            frame_sprite_id = __jo_video_back_sprite_id;
+            __jo_video_back_sprite_id = __jo_video_sprite_id;
+            __jo_video_sprite_id = frame_sprite_id;
+        }
         __jo_video_movie.frame_ready = false;
     }
     if (__jo_video_movie.ended)
@@ -889,7 +1082,11 @@ bool					        jo_video_open_file(const char *const filename)
     m->codebooks = (unsigned short *)m->work_buffer;
     jo_video_init_clip_table();
     m->header_data = ((unsigned char *)m->work_buffer) + JO_VIDEO_MAX_STRIPS * JO_VIDEO_CODEBOOK_BYTES * 2;
+#ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
+    m->pcm = JO_NULL;
+#else
     m->pcm = JO_VIDEO_PCM_ADDR;
+#endif
     m->pcm_size = JO_VIDEO_PCM_SIZE;
     m->fields_per_second = jo_core_get_refresh_rate();
     m->window_start = 0;
@@ -897,12 +1094,12 @@ bool					        jo_video_open_file(const char *const filename)
     m->file_sector = 0;
     m->decode = JO_NULL;
     m->next_sample = 0;
+    m->next_audio = 0;
     m->playing = false;
     m->paused = false;
     m->frame_ready = false;
     m->ended = false;
     m->ticks = 0;
-    m->pcm_write = 0;
     m->audio_started = false;
     jo_memset(&m->header, 0, sizeof(m->header));
     if (!jo_video_read_header())
@@ -986,7 +1183,8 @@ bool                            jo_video_pause(void)
     if (__jo_video_movie.paused)
     {
         jo_video_stop_audio();
-        __jo_video_movie.pcm_write = 0;
+        // (the sounds queued ahead are queued again)
+        __jo_video_movie.next_audio = __jo_video_movie.next_sample;
     }
     return (true);
 }

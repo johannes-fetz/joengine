@@ -80,10 +80,28 @@ int				        __jo_hash_table[JO_MAX_SPRITE];
 static int				__jo_sprite_addr = 0;
 static int				__jo_sprite_id = -1;
 
+/** @brief Bytes of the pixels of a texture: pixels x 4 >> color mode (JO_VDP1_TEXTURE_SIZE_SHIFT_xxx, 0 to 3)
+ *  @param pixels Width x height
+ *  @param color_mode Shift of its color mode
+ *  @return Bytes
+ *  @remarks Constant shifts: a shift by a variable is a call to a routine of the compiler on the SH-2
+ */
+static  __jo_force_inline unsigned int  jo_sprite_texture_bytes(const unsigned int pixels, const unsigned int color_mode)
+{
+    unsigned int                        bytes;
+
+    bytes = JO_MULT_BY_4(pixels);
+    if (color_mode & 2)
+        bytes >>= 2;
+    if (color_mode & 1)
+        bytes >>= 1;
+    return (bytes);
+}
+
 static  __jo_force_inline unsigned int	__jo_get_next_sprite_address(const unsigned int sprite_address, const unsigned int sprite_width,
         const unsigned int sprite_height, const unsigned int sprite_color_mode)
 {
-    return ((sprite_address) + (((((sprite_width) * (sprite_height) * 4) >> (sprite_color_mode)) + 0x1f) & 0x7ffe0));
+    return ((sprite_address) + ((jo_sprite_texture_bytes((sprite_width) * (sprite_height), sprite_color_mode) + 0x1f) & 0x7ffe0));
 }
 
 int                         jo_sprite_usage_percent(void)
@@ -197,10 +215,10 @@ int				            __jo_sprite_replace(const jo_img * const img, const int sprit
     picture->data = img->data;
     if (async)
         jo_dma_copy_async(picture->data, (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr)),
-                          (unsigned int)((JO_MULT_BY_4(texture->width * texture->height)) >> (picture->color_mode)));
+                          jo_sprite_texture_bytes(texture->width * texture->height, picture->color_mode));
     else
         jo_dma_copy(picture->data, (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr)),
-                    (unsigned int)((JO_MULT_BY_4(texture->width * texture->height)) >> (picture->color_mode)));
+                    jo_sprite_texture_bytes(texture->width * texture->height, picture->color_mode));
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
     __jo_sprite_end_codes[sprite_id] = false;
     __jo_sprite_mean_color[sprite_id] = 0;
@@ -226,6 +244,7 @@ static int                  __internal_jo_sprite_add_prefix(void * const data, c
 {
     jo_texture_definition   *texture;
     jo_picture_definition   *picture;
+    unsigned int            pixels;
 
     if ((__jo_sprite_id + 1) >= JO_MAX_SPRITE)
     {
@@ -245,10 +264,13 @@ static int                  __internal_jo_sprite_add_prefix(void * const data, c
                            texture->height,
                            picture->color_mode);
     }
-    // Not enough VDP1 VRAM for the texture (the size in 64 bits: __jo_get_next_sprite_address() masks it to the 512 KB of the
-    // VRAM, so a texture of 512 KB or more would pass as a small one and its copy would overwrite what follows)
-    if (JO_VDP1_VRAM + __jo_get_next_sprite_address(__jo_sprite_addr + prefix, width, height, cmode) > JO_VDP1_USER_AREA_END_ADDR ||
-        ((unsigned long long)width * height * 4 >> cmode) > (unsigned long long)(JO_VDP1_USER_AREA_END_ADDR - (JO_VDP1_VRAM + __jo_sprite_addr + prefix)))
+    pixels = (unsigned int)width * height;
+    // Not enough VDP1 VRAM for the texture (1M pixels or more: 512 KB or more in any color mode. __jo_get_next_sprite_address()
+    // masks the size to the 512 KB of the VRAM, so a texture of 512 KB or more would pass as a small one and its copy would
+    // overwrite what follows)
+    if (pixels >= 0x100000 ||
+        JO_VDP1_VRAM + __jo_get_next_sprite_address(__jo_sprite_addr + prefix, width, height, cmode) > JO_VDP1_USER_AREA_END_ADDR ||
+        jo_sprite_texture_bytes(pixels, cmode) > JO_VDP1_USER_AREA_END_ADDR - (JO_VDP1_VRAM + __jo_sprite_addr + prefix))
     {
 #ifdef JO_DEBUG
         jo_core_error("Out of sprite memory (%dx%d)", width, height);
@@ -274,7 +296,7 @@ static int                  __internal_jo_sprite_add_prefix(void * const data, c
     picture->data = (void *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
 
     if (data != JO_NULL)
-        jo_dma_copy(data, picture->data, (unsigned int)((JO_MULT_BY_4(width * height)) >> cmode));
+        jo_dma_copy(data, picture->data, jo_sprite_texture_bytes(pixels, cmode));
 
     return (__jo_sprite_id);
 }
@@ -476,6 +498,9 @@ void                        jo_sprite_free_from(const int sprite_id)
             jo_3d_free_sprite_quad(i);
     }
 #endif // JO_COMPILE_WITH_3D_SUPPORT
+#ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
+    __jo_video_sprites_freed(sprite_id);
+#endif
     if (sprite_id == 0)
         JO_ZERO(__jo_sprite_addr);
     else

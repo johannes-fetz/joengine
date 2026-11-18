@@ -664,8 +664,9 @@ static void                         __jo_cell_local(const jo_cell * const cell, 
     dx = *x - cx;
     dz = *z - cz;
     // The inverse of the rotation of the box (the same convention as jo_3d_rotate_matrix_y())
-    *x = cx + jo_fixed2int(dx * cell->cos - dz * cell->sin);
-    *z = cz + jo_fixed2int(dx * cell->sin + dz * cell->cos);
+    // (64 bits: a point more than 32767 units from the center overflowed)
+    *x = cx + (int)(((long long)dx * cell->cos - (long long)dz * cell->sin) >> 16);
+    *z = cz + (int)(((long long)dx * cell->sin + (long long)dz * cell->cos) >> 16);
 }
 
 int                                 jo_cell_floor(const jo_cell * const cell, const int wx, const int wz)

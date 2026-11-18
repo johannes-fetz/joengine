@@ -42,6 +42,7 @@
 #include "jo/math.h"
 #include "internal/sega_saturn.h"
 #include "internal/fs.h"
+#include "internal/audio.h"
 
 #ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
 
@@ -139,6 +140,11 @@ static unsigned int                 __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_ST
 static unsigned int                 __jo_audio_resident_start = JO_AUDIO_PCM_AREA_END;
 /** @brief The samples of the music streamed from the CD (0: not reserved yet, see jo_audio_play_music()) */
 static unsigned int                 __jo_audio_music_sound_ram = 0;
+#ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
+/** @brief The samples of a movie (0: none, see __jo_audio_reserve_movie()) and the start of the resident sounds before */
+static unsigned int                 __jo_audio_movie_sound_ram = 0;
+static unsigned int                 __jo_audio_movie_resident_start;
+#endif
 static jo_audio_channel             __jo_audio_channels[JO_SOUND_MAX_CHANNEL];
 /** @brief The direct level and pan of the slots 0 and 1 (their mixer register also sends the outputs of the DSP: the
  *  reverberation, see __jo_audio_effect_mix) */
@@ -927,7 +933,7 @@ void	            jo_audio_play_sound_loop_on_channel(jo_sound * const sound, con
     jo_audio_channel_on(channel, sound, true);
 }
 
-void	            jo_audio_set_channel_sample_rate(const unsigned char channel, const unsigned short sample_rate)
+void	            jo_audio_set_channel_sample_rate(const unsigned char channel, const unsigned int sample_rate)
 {
     unsigned short  pitch;
 
@@ -1285,12 +1291,36 @@ void                jo_audio_free_pcm(jo_sound *sound)
     JO_ZERO(sound->resident);
 }
 
+/** @brief Take an area at the end of the sound RAM, before the resident sounds (a resident sound, the samples of the
+ *  music or of a movie): the copied sounds that were there are forgotten (copied again before when they play) and the
+ *  channels that play them stopped
+ *  @param size Size (bytes)
+ *  @return Offset in the sound RAM (aligned on 32 bytes), 0: no room (a room for the copied sounds stays before)
+ */
+JO_LOW_WORK_RAM_CODE
+static unsigned int                 jo_audio_reserve_sound_ram(const unsigned int size)
+{
+    unsigned int                    start;
+    register unsigned int           i;
+
+    if (__jo_audio_resident_start < JO_AUDIO_PCM_AREA_START + JO_AUDIO_COPIED_ROOM + size)
+        return (0);
+    start = (__jo_audio_resident_start - size) & ~0x1F;
+    for (JO_ZERO(i); i < JO_AUDIO_CACHE_ENTRIES; ++i)
+        if (__jo_audio_cache[i].data != JO_NULL && __jo_audio_cache[i].offset + __jo_audio_cache[i].size > start)
+            __jo_audio_cache[i].data = JO_NULL;
+    if (__jo_audio_alloc_next > start)
+        __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
+    jo_audio_stop_channels_in(start, __jo_audio_resident_start);
+    __jo_audio_resident_start = start;
+    return (start);
+}
+
 JO_LOW_WORK_RAM_CODE
 bool                jo_audio_make_resident(jo_sound *sound)
 {
     unsigned int    size;
     unsigned int    start;
-    register unsigned int i;
 
 #ifdef JO_DEBUG
     if (sound == JO_NULL)
@@ -1304,18 +1334,8 @@ bool                jo_audio_make_resident(jo_sound *sound)
     if (sound->data == JO_NULL || sound->data_length == 0)
         return (false);
     size = JO_AUDIO_ALIGN(sound->data_length);
-    // (a room for the copied sounds stays before)
-    if (__jo_audio_resident_start < JO_AUDIO_PCM_AREA_START + JO_AUDIO_COPIED_ROOM + size)
+    if ((start = jo_audio_reserve_sound_ram(size)) == 0)
         return (false);
-    start = (__jo_audio_resident_start - size) & ~0x1F;
-    // The copied sounds that were there are forgotten (they are copied again before when they play)
-    for (JO_ZERO(i); i < JO_AUDIO_CACHE_ENTRIES; ++i)
-        if (__jo_audio_cache[i].data != JO_NULL && __jo_audio_cache[i].offset + __jo_audio_cache[i].size > start)
-            __jo_audio_cache[i].data = JO_NULL;
-    if (__jo_audio_alloc_next > start)
-        __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
-    jo_audio_stop_channels_in(start, __jo_audio_resident_start);
-    __jo_audio_resident_start = start;
     jo_dma_copy(sound->data, (void *)(JO_SOUND_RAM + start), size);
     jo_audio_forget_pcm(sound->data);
     jo_free(sound->data);
@@ -1326,8 +1346,57 @@ bool                jo_audio_make_resident(jo_sound *sound)
 
 void                jo_audio_free_resident(void)
 {
+    // (the samples of the music and of a movie keep their place)
     __jo_audio_resident_start = __jo_audio_music_sound_ram != 0 ? __jo_audio_music_sound_ram : JO_AUDIO_PCM_AREA_END;
+#ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
+    if (__jo_audio_movie_sound_ram != 0 && __jo_audio_movie_sound_ram < __jo_audio_resident_start)
+    {
+        __jo_audio_movie_resident_start = __jo_audio_resident_start;
+        __jo_audio_resident_start = __jo_audio_movie_sound_ram;
+    }
+#endif
 }
+
+#ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
+
+unsigned int        __jo_audio_reserve_movie(const unsigned int size)
+{
+    jo_audio_channel    *c;
+
+    if (__jo_audio_movie_sound_ram == 0)
+    {
+        __jo_audio_movie_resident_start = __jo_audio_resident_start;
+        if ((__jo_audio_movie_sound_ram = jo_audio_reserve_sound_ram(size)) == 0)
+            return (0);
+    }
+    // The slots of the last channel play the movie: the channel stays busy
+    if (jo_audio_channel_status(JO_SOUND_MAX_CHANNEL - 1))
+        jo_audio_channel_off(JO_SOUND_MAX_CHANNEL - 1);
+    c = &__jo_audio_channels[JO_SOUND_MAX_CHANNEL - 1];
+    c->active = true;
+    c->end_vblank = __jo_core_vblank_count + JO_AUDIO_LOOP_VBLANKS;
+    c->offset = __jo_audio_movie_sound_ram;
+    c->size = size;
+    c->stereo = true;
+    c->tone = false;
+    c->loop = true;
+    c->rate = 0;
+    c->sound = JO_NULL;
+    return (__jo_audio_movie_sound_ram);
+}
+
+void                __jo_audio_release_movie(void)
+{
+    if (__jo_audio_movie_sound_ram == 0)
+        return;
+    __jo_audio_channels[JO_SOUND_MAX_CHANNEL - 1].active = false;
+    // (given back if nothing was put before it since)
+    if (__jo_audio_resident_start == __jo_audio_movie_sound_ram)
+        __jo_audio_resident_start = __jo_audio_movie_resident_start;
+    __jo_audio_movie_sound_ram = 0;
+}
+
+#endif
 
 void	            jo_audio_stop_sound(const jo_sound * const sound)
 {
@@ -1560,7 +1629,7 @@ bool                jo_audio_load_wav(const char * const filename, jo_sound *sou
     sound->mode = channels == 2 ? (bits == 8 ? JoSoundStereo8Bit : JoSoundStereo16Bit) : (bits == 8 ? JoSoundMono8Bit : JoSoundMono16Bit);
     sound->data = (char *)file;
     sound->data_length = size;
-    sound->sample_rate = (unsigned short)rate;
+    sound->sample_rate = rate;
     sound->volume = JO_MAX_AUDIO_VOLUME;
     JO_ZERO(sound->pan);
     JO_ZERO(sound->resident);
@@ -2250,19 +2319,9 @@ bool                                jo_audio_play_music(const char * const filen
 #endif
         return (false);
     }
-    if (__jo_audio_music_sound_ram == 0)
-    {
-        if (__jo_audio_resident_start < JO_AUDIO_PCM_AREA_START + JO_AUDIO_COPIED_ROOM + JO_AUDIO_MUSIC_SOUND_RAM_SIZE)
-            return (false);
-        __jo_audio_music_sound_ram = (__jo_audio_resident_start - JO_AUDIO_MUSIC_SOUND_RAM_SIZE) & ~0x1F;
-        for (len = 0; len < JO_AUDIO_CACHE_ENTRIES; ++len)
-            if (__jo_audio_cache[len].data != JO_NULL && __jo_audio_cache[len].offset + __jo_audio_cache[len].size > __jo_audio_music_sound_ram)
-                __jo_audio_cache[len].data = JO_NULL;
-        if (__jo_audio_alloc_next > __jo_audio_music_sound_ram)
-            __jo_audio_alloc_next = JO_AUDIO_PCM_AREA_START;
-        jo_audio_stop_channels_in(__jo_audio_music_sound_ram, __jo_audio_resident_start);
-        __jo_audio_resident_start = __jo_audio_music_sound_ram;
-    }
+    if (__jo_audio_music_sound_ram == 0 &&
+        (__jo_audio_music_sound_ram = jo_audio_reserve_sound_ram(JO_AUDIO_MUSIC_SOUND_RAM_SIZE)) == 0)
+        return (false);
     if ((__jo_audio_music.buffer = (unsigned char *)jo_malloc(JO_AUDIO_MUSIC_BUFFER_SIZE)) == JO_NULL)
         return (false);
     __jo_audio_music.loop = loop;

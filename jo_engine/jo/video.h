@@ -62,6 +62,9 @@ bool					        jo_video_open_file(const char *const filename);
  *  @return true if succeeded
  *  @remarks With onstop, all the sprites are freed when the movie stops (jo_sprite_free_all(): the sprites of the game
  *  too, load them again in onstop). Without it, the 2 sprites of the movie are kept for the next one
+ *  @remarks With the audio module, the sound of the movie takes 64 KB of the sound RAM before the resident sounds
+ *  (jo_audio_make_resident()) and the last channel (JO_SOUND_MAX_CHANNEL - 1), from its first sound until the movie
+ *  stops: the sounds of the game play on the other channels. No room in the sound RAM: the movie plays without sound
  */
 bool                            jo_video_play(const jo_video_onstop_callback onstop);
 

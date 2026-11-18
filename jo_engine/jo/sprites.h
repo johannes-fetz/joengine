@@ -498,6 +498,25 @@ void        __jo_vdp1_draw_sprite3D(const int sprite_id, const int x, const int 
  */
 void        __jo_vdp1_draw_sprite3D2(const int sprite_id, const int x, const int y, const int z);
 
+/** @brief Draw a rotated sprite of the current sprite attributes (internal usage: see jo_sprite_draw3D_and_rotate(), the
+ *  same command as jo_sprite_draw_rotate(), the position in registers)
+ *  @param sprite_id Sprite Id
+ *  @param x Horizontal position of its center from the center of the screen
+ *  @param y Vertical position of its center from the center of the screen
+ *  @param z Z index (depth)
+ *  @param angle Angle (degrees)
+ */
+void        __jo_vdp1_draw_sprite3D_rotated(const int sprite_id, const int x, const int y, const int z, const int angle);
+
+/** @brief Draw a rotated sprite of the current sprite attributes (internal usage: see jo_sprite_draw3D_and_rotate2())
+ *  @param sprite_id Sprite Id
+ *  @param x Horizontal position of its top left corner from the top left of the screen
+ *  @param y Vertical position of its top left corner from the top left of the screen
+ *  @param z Z index (depth)
+ *  @param angle Angle (degrees)
+ */
+void        __jo_vdp1_draw_sprite3D2_rotated(const int sprite_id, const int x, const int y, const int z, const int angle);
+
 /** @brief Display a sprite in 3 dimensional space
  *  @param sprite_id Sprite Id
  *  @param x Horizontal position from the center of the screen
@@ -507,9 +526,7 @@ void        __jo_vdp1_draw_sprite3D2(const int sprite_id, const int x, const int
  */
 static  __jo_force_inline void	jo_sprite_draw3D_and_rotate(const int sprite_id, const int x, const int y, const int z, const int angle)
 {
-    extern jo_pos3D __jo_sprite_pos;
-    __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, true, false);
+    __jo_vdp1_draw_sprite3D_rotated(sprite_id, x, y, z, angle);
 }
 
 /** @brief Display a sprite in 3 dimensional space
@@ -532,9 +549,7 @@ static  __jo_force_inline void	jo_sprite_draw3D(const int sprite_id, const int x
  */
 static  __jo_force_inline void	jo_sprite_draw3D_and_rotate2(const int sprite_id, const int x, const int y, const int z, const int angle)
 {
-    extern jo_pos3D __jo_sprite_pos;
-    __internal_jo_sprite_set_position3D(x, y, z);
-    jo_sprite_draw_rotate(sprite_id, &__jo_sprite_pos, angle, false, false);
+    __jo_vdp1_draw_sprite3D2_rotated(sprite_id, x, y, z, angle);
 }
 
 /** @brief Display a sprite in 3 dimensional space

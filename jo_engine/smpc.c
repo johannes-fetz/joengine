@@ -485,6 +485,9 @@ static unsigned char                    jo_smpc_gun_read_id(const int port)
     return ((((high & 0xC) != 0) << 3) | (((high & 0x3) != 0) << 2) | (((low & 0xC) != 0) << 1) | ((low & 0x3) != 0));
 }
 
+/** @brief Bit of a port in __jo_smpc_gun_ports (0: port 1, 1: port 2) */
+# define JO_SMPC_GUN_PORT_BIT(PORT)     (1 + (PORT))
+
 /** @brief Switch a port to the SH-2 direct mode (a light gun) or back to the SMPC control mode
  *  @param port 0: port 1, 1: port 2
  *  @param gun true: SH-2 direct mode
@@ -499,7 +502,7 @@ static void                             jo_smpc_gun_set_port(const int port, con
         jo_smpc_clear_peripheral(&__jo_smpc_peripherals[index]);
     if (gun)
     {
-        __jo_smpc_gun_ports |= (1 << port);
+        __jo_smpc_gun_ports |= JO_SMPC_GUN_PORT_BIT(port);
         __jo_smpc_peripherals[first].id = JO_PERIPHERAL_ID_GUN;
         JO_ZERO(__jo_smpc_previous_pressed[first]);
         __jo_smpc_port_end[port] = (unsigned char)(first + 1);
@@ -508,7 +511,7 @@ static void                             jo_smpc_gun_set_port(const int port, con
     }
     else
     {
-        __jo_smpc_gun_ports &= ~(1 << port);
+        __jo_smpc_gun_ports &= ~JO_SMPC_GUN_PORT_BIT(port);
         __jo_smpc_port_end[port] = (unsigned char)first;
     }
     jo_smpc_write_byte(InputOutputSelectRegister, __jo_smpc_gun_ports);
@@ -537,7 +540,7 @@ void                                    __jo_smpc_gun_vblank(void)
         jo_smpc_write_byte(ExternalLatchEnableRegister, 0);
         for (JO_ZERO(port); port < 2; ++port)
         {
-            if (!(__jo_smpc_gun_ports & (1 << port)))
+            if (!(__jo_smpc_gun_ports & JO_SMPC_GUN_PORT_BIT(port)))
                 continue;
             // Unplugged (or another peripheral): back to the SMPC control mode
             if (jo_smpc_gun_read_id(port) != JO_SMPC_GUN_ID)
@@ -570,17 +573,17 @@ void                                    __jo_smpc_gun_vblank(void)
             __jo_smpc_gun_latch_port ^= 1;
         else
             __jo_smpc_gun_latch_port = (__jo_smpc_gun_ports & 1) ? 0 : 1;
-        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & (1 << __jo_smpc_gun_latch_port));
+        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & JO_SMPC_GUN_PORT_BIT(__jo_smpc_gun_latch_port));
     }
     // Light guns found by the last INTBACK (complete: the ports don't change during an INTBACK)
     if (__jo_smpc_gun_found && !__jo_smpc_intback_busy)
     {
         for (JO_ZERO(port); port < 2; ++port)
-            if ((__jo_smpc_gun_found & (1 << port)) && !(__jo_smpc_gun_ports & (1 << port)))
+            if ((__jo_smpc_gun_found & JO_SMPC_GUN_PORT_BIT(port)) && !(__jo_smpc_gun_ports & JO_SMPC_GUN_PORT_BIT(port)))
                 jo_smpc_gun_set_port(port, true);
         JO_ZERO(__jo_smpc_gun_found);
         __jo_smpc_gun_latch_port = (__jo_smpc_gun_ports & 1) ? 0 : 1;
-        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & (1 << __jo_smpc_gun_latch_port));
+        jo_smpc_write_byte(ExternalLatchEnableRegister, __jo_smpc_gun_ports & JO_SMPC_GUN_PORT_BIT(__jo_smpc_gun_latch_port));
     }
 }
 

@@ -122,7 +122,8 @@ jo_gamepad_type                 jo_get_input_type(const int port);
 
 /** @brief Check if connected input is analog
  *  @param port input port
- *  @return true if connected controller has analog axies
+ *  @return true if connected controller has analog axies: the Nights pad (3D pad in analog mode), the racing wheel and
+ *  the mission stick (see jo_get_input_axis())
  */
 static __jo_force_inline bool	jo_is_input_analog(const int port)
 {
@@ -130,8 +131,8 @@ static __jo_force_inline bool	jo_is_input_analog(const int port)
     if (__JO_INDEX_IS_WRONG(port, JO_INPUT_MAX_DEVICE, "port"))
         return (false);
 #endif
-	// TODO: Add other analog devices (wheel, mission stick)
-	return (jo_inputs[port].id == JO_PERIPHERAL_ID_NIGHTS_PAD);
+	return (jo_inputs[port].id == JO_PERIPHERAL_ID_NIGHTS_PAD || jo_inputs[port].id == JO_PERIPHERAL_ID_RACING_WHEEL ||
+            jo_inputs[port].id == JO_PERIPHERAL_ID_MISSION_STICK);
 }
 
 /** @brief Check if the input is available for the given port

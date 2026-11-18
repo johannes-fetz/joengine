@@ -176,7 +176,7 @@ void        jo_free_mode7(jo_mode7 * const params)
     }
 }
 
-void                jo_do_mode7_floor(const jo_img * const tile, const int cam_y, const int cam_x, const jo_mode7 * const params)
+void                jo_do_mode7_floor(const jo_img * const tile, const int cam_x, const int cam_y, const jo_mode7 * const params)
 {
     register int    output_y;
     int             fspace_y;
@@ -185,7 +185,8 @@ void                jo_do_mode7_floor(const jo_img * const tile, const int cam_y
     unsigned short  *dst;
     unsigned short  *buffer;
     int             dy;
-    const int       cam_y_fixed_value = JO_MULT_BY_1024(cam_y);
+    // (in the tile, the horizontal of the screen is its y (rows), the depth its x (columns))
+    const int       cam_x_fixed_value = JO_MULT_BY_1024(cam_x);
     // Local copies: the stores in the line buffer could alias the cache fields (they would be reloaded for each pixel)
     const int       width = params->__cache.output_width;
     const int       tile_width = tile->width;
@@ -197,8 +198,8 @@ void                jo_do_mode7_floor(const jo_img * const tile, const int cam_y
         // The copy of this buffer (2 lines before) is finished: jo_dma_copy_async() waits for the previous copy
         buffer = __mode7_buffer + (output_y & 1) * JO_MODE7_LINE_BUFFER_SIZE;
         dy = params->__cache.line_dy[output_y];
-        fspace_y = cam_y_fixed_value - params->__cache.output_width_div2 * dy;
-        tile_ptr = tile->data + ((cam_x + JO_DIV_BY_1024(params->__cache.distance[output_y])) & params->__cache.tile_mask_x);
+        fspace_y = cam_x_fixed_value - params->__cache.output_width_div2 * dy;
+        tile_ptr = tile->data + ((cam_y + JO_DIV_BY_1024(params->__cache.distance[output_y])) & params->__cache.tile_mask_x);
         for (JO_ZERO(i); i < width; ++i)
         {
             // Unsigned shift: 2 instructions instead of a call to the libgcc (same result after the mask)

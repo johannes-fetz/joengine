@@ -277,13 +277,13 @@ inline void                     jo_free(const void * const p)
     jo_memory_block             *block;
     jo_memory_zone              *zone;
 
-#ifdef JO_DEBUG
     if (p == JO_NULL)
     {
+#ifdef JO_DEBUG
         jo_core_error("Null pointer");
+#endif
         return ;
     }
-#endif
     block = ((jo_memory_block *)p) - 1;
 #ifdef JO_DEBUG
     if (JO_MALLOC_WRONG_CONTEXT())

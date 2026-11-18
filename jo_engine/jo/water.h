@@ -362,10 +362,22 @@ static  __jo_force_inline int   jo_water_swell(jo_water_wave * const waves, cons
 
 /** @brief Create the water: load the textures, create the grid
  *  @param config Configuration (copied)
- *  @return JO_NULL if the configuration is wrong (a message on the screen), a texture is missing or out of memory
- *  @remarks One water at a time (the jobs of the slave CPU)
+ *  @return JO_NULL if the configuration is wrong (a message on the screen), a texture is missing or out of memory (what
+ *          was made is freed)
+ *  @remarks One water at a time (the jobs of the slave CPU): jo_water_free() before the next one
  */
 jo_water    *jo_water_create(const jo_water_config * const config);
+
+/** @brief Free the water: its memory, its gouraud tables (given back when they are the last sprites), its objects
+ *  (jo_water_add_model(), jo_water_add_mesh(): forgotten, their jo_water_object too)
+ *  @param w Water (jo_water_create(), JO_NULL: nothing)
+ *  @remarks Its textures (the foam, the bottom, the grain) and the colors seen through it (color lookup tables, copies of
+ *  RGB textures) stay in the VRAM, like the textures of the models: free them with jo_3d_model_free_textures_from(),
+ *  from jo_sprite_count() before jo_water_create()
+ *  @remarks The meshes of its objects keep their colors seen through the water (reload them to draw them out of it). The
+ *  floating objects are freed apart (jo_water_free_dip())
+ */
+void        jo_water_free(jo_water * const w);
 
 /** @brief Move the waves to the time of the frame and the grid around the camera, compute the heights and the light
  *  @param w Water (jo_water_create())
@@ -663,6 +675,8 @@ typedef struct s_jo_water_dip  jo_water_dip;
  *  @param palette_offset Added to the colors of the palette before they are read (a mesh lit by the palette light: its
  *         colors are its darkest shade, see jo_3d_set_palette_light(): + shade x stride, the shade seen under the water)
  *  @return JO_NULL if out of memory
+ *  @remarks Free it with jo_water_free_dip() when the water is freed (its colors seen through the water are freed with
+ *  the textures of the water)
  */
 jo_water_dip   *jo_water_add_dip(jo_water * const w, jo_3d_mesh * const mesh, const int levels, const short * const amounts,
                            const jo_fixed * const depths, const int palette_offset);
@@ -676,6 +690,11 @@ jo_water_dip   *jo_water_add_dip(jo_water * const w, jo_3d_mesh * const mesh, co
  *  @param roll Its roll (jo_angle: turned around z first)
  */
 void        jo_water_dip_mesh(jo_water_dip * const d, const jo_fixed surface, const jo_angle pitch, const jo_angle roll);
+
+/** @brief Free a floating object (jo_water_add_dip(), JO_NULL: nothing)
+ *  @remarks Its mesh is not freed: it keeps the attributes of the last jo_water_dip_mesh()
+ */
+void        jo_water_free_dip(jo_water_dip * const d);
 
 #endif /* JO_COMPILE_WITH_3D_SUPPORT && JO_COMPILE_WITH_DUAL_CPU_SUPPORT */
 

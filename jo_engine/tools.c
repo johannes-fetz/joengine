@@ -85,6 +85,8 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
     int                     precision;
     int                     zeros;
     int                     value;
+    long long               wide_value;
+    bool                    wide;
     bool                    left;
     bool                    zero;
     char                    sign;
@@ -125,35 +127,86 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
             else
                 break;
         }
-        for (JO_ZERO(width); *format >= '0' && *format <= '9'; ++format)
-            width = width * 10 + *format - '0';
-        // Precision: the minimum of digits of a number, the maximum of characters of a string
+        // (* : the width and the precision given as arguments, a negative width aligned on the left. They were not read:
+        // the next conversions read the wrong arguments, a %s an int as a pointer)
+        if (*format == '*')
+        {
+            width = va_arg(args, int);
+            if (width < 0)
+            {
+                left = true;
+                width = -width;
+            }
+            ++format;
+        }
+        else
+            for (JO_ZERO(width); *format >= '0' && *format <= '9'; ++format)
+                width = width * 10 + *format - '0';
+        // Precision: the minimum of digits of a number, the maximum of characters of a string (negative: none)
         precision = -1;
         if (*format == '.')
         {
-            for (JO_ZERO(precision), ++format; *format >= '0' && *format <= '9'; ++format)
-                precision = precision * 10 + *format - '0';
+            if (*++format == '*')
+            {
+                if ((precision = va_arg(args, int)) < 0)
+                    precision = -1;
+                ++format;
+            }
+            else
+                for (JO_ZERO(precision); *format >= '0' && *format <= '9'; ++format)
+                    precision = precision * 10 + *format - '0';
         }
-        // (the long type is an int: the l and h modifiers change nothing)
-        while (*format == 'l' || *format == 'h')
-            ++format;
+        // (the long type is an int: the l and h modifiers change nothing, nor z and t (32 bits on the SH-2). ll and j: a value
+        // of 64 bits, taken whole (taken as an int, the next arguments were wrong), written when it fits in 32 bits)
+        wide = false;
+        for (;; ++format)
+        {
+            if (*format == 'j' || (*format == 'l' && format[1] == 'l'))
+            {
+                wide = true;
+                if (*format == 'l')
+                    ++format;
+            }
+            else if (*format != 'l' && *format != 'h' && *format != 'z' && *format != 't')
+                break;
+        }
         sign = '\0';
         c = *format;
+        // (read only by the conversions of a number below: GCC warned that it may be used uninitialized)
+        JO_ZERO(value);
+        if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X')
+        {
+            if (wide)
+            {
+                wide_value = va_arg(args, long long);
+                value = (int)wide_value;
+                if ((c == 'd' || c == 'i') ? wide_value != (long long)value : ((unsigned long long)wide_value >> 32) != 0)
+                {
+                    // (more than 32 bits: written as it is)
+                    JO_SPRINTF_PUT('%');
+                    JO_SPRINTF_PUT(c);
+                    continue;
+                }
+            }
+            else
+                value = va_arg(args, int);
+        }
         switch (c)
         {
             case 'd':
             case 'i':
-                value = va_arg(args, int);
                 sign = value < 0 ? '-' : plus;
                 text = __jo_format_unsigned(value < 0 ? 0u - (unsigned int)value : (unsigned int)value, 10, "0123456789", number + sizeof(number));
                 break;
             case 'u':
-                text = __jo_format_unsigned(va_arg(args, unsigned int), 10, "0123456789", number + sizeof(number));
+                text = __jo_format_unsigned((unsigned int)value, 10, "0123456789", number + sizeof(number));
                 break;
             case 'x':
-                text = __jo_format_unsigned(va_arg(args, unsigned int), 16, "0123456789abcdef", number + sizeof(number));
+                text = __jo_format_unsigned((unsigned int)value, 16, "0123456789abcdef", number + sizeof(number));
                 break;
             case 'X':
+                text = __jo_format_unsigned((unsigned int)value, 16, "0123456789ABCDEF", number + sizeof(number));
+                break;
             case 'p':
                 text = __jo_format_unsigned(va_arg(args, unsigned int), 16, "0123456789ABCDEF", number + sizeof(number));
                 break;
@@ -205,8 +258,10 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
             length = (int)(number + sizeof(number) - text);
             if (precision >= 0)
             {
-                // (a precision: no padding with 0 by the width)
+                // (a precision: no padding with 0 by the width; the value 0 with a precision of 0: no digit)
                 zero = false;
+                if (precision == 0 && *text == '0')
+                    JO_ZERO(length);
                 if (precision > length)
                     zeros = precision - length;
             }
@@ -692,14 +747,9 @@ static void                     jo_dma_purge_cache(const void * const addr, cons
         return;
     // As big as the cache (4 KB) or more: the whole cache purged at once (a write per line of 16 bytes: the sectors of the
     // CD read by the DMA, 1.2 % of the loading of a 3D game). The cache disabled while it is purged
-    if (size >= 4096)
+    if (size >= JO_SH2_CACHE_SIZE)
     {
-        unsigned char           ccr;
-
-        ccr = JO_SH2_CCR;
-        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE);
-        JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE;
-        JO_SH2_CCR = ccr;
+        jo_cpu_cache_purge();
         return;
     }
     end = a + size;
@@ -807,6 +857,14 @@ void                            jo_dma_fill32(void * const dest, const unsigned 
     for (JO_ZERO(i); i < JO_DIV_BY_4(size); ++i)
         ptr[i] = value;
 }
+
+const unsigned int              __jo_bits[32] =
+{
+    0x00000001u, 0x00000002u, 0x00000004u, 0x00000008u, 0x00000010u, 0x00000020u, 0x00000040u, 0x00000080u,
+    0x00000100u, 0x00000200u, 0x00000400u, 0x00000800u, 0x00001000u, 0x00002000u, 0x00004000u, 0x00008000u,
+    0x00010000u, 0x00020000u, 0x00040000u, 0x00080000u, 0x00100000u, 0x00200000u, 0x00400000u, 0x00800000u,
+    0x01000000u, 0x02000000u, 0x04000000u, 0x08000000u, 0x10000000u, 0x20000000u, 0x40000000u, 0x80000000u
+};
 
 void                            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size)
 {

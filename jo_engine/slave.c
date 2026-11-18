@@ -240,23 +240,19 @@ inline void    jo_core_remove_slave_callback(const int event_id)
             JO_SLAVE_REMOVED_COUNT = count + 1;
             return;
         }
-        // (more than 8 at once: removed now, as before. Waiting for the slave CPU here would block a slave callback)
+        // More than 8 at once. On the master CPU: removed once the slave CPU is done with the list (removed now, the slave
+        // CPU could read the freed node). On the slave CPU (a slave callback that removes callbacks): kept, the node
+        // can't be freed there (jo_free() only on the master CPU) and waiting for the slave CPU would block it
+        if (__jo_core_on_slave_cpu())
+        {
+#ifdef JO_DEBUG
+            jo_core_error("More than 8 slave callbacks removed in a frame");
+#endif
+            return;
+        }
+        jo_core_wait_for_slave();
     }
     jo_list_remove(&__slave_callbacks, (jo_node *)event_id);
-}
-
-/** @brief Purge the cache of the current CPU
- *  @remarks Needed after the other CPU changed the shared data
- */
-static  __jo_force_inline void      jo_slave_cache_purge(void)
-{
-    unsigned char                   ccr;
-
-    ccr = JO_SH2_CCR;
-    // Disable the cache while purging it
-    JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE);
-    JO_SH2_CCR = (ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE;
-    JO_SH2_CCR = ccr;
 }
 
 /** @brief Main loop of the slave CPU
@@ -281,6 +277,10 @@ static void                         jo_slave_main(void)
     JO_SH2_CCR = JO_SH2_CCR_CACHE_ENABLE;
 #ifdef JO_SLAVE_SLEEP
     jo_slave_sleep_init();
+#endif
+#ifdef JO_CORE_EXCEPTION_SCREEN
+    // (after its vector table is set: its CPU exceptions are shown by the master CPU)
+    __jo_core_init_slave_exceptions();
 #endif
     JO_SLAVE_RUNNING = 1;
     for (;;)
@@ -318,7 +318,7 @@ static void                         jo_slave_main(void)
                 JO_SLAVE_IDLE_TICKS = JO_SLAVE_IDLE_TICKS + ((jo_time_get_frc() - start) & 0xFFFF);
         }
         // The data of the job were written by the master CPU
-        jo_slave_cache_purge();
+        jo_cpu_cache_purge();
         __jo_profile_slave_job();
         function = JO_SLAVE_JOB(tail).function;
         argument = JO_SLAVE_JOB(tail).argument;
@@ -409,7 +409,7 @@ inline void                        jo_core_wait_for_slave(void)
             JO_SLAVE_WAKE_UP = JO_SLAVE_WAKE_UP_VALUE;
     waited = (jo_time_get_frc() - start) & 0xFFFF;
     // The data written by the slave CPU
-    jo_slave_cache_purge();
+    jo_cpu_cache_purge();
     // The balance of the frame: the slave CPU waited for its jobs (it can do more), or the master CPU waited for it
     idle = JO_SLAVE_IDLE_TICKS;
     __jo_slave_master_wait_time = JO_SLAVE_TICK_MICROSECONDS((int)waited);

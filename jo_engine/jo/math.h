@@ -754,6 +754,23 @@ static __jo_force_inline int            jo_int_div(const int dividend, const int
     return (JO_SH2_DVDNTL);
 }
 
+/** @brief Divide 2 unsigned integers (dividend / divisor, rounded down)
+ *  @param dividend (first operand, any 32 bits value: the division unit divides a 64 bits value of high word 0)
+ *  @param divisor  (second operand, below 2^31)
+ *  @return dividend / divisor
+ *  @remarks Uses the SH-2 division unit (64 bits / 32 bits in 39 cycles), like jo_fixed_div(): jo_int_div() takes a
+ *           dividend of 2^31 or more as negative
+ *  @warning The result is undefined if divisor is 0 or if the quotient is 2^31 or more
+ */
+static __jo_force_inline unsigned int   jo_uint_div(const unsigned int dividend, const unsigned int divisor)
+{
+    JO_SH2_DVSR = (int)divisor;
+    JO_SH2_DVDNTH = 0;
+    // Writing the low part starts the division
+    JO_SH2_DVDNTL = (int)dividend;
+    return ((unsigned int)JO_SH2_DVDNTL);
+}
+
 /** @brief Arithmetic right shift by 8 bits (x >> 8, rounded toward minus infinity) of any value
  *  @param x Value
  *  @return x >> 8

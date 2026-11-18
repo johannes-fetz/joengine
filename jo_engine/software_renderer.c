@@ -80,13 +80,12 @@ static void                                 jo_sr_forget_textures(jo_software_re
     }
 }
 
-static __jo_force_inline void               __jo_software_renderer_clear_zbuffer(jo_software_renderer_gfx * const gfx)
+/** @brief Fill depth values with JO_FIXED_MIN
+ *  @param ptr First value
+ *  @param end After the last value
+ */
+static __jo_force_inline void               __jo_software_renderer_fill_depth(jo_fixed *ptr, const jo_fixed * const end)
 {
-    register jo_fixed                       *ptr;
-    register jo_fixed                       *end;
-
-    ptr = gfx->depth_buffer;
-    end = ptr + gfx->depth_buffer_dword_size;
     // 4 values per iteration
     while (ptr + 4 <= end)
     {
@@ -98,6 +97,27 @@ static __jo_force_inline void               __jo_software_renderer_clear_zbuffer
     }
     while (ptr < end)
         *ptr++ = JO_FIXED_MIN;
+}
+
+static __jo_force_inline void               __jo_software_renderer_clear_zbuffer(jo_software_renderer_gfx * const gfx)
+{
+    jo_fixed                                *row;
+    jo_fixed                                *end;
+    int                                     pitch;
+    int                                     width;
+
+    row = gfx->depth_buffer;
+    end = row + gfx->depth_buffer_dword_size;
+    pitch = gfx->vram_size.width;
+    width = JO_MIN(gfx->clipping_size.width, pitch);
+    if (width >= pitch)
+    {
+        __jo_software_renderer_fill_depth(row, end);
+        return;
+    }
+    // Only the columns drawn (x < clipping_size.width): the others keep the JO_FIXED_MIN of the creation
+    for (; row < end; row += pitch)
+        __jo_software_renderer_fill_depth(row, row + width);
 }
 
 void                                        jo_software_renderer_free(jo_software_renderer_gfx * const gfx)
@@ -151,6 +171,7 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
     gfx->draw_mode = JO_SR_DRAW_WIREFRAME;
     gfx->clipping_size.width = width;
     gfx->clipping_size.height = height;
+    gfx->__margin_width = -1;
     switch (screen)
     {
         case JO_SPRITE_SCREEN:
@@ -209,7 +230,8 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
     #endif
             return (JO_NULL);
         }
-        __jo_software_renderer_clear_zbuffer(gfx);
+        // (all the values: __jo_software_renderer_clear_zbuffer() only clears the columns drawn)
+        __jo_software_renderer_fill_depth(gfx->depth_buffer, gfx->depth_buffer + gfx->depth_buffer_dword_size);
     }
     else
     {
@@ -251,16 +273,18 @@ void                                        jo_software_renderer_flush(jo_softwa
 ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
 */
 
-void                                        jo_software_renderer_clear(const jo_software_renderer_gfx * const gfx, const jo_color color)
+/** @brief Fill pixels with a color
+ *  @param ptr First pixel
+ *  @param end After the last pixel
+ *  @param color Color
+ */
+static __jo_force_inline void               __jo_software_renderer_fill_colors(register jo_color *ptr, register jo_color * const end,
+                                                                               const jo_color color)
 {
-    register jo_color                       *ptr;
-    register jo_color                       *end;
     register __jo_uint32_alias              *ptr32;
     register __jo_uint32_alias              *end32;
     unsigned int                            color32;
 
-    ptr = gfx->color_buffer;
-    end = ptr + JO_DIV_BY_2(gfx->color_buffer_size);
     // 2 pixels per 32 bits write
     if (((unsigned int)ptr & 2) && ptr < end)
         *ptr++ = color;
@@ -280,6 +304,32 @@ void                                        jo_software_renderer_clear(const jo_
     ptr = (jo_color *)ptr32;
     if (ptr < end)
         *ptr = color;
+}
+
+void                                        jo_software_renderer_clear(const jo_software_renderer_gfx * const gfx, const jo_color color)
+{
+    jo_software_renderer_gfx                *surface;
+    jo_color                                *row;
+    jo_color                                *end;
+    int                                     pitch;
+    int                                     width;
+
+    row = gfx->color_buffer;
+    end = row + JO_DIV_BY_2(gfx->color_buffer_size);
+    pitch = gfx->vram_size.width;
+    width = JO_MIN(gfx->clipping_size.width, pitch);
+    surface = (jo_software_renderer_gfx *)gfx;
+    // The columns after clipping_size.width are never drawn (NBG1: 320 of the 512 of a row): written again only when
+    // the color or the width changes
+    if (width < pitch && surface->__margin_width == width && surface->__margin_color == color)
+    {
+        for (; row < end; row += pitch)
+            __jo_software_renderer_fill_colors(row, row + width, color);
+        return;
+    }
+    __jo_software_renderer_fill_colors(row, end, color);
+    surface->__margin_width = (short)width;
+    surface->__margin_color = color;
 }
 
 static __jo_force_inline bool               __jo_software_renderer_pixel_clipping(const jo_software_renderer_gfx * const gfx, const jo_fixed x, const jo_fixed y)
@@ -732,7 +782,7 @@ static __jo_force_inline unsigned int       jo_sr_depth_mask(const jo_software_r
  */
 static __jo_force_inline bool               jo_sr_depth_test(const unsigned int mask, const jo_fixed z, const jo_fixed depth)
 {
-    return ((mask >> (z < depth ? 0 : (z == depth ? 1 : 2))) & 1);
+    return ((mask & (z < depth ? 1 : (z == depth ? 2 : 4))) != 0);
 }
 
 /** @brief The x of an edge on a row (Q16)

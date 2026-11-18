@@ -844,6 +844,9 @@ typedef struct
 static jo_3d_fade_sprite                    __jo_3d_fade_sprites[JO_3D_FADE_SPRITES];
 static int                                  __jo_3d_fade_sprite_count = 0;
 
+void                                        (*__jo_3d_glow_sprites_freed)(const int sprite_id) = JO_NULL;
+void                                        (*__jo_3d_transparency_sprites_freed)(const int sprite_id) = JO_NULL;
+
 JO_LOW_WORK_RAM_CODE
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
 {
@@ -887,6 +890,10 @@ void                                        __jo_3d_forget_sprites_from(const in
                 jo_free(__jo_3d_tints[i].colors);
             jo_memset(&__jo_3d_tints[i], 0, sizeof(__jo_3d_tints[i]));
         }
+    if (__jo_3d_glow_sprites_freed != JO_NULL)
+        __jo_3d_glow_sprites_freed(sprite_id);
+    if (__jo_3d_transparency_sprites_freed != JO_NULL)
+        __jo_3d_transparency_sprites_freed(sprite_id);
 }
 
 void                                        __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata)
@@ -5978,7 +5985,8 @@ static unsigned short                       jo_3d_sliver_color(const jo_3d_polyg
     const volatile unsigned short           *copy;
     unsigned int                            color;
     unsigned int                            result;
-    unsigned int                            shift;
+    unsigned int                            unit;
+    unsigned int                            mask;
     int                                     from;
     int                                     to;
     int                                     i;
@@ -5990,22 +5998,24 @@ static unsigned short                       jo_3d_sliver_color(const jo_3d_polyg
     lut = (const volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[a->texture_id]));
     copy = (const volatile unsigned short *)(JO_VDP1_VRAM + JO_MULT_BY_8(a->color));
     // (the light of each component: the difference of an RGB color of the table and of its copy, a copy not saturated
-    // (between 1 and 30); the mean color with it, between 0 and 31 as the VDP1)
+    // (between 1 and 30); the mean color with it, between 0 and 31 as the VDP1. Each component in place, times its unit:
+    // a shift by a variable is a call to a routine of the compiler on the SH-2)
     result = JO_COLOR_SATURN_MSB;
-    for (JO_ZERO(shift); shift < 15; shift += 5)
+    for (unit = 1; unit <= 1024; unit = JO_MULT_BY_32(unit))
     {
-        to = (int)((color >> shift) & 31);
+        mask = JO_MULT_BY_32(unit) - unit;
+        to = (int)(color & mask);
         for (i = 1; i < 16; ++i)
         {
             if (!(lut[i] & JO_COLOR_SATURN_MSB))
                 continue;
-            from = (int)((copy[i] >> shift) & 31);
-            if (from < 1 || from > 30)
+            from = (int)(copy[i] & mask);
+            if (from < (int)unit || from > (int)(mask - unit))
                 continue;
-            to += from - (int)((lut[i] >> shift) & 31);
+            to += from - (int)(lut[i] & mask);
             break;
         }
-        result |= (unsigned int)JO_MIN(31, JO_MAX(0, to)) << shift;
+        result |= (unsigned int)JO_MIN((int)mask, JO_MAX(0, to));
     }
     return ((unsigned short)result);
 }
@@ -8654,8 +8664,9 @@ void                        jo_3d_create_triangle(jo_3d_quad * const quad, jo_ve
     quad->data.polygon_count = 1;
     quad->data.polygons = polygon;
     quad->data.attributes = &quad->attribute;
+    // (all the fields: jo_3d_set_texture() and jo_3d_set_color() keep the light and transparency bits of the old ones)
+    jo_memset(quad->data.attributes, 0, sizeof(*quad->data.attributes));
     quad->data.attributes->plane = JO_3D_DUAL_PLANE;
-    JO_ZERO(quad->data.attributes->gouraud_table);
 }
 
 void                        jo_3d_create_plane(jo_3d_quad * const quad, jo_vertice * const vertices)
@@ -8668,8 +8679,9 @@ void                        jo_3d_create_plane(jo_3d_quad * const quad, jo_verti
     quad->data.polygon_count = 1;
     quad->data.polygons = polygon;
     quad->data.attributes = &quad->attribute;
+    // (all the fields: jo_3d_set_texture() and jo_3d_set_color() keep the light and transparency bits of the old ones)
+    jo_memset(quad->data.attributes, 0, sizeof(*quad->data.attributes));
     quad->data.attributes->plane = JO_3D_DUAL_PLANE;
-    JO_ZERO(quad->data.attributes->gouraud_table);
 }
 
 /** @brief Allocate a mesh

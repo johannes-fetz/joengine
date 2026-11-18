@@ -97,7 +97,8 @@ static  __jo_force_inline void	*jo_malloc(unsigned int n)
 }
 
 /** @brief function frees the memory space pointed to by p
- *  @param p pointer that must have been returned by a previous call to jo_malloc()
+ *  @param p pointer that must have been returned by a previous call to jo_malloc() (JO_NULL: nothing is freed, an error with
+ *  JO_DEBUG)
  */
 void	        jo_free(const void * const p);
 

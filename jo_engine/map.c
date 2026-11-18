@@ -48,6 +48,8 @@
 #include "jo/sprite_animator.h"
 #include "jo/list.h"
 #include "jo/3d.h"
+#include "internal/core.h"
+#include "internal/tools.h"
 #include "internal/vdp2.h"
 
 #define JO_MAP_PARSER_BUF_SIZE	(8)
@@ -55,7 +57,9 @@
 extern jo_texture_definition    __jo_sprite_def[JO_MAX_SPRITE];
 extern jo_picture_definition    __jo_sprite_pic[JO_MAX_SPRITE];
 
-/** @brief Map tile structure */
+/** @brief Map tile structure (16 bytes: the depth is the one of the layer, see gl_map_depth_fixed; a tile was 28 bytes with
+ *  a copy of it and a position only used by jo_map_draw())
+ */
 typedef struct
 {
     short			x;
@@ -73,8 +77,6 @@ typedef struct
     sprite_or_anim_id;
     unsigned char   attribute;
     bool            is_animated;
-    bool            is_visible_on_screen;
-    jo_pos3D        pos;
 }					jo_map_tile;
 
 static jo_map_tile                      *gl_map[JO_MAP_MAX_LAYER];
@@ -82,20 +84,366 @@ static unsigned short                   gl_map_tile_count[JO_MAP_MAX_LAYER];
 static unsigned short                   gl_map_max_tile_count[JO_MAP_MAX_LAYER];
 static int                              gl_map_depth_fixed[JO_MAP_MAX_LAYER];
 
+/*
+** Index of the tiles by their horizontal position (a layer of JO_MAP_INDEX_MIN_TILES tiles or more): the tiles whose
+** horizontal range meets the one of the screen (jo_map_draw()), of a hitbox (the collisions) or of a region of the
+** background are found by a binary search, not by a loop over all the tiles of the layer (29 cycles a tile: a map of 4000
+** tiles took 4 ms per frame in jo_map_draw(), the same in each collision test, even when no tile was seen).
+** The results are the same: the tiles are drawn, and the first one found, in their order in the layer.
+** Built at the first use after tiles are added, sorted again after tiles are moved (jo_map_move_tiles_by_attribute());
+** without memory for it, the loops over all the tiles as before.
+*/
+
+/** @brief Fewer tiles in a layer: the loops over all of them (no index) */
+#ifndef JO_MAP_INDEX_MIN_TILES
+# define JO_MAP_INDEX_MIN_TILES                 (64)
+#endif
+
+/** @brief The tiles of a layer sorted by real_x (then by their number), JO_NULL: no index */
+static unsigned short                   *gl_map_index[JO_MAP_MAX_LAYER];
+/** @brief A bit per tile: the tiles found (drawn in their order), cleared after */
+static unsigned int                     *gl_map_marks[JO_MAP_MAX_LAYER];
+/** @brief Tiles in the index (gl_map_tile_count[] when it was built: tiles added after it, built again) */
+static unsigned short                   gl_map_index_count[JO_MAP_MAX_LAYER];
+/** @brief Width of the widest tile of the layer (a tile meets a range if it starts less than this before it) */
+static short                            gl_map_max_width[JO_MAP_MAX_LAYER];
+/** @brief false: tiles moved horizontally (the index is sorted again) */
+static bool                             gl_map_index_sorted[JO_MAP_MAX_LAYER];
+/** @brief true: no memory for the index of the layer (not asked again at each use, until the layer is created again) */
+static bool                             gl_map_index_refused[JO_MAP_MAX_LAYER];
+
+/** @brief Free the index of a layer */
+static void                             jo_map_forget_index(const unsigned int layer)
+{
+    if (gl_map_index[layer] != JO_NULL)
+        jo_free(gl_map_index[layer]);
+    if (gl_map_marks[layer] != JO_NULL)
+        jo_free(gl_map_marks[layer]);
+    gl_map_index[layer] = JO_NULL;
+    gl_map_marks[layer] = JO_NULL;
+    JO_ZERO(gl_map_index_count[layer]);
+    gl_map_index_refused[layer] = false;
+}
+
+/** @brief Sort the index of a layer by real_x, then by the number of the tile (insertion: a few tiles moved by a few pixels
+ *  cost a loop over the index)
+ *  @param layer Layer
+ *  @param count Tiles in the index
+ */
+static void                             jo_map_sort_index(const unsigned int layer, const unsigned int count)
+{
+    unsigned short                      *index;
+    const jo_map_tile                   *tiles;
+    unsigned int                        k;
+    unsigned int                        j;
+    unsigned short                      t;
+    int                                 x;
+
+    index = gl_map_index[layer];
+    tiles = gl_map[layer];
+    for (k = 1; k < count; ++k)
+    {
+        t = index[k];
+        x = tiles[t].real_x;
+        for (j = k; j > 0 && (tiles[index[j - 1]].real_x > x || (tiles[index[j - 1]].real_x == x && index[j - 1] > t)); --j)
+            index[j] = index[j - 1];
+        index[j] = t;
+    }
+}
+
+/** @brief Build the index of a layer: the tiles sorted by real_x by 2 passes of a radix sort of 8 bits (stable, from the
+ *  order of the tiles: the same order as jo_map_sort_index())
+ *  @param layer Layer
+ *  @param count Tiles of the layer
+ */
+static void                             jo_map_build_index(const unsigned int layer, const unsigned int count)
+{
+    static unsigned short               counts[256];
+    unsigned short                      *index;
+    unsigned short                      *tmp;
+    const jo_map_tile                   *tiles;
+    unsigned int                        key;
+    unsigned int                        sum;
+    unsigned int                        k;
+    unsigned int                        n;
+    int                                 width;
+
+    index = gl_map_index[layer];
+    tiles = gl_map[layer];
+    width = 0;
+    for (k = 0; k < count; ++k)
+        width = JO_MAX(width, tiles[k].width);
+    gl_map_max_width[layer] = (short)width;
+    tmp = (unsigned short *)jo_malloc_with_behaviour(count * sizeof(*tmp), JO_MALLOC_TRY_REUSE_BLOCK);
+    if (tmp == JO_NULL)
+    {
+        for (k = 0; k < count; ++k)
+            index[k] = (unsigned short)k;
+        jo_map_sort_index(layer, count);
+        return;
+    }
+    // Low byte of real_x + 32768 (an unsigned key in the order of real_x)
+    for (k = 0; k < 256; ++k)
+        JO_ZERO(counts[k]);
+    for (k = 0; k < count; ++k)
+        ++counts[((unsigned int)(tiles[k].real_x + 32768)) & 0xFF];
+    for (k = 0, sum = 0; k < 256; ++k)
+    {
+        n = counts[k];
+        counts[k] = (unsigned short)sum;
+        sum += n;
+    }
+    for (k = 0; k < count; ++k)
+    {
+        key = ((unsigned int)(tiles[k].real_x + 32768)) & 0xFF;
+        tmp[counts[key]++] = (unsigned short)k;
+    }
+    for (k = 0; k < 256; ++k)
+        JO_ZERO(counts[k]);
+    for (k = 0; k < count; ++k)
+        ++counts[((unsigned int)(tiles[k].real_x + 32768)) >> 8];
+    for (k = 0, sum = 0; k < 256; ++k)
+    {
+        n = counts[k];
+        counts[k] = (unsigned short)sum;
+        sum += n;
+    }
+    for (k = 0; k < count; ++k)
+    {
+        key = ((unsigned int)(tiles[tmp[k]].real_x + 32768)) >> 8;
+        index[counts[key]++] = tmp[k];
+    }
+    jo_free(tmp);
+}
+
+/** @brief The index of a layer, built or sorted again if the tiles changed
+ *  @param layer Layer
+ *  @return false: no index (few tiles, or no memory for it): loop over all the tiles
+ */
+static bool                             jo_map_get_index(const unsigned int layer)
+{
+    const unsigned int                  count = gl_map_tile_count[layer];
+
+    if (count < JO_MAP_INDEX_MIN_TILES)
+        return (false);
+    // (the index is allocated, sorted and marked by the master CPU only, outside of an interrupt)
+    if (__jo_core_on_slave_cpu() || (__jo_core_get_sr() & JO_SH2_SR_INTERRUPT_MASK) != 0)
+        return (false);
+    if (gl_map_index[layer] == JO_NULL)
+    {
+        if (gl_map_index_refused[layer])
+            return (false);
+        gl_map_index[layer] = (unsigned short *)jo_malloc(gl_map_max_tile_count[layer] * sizeof(unsigned short));
+        gl_map_marks[layer] = (unsigned int *)jo_malloc(JO_DIV_BY_32(gl_map_max_tile_count[layer] + 31) * sizeof(unsigned int));
+        if (gl_map_index[layer] == JO_NULL || gl_map_marks[layer] == JO_NULL)
+        {
+            jo_map_forget_index(layer);
+            gl_map_index_refused[layer] = true;
+            return (false);
+        }
+        jo_memset(gl_map_marks[layer], 0, JO_DIV_BY_32(gl_map_max_tile_count[layer] + 31) * sizeof(unsigned int));
+        JO_ZERO(gl_map_index_count[layer]);
+    }
+    if (gl_map_index_count[layer] != count)
+    {
+        jo_map_build_index(layer, count);
+        gl_map_index_count[layer] = (unsigned short)count;
+        gl_map_index_sorted[layer] = true;
+    }
+    else if (!gl_map_index_sorted[layer])
+    {
+        jo_map_sort_index(layer, count);
+        gl_map_index_sorted[layer] = true;
+    }
+    return (true);
+}
+
+/** @brief The first tile of the index that can meet a range starting at x: real_x + the widest tile > x
+ *  @param layer Layer (its index ready)
+ *  @param x Start of the range
+ *  @return Position in the index
+ */
+static unsigned int                     jo_map_index_start(const unsigned int layer, const int x)
+{
+    const unsigned short                *index;
+    const jo_map_tile                   *tiles;
+    unsigned int                        lo;
+    unsigned int                        hi;
+    unsigned int                        mid;
+    int                                 from;
+
+    index = gl_map_index[layer];
+    tiles = gl_map[layer];
+    from = x - gl_map_max_width[layer];
+    for (lo = 0, hi = gl_map_index_count[layer]; lo < hi;)
+    {
+        mid = (lo + hi) >> 1;
+        if (tiles[index[mid]].real_x <= from)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return (lo);
+}
+
+/** @brief The number of the lowest bit of a word: [(word & -word) x 0x077CB531 >> 27] (a de Bruijn sequence) */
+static const unsigned char              jo_map_lowest_bit[32] =
+{
+    0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+};
+
+/** @brief Mark the tiles of a layer that meet a rectangle (see gl_map_marks: the index is ready)
+ *  @param layer Layer
+ *  @param x Rectangle (the same test as jo_square_intersect())
+ *  @param y Rectangle
+ *  @param w Rectangle
+ *  @param h Rectangle
+ *  @param first The smallest number of a tile marked
+ *  @param last The biggest number of a tile marked (-1: none)
+ */
+static void                             jo_map_mark_tiles(const unsigned int layer, const int x, const int y, const int w, const int h,
+                                                          int * const first, int * const last)
+{
+    const unsigned short                *index;
+    const jo_map_tile                   *tiles;
+    const jo_map_tile                   *tile;
+    unsigned int                        *marks;
+    unsigned int                        count;
+    unsigned int                        lo;
+    unsigned int                        t;
+    int                                 low;
+    int                                 high;
+
+    index = gl_map_index[layer];
+    tiles = gl_map[layer];
+    marks = gl_map_marks[layer];
+    count = gl_map_index_count[layer];
+    low = 0x7FFFFFFF;
+    high = -1;
+    for (lo = jo_map_index_start(layer, x); lo < count; ++lo)
+    {
+        t = index[lo];
+        tile = &tiles[t];
+        if (tile->real_x >= x + w)
+            break;
+        if (jo_square_intersect(tile->real_x, tile->real_y, tile->width, tile->height, x, y, w, h))
+        {
+            marks[t >> 5] |= __jo_bits[t & 31];
+            low = JO_MIN(low, (int)t);
+            high = JO_MAX(high, (int)t);
+        }
+    }
+    *first = low;
+    *last = high;
+}
+
+/** @brief The next tile marked by jo_map_mark_tiles() (its mark cleared), in the order of the layer
+ *  @param layer Layer
+ *  @param from The number after the previous tile (the first one marked at the first call)
+ *  @param last The last tile marked
+ *  @return The number of the tile, -1: no more
+ */
+static int                              jo_map_next_marked(const unsigned int layer, const int from, const int last)
+{
+    unsigned int                        *marks;
+    unsigned int                        word;
+    unsigned int                        k;
+
+    marks = gl_map_marks[layer];
+    // (the tiles are taken in their order and each mark is cleared: no mark before from, the next tile is the lowest bit of
+    // the first word that is not empty)
+    for (k = (unsigned int)from >> 5; (int)(k << 5) <= last; ++k)
+    {
+        word = marks[k];
+        if (word == 0)
+            continue;
+        marks[k] = word & (word - 1);
+        return ((int)(k << 5) + jo_map_lowest_bit[((word & -word) * 0x077CB531u) >> 27]);
+    }
+    return (-1);
+}
+
+/** @brief The first tile of a layer (in its order) that meets a rectangle
+ *  @param layer Layer
+ *  @param x Rectangle (see jo_square_intersect())
+ *  @param y Rectangle
+ *  @param w Rectangle
+ *  @param h Rectangle
+ *  @return The number of the tile, -1: none
+ */
+static int                              jo_map_first_tile(const unsigned int layer, const int x, const int y, const int w, const int h)
+{
+    const unsigned short                *index;
+    const jo_map_tile                   *tile;
+    unsigned int                        count;
+    unsigned int                        lo;
+    int                                 first;
+    int                                 i;
+
+    // (an index up to date is only read: the collisions can be tested by the slave CPU or in an interrupt)
+    jo_map_get_index(layer);
+    count = gl_map_index_count[layer];
+    if (gl_map_index[layer] != JO_NULL && count == gl_map_tile_count[layer] && gl_map_index_sorted[layer])
+    {
+        index = gl_map_index[layer];
+        first = -1;
+        for (lo = jo_map_index_start(layer, x); lo < count; ++lo)
+        {
+            i = index[lo];
+            tile = &gl_map[layer][i];
+            if (tile->real_x >= x + w)
+                break;
+            if ((first < 0 || i < first) && jo_square_intersect(tile->real_x, tile->real_y, tile->width, tile->height, x, y, w, h))
+                first = i;
+        }
+        return (first);
+    }
+    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
+    {
+        tile = &gl_map[layer][i];
+        if (jo_square_intersect(tile->real_x, tile->real_y, tile->width, tile->height, x, y, w, h))
+            return (i);
+    }
+    return (-1);
+}
+
+/** @brief A pixel of a tile is free (transparent): the color 0 of a texture of 16 or 256 colors, JO_COLOR_Transparent of
+ *  an RGB texture (a texture of 16 colors was read as RGB pixels: wrong pixels, past its end)
+ *  @param pic The picture of the tile
+ *  @param x Pixel in the tile
+ *  @param y Pixel in the tile
+ *  @param width Width of the tile
+ */
+static bool                             jo_map_pixel_is_free(const jo_picture_definition * const pic, const int x, const int y,
+                                                             const int width)
+{
+    unsigned int                        k;
+    unsigned char                       pair;
+
+    k = (unsigned int)(x + y * width);
+    if (pic->color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
+        return (((const unsigned char *)pic->data)[k] == 0);
+    if (pic->color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
+    {
+        // (2 pixels per byte, the first one in the high bits)
+        pair = ((const unsigned char *)pic->data)[k >> 1];
+        return (((k & 1) ? (pair & 15) : (pair >> 4)) == 0);
+    }
+    return (((const jo_color *)pic->data)[k] == JO_COLOR_Transparent);
+}
+
 int                                     jo_map_per_pixel_vertical_collision(const unsigned int layer, int x, int y, unsigned char * restrict attribute)
 {
     register jo_map_tile                *current_tile;
     register int                        i;
     register int                        distance;
-    unsigned short                      *img_data;
-    unsigned char                       *img_data_8bits;
     jo_picture_definition               *current_pic;
 
 #ifdef JO_DEBUG
     if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
         return (JO_MAP_NO_COLLISION);
 #endif
-    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
+    for (i = jo_map_first_tile(layer, x, y, 1, 1); i >= 0 && i < gl_map_tile_count[layer]; ++i)
     {
         current_tile = &gl_map[layer][i];
         if (jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, x, y, 1, 1))
@@ -105,44 +453,22 @@ int                                     jo_map_per_pixel_vertical_collision(cons
             current_pic = &__jo_sprite_pic[current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) : current_tile->sprite_or_anim_id];
             x -= current_tile->real_x;
             y -= current_tile->real_y;
-            if (current_pic->color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
+            if (jo_map_pixel_is_free(current_pic, x, y, current_tile->width))
             {
-                img_data_8bits = ((unsigned char *)current_pic->data);
-                if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y, current_tile->width) == 0)
+                for (distance = 1; y + distance < current_tile->height; ++distance)
                 {
-                    for (distance = 1; y + distance < current_tile->height; ++distance)
-                    {
-                        if (jo_sprite_get_pixel_palette_index(img_data_8bits, x, y + distance, current_tile->width) != 0)
-                            return distance;
-                    }
-                    return (JO_MAP_NO_COLLISION);
+                    if (!jo_map_pixel_is_free(current_pic, x, y + distance, current_tile->width))
+                        return distance;
                 }
-                // Inside: up to the first solid pixel of the column (the pixel above is free; the top row of the tile when
-                // the column is solid up to it: the result was one pixel short there, and a solid top row read the row
-                // before the tile)
-                distance = y;
-                while (y > 0 && jo_sprite_get_pixel_palette_index(img_data_8bits, x, y - 1, current_tile->width) != 0)
-                    --y;
-                return (y - distance);
+                return (JO_MAP_NO_COLLISION);
             }
-            else
-            {
-                img_data = ((unsigned short *)current_pic->data);
-                if (jo_sprite_is_pixel_transparent(img_data, x, y, current_tile->width))
-                {
-                    for (distance = 1; y + distance < current_tile->height; ++distance)
-                    {
-                        if (!jo_sprite_is_pixel_transparent(img_data, x, y + distance, current_tile->width))
-                            return distance;
-                    }
-                    return (JO_MAP_NO_COLLISION);
-                }
-                // (see above)
-                distance = y;
-                while (y > 0 && !jo_sprite_is_pixel_transparent(img_data, x, y - 1, current_tile->width))
-                    --y;
-                return (y - distance);
-            }
+            // Inside: up to the first solid pixel of the column (the pixel above is free; the top row of the tile when
+            // the column is solid up to it: the result was one pixel short there, and a solid top row read the row
+            // before the tile)
+            distance = y;
+            while (y > 0 && !jo_map_pixel_is_free(current_pic, x, y - 1, current_tile->width))
+                --y;
+            return (y - distance);
         }
     }
     return (JO_MAP_NO_COLLISION);
@@ -150,20 +476,14 @@ int                                     jo_map_per_pixel_vertical_collision(cons
 
 int                                     jo_map_hitbox_detection_custom_boundaries(const unsigned int layer, const int x, const int y, const int w, const int h)
 {
-    register jo_map_tile                *current_tile;
-    register int                        i;
+    int                                 i;
 
 #ifdef JO_DEBUG
     if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
         return (JO_MAP_NO_COLLISION);
 #endif
-    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
-    {
-        current_tile = &gl_map[layer][i];
-        if (jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, x, y, w, h))
-            return (current_tile->attribute);
-    }
-    return (JO_MAP_NO_COLLISION);
+    i = jo_map_first_tile(layer, x, y, w, h);
+    return (i >= 0 ? gl_map[layer][i].attribute : JO_MAP_NO_COLLISION);
 }
 
 bool					                    jo_map_create(const unsigned int layer, const unsigned short max_tile_count, const short depth)
@@ -218,8 +538,6 @@ static void             __internal_jo_map_add_tile(const unsigned int layer, con
         return ;
     }
     new_tile = &gl_map[layer][gl_map_tile_count[layer]];
-    new_tile->pos.z = gl_map_depth_fixed[layer];
-    new_tile->is_visible_on_screen = false;
     new_tile->sprite_or_anim_id = sprite_or_anim_id;
     new_tile->real_x = x;
     new_tile->real_y = y;
@@ -300,11 +618,22 @@ static void                 jo_map_draw_background_region(const unsigned int lay
     int                     top;
     int                     right;
     int                     bottom;
+    int                     first;
+    int                     last;
+    bool                    indexed;
 
     if (width <= 0 || height <= 0)
         return ;
     __jo_vdp2_nbg1_bitmap_fill(x, y, width, height, clear_color);
-    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
+    indexed = jo_map_get_index(layer);
+    if (indexed)
+    {
+        jo_map_mark_tiles(layer, x, y, width, height, &first, &last);
+        i = jo_map_next_marked(layer, first, last);
+    }
+    else
+        JO_ZERO(i);
+    for (; indexed ? i >= 0 : i < gl_map_tile_count[layer]; i = indexed ? jo_map_next_marked(layer, i + 1, last) : i + 1)
     {
         current_tile = &gl_map[layer][i];
         // Intersection between the tile and the region
@@ -394,23 +723,30 @@ void						jo_map_draw(const unsigned int layer, const short screen_x, const shor
 {
     register int		    i;
     register jo_map_tile    *current_tile;
+    int                     first;
+    int                     last;
+    bool                    indexed;
 
 #ifdef JO_DEBUG
     if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
         return;
 #endif
-    for (JO_ZERO(i); i < gl_map_tile_count[layer]; ++i)
+    indexed = jo_map_get_index(layer);
+    if (indexed)
+    {
+        jo_map_mark_tiles(layer, screen_x, screen_y, __jo_screen.width, __jo_screen.height, &first, &last);
+        i = jo_map_next_marked(layer, first, last);
+    }
+    else
+        JO_ZERO(i);
+    for (; indexed ? i >= 0 : i < gl_map_tile_count[layer]; i = indexed ? jo_map_next_marked(layer, i + 1, last) : i + 1)
     {
         current_tile = &gl_map[layer][i];
-        current_tile->is_visible_on_screen = jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, screen_x, screen_y, __jo_screen.width, __jo_screen.height);
-        if (current_tile->is_visible_on_screen)
+        if (jo_square_intersect(current_tile->real_x, current_tile->real_y, current_tile->width, current_tile->height, screen_x, screen_y, __jo_screen.width, __jo_screen.height))
         {
-            current_tile->pos.x = current_tile->x - screen_x;
-            current_tile->pos.y = current_tile->y - screen_y;
-            if (current_tile->is_animated)
-                jo_sprite_draw(jo_get_anim_sprite(current_tile->sprite_or_anim_id), &current_tile->pos, true, false);
-            else
-                jo_sprite_draw(current_tile->sprite_or_anim_id, &current_tile->pos, true, false);
+            jo_sprite_draw3D(current_tile->is_animated ? jo_get_anim_sprite(current_tile->sprite_or_anim_id) :
+                             current_tile->sprite_or_anim_id, current_tile->x - screen_x, current_tile->y - screen_y,
+                             gl_map_depth_fixed[layer]);
         }
     }
 }
@@ -421,6 +757,7 @@ void					jo_map_free(const unsigned int layer)
     if (__JO_INDEX_IS_WRONG(layer, JO_MAP_MAX_LAYER, "layer"))
         return;
 #endif
+    jo_map_forget_index(layer);
     if (gl_map[layer] != JO_NULL)
         jo_free(gl_map[layer]);
     gl_map[layer] = JO_NULL;
@@ -589,6 +926,7 @@ void                        jo_map_move_tiles_by_attribute(const unsigned int la
         {
             current_tile->x += incr_x;
             current_tile->real_x += incr_x;
+            gl_map_index_sorted[layer] = false;
         }
     }
 }

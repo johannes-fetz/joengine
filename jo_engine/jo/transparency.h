@@ -100,7 +100,7 @@
 bool    jo_3d_transparency_init(const int width, const jo_scroll_screen screen);
 
 /** @brief Stop the transparency layer: its bitmap given back (NBG0: the text of jo_printf() again), the SCU DMA levels 1
- *  and 2 free, the memory given back */
+ *  and 2 free, the memory given back, the drawing of the VDP1 clipped to the screen again (not to the frame buffer) */
 void    jo_3d_transparency_stop(void);
 
 /** @brief How the layer is mixed with the image under it

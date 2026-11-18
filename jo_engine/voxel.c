@@ -292,9 +292,13 @@ void                        __jo_voxel_redraw(const jo_voxel * const voxel_data,
         jo_voxel_draw_columns(&columns);
     // (the rest of the buffer, outside of the clipping rectangle: cleared like jo_software_renderer_clear() does)
     if (clear && pitch > width)
+    {
         for (JO_ZERO(y); y < height; ++y)
             for (x = width, pixel = color_buffer + y * pitch; x < pitch; ++x)
                 pixel[x] = JO_COLOR_Black;
+        // (not the color of the last jo_software_renderer_clear() there anymore: written again by the next one)
+        gfx->__margin_width = -1;
+    }
 }
 
 void                        jo_voxel_redraw(const jo_voxel * const voxel_data)

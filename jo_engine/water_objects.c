@@ -599,6 +599,15 @@ static void                 objects_frame(const jo_water * const w, const __jo_w
         if (under_count > 0)
             draw_objects_on_slave(w);
         break;
+    case __JO_WATER_OBJECTS_FREE:
+        // (their sprites: freed with the textures of the water, see jo_water_free())
+        JO_ZERO(under_count);
+        JO_ZERO(in_view_count);
+        JO_ZERO(over_count);
+        JO_ZERO(seen_lut_count);
+        JO_ZERO(lut_free);
+        JO_ZERO(seen_texture_count);
+        break;
     default:
         JO_ZERO(over_count);
         break;
@@ -748,10 +757,15 @@ jo_water_dip                *jo_water_add_dip(jo_water * const w, jo_3d_mesh * c
     if (mesh == JO_NULL || levels < 1 || levels > JO_WATER_DIP_LEVELS)
         return (JO_NULL);
     count = (int)mesh->data.polygon_count;
-    if ((d = (jo_water_dip *)jo_malloc(sizeof(jo_water_dip))) == JO_NULL ||
-        (d->attributes = (jo_3d_polygon_attribute *)jo_malloc((unsigned int)(count * (levels + 1)) * sizeof(jo_3d_polygon_attribute))) == JO_NULL ||
-        (d->middles = (jo_pos3D_fixed *)jo_malloc((unsigned int)count * sizeof(jo_pos3D_fixed))) == JO_NULL)
+    if ((d = (jo_water_dip *)jo_malloc(sizeof(jo_water_dip))) == JO_NULL)
         return (JO_NULL);
+    d->attributes = (jo_3d_polygon_attribute *)jo_malloc((unsigned int)(count * (levels + 1)) * sizeof(jo_3d_polygon_attribute));
+    d->middles = (jo_pos3D_fixed *)jo_malloc((unsigned int)count * sizeof(jo_pos3D_fixed));
+    if (d->attributes == JO_NULL || d->middles == JO_NULL)
+    {
+        jo_water_free_dip(d);
+        return (JO_NULL);
+    }
     d->mesh = mesh;
     d->count = count;
     d->levels = levels;
@@ -801,6 +815,17 @@ void                        jo_water_dip_mesh(jo_water_dip * const d, const jo_f
             ;
         d->mesh->data.attributes[k] = d->attributes[level * d->count + k];
     }
+}
+
+void                        jo_water_free_dip(jo_water_dip * const d)
+{
+    if (d == JO_NULL)
+        return;
+    if (d->attributes != JO_NULL)
+        jo_free(d->attributes);
+    if (d->middles != JO_NULL)
+        jo_free(d->middles);
+    jo_free(d);
 }
 
 #endif /* JO_COMPILE_WITH_3D_SUPPORT && JO_COMPILE_WITH_DUAL_CPU_SUPPORT */

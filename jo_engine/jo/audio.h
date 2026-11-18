@@ -37,7 +37,8 @@
 
 #ifdef JO_COMPILE_WITH_AUDIO_SUPPORT
 
-/** @brief Channels of sounds (2 slots of the SCSP each; the slots 16 and 17 take the CD audio) */
+/** @brief Channels of sounds (2 slots of the SCSP each; the slots 16 and 17 take the CD audio; the last channel plays the
+ *  sound of a movie while it plays, see jo_video_play()) */
 # define JO_SOUND_MAX_CHANNEL       (14)
 
 typedef enum
@@ -54,7 +55,7 @@ typedef struct
     unsigned int    data_length;
     jo_sound_mode   mode;
     unsigned char   current_playing_channel;
-    unsigned short  sample_rate; // Set sampling rate from 8000 to 44100 kHz
+    unsigned int    sample_rate; // Sampling rate (Hz, 0: 44100), 1378 to 88200 (see jo_audio_set_channel_sample_rate())
     unsigned char   volume; // Change volume: 0 (JO_MIN_AUDIO_VOLUME) -> 127 (JO_MAX_AUDIO_VOLUME)
     char            pan; // Adjust stereo: -128 (left speaker) -> 127 (right speaker)
     unsigned int    resident; // Kept in the sound RAM (jo_audio_make_resident()): its offset there + 1, 0: not resident
@@ -167,7 +168,7 @@ void	jo_audio_play_sound_loop_on_channel(jo_sound * const sound, const unsigned 
  *  @param channel Channel (0 to JO_SOUND_MAX_CHANNEL - 1)
  *  @param sample_rate Sampling rate (Hz, 1378 to 88200: 44100 / 32 to 44100 x 2)
  */
-void	jo_audio_set_channel_sample_rate(const unsigned char channel, const unsigned short sample_rate);
+void	jo_audio_set_channel_sample_rate(const unsigned char channel, const unsigned int sample_rate);
 
 /** @brief Change the volume of the sound played on a channel
  *  @param channel Channel (0 to JO_SOUND_MAX_CHANNEL - 1)

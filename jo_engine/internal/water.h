@@ -47,7 +47,9 @@ typedef enum
     /** @brief The slave CPU after the water: the objects under the water */
     __JO_WATER_OBJECTS_DRAW_ON_SLAVE,
     /** @brief The end of the frame: the objects above the water are given again in the next frame */
-    __JO_WATER_OBJECTS_END_FRAME
+    __JO_WATER_OBJECTS_END_FRAME,
+    /** @brief jo_water_free(): the objects, the tables and the textures seen through the water are forgotten */
+    __JO_WATER_OBJECTS_FREE
 }                           __jo_water_objects_step;
 
 /** @brief The objects of the water at each step of a frame (water_objects.c): JO_NULL until the first object is added (the

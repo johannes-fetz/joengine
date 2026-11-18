@@ -125,6 +125,15 @@
 /** @brief Distance to the samples of jo_water_sample() (units, on each side) */
 # define SAMPLE_STEP        (4)
 
+/** @brief A cell of the foam grid (see jo_water_foam()): the frame of the stamp, its life (frames / 4), the region of 1024
+ *  units of the cell (4 bits of x and z) */
+typedef struct
+{
+    unsigned short          time;
+    unsigned char           life;
+    unsigned char           region;
+}                           foam_cell;
+
 /** @brief A wave of the swell, ready to compute */
 typedef struct
 {
@@ -285,6 +294,7 @@ struct                      s_jo_water
     int                     depth_shift;
     int                     depth_x;
     int                     depth_z;
+    foam_cell               *foam_grid;     // FOAM_GRID x FOAM_GRID cells
     bool                    foam_live;      // Foam stamped in the grid (in the last minutes)
     bool                    foam_filled;    // All the tables of the foam made once (see animate_foam())
     int                     foam_frame;     // The frame of the last stamp
@@ -292,7 +302,7 @@ struct                      s_jo_water
     // The skirt
     jo_3d_mesh              *skirt;
     int                     skirt_segments;
-    jo_pos3D_fixed          skirt_points[8 * JO_WATER_MAX_CELLS];
+    jo_pos3D_fixed          *skirt_points;  // Shared by its quads (2 rings)
     unsigned short          skirt_gouraud[2];
     int                     skirt_set;
     // The 2 CPUs
@@ -320,15 +330,6 @@ static jo_fixed             normal_inverses[256];
 static jo_fixed             sines[256];
 /** @brief 2048 / k: R.x / R.y in cells of the reflections (R.y in 1/64) */
 static unsigned short       reflection_inverses[65];
-/** @brief The foam grid (see jo_water_foam()): the frame of the stamp, its life (frames / 4), the region of 1024 units of
- *  the cell (4 bits of x and z) */
-typedef struct
-{
-    unsigned short          time;
-    unsigned char           life;
-    unsigned char           region;
-}                           foam_cell;
-static foam_cell            foam_grid[FOAM_GRID * FOAM_GRID];
 /** @brief 65536 / (life x 4) (the fade of a cell) */
 static unsigned short       foam_inverses[256];
 static bool                 tables_ready;
@@ -868,9 +869,9 @@ static  __jo_force_inline int  foam_region(const int x, const int z)
     return (((x >> FOAM_REGION_SHIFT) & 15) | (((z >> FOAM_REGION_SHIFT) & 15) << 4));
 }
 
-static  __jo_force_inline foam_cell  *foam_cell_at(const int x, const int z)
+static  __jo_force_inline foam_cell  *foam_cell_at(foam_cell * const grid, const int x, const int z)
 {
-    return (&foam_grid[(((z >> FOAM_CELL_SHIFT) & (FOAM_GRID - 1)) << FOAM_GRID_SHIFT) | ((x >> FOAM_CELL_SHIFT) & (FOAM_GRID - 1))]);
+    return (&grid[(((z >> FOAM_CELL_SHIFT) & (FOAM_GRID - 1)) << FOAM_GRID_SHIFT) | ((x >> FOAM_CELL_SHIFT) & (FOAM_GRID - 1))]);
 }
 
 /** @brief Foam of a cell at a time (0 to 255: 255 at the stamp, 0 at the end of its life) */
@@ -969,7 +970,7 @@ int                         jo_water_foam_at(const jo_water * const w, const int
 {
     if (!w->foam_live)
         return (0);
-    return (foam_of(foam_cell_at(x, z), w->frame, foam_region(x, z)));
+    return (foam_of(foam_cell_at(w->foam_grid, x, z), w->frame, foam_region(x, z)));
 }
 
 void                        jo_water_foam(jo_water * const w, const int x, const int z, const int radius, const int life)
@@ -1003,7 +1004,7 @@ void                        jo_water_foam(jo_water * const w, const int x, const
                 continue;
             px = (cx + i) << FOAM_CELL_SHIFT;
             pz = (cz + j) << FOAM_CELL_SHIFT;
-            c = foam_cell_at(px, pz);
+            c = foam_cell_at(w->foam_grid, px, pz);
             // (the foam already there that lives longer: kept)
             if (c->life != 0 && c->region == foam_region(px, pz))
             {
@@ -1421,6 +1422,36 @@ static bool                 create_bottom_textures(jo_water * const w, const uns
     return (true);
 }
 
+/** @brief A mesh of quads that share their points (its own 4 points per quad given back), JO_NULL if out of memory (or no
+ *  points) */
+static jo_3d_mesh           *create_shared_mesh(const int quads, jo_pos3D_fixed * const points, const int point_count)
+{
+    jo_3d_mesh              *mesh;
+
+    if (points == JO_NULL || (mesh = jo_3d_create_mesh((unsigned int)quads)) == JO_NULL)
+        return (JO_NULL);
+    jo_free(mesh->data.points);
+    mesh->data.points = points;
+    mesh->data.point_count = (unsigned int)point_count;
+    return (mesh);
+}
+
+/** @brief Free a block if there is one (a water not fully created) */
+static void                 free_block(const void * const p)
+{
+    if (p != JO_NULL)
+        jo_free(p);
+}
+
+/** @brief Free a mesh of create_shared_mesh() with its points, or its points alone (the mesh not created) */
+static void                 free_shared_mesh(const jo_3d_mesh * const mesh, const jo_pos3D_fixed * const points)
+{
+    if (mesh != JO_NULL)
+        jo_3d_free_mesh(mesh);
+    else
+        free_block(points);
+}
+
 static bool                 create_level(level_data * const g, const int cells, const int cell)
 {
     int                     vertices;
@@ -1453,11 +1484,10 @@ static bool                 create_level(level_data * const g, const int cells, 
     if (g->points == JO_NULL || g->heights == JO_NULL || g->colors == JO_NULL || g->foam == JO_NULL || g->depth == JO_NULL ||
         g->quad_i == JO_NULL ||
         g->quad_j == JO_NULL || g->tables == JO_NULL || g->attributes[1] == JO_NULL || g->blend_vertex == JO_NULL ||
-        g->blend_parent == JO_NULL || g->blend_code == JO_NULL || (g->mesh = jo_3d_create_mesh((unsigned int)quads)) == JO_NULL)
+        g->blend_parent == JO_NULL || g->blend_code == JO_NULL ||
+        (g->mesh = create_shared_mesh(quads, g->points, vertices * vertices)) == JO_NULL)
         return (false);
     // The quads share the vertices of the level, line by line (the quads of the hole are skipped when drawn)
-    g->mesh->data.points = g->points;
-    g->mesh->data.point_count = (unsigned int)(vertices * vertices);
     for (JO_ZERO(j); j < vertices; ++j)
         for (JO_ZERO(i); i < vertices; ++i)
         {
@@ -1483,6 +1513,26 @@ static bool                 create_level(level_data * const g, const int cells, 
     g->attributes[0] = g->mesh->data.attributes;
     jo_memcpy(g->attributes[1], g->attributes[0], (unsigned int)quads * sizeof(jo_3d_polygon_attribute));
     return (g->gouraud[0] != 0 && g->gouraud[1] != 0);
+}
+
+/** @brief Free a level (its gouraud tables apart: see free_water()) */
+static void                 free_level(level_data * const g)
+{
+    // (the mesh with its own attributes: it may have the second array, see set_polygons())
+    if (g->mesh != JO_NULL && g->attributes[0] != JO_NULL)
+        g->mesh->data.attributes = g->attributes[0];
+    free_shared_mesh(g->mesh, g->points);
+    free_block(g->attributes[1]);
+    free_block(g->heights);
+    free_block(g->colors);
+    free_block(g->foam);
+    free_block(g->depth);
+    free_block(g->quad_i);
+    free_block(g->quad_j);
+    free_block(g->tables);
+    free_block(g->blend_vertex);
+    free_block(g->blend_parent);
+    free_block(g->blend_code);
 }
 
 /*
@@ -1529,7 +1579,8 @@ static bool                 create_skirt(jo_water * const w)
 
     w->skirt_segments = w->levels[w->level_count - 1].cells;
     quads = 4 * w->skirt_segments;
-    if ((w->skirt = jo_3d_create_mesh((unsigned int)quads)) == JO_NULL)
+    w->skirt_points = (jo_pos3D_fixed *)jo_malloc((unsigned int)(2 * quads) * sizeof(jo_pos3D_fixed));
+    if ((w->skirt = create_shared_mesh(quads, w->skirt_points, 2 * quads)) == JO_NULL)
         return (false);
     side = w->level_sizes[w->level_count - 1].side;
     for (JO_ZERO(k); k < quads; ++k)
@@ -1537,8 +1588,6 @@ static bool                 create_skirt(jo_water * const w)
         ring_point(w, &w->skirt_points[k], k, 0, side);
         ring_point(w, &w->skirt_points[quads + k], k, side / 2 - w->config.skirt, 2 * w->config.skirt);
     }
-    w->skirt->data.points = w->skirt_points;
-    w->skirt->data.point_count = (unsigned int)(2 * quads);
     for (JO_ZERO(k); k < quads; ++k)
     {
         polygon = &w->skirt->data.polygons[k];
@@ -1555,10 +1604,43 @@ static bool                 create_skirt(jo_water * const w)
     return (w->skirt_gouraud[0] != 0 && w->skirt_gouraud[1] != 0);
 }
 
+/** @brief Free the memory of a water and its gouraud tables (see jo_water_free()) */
+static void                 free_water(jo_water * const w)
+{
+    int                     quads;
+    int                     k;
+
+    // (the gouraud tables in the reverse order of their adding: given back when they are the last ones, see
+    // jo_3d_free_gouraud_tables())
+    jo_3d_free_gouraud_tables(w->skirt_gouraud[1], (unsigned int)(4 * w->skirt_segments));
+    jo_3d_free_gouraud_tables(w->skirt_gouraud[0], (unsigned int)(4 * w->skirt_segments));
+    free_block(w->foam_grid);
+    free_shared_mesh(w->skirt, w->skirt_points);
+    for (k = w->level_count - 1; k >= 0; --k)
+    {
+        quads = w->levels[k].cells * w->levels[k].cells;
+        jo_3d_free_gouraud_tables(w->levels[k].gouraud[1], (unsigned int)quads);
+        jo_3d_free_gouraud_tables(w->levels[k].gouraud[0], (unsigned int)quads);
+        free_level(&w->levels[k]);
+    }
+    if (current == w)
+        current = JO_NULL;
+    jo_free(w);
+}
+
+/** @brief jo_water_create() failed: the water freed, the sprites it added given back (all the sprites since its start) */
+static jo_water             *create_failed(jo_water * const w, const int first_sprite)
+{
+    free_water(w);
+    jo_sprite_free_from(first_sprite);
+    return (JO_NULL);
+}
+
 jo_water                    *jo_water_create(const jo_water_config * const config)
 {
     jo_water                *w;
     level_data              *g;
+    int                     first_sprite;
     int                     k;
     int                     cell;
     int                     side;
@@ -1567,6 +1649,7 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
     if ((w = (jo_water *)jo_malloc(sizeof(jo_water))) == JO_NULL)
         return (JO_NULL);
     jo_memset(w, 0, sizeof(jo_water));
+    first_sprite = jo_sprite_count();
     current = w;
     w->config = *config;
     w->level_count = JO_MIN(config->level_count, JO_WATER_MAX_LEVELS);
@@ -1586,7 +1669,7 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
         if (config->patterns_file != JO_NULL)
         {
             if ((file = jo_level_load(config->patterns_file)) == JO_NULL)
-                return (JO_NULL);
+                return (create_failed(w, first_sprite));
             patterns = (const unsigned char *)jo_level_section_data(file, FOAM_SECTION);
         }
         else
@@ -1601,7 +1684,7 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
             jo_level_free(file);
 #endif
         if (!made)
-            return (JO_NULL);
+            return (create_failed(w, first_sprite));
     }
 #ifdef JO_COMPILE_WITH_TGA_SUPPORT
     if (config->grain)
@@ -1621,11 +1704,11 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
 #else
             jo_printf(0, 0, "water: wrong level %d", k);
 #endif
-            return (JO_NULL);
+            return (create_failed(w, first_sprite));
         }
         g = &w->levels[k];
         if (!create_level(g, side / cell, cell))
-            return (JO_NULL);
+            return (create_failed(w, first_sprite));
         g->period = cell <= config->update_cell ? 1 : cell <= 2 * config->update_cell ? 2 : 4;
         if (k == 0)
             continue;
@@ -1634,7 +1717,10 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
         g->hole_cells = w->level_sizes[k - 1].side / cell;
     }
     if (!create_skirt(w))
-        return (JO_NULL);
+        return (create_failed(w, first_sprite));
+    if ((w->foam_grid = (foam_cell *)jo_malloc(FOAM_GRID * FOAM_GRID * sizeof(foam_cell))) == JO_NULL)
+        return (create_failed(w, first_sprite));
+    jo_memset(w->foam_grid, 0, FOAM_GRID * FOAM_GRID * sizeof(foam_cell));
     // (the events: a short life, 3 quads per wavelength are enough)
     w->splash_level = last_level_for(w, config->splash_length * config->min_cells_per_wave / 3);
     w->splash_k = 65536 / JO_MAX(1, config->splash_length);
@@ -1667,6 +1753,15 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
     w->light_split.share = JO_FIXED_1 / 2;
     w->slave_draw_levels = JO_MAX(0, JO_MIN(config->slave_levels, w->level_count - 1));
     return (w);
+}
+
+void                        jo_water_free(jo_water * const w)
+{
+    if (w == JO_NULL)
+        return;
+    if (__jo_water_objects_frame != JO_NULL)
+        __jo_water_objects_frame(w, __JO_WATER_OBJECTS_FREE);
+    free_water(w);
 }
 
 /*
@@ -2158,6 +2253,7 @@ static void                 level_light(const int k, const int first, const int 
     bool                    caustics;
     bool                    hole_row;
     bool                    foamy;
+    foam_cell               *grid;
     bool                    shallow;
     jo_fixed                inv_2cells;
     jo_fixed                sx;
@@ -2173,6 +2269,7 @@ static void                 level_light(const int k, const int first, const int 
     inv_2cells = JO_FIXED_1 / (2 * g->cell);
     caustics = w->config.caustics > 0;
     foamy = w->foam_live && k < FOAM_LEVELS;
+    grid = w->foam_grid;
     JO_ZERO(foam);
     depth = 255;
     // (the vertices deep in the hole: not used)
@@ -2193,7 +2290,7 @@ static void                 level_light(const int k, const int first, const int 
                     if (hole_row && i > g->hole_i + inside && i < g->hole_i + g->hole_cells - inside)
                         continue;
                     x = g->origin_x + i * g->cell;
-                    g->foam[j * vertices + i] = (unsigned char)foam_of(foam_cell_at(x, z), w->frame, foam_region(x, z));
+                    g->foam[j * vertices + i] = (unsigned char)foam_of(foam_cell_at(grid, x, z), w->frame, foam_region(x, z));
                 }
             }
             continue;
@@ -2213,7 +2310,7 @@ static void                 level_light(const int k, const int first, const int 
             x = g->origin_x + i * g->cell;
             z = g->origin_z + j * g->cell;
             if (foamy)
-                foam = foam_of(foam_cell_at(x, z), w->frame, foam_region(x, z));
+                foam = foam_of(foam_cell_at(grid, x, z), w->frame, foam_region(x, z));
             if (shallow)
                 depth = depth_at(w, x, z);
             // (the surf: the foam of the vertex, see vertex_color(); the texture only for the foam of a boat)

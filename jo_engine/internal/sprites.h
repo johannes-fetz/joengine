@@ -119,6 +119,13 @@ int     __jo_sprite_add_4bits(const void * const pixels, const unsigned short wi
  */
 int     __jo_sprite_replace(const jo_img * const img, const int sprite_id, const bool async);
 
+#ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
+/** @brief Forget the sprites of the movie that are freed (internal usage, called by jo_sprite_free_from(), see video.c)
+ *  @param sprite_id First sprite freed
+ */
+void    __jo_video_sprites_freed(const int sprite_id);
+#endif
+
 #endif /* !__JO_INTERNAL_SPRITES_H__ */
 
 /*

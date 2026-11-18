@@ -44,6 +44,12 @@
   */
 void            __jo_dma_read_port32(const volatile void * const port, void * const dest, const unsigned int size);
 
+/** @brief 1 << n for n from 0 to 31 (Internal usage)
+ *  @remarks The SH-2 shifts by 1, 2, 8 or 16 bits: a shift by a variable is a call of a routine of the compiler, linked
+ *  in the program
+ */
+extern const unsigned int   __jo_bits[32];
+
 #endif /* !__JO_INTERNAL_TOOLS_H__ */
 
 /*

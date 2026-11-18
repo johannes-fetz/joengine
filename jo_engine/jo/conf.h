@@ -92,7 +92,7 @@
 
   The helpers that are always compiled (maps, sprite animations, physics, sprite fonts, images, palettes) cost no byte
   in a program that does not call them: the link time optimization keeps only the functions used. Sizes of
-  Samples/demo - minimal (game.raw): 29052 bytes with the default engine, 20940 with JO_MINIMAL = 1, 17616 with
+  Samples/demo - minimal (game.raw): 30292 bytes with the default engine, 19652 with JO_MINIMAL = 1, 15432 with
   JO_MINIMAL = 1 and JO_DEBUG = 0
 */
 

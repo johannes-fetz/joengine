@@ -68,7 +68,8 @@ void            jo_set_displayed_screens(const jo_scroll_screen scroll_screen_fl
 void            jo_set_default_background_color(const jo_color background_color);
 
 /** @brief Set a color for each line of the back screen (visible where no scroll screen is displayed)
- *  @param colors JO_TV_HEIGHT colors (the first one is the top of the screen)
+ *  @param colors JO_TV_HEIGHT colors (the first one is the top of the screen; the lines after them, on a screen of more
+ *         lines (see jo_core_set_screen_resolution()), take the last one)
  *  @remarks Useful for a sky gradient. The colors are copied: the function can be called every frame.
  *  @remarks jo_set_default_background_color() goes back to a single color
  */

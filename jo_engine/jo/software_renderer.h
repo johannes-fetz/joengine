@@ -108,6 +108,9 @@ typedef struct
     unsigned int                            __texture_cache_size[4];// (internal) their blocks (texels)
     short                                   __texture_cache_id[4];  // (internal) their sprites (-1: none)
     int                                     __texture_cache_next;   // (internal) the next entry replaced
+    short                                   __margin_width;         // (internal) the columns from it to the end of a row have
+                                                                    // __margin_color (-1: unknown), see jo_software_renderer_clear()
+    jo_color                                __margin_color;
 }                                           jo_software_renderer_gfx;
 
 /** @brief Vertex */

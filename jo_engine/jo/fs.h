@@ -150,6 +150,9 @@ void                                        jo_fs_close(jo_file * const file);
  *  @remarks Only the files opened after this call use the new size
  *  @remarks A file read in many small pieces (the models of a level read one at a time): a bigger buffer calls the CD
  *  less often (16 sectors: each call of the CD reads 32 KB)
+ *  @remarks A stream read a piece per frame (a video, a music): keep 1. The whole sectors of a read go straight to the
+ *  output anyway; a bigger buffer makes one frame in several pay the transfer of the whole buffer (measured with a video
+ *  of 9 KB per frame: 16 sectors made one frame in 4 about 6 ms longer)
  */
 void                                        jo_fs_set_read_sector_count(const int count);
 
@@ -162,6 +165,17 @@ void                                        jo_fs_set_read_sector_count(const in
  *  and the DMA when the buffer is 4 bytes aligned)
  */
 int                                         jo_fs_read_next_bytes(jo_file * const file, char *buffer, unsigned int nbytes);
+
+/** @brief Read bytes from a file without waiting for the drive: only the bytes already read by the CD drive (it reads
+ *  ahead while the game runs: a stream read a piece per frame never stops the game)
+ *  @param file Pointer to an allocated and valid jo_file struct (not compressed: see jo_fs_open())
+ *  @param buffer Pointer to an allocated buffer (length >= nbytes)
+ *  @param nbytes Number of bytes wanted
+ *  @return Number of bytes read now (0: none yet, call it again later; fewer than nbytes: the rest later), -1 if the read
+ *  failed or the file is compressed
+ *  @remarks The same position as jo_fs_read_next_bytes(): both can read the same file
+ */
+int                                         jo_fs_read_available(jo_file * const file, void * const buffer, unsigned int nbytes);
 
 /** @brief Read bytes from a file: all of them
  *  @param file Pointer to an allocated and valid jo_file struct

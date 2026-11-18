@@ -93,6 +93,10 @@ bool            jo_map_load_from_file(const unsigned int layer, const short dept
  *  @param max_tile_count Maximum tile count in the entire map
  *  @param depth Z index (ex 500)
  *  @return true if successful otherwise false (use jo_get_last_error())
+ *  @remarks A layer of 64 tiles or more (JO_MAP_INDEX_MIN_TILES, a define of the engine) gets an index of its tiles at its
+ *  first use: jo_map_draw(), the backgrounds and the collisions only test the tiles near the screen or the hitbox. It takes
+ *  2 bytes and 1 bit per tile of max_tile_count (jo_malloc(), freed by jo_map_free()); without memory for it, all the tiles
+ *  are tested, as before. -DJO_MAP_INDEX_MIN_TILES=65536 turns it off
  */
 bool             jo_map_create(const unsigned int layer, const unsigned short max_tile_count, const short depth);
 

@@ -45,6 +45,14 @@
  */
 extern const jo_3d_polygon_data     *(*__jo_3d_master_polygon_filter)(const jo_3d_polygon_data * const pdata);
 
+/** @brief Called when sprites are freed (Internal usage, see __jo_3d_forget_sprites_from()), JO_NULL: none. Set by the
+ *  modules that keep the ids of sprites they added, when they add them: the glows of the transparency layer (their
+ *  textures and their color lookup tables, written at each frame) and the masks of the layer
+ *  @param sprite_id First sprite freed
+ */
+extern void                         (*__jo_3d_glow_sprites_freed)(const int sprite_id);
+extern void                         (*__jo_3d_transparency_sprites_freed)(const int sprite_id);
+
 /** @brief Draw polygons whose points are in parts, each one transformed by its own matrix: the bones of a skeleton
  *  (one draw for the whole model, see jo_3d_model_draw_pose()) (Internal usage)
  *  @param pdata Polygon data (vertices, polygons and attributes)

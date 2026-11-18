@@ -102,21 +102,24 @@ static void                 place_sun(jo_sun * const sun, const jo_angle heading
         return;
     pd = jo_3d_get_projection_distance();
     sun->horizon_y = jo_core_get_screen_height() / 2 - jo_fixed2int(jo_fixed_mult(pd, look_down));
-    sun->x = JO_TV_WIDTH / 2 + jo_fixed2int(jo_fixed_div(jo_fixed_mult(pd, jo_fixed_mult(sd, ce)), depth));
+    sun->x = jo_core_get_screen_width() / 2 + jo_fixed2int(jo_fixed_div(jo_fixed_mult(pd, jo_fixed_mult(sd, ce)), depth));
     sun->y = jo_core_get_screen_height() / 2 -
              jo_fixed2int(jo_fixed_div(jo_fixed_mult(pd, jo_fixed_mult(se, cp) + jo_fixed_mult(jo_fixed_mult(cd, ce), sp)), depth));
-    sun->seen = sun->x > -sun->halo_half && sun->x < JO_TV_WIDTH + sun->halo_half && sun->y > -sun->halo_half;
+    sun->seen = sun->x > -sun->halo_half && sun->x < jo_core_get_screen_width() + sun->halo_half &&
+                sun->y > -sun->halo_half;
 }
 
 void                        jo_sun_update(jo_sun * const sun, const jo_angle heading, const jo_fixed look_down,
                                           bool (*hidden)(void))
 {
     int                     want;
+    int                     half_width;
 
     place_sun(sun, heading, look_down);
     JO_ZERO(want);
-    if (sun->seen && JO_ABS(sun->x - JO_TV_WIDTH / 2) < JO_TV_WIDTH / 2 - 10 && sun->y > 10 && (hidden == JO_NULL || !hidden()))
-        want = JO_MAX(0, JO_SUN_FLARE_FULL - (JO_ABS(sun->x - JO_TV_WIDTH / 2) + JO_ABS(sun->y - jo_core_get_screen_height() / 2)) /
+    half_width = jo_core_get_screen_width() / 2;
+    if (sun->seen && JO_ABS(sun->x - half_width) < half_width - 10 && sun->y > 10 && (hidden == JO_NULL || !hidden()))
+        want = JO_MAX(0, JO_SUN_FLARE_FULL - (JO_ABS(sun->x - half_width) + JO_ABS(sun->y - jo_core_get_screen_height() / 2)) /
                          FLARE_FALLOFF);
     sun->flare_level += sun->flare_level < want ? 1 : sun->flare_level > want ? -1 : 0;
 }
@@ -149,7 +152,7 @@ void                        jo_sun_draw_flare(const jo_sun * const sun)
 
     if (sun->flare_level <= FLARE_MIN_LEVEL)
         return;
-    dx = sun->x - JO_TV_WIDTH / 2;
+    dx = sun->x - jo_core_get_screen_width() / 2;
     dy = sun->y - jo_core_get_screen_height() / 2;
     jo_3d_set_depth_bias(sun->flare_bias);
     for (JO_ZERO(k); k < sun->flare_count; ++k)

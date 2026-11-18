@@ -163,6 +163,8 @@ static bool                                 jo_3d_model_animations_fit(const jo_
  *  @param model Model (its points, its polygons and its vertex animations loaded)
  *  @param size Size of the chunk of the vertex animations (from its count)
  *  @return false if a vertex animation is wrong
+ *  @remarks Optional: a chunk "MRPH" of another layout (the own data of a game, read with jo_3d_model_find_chunk()) is
+ *           ignored, without error
  */
 JO_LOW_WORK_RAM_CODE
 static bool                                 jo_3d_model_morphs_fit(const jo_3d_model * const model, const unsigned int size)
@@ -178,12 +180,7 @@ static bool                                 jo_3d_model_morphs_fit(const jo_3d_m
         m = &model->morphs[i];
         if (m->frame_count == 0 || m->frame_ticks == 0 || (m->offset & 3) || m->offset > size ||
             m->frame_count > (size - m->offset) / model->morph_frame_size)
-        {
-#ifdef JO_DEBUG
-            jo_core_error("Wrong vertex animation %d", (int)i);
-#endif
             return (false);
-        }
     }
     return (true);
 }
@@ -1878,9 +1875,12 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
         if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, end))
             break;
         count = chunk >= 4 ? *(const unsigned int *)(p + 8) : 0;
-        // (the elements of a chunk in the chunk: a wrong count read after it)
+        // (the elements of a chunk in the chunk: a wrong count read after it. The vertex animations are optional: a chunk
+        // "MRPH" of another layout is skipped, see jo_3d_model_morphs_fit())
         if (!jo_3d_model_count_fits(p, chunk, count))
         {
+            if (jo_3d_model_is_tag(p, "MRPH"))
+                continue;
             wrong = true;
             break;
         }
@@ -1984,7 +1984,6 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             {
                 model->animation_count = count;
                 model->animations = (jo_3d_animation *)(model->animation_data + 4);
-                jo_3d_model_mark_duplicates(model);
             }
         }
         else if (jo_3d_model_is_tag(p, "SKIN"))
@@ -2004,7 +2003,6 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
                 model->morph_shift = *(const unsigned short *)(model->morph_data + 4);
                 model->morph_normals = (*(const unsigned short *)(model->morph_data + 6) & 1) != 0;
                 model->morphs = (jo_3d_morph *)(model->morph_data + 8);
-                jo_3d_model_mark_duplicates(model);
             }
         }
     }
@@ -2041,6 +2039,9 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     model->morph_frame_size = (point_count * 6 + (model->morph_normals ? polygon_count : 0) + 3) & ~3u;
     if (!wrong && model->morph_count > 0 && !jo_3d_model_morphs_fit(model, morph_size))
         JO_ZERO(model->morph_count);
+    // (after the checks: the data of a chunk of another layout, kept in the file, are not written)
+    if (!wrong)
+        jo_3d_model_mark_duplicates(model);
     // (a point of the skin out of the points, a bone out of the skeleton: the skeleton is rigid)
     for (JO_ZERO(k); k < model->skin_count; ++k)
         if (model->skin[k].point >= point_count || model->skin[k].bone >= model->bone_count ||

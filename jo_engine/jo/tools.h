@@ -109,8 +109,10 @@ static  __jo_force_inline unsigned int        jo_read_big_endian_uint(const unsi
 int				sprintf(char* str, const char* format, ...);
 
 /** @brief A small sprintf of the engine (jo_printf()...): %d %i %u %x %X %c %s %%, the flags - 0 + and space, a width, a
- *  precision (%.3d: 3 digits at least, %.5s: 5 characters at most). Faster and smaller than the one of the C library
- *  (which handles the floats: %f is not supported here, written as it is, its argument skipped)
+ *  precision (%.3d: 3 digits at least, %.5s: 5 characters at most), both can be arguments (%*d, %.*s). Faster and smaller
+ *  than the one of the C library (which handles the floats: %f is not supported here, written as it is, its argument
+ *  skipped). The modifiers l, h, z and t change nothing (32 bits); ll and j: a value of 64 bits written when it fits in 32
+ *  bits (else the conversion is written as it is)
  *  @param str String (big enough)
  *  @param format Format string
  *  @param ... Arguments

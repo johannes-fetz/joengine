@@ -93,6 +93,9 @@ typedef struct
 static bool                     running = false;
 static bool                     in_layer = false;
 static int                      vblank_event = -1;
+/** @brief The system clipping of the VDP1 widened to the frame buffer by jo_3d_transparency_init() (back to the screen
+ *  by jo_3d_transparency_stop()) */
+static bool                     system_clip_widened = false;
 /** @brief The screen of the layer (NBG0 or NBG1), its bitmap (JO_NULL: none) and its rows */
 static jo_scroll_screen         layer_screen = JO_NBG1_SCREEN;
 static void                     *layer_bitmap = JO_NULL;
@@ -406,6 +409,7 @@ bool                            jo_3d_transparency_init(const int width, const j
     build_tables();
     // The VDP1 draws up to the right of the frame buffer; the 3D of the screen stays in the screen
     jo_sprite_set_system_clipping_area(FB_WIDTH, jo_core_get_screen_height());
+    system_clip_widened = true;
     // (the windows of the screen stay on the screen: only the window of the layer draws beyond it)
     __jo_vdp1_set_off_screen_window(true);
     jo_3d_select_window(JO_3D_NEAR_WINDOW);
@@ -437,6 +441,11 @@ void                            jo_3d_transparency_stop(void)
     {
         jo_core_remove_vblank_callback(vblank_event);
         vblank_event = -1;
+    }
+    if (system_clip_widened)
+    {
+        jo_sprite_set_system_clipping_area(jo_core_get_screen_width(), jo_core_get_screen_height());
+        system_clip_widened = false;
     }
     if (!running && block == JO_NULL && layer_bitmap == JO_NULL)
         return;
@@ -605,6 +614,16 @@ static const jo_3d_polygon_data *mask_filter(const jo_3d_polygon_data * const pd
     return (&mask_data);
 }
 
+/** @brief Forget the sprite of the masks if it is freed (see __jo_3d_transparency_sprites_freed): added again by the next
+ *  jo_3d_transparency_mask_begin()
+ *  @param sprite_id First sprite freed
+ */
+static void                     transparency_sprites_freed(const int sprite_id)
+{
+    if (mask_lut_sprite >= sprite_id)
+        mask_lut_sprite = -1;
+}
+
 void                            jo_3d_transparency_mask_begin(void)
 {
     static const jo_color       zeros[16] = {0};
@@ -620,7 +639,10 @@ void                            jo_3d_transparency_mask_begin(void)
         return;
     }
     if (mask_lut_sprite < 0)
+    {
         mask_lut_sprite = jo_sprite_add_4bits_lut(pixels, 8, 1, zeros);
+        __jo_3d_transparency_sprites_freed = transparency_sprites_freed;
+    }
     in_masks = true;
     __jo_3d_master_polygon_filter = mask_filter;
     if (mask_lut_sprite >= 0)

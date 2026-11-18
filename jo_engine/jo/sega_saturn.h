@@ -589,6 +589,24 @@ extern unsigned char                            __jo_low_work_ram_end[];
 # define JO_SH2_CCR_CACHE_ENABLE    (1 << 0)
 /** @brief CCR: cache purge (all entries invalidated) */
 # define JO_SH2_CCR_CACHE_PURGE     (1 << 4)
+
+/** @brief A variable shared by the 2 CPU, read or written through its cache-through mirror (each CPU has its own cache:
+ *  a value the other CPU wrote may be older in it): JO_SHARED(count) += 1;
+ *  @param VAR Variable (an lvalue) */
+# define JO_SHARED(VAR)             (*(volatile __typeof__(VAR) *)JO_CACHE_THROUGH(&(VAR)))
+
+/** @brief Purge the whole cache of the CPU that calls it: the data the other CPU wrote are read again from the memory
+ *  (the cache is write-through: nothing is lost; the cache is disabled while it is purged)
+ *  @remarks About 4 KB of data (tables, code) read again into the cache after it */
+static  __jo_force_inline void      jo_cpu_cache_purge(void)
+{
+    unsigned char                   ccr;
+
+    ccr = JO_SH2_CCR;
+    JO_SH2_CCR = (unsigned char)(ccr & ~JO_SH2_CCR_CACHE_ENABLE);
+    JO_SH2_CCR = (unsigned char)((ccr & ~JO_SH2_CCR_CACHE_ENABLE) | JO_SH2_CCR_CACHE_PURGE);
+    JO_SH2_CCR = ccr;
+}
 /** @brief Status register: interrupt mask bits (level 15 = all interrupts masked) */
 # define JO_SH2_SR_INTERRUPT_MASK   (0xF0)
 /** @brief Status register: all interrupts enabled */
@@ -659,6 +677,8 @@ extern unsigned char                            __jo_low_work_ram_end[];
 # define JO_SH2_CACHE_PURGE_AREA    (0x40000000)
 /** @brief Cache: line size */
 # define JO_SH2_CACHE_LINE_SIZE     (16)
+/** @brief Cache: size (bytes) */
+# define JO_SH2_CACHE_SIZE          (4096)
 
 /*
 ███████╗ ██████╗███████╗██████╗

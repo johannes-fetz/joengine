@@ -49,6 +49,7 @@
 #include "jo/list.h"
 #include "jo/3d.h"
 #include "internal/core.h"
+#include "internal/tools.h"
 #include "internal/vdp1_command_pipeline.h"
 #include "internal/vdp2_malloc.h"
 #include "internal/vdp2.h"
@@ -377,12 +378,12 @@ static  __jo_force_inline void      jo_vdp2_shadow_mark(const unsigned int index
     n = jo_vdp2_frame_register(index);
     if (n >= 0 && jo_vdp2_in_frame(sr))
     {
-        __jo_vdp2_frame_dirty |= 1u << n;
+        __jo_vdp2_frame_dirty |= __jo_bits[n];
         // (a value set before the frame and not applied yet: replaced by the one of the frame)
-        __jo_vdp2_dirty[index >> 5] &= ~(1u << (index & 31));
+        __jo_vdp2_dirty[index >> 5] &= ~__jo_bits[index & 31];
     }
     else
-        __jo_vdp2_dirty[index >> 5] |= (1u << (index & 31));
+        __jo_vdp2_dirty[index >> 5] |= __jo_bits[index & 31];
 }
 
 /** @brief Set a VDP2 register (applied during the next VBLANK, or with the image of the frame: see
@@ -585,8 +586,8 @@ static void                         jo_vdp2_update_pattern_register(const int n)
 
     s = &__jo_vdp2_screens[n];
     jo_vdp2_shadow_set(regs[n], (s->pattern & (JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT)) | jo_vdp2_supplementary_character(s) |
-                                ((__jo_vdp2_special_priority_screens & (1 << n)) ? JO_VDP2_PNCN_SPECIAL_PRIORITY : 0) |
-                                ((__jo_vdp2_special_blend_screens & (1 << n)) ? JO_VDP2_PNCN_SPECIAL_BLEND : 0));
+                                ((__jo_vdp2_special_priority_screens & __jo_bits[n]) ? JO_VDP2_PNCN_SPECIAL_PRIORITY : 0) |
+                                ((__jo_vdp2_special_blend_screens & __jo_bits[n]) ? JO_VDP2_PNCN_SPECIAL_BLEND : 0));
 }
 
 /** @brief Update the map registers of a normal scroll screen
@@ -613,7 +614,7 @@ static void                         jo_vdp2_update_map_registers(const int n)
     index = JO_VDP2_REG_INDEX(JO_VDP2_MPABN0) + JO_MULT_BY_2(n);
     jo_vdp2_shadow_set(index, ((p[1] & JO_VDP2_MAP_ADDRESS_MASK) << 8) | (p[0] & JO_VDP2_MAP_ADDRESS_MASK));
     jo_vdp2_shadow_set(index + 1, ((p[3] & JO_VDP2_MAP_ADDRESS_MASK) << 8) | (p[2] & JO_VDP2_MAP_ADDRESS_MASK));
-    JO_VDP2_SET_BITS(JO_VDP2_MPOFN, JO_VDP2_MAP_OFFSET_MASK << JO_MULT_BY_4(n), offset << JO_MULT_BY_4(n));
+    JO_VDP2_SET_BITS(JO_VDP2_MPOFN, JO_VDP2_MAP_OFFSET_MASK * __jo_bits[JO_MULT_BY_4(n)], offset * __jo_bits[JO_MULT_BY_4(n)]);
 }
 
 /** @brief Update the map registers of the rotation parameters A and B */
@@ -732,12 +733,14 @@ static unsigned int                 jo_vdp2_character_access_count(const jo_vdp2
 {
     static const unsigned char      counts[5] = {1, 2, 4, 4, 8};
     unsigned int                    count;
+    jo_fixed                        zoom;
 
     count = counts[s->color > 4 ? 4 : s->color];
     // Reduction needs more accesses
-    if ((s->zoom_x >> __jo_screen.hires) > JO_FIXED_2)
+    zoom = __jo_screen.hires ? JO_DIV_BY_2(s->zoom_x) : s->zoom_x;
+    if (zoom > JO_FIXED_2)
         count <<= 2;
-    else if ((s->zoom_x >> __jo_screen.hires) > JO_FIXED_1)
+    else if (zoom > JO_FIXED_1)
         count <<= 1;
     return (count);
 }
@@ -750,8 +753,38 @@ static bool                         jo_vdp2_is_bank_used_by_rotation(const unsig
 {
     if (!(__jo_vdp2_displayed_screens & JO_RBG0_SCREEN))
         return (false);
-    return (((JO_VDP2_GET(JO_VDP2_RAMCTL) >> JO_MULT_BY_2(bank)) & 3) != 0);
+    return ((JO_VDP2_GET(JO_VDP2_RAMCTL) & (3u * __jo_bits[JO_MULT_BY_2(bank)])) != 0);
 }
+
+#ifdef JO_DEBUG
+
+/** @brief Check the banks of the pattern name reads (once): 2 banks at most in a cycle, A0 or B0, and A1 or B1 (VDP2 manual,
+ *  chapter 3.3; A or B when a bank is not split). The maps of the scroll screens in A0 and B0 (or A1 and B1): a console
+ *  displays the character 0 everywhere, the emulators display them
+ *  @param slots The access slots of each bank (see jo_vdp2_update_cycle_patterns())
+ */
+static void                         jo_vdp2_check_pattern_name_banks(unsigned char slots[4][8])
+{
+    static bool                     reported = false;
+    bool                            names[4];
+    unsigned int                    bank;
+    unsigned int                    i;
+
+    for (JO_ZERO(bank); bank < 4; ++bank)
+    {
+        names[bank] = false;
+        for (JO_ZERO(i); i < 8; ++i)
+            if (slots[bank][i] <= JO_VDP2_CYCLE_PATTERN_NAME(3))
+                names[bank] = true;
+    }
+    if (!reported && ((names[0] && names[2]) || (names[1] && names[3])))
+    {
+        reported = true;
+        jo_core_error("VDP2 maps in A0 and B0 or in A1 and B1: wrong on a console (see jo_vdp2_malloc())");
+    }
+}
+
+#endif
 
 /** @brief Compute the VRAM cycle patterns of the displayed normal scroll screens
  *  @remarks Must be called after any change of the screens configuration
@@ -778,7 +811,7 @@ static void                         jo_vdp2_update_cycle_patterns(void)
     }
     for (JO_ZERO(n); n < 4; ++n)
     {
-        if (!(__jo_vdp2_displayed_screens & (1 << n)))
+        if (!(__jo_vdp2_displayed_screens & __jo_bits[n]))
             continue;
         s = &__jo_vdp2_screens[n];
         JO_ZERO(pattern_name_slot);
@@ -857,6 +890,9 @@ static void                         jo_vdp2_update_cycle_patterns(void)
         }
     }
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_VERTICAL_CELL_SCROLL << JO_VDP2_SCRCTL_NBG1_SHIFT, n);
+#ifdef JO_DEBUG
+    jo_vdp2_check_pattern_name_banks(slots);
+#endif
     for (JO_ZERO(n); n < 4; ++n)
     {
         jo_vdp2_shadow_set(JO_VDP2_REG_INDEX(JO_VDP2_CYCA0L) + JO_MULT_BY_2(n),
@@ -920,7 +956,7 @@ static void                         jo_vdp2_set_cell(const int n, const void *ce
 static void                         jo_vdp2_set_plane_size(const int n, const unsigned char size)
 {
     __jo_vdp2_screens[n].plane_size = size & 3;
-    JO_VDP2_SET_BITS(JO_VDP2_PLSZ, JO_VDP2_PLANE_SIZE_MASK << JO_MULT_BY_2(n), (size & JO_VDP2_PLANE_SIZE_MASK) << JO_MULT_BY_2(n));
+    JO_VDP2_SET_BITS(JO_VDP2_PLSZ, JO_VDP2_PLANE_SIZE_MASK * __jo_bits[JO_MULT_BY_2(n)], (size & JO_VDP2_PLANE_SIZE_MASK) * __jo_bits[JO_MULT_BY_2(n)]);
     if (n < JO_VDP2_SCREEN_RBG0)
         jo_vdp2_update_map_registers(n);
     else
@@ -1004,11 +1040,16 @@ static void                         jo_vdp2_set_zoom(const int n, jo_fixed x, jo
     __jo_vdp2_screens[n].zoom_x = x;
     __jo_vdp2_screens[n].zoom_y = y;
     if (n == JO_VDP2_SCREEN_NBG1 && __jo_vdp2_nbg1_native)
-        x >>= __jo_screen.hires && __jo_screen.interlace;
+    {
+        if (__jo_screen.hires && __jo_screen.interlace)
+            x = JO_DIV_BY_2(x);
+    }
     else
     {
-        x >>= __jo_screen.hires;
-        y >>= __jo_screen.interlace;
+        if (__jo_screen.hires)
+            x = JO_DIV_BY_2(x);
+        if (__jo_screen.interlace)
+            y = JO_DIV_BY_2(y);
     }
     max = x > y ? x : y;
     // Reduction above 1:1 needs the reduction enable bits (1/2 or 1/4)
@@ -1895,6 +1936,21 @@ static const unsigned char          __jo_vdp2_printf_kana_font[(0xDF - 0xA1 + 1)
     0x60, 0x90, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, // 0xDF katakana semi-voiced sound mark
 };
 
+/** @brief 4 bits spread to 4 pixels of 4 bits (the pixel 1 for a bit set, bit 3 in the left pixel) */
+static const unsigned short         __jo_vdp2_printf_spread[16] =
+{
+    0x0000, 0x0001, 0x0010, 0x0011, 0x0100, 0x0101, 0x0110, 0x0111,
+    0x1000, 0x1001, 0x1010, 0x1011, 0x1100, 0x1101, 0x1110, 0x1111,
+};
+
+/** @brief 8 bits spread to 8 pixels of 4 bits (the pixel 1 for a bit set, bit 7 in the left pixel, in the high bits)
+ *  @param bits Bits (0 to 255)
+ */
+static __jo_force_inline unsigned int jo_vdp2_printf_spread(const unsigned int bits)
+{
+    return (((unsigned int)__jo_vdp2_printf_spread[bits >> 4] << 16) | __jo_vdp2_printf_spread[bits & 15]);
+}
+
 /** @brief A row of a printf character: its 8 pixels of 4 bits (0: transparent, the glyph color, the outline color), the left
  *  pixel in the high bits
  *  @param c Character
@@ -1907,8 +1963,6 @@ static unsigned int                 jo_vdp2_printf_row(const unsigned int c, con
     const unsigned char             *glyph;
     unsigned int                    bits;
     unsigned int                    around;
-    unsigned int                    row;
-    register int                    x;
 
     if (c < 128)
         glyph = &__jo_vdp2_printf_font[JO_MULT_BY_8(c)];
@@ -1923,15 +1977,13 @@ static unsigned int                 jo_vdp2_printf_row(const unsigned int c, con
         around = bits | (y > 0 ? glyph[y - 1] : 0) | (y < 7 ? glyph[y + 1] : 0);
         around = (around | (around << 1) | (around >> 1)) & ~bits & 0xFF;
     }
-    JO_ZERO(row);
-    for (JO_ZERO(x); x < 8; ++x)
-        row = (row << 4) | ((bits & (0x80 >> x)) ? JO_VDP2_PRINTF_GLYPH_COLOR : (around & (0x80 >> x)) ? JO_VDP2_PRINTF_OUTLINE_COLOR : 0);
-    return (row);
+    // (each bit spread to a pixel of 4 bits by a table; the glyph and the outline don't share a pixel)
+    return (jo_vdp2_printf_spread(bits) * JO_VDP2_PRINTF_GLYPH_COLOR + jo_vdp2_printf_spread(around) * JO_VDP2_PRINTF_OUTLINE_COLOR);
 }
 
 /** @brief Write the characters of the printf font in VRAM
  *  @param outline With the outline (see jo_set_printf_outline())
- *  @remarks A row of a character per write (by pixel and by byte: 29 ms at the start of each program, 68 ms with the outline)
+ *  @remarks A row of a character per write (2.4 ms at the start of each program, 4.8 ms with the outline)
  */
 static void                         jo_vdp2_write_printf_font(const bool outline)
 {
@@ -2010,7 +2062,9 @@ static int                          back_color_lines_index = 0;
 void                                jo_set_background_line_colors(const jo_color * const colors)
 {
     jo_color                        *table;
+    volatile jo_color               *tail;
     unsigned int                    offset;
+    int                             line;
 
 #ifdef JO_DEBUG
     if (colors == JO_NULL)
@@ -2019,10 +2073,11 @@ void                                jo_set_background_line_colors(const jo_color
         return ;
     }
 #endif
-    // 2 tables: the table displayed is not changed during the display
+    // 2 tables: the table displayed is not changed during the display. A table of the most lines of a screen: the screen
+    // can get more lines than JO_TV_HEIGHT (jo_core_set_screen_resolution()), the VDP2 read after a table of JO_TV_HEIGHT
     back_color_lines_index ^= 1;
     if (back_color_lines[back_color_lines_index] == JO_NULL &&
-        (back_color_lines[back_color_lines_index] = jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_TV_HEIGHT * sizeof(jo_color))) == JO_NULL)
+        (back_color_lines[back_color_lines_index] = jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_VDP2_LINE_COLOR_LINES * sizeof(jo_color))) == JO_NULL)
     {
 #ifdef JO_DEBUG
         jo_core_error("Out of VDP2 memory");
@@ -2031,6 +2086,10 @@ void                                jo_set_background_line_colors(const jo_color
     }
     table = back_color_lines[back_color_lines_index];
     jo_dma_copy(colors, (void *)(JO_VDP2_VRAM | jo_vdp2_vram_offset(table)), JO_TV_HEIGHT * sizeof(jo_color));
+    // (the lines after JO_TV_HEIGHT: the last color)
+    tail = (volatile jo_color *)(JO_VDP2_VRAM | jo_vdp2_vram_offset(table));
+    for (line = JO_TV_HEIGHT; line < JO_MIN(__jo_screen.height, JO_VDP2_LINE_COLOR_LINES); ++line)
+        tail[line] = colors[JO_TV_HEIGHT - 1];
     offset = jo_vdp2_vram_offset(table) >> 1;
     // Bit 15: one color per line (applied during the next VBLANK)
     JO_VDP2_SET(JO_VDP2_BKTAU, JO_VDP2_BKTAU_LINE_MODE | ((offset >> 16) & 0x7));
@@ -3427,12 +3486,15 @@ void                                __jo_vdp2_glow_layers_hide(void)
         return;
     __jo_vdp2_glow_layers_shown = false;
     JO_REMOVE_FLAG(screen_flags, JO_NBG2_SCREEN | JO_NBG3_SCREEN);
-    // (the windows of the glows, see glow.c)
-    JO_VDP2_WCTLB = 0;
+    // (the windows of the glows, see glow.c: through the copy of the registers, else the copy wrote the old bits again)
+    JO_VDP2_SET(JO_VDP2_WCTLB, 0);
     JO_VDP2_SET(JO_VDP2_CCCTL, __jo_vdp2_glow_saved_ccctl);
     JO_VDP2_SET(JO_VDP2_PRINB, __jo_vdp2_glow_saved_prinb);
     JO_VDP2_SET(JO_VDP2_CRAOFA, __jo_vdp2_glow_saved_craofa);
     JO_VDP2_SET(JO_VDP2_RAMCTL, __jo_vdp2_glow_saved_ramctl);
+    // (the scroll of NBG2, written to the VDP2 directly by the glows: the copy written again)
+    JO_VDP2_SET(JO_VDP2_SCXN2, JO_VDP2_GET(JO_VDP2_SCXN2));
+    JO_VDP2_SET(JO_VDP2_SCYN2, JO_VDP2_GET(JO_VDP2_SCYN2));
     if (__jo_vdp2_glow_saved_rbg0)
         JO_ADD_FLAG(screen_flags, JO_RBG0_SCREEN);
     jo_vdp2_set_displayed_screens(screen_flags);
@@ -3683,9 +3745,9 @@ void                            jo_fade_screens(const jo_scroll_screen screens, 
 */
 
 /** @brief WCTLA to WCTLC: the bits of a window for a screen (area: 1 = the outside of the window, enable) */
-# define JO_VDP2_WINDOW_OUTSIDE_BIT(W)      (1 << ((W) << 1))
-# define JO_VDP2_WINDOW_ENABLE_BIT(W)       (2 << ((W) << 1))
-# define JO_VDP2_WINDOW_BITS(W)             (3 << ((W) << 1))
+# define JO_VDP2_WINDOW_OUTSIDE_BIT(W)      ((W) == JO_VDP2_WINDOW_1 ? 4 : 1)
+# define JO_VDP2_WINDOW_ENABLE_BIT(W)       ((W) == JO_VDP2_WINDOW_1 ? 8 : 2)
+# define JO_VDP2_WINDOW_BITS(W)             ((W) == JO_VDP2_WINDOW_1 ? 12 : 3)
 /** @brief LWTAnU: line window enable */
 # define JO_VDP2_LINE_WINDOW_ENABLE         (1 << 15)
 /** @brief Window coordinates (10 bits) */
@@ -3722,19 +3784,19 @@ static  __jo_force_inline unsigned short jo_vdp2_window_x(const int x)
     return ((unsigned short)((__jo_screen.hires ? x : x << 1) & JO_VDP2_WINDOW_COORDINATE_MASK));
 }
 
-/** @brief The window control register and the shift of a screen
+/** @brief The window control register of a screen and the unit of its bits (1: low byte, 256: high byte)
  *  @return false if the screen has no window
  */
-static bool                             jo_vdp2_window_control(const jo_scroll_screen screen, volatile unsigned short **reg, int *shift)
+static bool                             jo_vdp2_window_control(const jo_scroll_screen screen, volatile unsigned short **reg, unsigned int *unit)
 {
     switch (screen)
     {
-        case JO_NBG0_SCREEN: *reg = &JO_VDP2_WCTLA; *shift = 0; return (true);
-        case JO_NBG1_SCREEN: *reg = &JO_VDP2_WCTLA; *shift = 8; return (true);
-        case JO_NBG2_SCREEN: *reg = &JO_VDP2_WCTLB; *shift = 0; return (true);
-        case JO_NBG3_SCREEN: *reg = &JO_VDP2_WCTLB; *shift = 8; return (true);
-        case JO_RBG0_SCREEN: *reg = &JO_VDP2_WCTLC; *shift = 0; return (true);
-        case JO_SPRITE_SCREEN: *reg = &JO_VDP2_WCTLC; *shift = 8; return (true);
+        case JO_NBG0_SCREEN: *reg = &JO_VDP2_WCTLA; *unit = 1; return (true);
+        case JO_NBG1_SCREEN: *reg = &JO_VDP2_WCTLA; *unit = 256; return (true);
+        case JO_NBG2_SCREEN: *reg = &JO_VDP2_WCTLB; *unit = 1; return (true);
+        case JO_NBG3_SCREEN: *reg = &JO_VDP2_WCTLB; *unit = 256; return (true);
+        case JO_RBG0_SCREEN: *reg = &JO_VDP2_WCTLC; *unit = 1; return (true);
+        case JO_SPRITE_SCREEN: *reg = &JO_VDP2_WCTLC; *unit = 256; return (true);
         default: return (false);
     }
 }
@@ -3851,26 +3913,26 @@ bool                                    jo_vdp2_set_window_circle(const int wind
 void                                    jo_vdp2_enable_window(const jo_scroll_screen screens, const int window, const jo_vdp2_window_area area)
 {
     volatile unsigned short             *reg;
-    int                                 shift;
+    unsigned int                        unit;
     unsigned int                        screen;
 
     if (window != JO_VDP2_WINDOW_0 && window != JO_VDP2_WINDOW_1)
         return;
     for (screen = JO_NBG0_SCREEN; screen <= JO_SPRITE_SCREEN; screen <<= 1)
-        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &shift))
-            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), JO_VDP2_WINDOW_BITS(window) << shift,
-                                    (JO_VDP2_WINDOW_ENABLE_BIT(window) | (area == JO_VDP2_WINDOW_SHOW_INSIDE ? JO_VDP2_WINDOW_OUTSIDE_BIT(window) : 0)) << shift);
+        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &unit))
+            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), JO_VDP2_WINDOW_BITS(window) * unit,
+                                    (JO_VDP2_WINDOW_ENABLE_BIT(window) | (area == JO_VDP2_WINDOW_SHOW_INSIDE ? JO_VDP2_WINDOW_OUTSIDE_BIT(window) : 0)) * unit);
 }
 
 void                                    jo_vdp2_disable_window(const jo_scroll_screen screens)
 {
     volatile unsigned short             *reg;
-    int                                 shift;
+    unsigned int                        unit;
     unsigned int                        screen;
 
     for (screen = JO_NBG0_SCREEN; screen <= JO_SPRITE_SCREEN; screen <<= 1)
-        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &shift))
-            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), (JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_0) | JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_1)) << shift, 0);
+        if ((screens & screen) && jo_vdp2_window_control((jo_scroll_screen)screen, &reg, &unit))
+            jo_vdp2_shadow_set_bits(JO_VDP2_REG_INDEX(*reg), (JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_0) | JO_VDP2_WINDOW_BITS(JO_VDP2_WINDOW_1)) * unit, 0);
 }
 
 void                                    jo_vdp2_set_blend_mode(const jo_vdp2_blend_mode mode)
@@ -3925,10 +3987,10 @@ static void                             jo_vdp2_update_special_functions(void)
     JO_ZERO(blend);
     for (JO_ZERO(n); n < JO_VDP2_SCREEN_COUNT; ++n)
     {
-        if (__jo_vdp2_special_priority_screens & (1 << n))
-            priority |= JO_VDP2_SPECIAL_BY_DOT << JO_MULT_BY_2(n);
-        if (__jo_vdp2_special_blend_screens & (1 << n))
-            blend |= JO_VDP2_SPECIAL_BY_DOT << JO_MULT_BY_2(n);
+        if (__jo_vdp2_special_priority_screens & __jo_bits[n])
+            priority |= JO_VDP2_SPECIAL_BY_DOT * __jo_bits[JO_MULT_BY_2(n)];
+        if (__jo_vdp2_special_blend_screens & __jo_bits[n])
+            blend |= JO_VDP2_SPECIAL_BY_DOT * __jo_bits[JO_MULT_BY_2(n)];
         jo_vdp2_update_pattern_register(n);
     }
     JO_VDP2_SET(JO_VDP2_SFPRMD, priority);

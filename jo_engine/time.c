@@ -65,7 +65,9 @@ static  __jo_force_inline unsigned int  __jo_time_get_clock_seconds(void)
 //	Determine if clock is on 1/8, 1/32, or 1/128 of count
 static  __jo_force_inline unsigned int  __jo_time_get_clock_mode(void)
 {
-    return (8 << ((jo_time_peek_byte(RegisterTCR) & 3) << 1));
+    static const unsigned short     dividers[4] = {8, 32, 128, 512};
+
+    return (dividers[jo_time_peek_byte(RegisterTCR) & 3]);
 }
 
 /** @brief Microseconds of clocks of the CPU (the microseconds of a clock, see __jo_time_get_clock_seconds(), x 2^20: without float, this runs at

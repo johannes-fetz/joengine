@@ -218,8 +218,6 @@ int                                     __jo_vdp1_depth_bias = 0;
 #else
 # define JO_VDP1_FRAME_BUFFERS              (1)
 #endif
-/** @brief Variable shared by the CPUs: read and written through its cache-through address */
-# define JO_VDP1_SHARED(VARIABLE)           (*(volatile __typeof__(VARIABLE) *)JO_CACHE_THROUGH(&(VARIABLE)))
 
 /** @brief Changes of a window in a frame after commands were drawn in it, at most (see __jo_vdp1_keep_window(): beyond, the
  *  commands before a change take the window as it is at the end of the frame) */
@@ -321,17 +319,17 @@ _Static_assert(JO_VDP1_MAX_COMMANDS < 32768, "radix counters of 16 bits");
 static unsigned short                   __jo_vdp1_radix_low[JO_VDP1_RADIX] JO_WORK_RAM_ENGINE_WORK_SECTION;
 static unsigned short                   __jo_vdp1_radix_high[JO_VDP1_RADIX] JO_WORK_RAM_ENGINE_WORK_SECTION;
 
-/* Offset of the table to display, 0 if none (JO_VDP1_SHARED) */
+/* Offset of the table to display, 0 if none (JO_SHARED) */
 static volatile unsigned int            __jo_vdp1_pending_table;
-/* Table to fill next (JO_VDP1_SHARED) */
+/* Table to fill next (JO_SHARED) */
 static volatile unsigned int            __jo_vdp1_next_table;
-/* VBLANK of the last table change, VBLANK count (JO_VDP1_SHARED) */
+/* VBLANK of the last table change, VBLANK count (JO_SHARED) */
 static volatile unsigned int            __jo_vdp1_flip_field;
 /** @brief The field the current frame of the game started at (see __jo_vdp1_frame_start(), JO_VDP1_PACED) */
 static volatile unsigned int            __jo_vdp1_frame_field;
 static volatile unsigned int            __jo_vdp1_vblank_fields;
 /* Frame numbers (see __jo_vdp1_frame_tag()): the frame built (master CPU), the table pending, the last table given to
-** the VDP1, the frame displayed from the field __jo_vdp1_shown_field (and the next one in 1 cycle mode) (JO_VDP1_SHARED) */
+** the VDP1, the frame displayed from the field __jo_vdp1_shown_field (and the next one in 1 cycle mode) (JO_SHARED) */
 static unsigned int                     __jo_vdp1_building_tag;
 static volatile unsigned int            __jo_vdp1_pending_tag;
 static volatile unsigned int            __jo_vdp1_taken_tag;
@@ -344,7 +342,7 @@ static volatile unsigned int            __jo_vdp1_next_shown_field;
 ** __jo_vdp1_erase_measure_field), the clear polygon of the pending table (VRAM offset, 0: none), its top under the
 ** lines erased in the VBLANK (local coordinates, JO_VDP1_CLEAR_SKIPPED: none left) and its top on the whole screen, the
 ** clear polygon of the table taken when it was changed (to restore before a redraw), the VBE bit set during this VBLANK
-** (JO_VDP1_SHARED) */
+** (JO_SHARED) */
 static volatile unsigned int            __jo_vdp1_erase_lines;
 static bool                             __jo_vdp1_erase_measure = false;
 static unsigned int                     __jo_vdp1_erase_measure_field;
@@ -357,7 +355,7 @@ static volatile bool                    __jo_vdp1_vblank_erase_on;
 /* Manual change: the VDP1 draws a table given at a VBLANK (see __jo_vdp1_vblank()) */
 static bool                             __jo_vdp1_drawing = false;
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
-/* Frames given to the slave CPU (master CPU only), frames copied into the VRAM by the slave CPU (JO_VDP1_SHARED) */
+/* Frames given to the slave CPU (master CPU only), frames copied into the VRAM by the slave CPU (JO_SHARED) */
 static unsigned int                     __jo_vdp1_frames_sent;
 static volatile unsigned int            __jo_vdp1_frames_done;
 #endif
@@ -395,9 +393,9 @@ static void                             __jo_vdp1_set_registers(void)
     JO_VDP1_EWLR = 0;
     JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
     // The VBLANK erase is measured again for this mode (the lines of the VBLANK, the width)
-    JO_VDP1_SHARED(__jo_vdp1_erase_lines) = 0;
+    JO_SHARED(__jo_vdp1_erase_lines) = 0;
     __jo_vdp1_erase_measure = JO_VDP1_MANUAL_CHANGE;
-    __jo_vdp1_erase_measure_field = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+    __jo_vdp1_erase_measure_field = JO_SHARED(__jo_vdp1_vblank_fields);
 }
 
 /** @brief Reads of the V counter before a line is given up (see jo_vdp1_wait_line(): about 6 fields) */
@@ -446,7 +444,7 @@ static void                             jo_vdp1_measure_vblank_erase(void)
     unsigned int                        field;
 
     __jo_vdp1_erase_measure = false;
-    JO_VDP1_SHARED(__jo_vdp1_erase_lines) = 0;
+    JO_SHARED(__jo_vdp1_erase_lines) = 0;
     // (the V counter is latched by the light gun, not by the reads of EXTEN: the clear polygon only)
     if (!JO_VDP1_MANUAL_CHANGE || (JO_VDP2_EXTEN & JO_VDP2_EXTEN_EXLTEN) != 0)
         return;
@@ -492,7 +490,7 @@ static void                             jo_vdp1_measure_vblank_erase(void)
     // (the next table is taken at the next VBLANK: no drawing in progress)
     __jo_vdp1_drawing = false;
     __jo_core_restore_interrupts(sr);
-    JO_VDP1_SHARED(__jo_vdp1_erase_lines) = erased > JO_VDP1_VBLANK_ERASE_MARGIN ? erased - JO_VDP1_VBLANK_ERASE_MARGIN : 0;
+    JO_SHARED(__jo_vdp1_erase_lines) = erased > JO_VDP1_VBLANK_ERASE_MARGIN ? erased - JO_VDP1_VBLANK_ERASE_MARGIN : 0;
 #ifdef JO_TEST_VDP1_VBLANKS
     __jo_vdp1_test_erase_lines = erased;
 #endif
@@ -518,16 +516,16 @@ void                                    __jo_vdp1_init(void)
     jo_vdp1_write_end(JO_VDP1_TABLE_A_OFFSET);
     jo_vdp1_write_end(JO_VDP1_TABLE_B_OFFSET);
     jo_vdp1_write_jump(JO_VDP1_TABLE_A_OFFSET);
-    JO_VDP1_SHARED(__jo_vdp1_next_table) = JO_VDP1_TABLE_B_OFFSET;
-    JO_VDP1_SHARED(__jo_vdp1_pending_table) = 0;
-    JO_VDP1_SHARED(__jo_vdp1_flip_field) = 0;
-    JO_VDP1_SHARED(__jo_vdp1_vblank_fields) = 0;
+    JO_SHARED(__jo_vdp1_next_table) = JO_VDP1_TABLE_B_OFFSET;
+    JO_SHARED(__jo_vdp1_pending_table) = 0;
+    JO_SHARED(__jo_vdp1_flip_field) = 0;
+    JO_SHARED(__jo_vdp1_vblank_fields) = 0;
     __jo_vdp1_building_tag = 1;
-    JO_VDP1_SHARED(__jo_vdp1_pending_tag) = 0;
-    JO_VDP1_SHARED(__jo_vdp1_taken_tag) = 0;
-    JO_VDP1_SHARED(__jo_vdp1_shown_tag) = 0;
-    JO_VDP1_SHARED(__jo_vdp1_shown_field) = ~0u;
-    JO_VDP1_SHARED(__jo_vdp1_next_shown_field) = ~0u;
+    JO_SHARED(__jo_vdp1_pending_tag) = 0;
+    JO_SHARED(__jo_vdp1_taken_tag) = 0;
+    JO_SHARED(__jo_vdp1_shown_tag) = 0;
+    JO_SHARED(__jo_vdp1_shown_field) = ~0u;
+    JO_SHARED(__jo_vdp1_next_shown_field) = ~0u;
     for (JO_ZERO(i); i < JO_VDP1_FRAME_BUFFERS; ++i)
     {
         JO_ZERO(__jo_vdp1_frames[i].count);
@@ -536,7 +534,7 @@ void                                    __jo_vdp1_init(void)
     __jo_vdp1_frame = &__jo_vdp1_frames[0];
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     JO_ZERO(__jo_vdp1_frames_sent);
-    JO_ZERO(JO_VDP1_SHARED(__jo_vdp1_frames_done));
+    JO_ZERO(JO_SHARED(__jo_vdp1_frames_done));
 #endif
     // Default window: whole screen
     for (JO_ZERO(i); i < JO_VDP1_WINDOW_COUNT; ++i)
@@ -1288,7 +1286,7 @@ static void                             jo_vdp1_send_frame(void *argument)
     jo_profile_begin(JO_PROFILE_VDP1_WAIT);
     // The previous table must be given to the VDP1 (at a VBLANK) before this one (and the SCU DMA must have copied it:
     // the indirect table and the headers are used again)
-    while (JO_VDP1_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
+    while (JO_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
         ;
 
     // 1-cycle mode: the table we are about to fill may still be read by the VDP1 if the jump to the
@@ -1298,13 +1296,13 @@ static void                             jo_vdp1_send_frame(void *argument)
     // reads this table again
     if (!JO_VDP1_MANUAL_CHANGE)
     {
-        field = JO_VDP1_SHARED(__jo_vdp1_flip_field);
-        while ((JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0 && JO_VDP1_SHARED(__jo_vdp1_vblank_fields) == field)
+        field = JO_SHARED(__jo_vdp1_flip_field);
+        while ((JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0 && JO_SHARED(__jo_vdp1_vblank_fields) == field)
             ;
     }
     jo_profile_end(JO_PROFILE_VDP1_WAIT);
     jo_profile_begin(JO_PROFILE_VDP1_COPY);
-    table = JO_VDP1_SHARED(__jo_vdp1_next_table);
+    table = JO_SHARED(__jo_vdp1_next_table);
     offset = table;
     dma = __jo_vdp1_dma_table;
     JO_ZERO(entries);
@@ -1330,7 +1328,7 @@ static void                             jo_vdp1_send_frame(void *argument)
         // (when the VBLANK erase clears the frame buffer, see jo_vdp1_vblank_erase(): the polygon only covers the lines
         // under the lines erased, or it is skipped)
         clear = offset;
-        erased = (int)JO_VDP1_SHARED(__jo_vdp1_erase_lines);
+        erased = (int)JO_SHARED(__jo_vdp1_erase_lines);
         clear_full = __jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND].ya;
         clear_top = erased > frame->system_clip_bottom ? JO_VDP1_CLEAR_SKIPPED : (short)(clear_full + erased);
         jo_vdp1_dma_add(dma, &entries, &__jo_vdp1_dma_commands[JO_VDP1_DMA_CLEAR_COMMAND], offset, sizeof(jo_vdp1_command));
@@ -1433,23 +1431,23 @@ static void                             jo_vdp1_send_frame(void *argument)
     JO_SCU_DMA_ADD(JO_VDP1_SCU_DMA_LEVEL) = JO_SCU_DMA_ADD_READ4_WRITE2;
     JO_SCU_DMA_MODE(JO_VDP1_SCU_DMA_LEVEL) = JO_SCU_DMA_MODE_INDIRECT;
     JO_SCU_DMA_ENABLE(JO_VDP1_SCU_DMA_LEVEL) = JO_SCU_DMA_ENABLE_START;
-    JO_VDP1_SHARED(__jo_vdp1_next_table) = (table == JO_VDP1_TABLE_A_OFFSET) ? JO_VDP1_TABLE_B_OFFSET : JO_VDP1_TABLE_A_OFFSET;
+    JO_SHARED(__jo_vdp1_next_table) = (table == JO_VDP1_TABLE_A_OFFSET) ? JO_VDP1_TABLE_B_OFFSET : JO_VDP1_TABLE_A_OFFSET;
     jo_profile_end(JO_PROFILE_VDP1_COPY);
     // Displayed at the first VBLANK after the end of the copy (see __jo_vdp1_vblank())
-    JO_VDP1_SHARED(__jo_vdp1_pending_clear) = clear;
-    JO_VDP1_SHARED(__jo_vdp1_pending_clear_top) = clear_top;
-    JO_VDP1_SHARED(__jo_vdp1_pending_clear_full) = clear_full;
-    JO_VDP1_SHARED(__jo_vdp1_pending_tag) = frame->tag;
-    JO_VDP1_SHARED(__jo_vdp1_pending_table) = table;
+    JO_SHARED(__jo_vdp1_pending_clear) = clear;
+    JO_SHARED(__jo_vdp1_pending_clear_top) = clear_top;
+    JO_SHARED(__jo_vdp1_pending_clear_full) = clear_full;
+    JO_SHARED(__jo_vdp1_pending_tag) = frame->tag;
+    JO_SHARED(__jo_vdp1_pending_table) = table;
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     // The SCU DMA reads the buffer of the frame until the end of the copy (see __jo_vdp1_end_frame())
-    JO_VDP1_SHARED(__jo_vdp1_frames_done) = JO_VDP1_SHARED(__jo_vdp1_frames_done) + 1;
+    JO_SHARED(__jo_vdp1_frames_done) = JO_SHARED(__jo_vdp1_frames_done) + 1;
 #endif
 }
 
 void                                    __jo_vdp1_frame_start(void)
 {
-    JO_VDP1_SHARED(__jo_vdp1_frame_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+    JO_SHARED(__jo_vdp1_frame_field) = JO_SHARED(__jo_vdp1_vblank_fields);
 }
 
 void                                    __jo_vdp1_end_frame(void)
@@ -1460,13 +1458,13 @@ void                                    __jo_vdp1_end_frame(void)
     // The VBLANK erase measured for the screen mode (first frame, change of the mode), when the frame before is in the
     // VDP1 (see jo_vdp1_measure_vblank_erase())
     if (__jo_vdp1_erase_measure &&
-        JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - __jo_vdp1_erase_measure_field >= JO_VDP1_VBLANK_ERASE_DELAY)
+        JO_SHARED(__jo_vdp1_vblank_fields) - __jo_vdp1_erase_measure_field >= JO_VDP1_VBLANK_ERASE_DELAY)
     {
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
-        while (__jo_vdp1_frames_sent != JO_VDP1_SHARED(__jo_vdp1_frames_done))
+        while (__jo_vdp1_frames_sent != JO_SHARED(__jo_vdp1_frames_done))
             ;
 #endif
-        while (JO_VDP1_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
+        while (JO_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
             ;
         jo_vdp1_measure_vblank_erase();
     }
@@ -1488,7 +1486,7 @@ void                                    __jo_vdp1_end_frame(void)
     // (at 60 frames per second there is no field to wait for)
 #if JO_FRAMERATE > 1
     if (JO_VDP1_MANUAL_CHANGE && JO_VDP1_PACED)
-        while (JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
+        while (JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
             ;
 #endif
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
@@ -1507,12 +1505,12 @@ void                                    __jo_vdp1_end_frame(void)
         {
             const unsigned int          tag = frame->tag;
 
-            while (JO_VDP1_SHARED(__jo_vdp1_pending_table) && JO_VDP1_SHARED(__jo_vdp1_pending_tag) != tag)
+            while (JO_SHARED(__jo_vdp1_pending_table) && JO_SHARED(__jo_vdp1_pending_tag) != tag)
                 ;
         }
         frame = (frame == &__jo_vdp1_frames[0]) ? &__jo_vdp1_frames[1] : &__jo_vdp1_frames[0];
         // The previous frame of this buffer must be in the VRAM (the slave CPU is usually done since a long time)
-        while (__jo_vdp1_frames_sent - JO_VDP1_SHARED(__jo_vdp1_frames_done) > 1)
+        while (__jo_vdp1_frames_sent - JO_SHARED(__jo_vdp1_frames_done) > 1)
             ;
         // The SCU DMA may still read the buffer (or already copy the frame just sent: the wait is short)
         while (jo_vdp1_dma_busy())
@@ -1539,13 +1537,13 @@ void                                    jo_vdp1_redraw_last_frame(void)
     if (JO_VDP1_MANUAL_CHANGE && (JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) != 0)
     {
         // No VBLANK erase for this change: the clear polygon of the table covers the whole screen again
-        if (JO_VDP1_SHARED(__jo_vdp1_taken_clear))
+        if (JO_SHARED(__jo_vdp1_taken_clear))
         {
-            clear = JO_VDP1_COMMAND_AT(JO_VDP1_SHARED(__jo_vdp1_taken_clear));
+            clear = JO_VDP1_COMMAND_AT(JO_SHARED(__jo_vdp1_taken_clear));
             clear->ctrl = JO_VDP1_CMD_POLYGON;
-            clear->ya = JO_VDP1_SHARED(__jo_vdp1_taken_clear_full);
-            clear->yb = JO_VDP1_SHARED(__jo_vdp1_taken_clear_full);
-            JO_ZERO(JO_VDP1_SHARED(__jo_vdp1_taken_clear));
+            clear->ya = JO_SHARED(__jo_vdp1_taken_clear_full);
+            clear->yb = JO_SHARED(__jo_vdp1_taken_clear_full);
+            JO_ZERO(JO_SHARED(__jo_vdp1_taken_clear));
         }
         JO_VDP1_FBCR = JO_VDP1_FBCR_MANUAL_CHANGE;
     }
@@ -1564,16 +1562,16 @@ void                                    jo_vdp1_redraw_last_frame(void)
  */
 static void                             jo_vdp1_vblank_erase(void)
 {
-    const unsigned int                  clear = JO_VDP1_SHARED(__jo_vdp1_pending_clear);
-    const short                         top = JO_VDP1_SHARED(__jo_vdp1_pending_clear_top);
-    const short                         full = JO_VDP1_SHARED(__jo_vdp1_pending_clear_full);
+    const unsigned int                  clear = JO_SHARED(__jo_vdp1_pending_clear);
+    const short                         top = JO_SHARED(__jo_vdp1_pending_clear_top);
+    const short                         full = JO_SHARED(__jo_vdp1_pending_clear_full);
     volatile jo_vdp1_command            *cmd;
 
-    JO_ZERO(JO_VDP1_SHARED(__jo_vdp1_taken_clear));
+    JO_ZERO(JO_SHARED(__jo_vdp1_taken_clear));
     if (!clear || top == full)
         return;
     JO_VDP1_TVMR = JO_VDP1_TVMR_MODE | JO_VDP1_TVMR_VBLANK_ERASE;
-    JO_VDP1_SHARED(__jo_vdp1_vblank_erase_on) = true;
+    JO_SHARED(__jo_vdp1_vblank_erase_on) = true;
     // (reading EXTEN latches the counters, not with a light gun; still in the first line of the VBLANK, before its
     // HBLANK: the VDP1 takes VBE at the end of that line)
     if ((JO_VDP2_EXTEN & JO_VDP2_EXTEN_EXLTEN) != 0 || JO_VDP2_VCNT != (unsigned short)JO_VDP1_LINES ||
@@ -1587,8 +1585,8 @@ static void                             jo_vdp1_vblank_erase(void)
         cmd->ya = top;
         cmd->yb = top;
     }
-    JO_VDP1_SHARED(__jo_vdp1_taken_clear) = clear;
-    JO_VDP1_SHARED(__jo_vdp1_taken_clear_full) = full;
+    JO_SHARED(__jo_vdp1_taken_clear) = clear;
+    JO_SHARED(__jo_vdp1_taken_clear_full) = full;
 #ifdef JO_TEST_VDP1_VBLANKS
     ++__jo_vdp1_test_vblank_erases;
 #endif
@@ -1596,27 +1594,27 @@ static void                             jo_vdp1_vblank_erase(void)
 
 void                                    __jo_vdp1_vblank_out(void)
 {
-    if (!JO_VDP1_SHARED(__jo_vdp1_vblank_erase_on))
+    if (!JO_SHARED(__jo_vdp1_vblank_erase_on))
         return;
     JO_VDP1_TVMR = JO_VDP1_TVMR_MODE;
-    JO_VDP1_SHARED(__jo_vdp1_vblank_erase_on) = false;
+    JO_SHARED(__jo_vdp1_vblank_erase_on) = false;
 }
 
 void                                    __jo_vdp1_vblank(void)
 {
     unsigned int                        table;
 
-    JO_VDP1_SHARED(__jo_vdp1_vblank_fields) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields) + 1;
+    JO_SHARED(__jo_vdp1_vblank_fields) = JO_SHARED(__jo_vdp1_vblank_fields) + 1;
     // Double density interlace: the VDP1 draws the lines of the next field
     if (JO_VDP1_INTERLACE)
         JO_VDP1_FBCR = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_ODD) ? JO_VDP1_FBCR_DOUBLE_INTERLACE_EVEN : JO_VDP1_FBCR_DOUBLE_INTERLACE;
     // 1 cycle mode: the table given at the last VBLANK is displayed from this field
-    if (JO_VDP1_SHARED(__jo_vdp1_next_shown_field) == JO_VDP1_SHARED(__jo_vdp1_vblank_fields))
+    if (JO_SHARED(__jo_vdp1_next_shown_field) == JO_SHARED(__jo_vdp1_vblank_fields))
     {
-        JO_VDP1_SHARED(__jo_vdp1_shown_tag) = JO_VDP1_SHARED(__jo_vdp1_next_shown_tag);
-        JO_VDP1_SHARED(__jo_vdp1_shown_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+        JO_SHARED(__jo_vdp1_shown_tag) = JO_SHARED(__jo_vdp1_next_shown_tag);
+        JO_SHARED(__jo_vdp1_shown_field) = JO_SHARED(__jo_vdp1_vblank_fields);
     }
-    table = JO_VDP1_SHARED(__jo_vdp1_pending_table);
+    table = JO_SHARED(__jo_vdp1_pending_table);
     // The SCU DMA still copies the table
 #ifdef JO_TEST_VDP1_VBLANKS
     if (!table)
@@ -1636,7 +1634,7 @@ void                                    __jo_vdp1_vblank(void)
 #if JO_VDP1_PACED && JO_FRAMERATE > 1
         // The pace of the images (see JO_VDP1_PACED): the image shown stays JO_FRAMERATE fields at least
         if (__jo_vdp1_drawing &&
-            JO_VDP1_SHARED(__jo_vdp1_vblank_fields) - JO_VDP1_SHARED(__jo_vdp1_flip_field) < (unsigned int)JO_FRAMERATE)
+            JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_flip_field) < (unsigned int)JO_FRAMERATE)
             return;
 #endif
         // Manual change: the new table is drawn when the VDP1 finished the current one (else the next VBLANK)
@@ -1650,8 +1648,8 @@ void                                    __jo_vdp1_vblank(void)
         JO_VDP1_FBCR = JO_VDP1_FBCR_MANUAL_CHANGE;
         if (__jo_vdp1_drawing)
         {
-            JO_VDP1_SHARED(__jo_vdp1_shown_tag) = JO_VDP1_SHARED(__jo_vdp1_taken_tag);
-            JO_VDP1_SHARED(__jo_vdp1_shown_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
+            JO_SHARED(__jo_vdp1_shown_tag) = JO_SHARED(__jo_vdp1_taken_tag);
+            JO_SHARED(__jo_vdp1_shown_field) = JO_SHARED(__jo_vdp1_vblank_fields);
         }
         __jo_vdp1_drawing = true;
     }
@@ -1659,15 +1657,15 @@ void                                    __jo_vdp1_vblank(void)
     {
         jo_vdp1_write_jump(table);
         // The buffers change at each VBLANK: the table is displayed from the next field
-        JO_VDP1_SHARED(__jo_vdp1_next_shown_tag) = JO_VDP1_SHARED(__jo_vdp1_pending_tag);
-        JO_VDP1_SHARED(__jo_vdp1_next_shown_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields) + 1;
+        JO_SHARED(__jo_vdp1_next_shown_tag) = JO_SHARED(__jo_vdp1_pending_tag);
+        JO_SHARED(__jo_vdp1_next_shown_field) = JO_SHARED(__jo_vdp1_vblank_fields) + 1;
     }
-    JO_VDP1_SHARED(__jo_vdp1_taken_tag) = JO_VDP1_SHARED(__jo_vdp1_pending_tag);
+    JO_SHARED(__jo_vdp1_taken_tag) = JO_SHARED(__jo_vdp1_pending_tag);
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
     __jo_profile_vdp1_start();
 #endif
-    JO_VDP1_SHARED(__jo_vdp1_flip_field) = JO_VDP1_SHARED(__jo_vdp1_vblank_fields);
-    JO_VDP1_SHARED(__jo_vdp1_pending_table) = 0;
+    JO_SHARED(__jo_vdp1_flip_field) = JO_SHARED(__jo_vdp1_vblank_fields);
+    JO_SHARED(__jo_vdp1_pending_table) = 0;
 }
 
 unsigned int                            __jo_vdp1_frame_tag(void)
@@ -1677,9 +1675,9 @@ unsigned int                            __jo_vdp1_frame_tag(void)
 
 bool                                    __jo_vdp1_displayed_frame_changed(unsigned int * const tag)
 {
-    if (JO_VDP1_SHARED(__jo_vdp1_shown_field) != JO_VDP1_SHARED(__jo_vdp1_vblank_fields))
+    if (JO_SHARED(__jo_vdp1_shown_field) != JO_SHARED(__jo_vdp1_vblank_fields))
         return (false);
-    *tag = JO_VDP1_SHARED(__jo_vdp1_shown_tag);
+    *tag = JO_SHARED(__jo_vdp1_shown_tag);
     return (true);
 }
 
@@ -1953,18 +1951,20 @@ static __attribute__((noinline)) bool   jo_vdp1_draw_sprite(const jo_fixed cx, c
     return (true);
 }
 
-/** @brief jo_sprite_draw3D() and jo_sprite_draw3D2(): a sprite of the current sprite attributes, without rotation, straight to
- *  jo_vdp1_draw_sprite() (the position and the scale in registers). The same command as jo_sprite_draw_rotate(), which went
- *  through __jo_vdp1_draw_sprite() with 2 structures written to the stack and read back: about 570 cycles a sprite there,
- *  480 here (Mednafen; one copy of the command code: a copy of it here was 0.8 KB more for each game)
+/** @brief jo_sprite_draw3D() and jo_sprite_draw3D2() (and their rotated versions): a sprite of the current sprite attributes
+ *  straight to jo_vdp1_draw_sprite() (the position and the scale in registers). The same command as jo_sprite_draw_rotate(),
+ *  which went through __jo_vdp1_draw_sprite() with 2 structures written to the stack and read back: about 570 cycles a
+ *  sprite there, 480 here (Mednafen; one copy of the command code: a copy of it here was 0.8 KB more for each game)
  *  @param sprite_id Sprite Id (negative: nothing drawn)
  *  @param x Horizontal position (pixels, see centered)
  *  @param y Vertical position
  *  @param z Depth
  *  @param centered true: (x, y) is the center of the sprite from the center of the window, false: its top left corner from
  *  the top left of the screen
+ *  @param angle Rotation (jo_angle, 0: none)
  */
-static  __jo_force_inline void          jo_vdp1_draw_sprite3D(const int sprite_id, int x, int y, const int z, const bool centered)
+static  __jo_force_inline void          jo_vdp1_draw_sprite3D(const int sprite_id, int x, int y, const int z, const bool centered,
+                                                              const jo_angle angle)
 {
     jo_vdp1_sprite_attribute            attr;
     jo_fixed                            fz;
@@ -1999,17 +1999,29 @@ static  __jo_force_inline void          jo_vdp1_draw_sprite3D(const int sprite_i
         if (sy < 0)
             sy = jo_fixed_mult(-sy, ps);
     }
-    jo_vdp1_draw_sprite(jo_vdp1_window_center_x() + jo_int2fixed(x), jo_vdp1_window_center_y() + jo_int2fixed(y), fz, sx, sy, 0, &attr);
+    jo_vdp1_draw_sprite(jo_vdp1_window_center_x() + jo_int2fixed(x), jo_vdp1_window_center_y() + jo_int2fixed(y), fz, sx, sy, angle, &attr);
 }
 
 void __attribute__((noinline))          __jo_vdp1_draw_sprite3D(const int sprite_id, const int x, const int y, const int z)
 {
-    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, true);
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, true, 0);
 }
 
 void __attribute__((noinline))          __jo_vdp1_draw_sprite3D2(const int sprite_id, const int x, const int y, const int z)
 {
-    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, false);
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, false, 0);
+}
+
+void __attribute__((noinline))          __jo_vdp1_draw_sprite3D_rotated(const int sprite_id, const int x, const int y, const int z,
+                                                                        const int angle)
+{
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, true, jo_DEGtoANG_int(angle));
+}
+
+void __attribute__((noinline))          __jo_vdp1_draw_sprite3D2_rotated(const int sprite_id, const int x, const int y, const int z,
+                                                                         const int angle)
+{
+    jo_vdp1_draw_sprite3D(sprite_id, x, y, z, false, jo_DEGtoANG_int(angle));
 }
 
 bool                                    __jo_vdp1_draw_sprite(const jo_vdp1_sprite_position * const pos, const jo_vdp1_sprite_attribute * const attr, const jo_angle angle)
