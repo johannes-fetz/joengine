@@ -10,6 +10,9 @@ JO_COMPILE_WITH_DUAL_CPU_MODULE = 0
 JO_COMPILE_WITH_PRINTF_MODULE = 0
 JO_DEBUG = 1
 JO_NTSC = 0
+# Game information written in the IP.BIN (title, version, etc)
+JO_GAME_TITLE = JO ENGINE NBG2 FONT DEMO
+JO_GAME_VERSION = V1.000
 SRCS=main.c
 JO_ENGINE_SRC_DIR=../../jo_engine
 COMPILER_DIR=../../Compiler
