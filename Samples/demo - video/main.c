@@ -26,7 +26,6 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <jo/jo.h>
-#define LWRAM_HEAP_SIZE 0x40000 // Number of bytes to extend the heap (in the low work RAM: JO_WORK_RAM_LOW)
 
 void			    my_draw(void)
 {
@@ -58,8 +57,7 @@ void                my_video_stopped(void)
 void			    jo_main(void)
 {
 	jo_core_init(JO_COLOR_Black);
-    jo_add_memory_zone((unsigned char *)JO_WORK_RAM_LOW, LWRAM_HEAP_SIZE);
-	if (jo_video_open_file("SAMPLE.CPK"))
+	if (jo_video_open_file("JOENGINE.CPK"))
         jo_video_play(my_video_stopped);
 	jo_core_add_callback(my_draw);
 	jo_core_run();
