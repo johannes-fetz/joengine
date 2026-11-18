@@ -223,6 +223,11 @@ __asm__(
 "    .align 2\n"
 );
 
+#ifdef JO_CORE_EXCEPTION_SCREEN
+/** @brief The handlers of the CPU exceptions of the master CPU (see __jo_core_exception_screen()) */
+static void                                 jo_core_init_exceptions(void);
+#endif
+
 /** @brief Start the NULL pointer trap of the master CPU */
 static void                                 jo_core_init_null_trap(void)
 {
@@ -401,6 +406,11 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     int                                     high;
     int                                     quotient;
 
+#if defined(JO_CORE_EXCEPTION_SCREEN) && defined(JO_COMPILE_WITH_DUAL_CPU_SUPPORT)
+    // A CPU exception of the slave CPU stopped it: its error screen (the master CPU can be waiting for one of its jobs)
+    if (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_core_slave_exception.vector) != 0)
+        __jo_core_show_exception((const volatile __jo_core_exception_registers *)JO_CACHE_THROUGH(&__jo_core_slave_exception));
+#endif
     // Reading the quotient waits for the end of a division in progress
     quotient = JO_SH2_DVDNTL;
     divisor = JO_SH2_DVSR;
@@ -608,6 +618,10 @@ void			    jo_core_init(const jo_color back_color)
     jo_core_slave_init();
 #endif
     jo_core_init_vdp(back_color);
+#ifdef JO_CORE_EXCEPTION_SCREEN
+    // (after the VDP2: the error screen of a CPU exception prints)
+    jo_core_init_exceptions();
+#endif
     jo_core_add_vblank_callback(jo_get_inputs_vblank);
 #if defined(JO_COMPILE_WITH_AUDIO_SUPPORT)
     jo_audio_init();
@@ -799,12 +813,48 @@ void            jo_core_set_error_handler(const jo_core_error_handler handler)
     __jo_core_error_handler = handler;
 }
 
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+
+/** @brief The background of the error screens: the NBG1 bitmap filled with a color
+ *  @param color Color
+ *  @remarks The NBG1 bitmap can't be allocated (see __jo_vdp2_reserve_nbg1_bitmap()): the back screen color, the text stays
+ *           on NBG0
+ */
+static void                                 jo_core_error_background(const jo_color color)
+{
+    if (__jo_vdp2_reserve_nbg1_bitmap())
+        jo_vdp2_clear_bitmap_nbg1(color);
+    else
+        jo_set_default_background_color(color);
+}
+
+/** @brief The memory used, on 2 lines of the error screens
+ *  @param y Line of the first one
+ */
+static void                                 jo_core_error_show_usage(const int y)
+{
+    int                                     usage;
+
+    usage = jo_memory_usage_percent();
+    if (usage > 75)
+        jo_printf_with_color(0, y, JO_COLOR_INDEX_Red, "Dynamic memory usage: %d%%  ", usage);
+    else if (usage > 33)
+        jo_printf_with_color(0, y, JO_COLOR_INDEX_Yellow, "Dynamic memory usage: %d%%  ", usage);
+    else
+        jo_printf_with_color(0, y, JO_COLOR_INDEX_Green, "Dynamic memory usage: %d%%  ", usage);
+    usage = jo_sprite_usage_percent();
+    if (usage > 75)
+        jo_printf_with_color(0, y + 1, JO_COLOR_INDEX_Red, "Sprite memory usage:  %d%%  ", usage);
+    else if (usage > 33)
+        jo_printf_with_color(0, y + 1, JO_COLOR_INDEX_Yellow, "Sprite memory usage:  %d%%  ", usage);
+    else
+        jo_printf_with_color(0, y + 1, JO_COLOR_INDEX_Green, "Sprite memory usage:  %d%%  ", usage);
+}
+
+#endif // JO_COMPILE_WITH_PRINTF_SUPPORT
+
 void            __jo_core_error(char *message, const char *function)
 {
-#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
-    int         usage;
-#endif
-
     if (__jo_core_error_handler != JO_NULL)
     {
         __jo_core_error_handler(message, function);
@@ -812,27 +862,10 @@ void            __jo_core_error(char *message, const char *function)
     }
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
-    // (the NBG1 bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap(): the back color, the text stays on NBG0)
-    if (__jo_vdp2_reserve_nbg1_bitmap())
-        jo_vdp2_clear_bitmap_nbg1(JO_COLOR_Blue);
-    else
-        jo_set_default_background_color(JO_COLOR_Blue);
+    jo_core_error_background(JO_COLOR_Blue);
     jo_set_printf_color_index(0);
     jo_printf(0, 13, "   >>> Jo Engine error handler <<<");
-    usage = jo_memory_usage_percent();
-    if (usage > 75)
-        jo_printf_with_color(0, 17, JO_COLOR_INDEX_Red, "Dynamic memory usage: %d%%  ", usage);
-    else if (usage > 33)
-        jo_printf_with_color(0, 17, JO_COLOR_INDEX_Yellow, "Dynamic memory usage: %d%%  ", usage);
-    else
-        jo_printf_with_color(0, 17, JO_COLOR_INDEX_Green, "Dynamic memory usage: %d%%  ", usage);
-    usage = jo_sprite_usage_percent();
-    if (usage > 75)
-        jo_printf_with_color(0, 18, JO_COLOR_INDEX_Red, "Sprite memory usage:  %d%%  ", usage);
-    else if (usage > 33)
-        jo_printf_with_color(0, 18, JO_COLOR_INDEX_Yellow, "Sprite memory usage:  %d%%  ", usage);
-    else
-        jo_printf_with_color(0, 18, JO_COLOR_INDEX_Green, "Sprite memory usage:  %d%%  ", usage);
+    jo_core_error_show_usage(17);
     jo_printf_with_color(0, 21, JO_COLOR_INDEX_Red, "In %s():", function);
     jo_printf_with_color(0, 23, JO_COLOR_INDEX_Red, "%s", message);
     jo_set_printf_color_index(0);
@@ -849,6 +882,286 @@ void            __jo_core_error(char *message, const char *function)
     jo_core_suspend();
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
 }
+
+#ifdef JO_CORE_EXCEPTION_SCREEN
+
+/*
+** CPU EXCEPTIONS (JO_DEBUG, with the printf module): an illegal instruction, an illegal instruction after a delayed branch (slot), an address
+** error of the CPU (a 16 or 32 bits access to an odd or unaligned address, a forbidden area) or of its DMA controller.
+** The handler of each CPU saves its registers (__jo_core_exception_registers), then:
+**   - master CPU: the error screen, the interrupts masked, on the top of its stack (the program can't go on: the frames
+**     of the stack are left, an exception in an interrupt left the SCU interrupts masked);
+**   - slave CPU: it stops (the interrupts masked), the master CPU shows its registers at the next VBLANK (it can be
+**     waiting for a job of the slave CPU that never ends).
+** The error screen doesn't wait for the VBLANK interrupt nor for the slave CPU: it polls the VBLANK to apply the
+** registers of the VDP2, and the sprites are hidden (the VDP1 doesn't draw a frame anymore: its last one is left).
+** Not given to the handler of jo_core_set_error_handler(): the program stops there, the console must be reset.
+*/
+
+/** @brief Vectors of the CPU exceptions */
+# define JO_VECTOR_ILLEGAL_INSTRUCTION      (4)
+# define JO_VECTOR_ILLEGAL_SLOT             (6)
+# define JO_VECTOR_CPU_ADDRESS_ERROR        (9)
+# define JO_VECTOR_DMA_ADDRESS_ERROR        (10)
+/** @brief TVSTAT: in the VBLANK */
+# define JO_CORE_TVSTAT_VBLANK              (1 << 3)
+
+/** @brief The registers of the CPUs at their CPU exception (see __jo_core_exception_registers) */
+__jo_core_exception_registers               __jo_core_master_exception __attribute__((used, externally_visible, aligned(16)));
+__jo_core_exception_registers               __jo_core_slave_exception __attribute__((used, externally_visible, aligned(16)));
+
+/** @brief Text of a number in the assembly */
+# define JO_CORE_ASM_STR2(x)                #x
+# define JO_CORE_ASM_STR(x)                 JO_CORE_ASM_STR2(x)
+
+/** @brief The handlers of the CPU exceptions, one per vector and per CPU (the vector in R0, then the part of the CPU).
+ *  The CPU pushed SR, then PC (it doesn't change the interrupt mask). The registers are saved from the end of the
+ *  structure (pre-decrement, the vector last), at its cache-through address (offsets: see __jo_core_exception_registers,
+ *  96 bytes)
+ */
+__asm__(
+"    .text\n"
+"    .align 2\n"
+"    .global ___jo_core_master_exception_4\n"
+"___jo_core_master_exception_4:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_master_exception_save\n"
+"    mov #4, r0\n"
+"    .global ___jo_core_master_exception_6\n"
+"___jo_core_master_exception_6:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_master_exception_save\n"
+"    mov #6, r0\n"
+"    .global ___jo_core_master_exception_9\n"
+"___jo_core_master_exception_9:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_master_exception_save\n"
+"    mov #9, r0\n"
+"    .global ___jo_core_master_exception_10\n"
+"___jo_core_master_exception_10:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_master_exception_save\n"
+"    mov #10, r0\n"
+"___jo_core_master_exception_save:\n"
+"    mov.l r1, @-r15\n"
+"    mov.l r0, @-r15\n"                /* the stack: vector, R1, R0, PC, SR */
+"    mov.l 1f, r1\n"
+"    sts.l macl, @-r1\n"
+"    sts.l mach, @-r1\n"
+"    stc.l vbr, @-r1\n"
+"    stc.l gbr, @-r1\n"
+"    sts.l pr, @-r1\n"                 /* (before the bsr) */
+"    bsr ___jo_core_exception_save\n"
+"    nop\n"
+"    mov.l 2f, r0\n"                   /* __jo_core_show_exception(registers) */
+"    jmp @r0\n"
+"    mov r1, r4\n"
+"    .align 2\n"
+"1:  .long ___jo_core_master_exception + 0x20000060\n"
+"2:  .long ___jo_core_show_exception\n"
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+"\n"
+"    .global ___jo_core_slave_exception_4\n"
+"___jo_core_slave_exception_4:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_slave_exception_save\n"
+"    mov #4, r0\n"
+"    .global ___jo_core_slave_exception_6\n"
+"___jo_core_slave_exception_6:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_slave_exception_save\n"
+"    mov #6, r0\n"
+"    .global ___jo_core_slave_exception_9\n"
+"___jo_core_slave_exception_9:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_slave_exception_save\n"
+"    mov #9, r0\n"
+"    .global ___jo_core_slave_exception_10\n"
+"___jo_core_slave_exception_10:\n"
+"    mov.l r0, @-r15\n"
+"    bra ___jo_core_slave_exception_save\n"
+"    mov #10, r0\n"
+"___jo_core_slave_exception_save:\n"
+"    mov.l r1, @-r15\n"
+"    mov.l r0, @-r15\n"
+"    mov.l 3f, r1\n"
+"    sts.l macl, @-r1\n"
+"    sts.l mach, @-r1\n"
+"    stc.l vbr, @-r1\n"
+"    stc.l gbr, @-r1\n"
+"    sts.l pr, @-r1\n"
+"    bsr ___jo_core_exception_save\n"
+"    nop\n"
+"    mov.l 4f, r0\n"                   /* the interrupts masked, the slave CPU stops there */
+"    ldc r0, sr\n"
+"5:  bra 5b\n"
+"    nop\n"
+"    .align 2\n"
+"3:  .long ___jo_core_slave_exception + 0x20000060\n"
+"4:  .long 0x000000F0\n"
+#endif
+"\n"
+/* The rest of the registers. R1: the address of the PR in the structure, the stack: vector, R1, R0, PC, SR. Returns with
+   R1 at the start of the structure */
+"___jo_core_exception_save:\n"
+"    mov.l @(16, r15), r0\n"           /* SR */
+"    mov.l r0, @-r1\n"
+"    mov.l @(12, r15), r0\n"           /* PC */
+"    mov.l r0, @-r1\n"
+"    mov r15, r0\n"                    /* R15 before the exception */
+"    add #20, r0\n"
+"    mov.l r0, @-r1\n"
+"    mov.l r14, @-r1\n"
+"    mov.l r13, @-r1\n"
+"    mov.l r12, @-r1\n"
+"    mov.l r11, @-r1\n"
+"    mov.l r10, @-r1\n"
+"    mov.l r9, @-r1\n"
+"    mov.l r8, @-r1\n"
+"    mov.l r7, @-r1\n"
+"    mov.l r6, @-r1\n"
+"    mov.l r5, @-r1\n"
+"    mov.l r4, @-r1\n"
+"    mov.l r3, @-r1\n"
+"    mov.l r2, @-r1\n"
+"    mov.l @(4, r15), r0\n"            /* R1 */
+"    mov.l r0, @-r1\n"
+"    mov.l @(8, r15), r0\n"            /* R0 */
+"    mov.l r0, @-r1\n"
+"    mov.l @r15, r0\n"                 /* the vector, last */
+"    rts\n"
+"    mov.l r0, @-r1\n"
+"\n"
+/* __jo_core_show_exception(registers): the interrupts masked, the stack pointer on the top of the stack of the master
+   CPU (the frames of the stack are left), then __jo_core_exception_screen(registers) (R4 kept) */
+"    .global ___jo_core_show_exception\n"
+"___jo_core_show_exception:\n"
+"    mov.l 7f, r0\n"
+"    ldc r0, sr\n"
+"    mov.l 8f, r15\n"
+"    mov.l 9f, r0\n"
+"    jmp @r0\n"
+"    nop\n"
+"    .align 2\n"
+"7:  .long 0x000000F0\n"
+"8:  .long " JO_CORE_ASM_STR(JO_WORK_RAM_STACK_TOP) "\n"
+"9:  .long ___jo_core_exception_screen\n"
+);
+
+/** @brief The handlers of the CPU exceptions (assembly above) */
+void                                        __jo_core_master_exception_4(void);
+void                                        __jo_core_master_exception_6(void);
+void                                        __jo_core_master_exception_9(void);
+void                                        __jo_core_master_exception_10(void);
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+void                                        __jo_core_slave_exception_4(void);
+void                                        __jo_core_slave_exception_6(void);
+void                                        __jo_core_slave_exception_9(void);
+void                                        __jo_core_slave_exception_10(void);
+#endif
+
+/** @brief The handlers of the CPU exceptions of the master CPU, in its vector table */
+static void                                 jo_core_init_exceptions(void)
+{
+    __jo_core_set_interrupt_handler(JO_VECTOR_ILLEGAL_INSTRUCTION, __jo_core_master_exception_4);
+    __jo_core_set_interrupt_handler(JO_VECTOR_ILLEGAL_SLOT, __jo_core_master_exception_6);
+    __jo_core_set_interrupt_handler(JO_VECTOR_CPU_ADDRESS_ERROR, __jo_core_master_exception_9);
+    __jo_core_set_interrupt_handler(JO_VECTOR_DMA_ADDRESS_ERROR, __jo_core_master_exception_10);
+}
+
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+void                                        __jo_core_init_slave_exceptions(void)
+{
+    __jo_core_set_interrupt_handler(JO_VECTOR_ILLEGAL_INSTRUCTION, __jo_core_slave_exception_4);
+    __jo_core_set_interrupt_handler(JO_VECTOR_ILLEGAL_SLOT, __jo_core_slave_exception_6);
+    __jo_core_set_interrupt_handler(JO_VECTOR_CPU_ADDRESS_ERROR, __jo_core_slave_exception_9);
+    __jo_core_set_interrupt_handler(JO_VECTOR_DMA_ADDRESS_ERROR, __jo_core_slave_exception_10);
+}
+#endif
+
+/** @brief Check if the code around an address can be read (the Boot ROM, the work RAMs)
+ *  @param addr Address
+ *  @return true if it can
+ */
+static bool                                 jo_core_exception_readable(const unsigned int addr)
+{
+    unsigned int                            a;
+
+    // (the cached or the cache-through address of the Boot ROM, of the low and of the high work RAM)
+    if ((addr & 1) || (addr & 0xD0000000) != 0)
+        return (false);
+    a = addr & 0x1FFFFFFF;
+    if (a < 4)
+        return (false);
+    a -= 4;
+    return (a + 8 <= 0x00080000 || (a >= JO_WORK_RAM_LOW && a + 8 <= JO_WORK_RAM_LOW + 0x100000) ||
+            (a >= JO_WORK_RAM_HIGH && a + 8 <= JO_WORK_RAM_HIGH + 0x100000));
+}
+
+/** @brief The error screen of a CPU exception (see __jo_core_show_exception())
+ *  @param registers The registers (cache-through address)
+ */
+void __attribute__((used, externally_visible, noreturn, noinline, cold))
+                                            __jo_core_exception_screen(const volatile __jo_core_exception_registers *registers)
+{
+    static int                              shown = 0;
+    static const char * const               names[] = {"Illegal instruction", "", "Illegal instruction after a branch",
+                                                       "", "", "CPU address error (an unaligned access?)", "DMA address error"};
+    const volatile unsigned short           *code;
+    unsigned int                            pc;
+    int                                     i;
+
+    if (shown++)
+        for (;;)
+            ;
+    // The transfer of the DMA controller stopped by an address error never ends (the DMA of the VDP2 below waits for it)
+    JO_SH2_CHCR0 = 0;
+    jo_core_error_background(JO_COLOR_Blue);
+    jo_clear_screen();
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    jo_printf(0, 1, "   >>> Jo Engine error handler <<<");
+    jo_printf_with_color(0, 3, JO_COLOR_INDEX_Red, "CPU exception of the %s CPU:",
+                         (unsigned int)registers == JO_CACHE_THROUGH(&__jo_core_slave_exception) ? "slave" : "master");
+    jo_printf_with_color(0, 4, JO_COLOR_INDEX_Red, "%s", registers->vector >= 4 && registers->vector <= 10 ?
+                         names[registers->vector - 4] : "?");
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    jo_printf(0, 6, "PC   %08X  PR   %08X", registers->pc, registers->pr);
+    jo_printf(0, 7, "SR   %08X  GBR  %08X", registers->sr, registers->gbr);
+    jo_printf(0, 8, "MACH %08X  MACL %08X", registers->mach, registers->macl);
+    jo_printf(0, 9, "VBR  %08X", registers->vbr);
+    for (i = 0; i < 16; i += 3)
+    {
+        if (i < 15)
+            jo_printf(0, 11 + i / 3, "R%-2d %08X R%-2d %08X R%-2d %08X", i, registers->r[i], i + 1, registers->r[i + 1],
+                      i + 2, registers->r[i + 2]);
+        else
+            jo_printf(0, 11 + i / 3, "R%-2d %08X", i, registers->r[i]);
+    }
+    pc = registers->pc;
+    if (jo_core_exception_readable(pc))
+    {
+        code = (const volatile unsigned short *)JO_CACHE_THROUGH((pc & 0x1FFFFFFF) - 4);
+        jo_printf(0, 18, "Code at PC-4: %04X %04X %04X %04X", code[0], code[1], code[2], code[3]);
+    }
+    jo_printf(0, 20, "Find PC and PR in game.map");
+    jo_printf(0, 25, "Program stopped: reset the console");
+    // (last: the memory blocks are read, they can be damaged)
+    jo_core_error_show_usage(22);
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    // The sprites hidden (priority 0), the display on, applied at each VBLANK (polled: the interrupts are masked)
+    __jo_vdp2_set_priority(JO_SPRITE_SCREEN, 0);
+    __jo_vdp2_set_tv_display(true);
+    for (;;)
+    {
+        while (JO_VDP2_TVSTAT & JO_CORE_TVSTAT_VBLANK)
+            ;
+        while (!(JO_VDP2_TVSTAT & JO_CORE_TVSTAT_VBLANK))
+            ;
+        __jo_vdp2_vblank();
+    }
+}
+
+#endif // JO_CORE_EXCEPTION_SCREEN
 
 #endif
 

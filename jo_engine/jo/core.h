@@ -83,6 +83,12 @@ typedef void	(*jo_slave_callback)(void);
  *  @remarks With JO_DEBUG, a NULL pointer trap of the master CPU (its user break controller) stops each data access to
  *  the first 4 KB of the memory after this call: the error screen shows the PC (the instruction after the access) and the
  *  PR (return address of its function), to find in the map file. The emulators (Mednafen, Yabause) do not emulate it
+ *  @remarks With JO_DEBUG and the printf module, a CPU exception of the master or the slave CPU (an illegal instruction, an illegal instruction
+ *  after a delayed branch, an address error of the CPU: a 16 or 32 bits access to an unaligned address, or of its DMA
+ *  controller) shows an error screen with the registers of the CPU (PC, PR, SR, R0 to R15...) and the code at the PC, to
+ *  find in the map file. The PC is the illegal instruction, the destination of the branch (illegal slot instruction), or
+ *  an instruction after the access (address error). The program stops there: the console must be reset (the handler of
+ *  jo_core_set_error_handler() is not called)
  */
 void	jo_core_init(const jo_color back_color);
 
