@@ -20,10 +20,10 @@ Run by tools/make_assets.py (build_sounds()), or alone: python3 tools/make_sound
 """
 import math
 import os
-import struct
+import wave
 
 import numpy as np
-from scipy.signal import butter, lfilter, sosfilt
+from scipy.signal import butter, sosfilt
 
 DEMO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 CD = os.path.join(DEMO, 'cd')
@@ -50,10 +50,11 @@ def save_wav(name, x, rate=RATE, peak=0.95):
     rng = np.random.default_rng(len(name))
     d = (rng.random(len(x)) - rng.random(len(x))) / 32767.0
     data = np.clip(np.round((x + d) * 32767), -32768, 32767).astype('<i2').tobytes()
-    with open(os.path.join(CD, name), 'wb') as f:
-        f.write(b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVE')
-        f.write(b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, rate, rate * 2, 2, 16))
-        f.write(b'data' + struct.pack('<I', len(data)) + data)
+    with wave.open(os.path.join(CD, name), 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(data)
     return len(data)
 
 
@@ -293,7 +294,6 @@ GLASS_RECORDING = os.path.join(DEMO, 'sounds', 'broken_glass.wav')
 
 def read_wav(path):
     """A WAV file (16 bits): its samples (-1 to 1, mono) and its rate"""
-    import wave
     with wave.open(path) as w:
         rate = w.getframerate()
         x = np.frombuffer(w.readframes(w.getnframes()), '<i2').astype(float) / 32768.0

@@ -26,6 +26,16 @@ static void             t_sprintf_bugs(void)
     // (an unsupported conversion: its argument skipped, the next ones right)
     jo_sprintf(b, "%.2f %s", 1.5, "ok");
     JT_EQ(jo_strcmp(b, "%f ok"), 0);
+    // (* : the width and the precision as arguments. They were not read: the %s after them read 4 as a pointer)
+    jo_sprintf(b, "%*d|%-*d|%.*s|%*.*d|%s", 4, 7, 3, 8, 2, "abc", -4, 3, 5, "ok");
+    JT_EQ(jo_strcmp(b, "   7|8  |ab|005 |ok"), 0);
+    // (0 with a precision of 0: no digit, as the C library)
+    jo_sprintf(b, "[%.0d][%.d][%3.0u]", 0, 0, 0);
+    JT_EQ(jo_strcmp(b, "[][][   ]"), 0);
+    // (ll and j: 64 bits taken whole, written when they fit in 32 bits; taken as an int, the %s after read the high half as
+    // a pointer. z and t: 32 bits)
+    jo_sprintf(b, "%lld|%s|%zu|%llu|%d", (long long)-12, "ok", (unsigned int)5, 1ULL << 40, 9);
+    JT_EQ(jo_strcmp(b, "-12|ok|5|%u|9"), 0);
     // A size: size - 1 characters, then the null character
     b[8] = 'Z';
     JT_EQ(jo_snprintf(b, 8, "%s", "abcdefghij"), 7);
@@ -165,17 +175,21 @@ static void             t_sprite_bugs(void)
     jo_sprite_free_from(id);
     JT_EQ(jo_sprite_add(&img), id);
     jo_sprite_free_from(id);
-    // The animations: the last one can be replaced, no more than JO_MAX_SPRITE_ANIM
+    // (4 sprites added: with JO_DEBUG, an animation of sprites not added is an error)
+    id = jo_sprite_add(&img);
+    for (i = 1; i < 4; ++i)
+        jo_sprite_add(&img);
     jt_expect_errors(true);
-    first_anim = jo_create_sprite_anim(0, 4, 2);
+    first_anim = jo_create_sprite_anim((unsigned short)id, 4, 2);
     JT_TRUE(first_anim >= 0);
-    JT_EQ(jo_replace_sprite_anim(first_anim, 0, 4, 2), first_anim);
-    JT_EQ(jo_replace_sprite_anim(first_anim + 1, 0, 4, 2), -1);
-    JT_EQ(jo_replace_sprite_anim(-1, 0, 4, 2), -1);
+    JT_EQ(jo_replace_sprite_anim(first_anim, (unsigned short)id, 4, 2), first_anim);
+    JT_EQ(jo_replace_sprite_anim(first_anim + 1, (unsigned short)id, 4, 2), -1);
+    JT_EQ(jo_replace_sprite_anim(-1, (unsigned short)id, 4, 2), -1);
     for (anim = first_anim, i = 0; i < JO_MAX_SPRITE_ANIM + 2 && anim >= 0; ++i)
-        anim = jo_create_sprite_anim(0, 4, 2);
+        anim = jo_create_sprite_anim((unsigned short)id, 4, 2);
     JT_EQ(anim, -1);
     jt_expect_errors(false);
+    jo_sprite_free_from(id);
     // The palette shades: the shade levels / 2 is the color itself
     jt_group("bugs.palette");
     jo_create_palette(&palette);
@@ -1485,6 +1499,72 @@ static void             t_round7_bugs(void)
 #endif
 }
 
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+/** @brief jo_cell_floor() of a turned cell, the point far from its center: the turn of the point on 32 bits overflowed
+ *  @remarks Not inlined: in t_bugs() it changed the inlining of the other tests (+4.8 KB, the test ROM too big)
+ */
+static __attribute__((noinline)) void t_cell_floor_far(void)
+{
+    static const jo_cell cell = {.x0 = -100, .z0 = -100, .x1 = 100, .z1 = 100, .floor1 = 100,
+                                 .slope = JO_LEVEL_CELL_SLOPE_X, .yaw = 90, .sin = JO_FIXED_1};
+
+    jt_group("bugs.cell");
+    // (the inverse turn: x in the box = dx * cos - dz * sin = -dz) 40000 units toward -Z: the high end of the slope
+    JT_EQ(jo_cell_floor(&cell, 0, -40000), 100);
+    JT_EQ(jo_cell_floor(&cell, 0, 40000), 0);
+    JT_EQ(jo_cell_floor(&cell, 0, -50), 75);
+}
+#endif
+
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+/** @brief jo_3d_create_plane() on the memory of a quad used before: jo_3d_set_color() kept its light and screen doors bits
+ *  (the quad of jo_3d_draw_sprite() is in a block of jo_malloc() given again)
+ */
+static __attribute__((noinline)) void t_plane_attribute(void)
+{
+    static jo_3d_quad   used;
+    static jo_3d_quad   fresh;
+    static jo_vertice   used_vertices[4];
+    static jo_vertice   fresh_vertices[4];
+
+    jt_group("bugs.plane");
+    jo_memset(&used, 0xFF, sizeof(used));
+    jo_memset(&fresh, 0, sizeof(fresh));
+    jo_3d_create_plane(&used, used_vertices);
+    jo_3d_create_plane(&fresh, fresh_vertices);
+    jo_3d_set_color(&used, JO_COLOR_Red);
+    jo_3d_set_color(&fresh, JO_COLOR_Red);
+    JT_EQ(used.attribute.sort, fresh.attribute.sort);
+    JT_EQ(used.attribute.draw_mode, fresh.attribute.draw_mode);
+}
+#endif
+
+/** @brief The collision per pixel of a map on a tile of 16 colors: it was read as RGB pixels (a solid pixel seen in the
+ *  free top of the column) */
+static void __attribute__((noinline))   t_map_collision_4bits(void)
+{
+    static const jo_color       lut[16] = {0, JO_COLOR_White, JO_COLOR_Red};
+    unsigned char               pixels[8 * 8 / 2];
+    const unsigned int          layer = JO_MAP_MAX_LAYER - 1;
+    int                         id;
+
+    jt_group("bugs.map_4bits");
+    // (rows 0 to 3 free (color 0), rows 4 to 7 solid (color 1); 2 pixels per byte)
+    jo_memset(pixels, 0, sizeof(pixels));
+    jo_memset(pixels + 4 * 4, 0x11, 4 * 4);
+    id = jo_sprite_add_4bits_lut(pixels, 8, 8, lut);
+    JT_TRUE(id >= 0);
+    if (id < 0)
+        return;
+    JT_TRUE(jo_map_create(layer, 4, 0));
+    jo_map_add_tile(layer, 100, 100, id, 0);
+    // (free at the row 1: the surface 3 rows under; inside at the row 6: the surface 2 rows above)
+    JT_EQ(jo_map_per_pixel_vertical_collision(layer, 102, 101, JO_NULL), 3);
+    JT_EQ(jo_map_per_pixel_vertical_collision(layer, 103, 106, JO_NULL), -2);
+    jo_map_free(layer);
+    jo_sprite_free_from(id);
+}
+
 void                    t_bugs(void)
 {
     t_3d_bugs();
@@ -1508,4 +1588,9 @@ void                    t_bugs(void)
     t_round6_a_bugs();
     t_round6_b_bugs();
     t_round7_bugs();
+    t_map_collision_4bits();
+#ifdef JO_COMPILE_WITH_3D_SUPPORT
+    t_cell_floor_far();
+    t_plane_attribute();
+#endif
 }

@@ -11,6 +11,10 @@ Website: https://jo-engine.org/
 
 Documentation: https://www.jo-engine.org/doxygen/
 
+Coding with an AI assistant: [AGENTS.md](AGENTS.md) (the rules to use the engine well, read by most coding assistants),
+the skill [.claude/skills/jo-engine](.claude/skills/jo-engine/SKILL.md) (Claude Code), and the index of the API
+[Documentation/api_index.md](Documentation/api_index.md) (one line per function of the engine, `tools/make_api_index.py`).
+
 Main forum: https://segaxtreme.net/forums/saturn-dev.34/
 
 X (aka Twitter): https://twitter.com/johannes_fetz

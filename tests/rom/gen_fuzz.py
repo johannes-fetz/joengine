@@ -19,6 +19,9 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "Compiler", "COMMON"))
+import jo_model  # noqa: E402  (the chunks of the JOM files)
+
 OUT = os.path.join(HERE, "cd", "FUZZ")
 SEEDS = os.path.join(HERE, "fuzz_seeds")
 FUZZ_COUNT = 30
@@ -36,16 +39,16 @@ def be(fmt, *v):
 
 
 def chunk(tag, data):
+    """A chunk of data already aligned (the size of a chunk of the fuzz is the one given)"""
     assert len(data) % 4 == 0
-    return tag.encode() + be("I", len(data)) + data
+    return jo_model.chunk(tag, data)
 
 
 def pad4(b):
     return b + b"\0" * (-len(b) % 4)
 
 
-def name16(s):
-    return s.encode().ljust(16, b"\0")
+name16 = jo_model.name16
 
 
 def jom_skeleton():

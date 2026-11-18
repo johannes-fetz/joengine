@@ -325,6 +325,11 @@ SRCS += $(JO_ENGINE_SRC_DIR)/font.c $(JO_ENGINE_SRC_DIR)/input.c $(JO_ENGINE_SRC
 		$(JO_ENGINE_SRC_DIR)/vdp2_malloc.c $(JO_ENGINE_SRC_DIR)/smpc.c $(JO_ENGINE_SRC_DIR)/dsp.c
 
 SYSOBJS = $(JO_ENGINE_SRC_DIR)/start.o
+# The warnings of the link (jo_engine/link_warnings.S): each call of the float emulation of libgcc (float and double: the
+# SH-2 has no FPU) is reported with the function that makes it. JO_LINK_WARNINGS = 0 in the makefile of a game: none
+ifneq (${JO_LINK_WARNINGS},0)
+SYSOBJS += $(JO_ENGINE_SRC_DIR)/link_warnings.o
+endif
 
 OBJS = $(SRCS:.c=.o)
 
@@ -497,6 +502,9 @@ endif
 	$(CC) $< $(DFLAGS) $(CCFLAGS) $(_CCFLAGS) -o $@
 
 $(JO_ENGINE_SRC_DIR)/start.o: $(JO_ENGINE_SRC_DIR)/start.S
+	$(CC) -m2 -c $< -o $@
+
+$(JO_ENGINE_SRC_DIR)/link_warnings.o: $(JO_ENGINE_SRC_DIR)/link_warnings.S
 	$(CC) -m2 -c $< -o $@
 
 clean:

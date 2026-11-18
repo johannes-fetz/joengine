@@ -4,6 +4,9 @@
 Usage:
     python3 jo_model.py MODEL.OBJ -o cd/MODEL.JOM [options]
 
+A model built by a program in Python (no OBJ file): jo_mesh.py, which writes the chunks with the functions of this module
+(chunk(), vectors_chunk(), quads_chunk()... see "The writing of the chunks").
+
 Options:
     -o FILE             output file (default: the OBJ name with the .JOM extension)
     --scale S           scale of the points (default 1)
@@ -448,16 +451,72 @@ def embedded_texture_name(source, lut, warnings):
     return '%s_%s.BIN' % (stem[:4], digest)
 
 
+# The writing of the chunks of a JOM file (the converter, and the programs that build their models in Python: see
+# jo_engine/jo/model.h). The values are already in the format of the file: 16.16 fixed, indexes, RGB 555
+
 def chunk(tag, data):
+    """A chunk: its tag (4 characters), the size of its data, its data (4 bytes aligned)"""
     data = bytes(data)
     if len(data) % 4:
         data += b'\0' * (4 - len(data) % 4)
-    return tag.encode('ascii') + struct.pack('>I', len(data)) + data
+    return (tag.encode('ascii') if isinstance(tag, str) else bytes(tag)) + struct.pack('>I', len(data)) + data
 
 
 def name16(s):
     b = s.encode('ascii', 'replace')[:15]
     return b + b'\0' * (16 - len(b))
+
+
+def jom_header(center, radius):
+    """The header of a JOM file: the bounding sphere of the model (16.16 fixed)"""
+    return b'JOM1' + struct.pack('>HH', VERSION, 0) + struct.pack('>iiii', center[0], center[1], center[2], radius)
+
+
+def vectors_chunk(tag, vectors):
+    """A count and 3 values of 16.16 fixed each: "PNTS" (the points), "NTAB" (the normals of the corners), "VCOL" (the
+    colors of the points)"""
+    return chunk(tag, struct.pack('>I', len(vectors)) + b''.join(struct.pack('>iii', *v) for v in vectors))
+
+
+def quads_chunk(quads):
+    """"QUAD": the polygons, (normal (16.16 fixed), the indexes of their 4 points) each"""
+    return chunk('QUAD', struct.pack('>I', len(quads)) + b''.join(struct.pack('>iiiHHHH', *n, *c) for n, c in quads))
+
+
+def values_chunk(tag, values):
+    """A count and 16 bits values: "QMAT" (the material of each polygon), "GOUR" (the 4 gouraud colors of each polygon),
+    "CNRM" (the 4 normals of the corners of each polygon)"""
+    return chunk(tag, struct.pack('>I', len(values)) + struct.pack('>%dH' % len(values), *values))
+
+
+def records_chunk(tag, records):
+    """A count and records: "MATL" (material_record()), "TIMG" (texture_record()), "GRUP" (group_record()), "TEXT"
+    (name16())"""
+    return chunk(tag, struct.pack('>I', len(records)) + b''.join(records))
+
+
+def material_record(name, rgb, texture=-1, flags=0, user=0, shine=0, subdivision_error=0):
+    """A material of "MATL": rgb 0 to 255, texture: its index in "TEXT" (-1: none), flags: MAT_xxx, user: the value of
+    the game"""
+    return name16(name) + struct.pack('>BBBBhHII', rgb[0], rgb[1], rgb[2], shine, texture, subdivision_error, flags, user)
+
+
+def texture_record(name, width, height, pixels, lut=None):
+    """A texture of "TIMG": RGB 555 (pixels: their values, or their bytes big endian), or 16 colors (lut: the 16
+    colors, pixels: the indexes packed 2 per byte, the left pixel in the high bits). 4 bytes aligned"""
+    if lut is not None:
+        data = struct.pack('>16H', *lut) + bytes(pixels)
+    elif isinstance(pixels, (bytes, bytearray)):
+        data = bytes(pixels)
+    else:
+        data = struct.pack('>%dH' % len(pixels), *pixels)
+    data += b'\0' * (-len(data) % 4)
+    return name16(name) + struct.pack('>HHHH', width, height, 0 if lut is None else 1, 0) + data
+
+
+def group_record(name, first_point, point_count, first_polygon, polygon_count):
+    """A group of "GRUP": its points, its polygons"""
+    return name16(name) + struct.pack('>HHHH', first_point, point_count, first_polygon, polygon_count)
 
 
 def skeleton_chunks(path, groups, quads, points, scale, s_yz, point_groups):
@@ -909,90 +968,55 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
                     mats.append(v)
                 poly_mat[i] = variants[(k, mode)]
                 sorted_count += 1
-    out = bytearray(b'JOM1')
-    out += struct.pack('>HH', VERSION, 0)
-    out += struct.pack('>iiii', fixed(center[0]), fixed(center[1]), fixed(center[2]), fixed(radius))
+    out = bytearray(jom_header([fixed(v) for v in center], fixed(radius)))
     embedded = 0
     if embed_textures and textures:
         # The textures in the file (first chunk: the loader copies them to the VRAM one at a time)
-        data = bytearray(struct.pack('>I', len(textures)))
+        records = []
         for t in textures:
             px = texture_pixels(texture_sources[t], warnings)
             if px is None:
                 px = (8, 1, [0] * 8)
             w, h, pixels = px
             if t in lut_textures:
-                # 16 colors: the table, then 2 pixels per byte (4 bytes aligned)
                 lut, packed = texture_16_colors(w, h, pixels)
-                block = struct.pack('>16H', *lut) + packed
-                block += b'\0' * (-len(block) % 4)
-                data += name16(t) + struct.pack('>HHHH', w, h, 1, 0) + block
-                embedded += len(block)
+                records.append(texture_record(t, w, h, packed, lut))
+                embedded += 32 + len(packed) + (-(32 + len(packed)) % 4)
                 continue
-            data += name16(t) + struct.pack('>HHHH', w, h, 0, 0) + struct.pack('>%dH' % len(pixels), *pixels)
-            if len(pixels) % 2:
-                data += b'\0\0'
+            records.append(texture_record(t, w, h, pixels))
             embedded += w * h * 2
-        out += chunk('TIMG', data)
-    data = bytearray(struct.pack('>I', len(points)))
-    for p in points:
-        data += struct.pack('>iii', *[fixed(v) for v in p])
-    out += chunk('PNTS', data)
-    data = bytearray(struct.pack('>I', len(quads)))
-    for c, n, m, g in quads:
-        # The normal of the polygon: front faces clockwise in the Saturn axes (Y down, left handed)
-        fn = face_normal([points[i] for i in c[::-1]])
-        data += struct.pack('>iiiHHHH', fixed(fn[0]), fixed(fn[1]), fixed(fn[2]), *c)
-    out += chunk('QUAD', data)
-    data = bytearray(struct.pack('>I', len(quads)))
-    for k in poly_mat:
-        data += struct.pack('>H', k)
-    out += chunk('QMAT', data)
-    data = bytearray(struct.pack('>I', len(mats)))
-    for m in mats:
-        r, g, b = [max(0, min(255, int(round(v * 255)))) for v in m.color]
-        data += name16(m.name) + struct.pack('>BBBBhHII', r, g, b, m.shine, m.texture_index, m.subdivision_error, m.flags, m.user)
-    out += chunk('MATL', data)
+        out += records_chunk('TIMG', records)
+    out += vectors_chunk('PNTS', [[fixed(v) for v in p] for p in points])
+    # The normal of each polygon: front faces clockwise in the Saturn axes (Y down, left handed)
+    out += quads_chunk([([fixed(v) for v in face_normal([points[i] for i in c[::-1]])], c) for c, n, m, g in quads])
+    out += values_chunk('QMAT', poly_mat)
+    out += records_chunk('MATL', [material_record(m.name, [max(0, min(255, int(round(v * 255)))) for v in m.color],
+                                                  m.texture_index, m.flags, m.user, m.shine, m.subdivision_error)
+                                  for m in mats])
     if textures:
-        data = bytearray(struct.pack('>I', len(textures)))
-        for t in textures:
-            data += name16(t)
-        out += chunk('TEXT', data)
+        out += records_chunk('TEXT', [name16(t) for t in textures])
     if normals and all(q[1] is not None for q in quads):
-        data = bytearray(struct.pack('>I', len(normals)))
-        for n in normals:
-            data += struct.pack('>iii', *[fixed(v) for v in n])
-        out += chunk('NTAB', data)
-        data = bytearray(struct.pack('>I', len(quads) * 4))
-        for q in quads:
-            data += struct.pack('>HHHH', *q[1])
-        out += chunk('CNRM', data)
+        out += vectors_chunk('NTAB', [[fixed(v) for v in n] for n in normals])
+        out += values_chunk('CNRM', [i for q in quads for i in q[1]])
     elif normals:
         warnings.append('some faces have no normals: the normals are not written')
     if has_colors:
-        data = bytearray(struct.pack('>I', len(points)))
-        for c in colors:
-            data += struct.pack('>iii', *[fixed(v) for v in c])
-        out += chunk('VCOL', data)
+        out += vectors_chunk('VCOL', [[fixed(v) for v in c] for c in colors])
         if any(m.flags & MAT_GOURAUD for m in mats):
-            data = bytearray(struct.pack('>I', len(quads) * 4))
-            for (c, n, m, g), cc in zip(quads, corner_colors):
-                gouraud = mats[mat_index[m]].flags & MAT_GOURAUD
-                for color in cc:
-                    data += struct.pack('>H', rgb555(color) if gouraud else 0)
-            out += chunk('GOUR', data)
+            out += values_chunk('GOUR', [rgb555(color) if mats[mat_index[m]].flags & MAT_GOURAUD else 0
+                                         for (c, n, m, g), cc in zip(quads, corner_colors) for color in cc])
     if groups:
         # The points of a group (they must be together in the OBJ): the points declared in it; an OBJ with its points
         # before its groups: the points used only by its polygons (a point shared with another group doesn't move with it)
-        data = bytearray(struct.pack('>I', len(groups)))
+        records = []
         for gi, (name, first, end, used) in enumerate(groups):
             own = group_points(groups, gi, point_groups)
             lo, hi = (min(own), max(own)) if own else (0, -1)
             # (the range includes points of other groups if its points are not together in the OBJ, see --info)
             if own and hi - lo + 1 != len(own):
                 warnings.append('group %s: its points are not together in the OBJ' % name)
-            data += name16(name) + struct.pack('>HHHH', lo, hi - lo + 1, first, end - first)
-        out += chunk('GRUP', data)
+            records.append(group_record(name, lo, hi - lo + 1, first, end - first))
+        out += records_chunk('GRUP', records)
     bone_count = animation_count = skin_count = 0
     if skeleton:
         bones, anims, bone_count, animation_count, (skin, skin_count) = skeleton_chunks(skeleton, groups, quads, points, scale,
@@ -1150,15 +1174,47 @@ def morph_points(path, morph, frame):
     return [tuple(v * (1 << shift) for v in values[k * 3:k * 3 + 3]) for k in range(points)]
 
 
+def triangle_pixels(np, x, y, xx, yy, w, h, margin=0.0):
+    """The pixels of a triangle on the screen (corners x, y: 3 values each; xx, yy: the centers of the pixels): their
+    indexes (y * w + x)"""
+    area = (x[1] - x[0]) * (y[2] - y[0]) - (y[1] - y[0]) * (x[2] - x[0])
+    if abs(area) < 1e-9:
+        return np.zeros(0, dtype=int)
+    lo_x, hi_x = max(0, int(min(x))), min(w, int(max(x)) + 1)
+    lo_y, hi_y = max(0, int(min(y))), min(h, int(max(y)) + 1)
+    if lo_x >= hi_x or lo_y >= hi_y:
+        return np.zeros(0, dtype=int)
+    px, py = xx[lo_y:hi_y, lo_x:hi_x], yy[lo_y:hi_y, lo_x:hi_x]
+    l1 = ((x[2] - x[1]) * (py - y[1]) - (y[2] - y[1]) * (px - x[1])) / area
+    l2 = ((x[0] - x[2]) * (py - y[2]) - (y[0] - y[2]) * (px - x[2])) / area
+    inside = (l1 >= -margin) & (l2 >= -margin) & (1 - l1 - l2 >= -margin)
+    return (py[inside] - 0.5).astype(int) * w + (px[inside] - 0.5).astype(int)
+
+
+def vdp1_quad_pixels(np, xs, ys, xx, yy, w, h):
+    """The pixels of a quad drawn like the VDP1: lines from its edge A-D to its edge B-C (strips between them here)"""
+    a, b, c, d = (np.array((xs[k], ys[k])) for k in range(4))
+    n = int(max(2, min(64, max(np.linalg.norm(d - a), np.linalg.norm(c - b)))))
+    out = []
+    for k in range(n):
+        l0, l1 = a + (d - a) * k / n, a + (d - a) * (k + 1) / n
+        r0, r1 = b + (c - b) * k / n, b + (c - b) * (k + 1) / n
+        for t in ((l0, r0, r1), (l0, r1, l1)):
+            out.append(triangle_pixels(np, [p[0] for p in t], [p[1] for p in t], xx, yy, w, h, 1e-3))
+    return np.unique(np.concatenate(out))
+
+
 class SortScene:
     """Views of a model all around it (its points in the axes of the Saturn, its quads, the flags of their materials),
     drawn like the VDP1 (no z-buffer: the painter's sort with one key per polygon, its center or with jo_sort min / max
     its nearest or farthest point, the faces turned away not drawn unless jo_dual) and with a z-buffer. The z-buffer and
-    the pixels of each polygon are computed once: evaluate() draws the painter's sort of other sorts quickly. Needs
-    numpy"""
+    the pixels of each polygon are computed once: evaluate() draws the painter's sort of other sorts quickly. vdp1: the
+    pixels of a quad in the painter's view are its lines from the edge A-D to the edge B-C, as the VDP1 draws them (a
+    twisted quad is a bow tie: where it misses pixels, the painter's view has no polygon and the z-buffer has one); else
+    its 2 triangles (0 1 2, 0 2 3), the same pixels as the z-buffer. Needs numpy"""
 
     def __init__(self, points, quads, flags, center, radius, elevations=SORT_CHECK_ELEVATIONS,
-                 azimuths=SORT_CHECK_AZIMUTHS, size=None, holes=False):
+                 azimuths=SORT_CHECK_AZIMUTHS, size=None, holes=False, vdp1=False):
         import numpy as np
         self.np = np
         pts = np.asarray(points, dtype=float)
@@ -1229,6 +1285,8 @@ class SortScene:
                         zbuf[idx[nearer]] = z[nearer]
                         zid[idx[nearer]] = i
                         pix.append(idx)
+                    if pix and vdp1:
+                        pix = [vdp1_quad_pixels(np, xs, ys, xx, yy, w, h)]
                     if pix:
                         polys.append((i, zs.min(), zs.max(), zs.mean(), np.concatenate(pix)))
                 self.views.append((el, math.degrees(az), polys, zid, back if holes else None))

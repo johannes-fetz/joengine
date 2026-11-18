@@ -964,6 +964,77 @@ static void                     c_effects(void)
 }
 #endif
 
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+
+/** @brief A small water (2 levels: 161 sprites for the foam, the bottom not textured: 129 more), level_1_side: the side of
+ *  its second level (wrong: 100) */
+static void                     t_water_config(jo_water_config * const config, jo_water_level * const levels, const int level_1_side)
+{
+    jo_water_default_config(config);
+    levels[0].cell = 8;
+    levels[0].side = 64;
+    levels[1].cell = 16;
+    levels[1].side = level_1_side;
+    config->levels = levels;
+    config->level_count = 2;
+    config->textured = true;
+    config->bottom = 0;
+}
+
+/** @brief A water with an object under it and a floating object, updated, freed, then its textures */
+static void                     c_water(void)
+{
+    static const short          amounts[2] = {96, 192};
+    static const jo_fixed       depths[2] = {0, 8 << 16};
+    jo_water_config             config;
+    jo_water_level              levels[2];
+    jo_water                    *w;
+    jo_water_dip                *d;
+    jo_3d_mesh                  *rock;
+    jo_3d_mesh                  *hull;
+    int                         first;
+
+    first = jo_sprite_count();
+    t_water_config(&config, levels, 128);
+    w = jo_water_create(&config);
+    JT_TRUE(w != JO_NULL);
+    if (w == JO_NULL)
+        return;
+    rock = jo_3d_create_mesh(6);
+    hull = jo_3d_create_mesh(4);
+    JT_TRUE(rock != JO_NULL && hull != JO_NULL);
+    if (rock != JO_NULL)
+        JT_TRUE(jo_water_add_mesh(w, rock, 0, 6, 128, 1000) != JO_NULL);
+    d = hull != JO_NULL ? jo_water_add_dip(w, hull, 2, amounts, depths, 0) : JO_NULL;
+    JT_TRUE(d != JO_NULL);
+    if (d != JO_NULL)
+        jo_water_dip_mesh(d, 4 << 16, 0, 0);
+    jo_water_update(w, 10, 0, -120, 0, 0);
+    jo_water_free(w);
+    jo_water_free_dip(d);
+    if (hull != JO_NULL)
+        jo_3d_free_mesh(hull);
+    if (rock != JO_NULL)
+        jo_3d_free_mesh(rock);
+    jo_3d_model_free_textures_from(first);
+}
+
+/** @brief A wrong configuration (its second level): what was made is freed, the sprites too */
+static void                     c_water_errors(void)
+{
+    jo_water_config             config;
+    jo_water_level              levels[2];
+    jo_water                    *w;
+
+    t_water_config(&config, levels, 100);
+    jt_expect_errors(true);
+    w = jo_water_create(&config);
+    jt_expect_errors(false);
+    JT_TRUE(w == JO_NULL);
+    jo_water_free(w);
+}
+#endif
+
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
 
 /** @brief A level: its cells (models for the lights, mirrors), its entities (an actor, an explosive), the point lights of
@@ -1098,6 +1169,10 @@ void                            t_leaks(void)
     t_cycles("leaks.3d.point_lights_model", c_point_lights_model);
 #ifdef JO_COMPILE_WITH_EFFECTS_SUPPORT
     t_cycles("leaks.3d.effects", c_effects);
+#endif
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    t_cycles("leaks.water", c_water);
+    t_cycles("leaks.water.errors", c_water_errors);
 #endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     t_cycles("leaks.3d.glows", c_glows);
