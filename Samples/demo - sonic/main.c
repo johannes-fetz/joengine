@@ -52,7 +52,7 @@ void            reset_demo(void)
 bool          has_vertical_collision(void)
 {
     player.can_jump = false;
-    if (jo_float2fixed(physics.speed_y) < 0)
+    if (physics.speed_y < 0)
     {
         physics.is_in_air = true;
         return false;
@@ -65,7 +65,7 @@ bool          has_vertical_collision(void)
         physics.is_in_air = true;
         return false;
     }
-    if (dist < 0 && jo_is_float_equals_zero(physics.speed_y))
+    if (dist < 0 && physics.speed_y == 0)
         player.y += dist;
     player.can_jump = true;
     physics.is_in_air = false;
@@ -90,19 +90,18 @@ static inline bool      has_horizontal_collision(void)
 void     sonic_collision_handling(void)
 {
     if (has_vertical_collision())
-        physics.speed_y = 0.0f;
+        physics.speed_y = 0;
     else
     {
         jo_physics_apply_gravity(&physics);
-        // (the speeds of the physics in fixed numbers: no float computed)
-        player.y += jo_fixed2int(jo_float2fixed(physics.speed_y));
+        player.y += jo_fixed2int(physics.speed_y);
     }
     if (has_horizontal_collision())
-        physics.speed = 0.0f;
+        physics.speed = 0;
     else if (jo_physics_is_going_on_the_right(&physics))
-        map_pos_x += jo_fixed2int(JO_MAX(JO_FIXED_1, jo_float2fixed(physics.speed)));
+        map_pos_x += jo_fixed2int(JO_MAX(JO_FIXED_1, physics.speed));
     else if (jo_physics_is_going_on_the_left(&physics))
-        map_pos_x += jo_fixed2int(JO_MIN(-JO_FIXED_1, jo_float2fixed(physics.speed)));
+        map_pos_x += jo_fixed2int(JO_MIN(-JO_FIXED_1, physics.speed));
 }
 
 static inline void     camera_handling(int prev_y)
@@ -164,7 +163,7 @@ static inline void     my_input(void)
         if (jo_is_pad1_key_pressed(JO_KEY_LEFT))
         {
             player.flip_sonic = true;
-            if (jo_physics_is_going_on_the_right(&physics) || jo_physics_should_brake(&physics))
+            if (jo_physics_is_going_on_the_right(&physics))
                 jo_physics_decelerate_left(&physics);
             else
                 jo_physics_accelerate_left(&physics);
@@ -172,7 +171,7 @@ static inline void     my_input(void)
         else if (jo_is_pad1_key_pressed(JO_KEY_RIGHT))
         {
             player.flip_sonic = false;
-            if (jo_physics_is_going_on_the_left(&physics) || jo_physics_should_brake(&physics))
+            if (jo_physics_is_going_on_the_left(&physics))
                 jo_physics_decelerate_right(&physics);
             else
                 jo_physics_accelerate_right(&physics);
