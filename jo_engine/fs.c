@@ -226,6 +226,8 @@ static unsigned int             __jo_cd_play_next_fad = 0; // Next sector expect
 static unsigned int             __jo_cd_play_end_fad = 0; // End of the current read (exclusive)
 static bool                     __jo_cd_initialized = false;
 static unsigned char            __jo_cd_sector_buffer[JO_SECTOR_SIZE] __attribute__((aligned(4)));
+/** @brief The directory sector in __jo_cd_sector_buffer (0: none, see jo_fs_find_in_directory()) */
+static unsigned int             __jo_cd_sector_buffer_dir_fad = 0;
 /** @brief The end of the files of the disc (the read ahead stops there, see __jo_fs_read_sectors()) */
 static unsigned int             __jo_fs_data_end_fad = 0;
 /** @brief A read a little after the position of the drive: the sectors between are read and dropped (no seek) */
@@ -514,6 +516,7 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     if (__jo_cd_play_end_fad && !__jo_cd_stream_owner && fad > __jo_cd_play_next_fad && fad - __jo_cd_play_next_fad <= JO_CD_SKIP_MAX &&
         fad + count <= __jo_cd_play_end_fad)
     {
+        JO_ZERO(__jo_cd_sector_buffer_dir_fad);
         while (__jo_cd_play_next_fad < fad)
             if (jo_cd_read_sectors(__jo_cd_play_next_fad, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, read_ahead_end) < 0)
                 return (-1);
@@ -564,9 +567,12 @@ static int                      jo_cd_read_sectors(const unsigned int fad, const
     return (0);
 }
 
-/** @brief The calls of jo_cd_take_sectors() without a sector: the read is started again after (a lost command) */
+/** @brief The VBLANKs without a sector in jo_cd_take_sectors(): the read is started again after (a lost command). A time,
+ *  not a count of calls: jo_fs_wait_background_jobs() calls it in a loop, the 300 calls of the count before took less than
+ *  the seek of the drive, the read was started again and again and the wait never ended */
 # define JO_CD_TAKE_RETRY               (300)
-static unsigned int             __jo_cd_take_idle = 0;
+/** @brief The VBLANK of the start of the read or of the last sector taken (see jo_cd_take_sectors()) */
+static unsigned int             __jo_cd_take_vblank = 0;
 
 /** @brief Take the sectors already read by the drive, without waiting for them (see jo_fs_do_background_jobs())
  *  @param fad First sector (frame address)
@@ -606,6 +612,7 @@ static int                      jo_cd_take_sectors(const unsigned int fad, unsig
             return (0);
         n = JO_MIN((unsigned int)available, fad - __jo_cd_play_next_fad);
         dropped = __jo_cd_sector_buffer;
+        JO_ZERO(__jo_cd_sector_buffer_dir_fad);
         JO_ZERO(none);
         if (jo_cd_get_sectors(n, &dropped, &none) < 0)
             return (-1);
@@ -614,17 +621,17 @@ static int                      jo_cd_take_sectors(const unsigned int fad, unsig
     {
         if (jo_cd_start_read(fad, read_ahead_end - fad) < 0)
             return (-1);
-        JO_ZERO(__jo_cd_take_idle);
+        __jo_cd_take_vblank = jo_core_get_vblank_count();
     }
     if ((available = jo_cd_sector_count()) < 0)
         return (-1);
     if (available == 0)
     {
-        if (++__jo_cd_take_idle > JO_CD_TAKE_RETRY)
+        if (jo_core_get_vblank_count() - __jo_cd_take_vblank > JO_CD_TAKE_RETRY)
             jo_cd_stop_read();
         return (0);
     }
-    JO_ZERO(__jo_cd_take_idle);
+    __jo_cd_take_vblank = jo_core_get_vblank_count();
     n = (unsigned int)available;
     if (n > count)
         n = count;
@@ -749,6 +756,80 @@ static  __jo_force_inline unsigned int  jo_fs_read_le32(const unsigned char *p)
     return (p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
 }
 
+/** @brief Read a record of a directory
+ *  @param record Record (in __jo_cd_sector_buffer)
+ *  @param entry Output: name (without the version ";1"), FAD (JO_FS_DIRECTORY_FAD_FLAG for a directory), size
+ */
+static void                     jo_fs_read_record(const unsigned char * const record, jo_fs_dir_entry * const entry)
+{
+    unsigned int                name_length;
+    register unsigned int       i;
+
+    entry->fad = jo_fs_read_le32(&record[JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD;
+    entry->size = jo_fs_read_le32(&record[JO_ISO9660_RECORD_SIZE]);
+    if (entry->fad + (entry->size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE > __jo_fs_data_end_fad)
+        __jo_fs_data_end_fad = entry->fad + (entry->size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE;
+    if (record[JO_ISO9660_RECORD_FLAGS] & JO_ISO9660_FLAG_DIRECTORY)
+        entry->fad |= JO_FS_DIRECTORY_FAD_FLAG;
+    name_length = record[JO_ISO9660_RECORD_NAME_LENGTH];
+    if (name_length == 1 && record[JO_ISO9660_RECORD_NAME] == JO_ISO9660_CURRENT_DIRECTORY)
+    {
+        entry->name[0] = '.';
+        entry->name[1] = '\0';
+    }
+    else if (name_length == 1 && record[JO_ISO9660_RECORD_NAME] == JO_ISO9660_PARENT_DIRECTORY)
+    {
+        entry->name[0] = '.';
+        entry->name[1] = '.';
+        entry->name[2] = '\0';
+    }
+    else
+    {
+        for (JO_ZERO(i); i < name_length && i < JO_FS_FILENAME_LENGTH && record[JO_ISO9660_RECORD_NAME + i] != ';'; ++i)
+            entry->name[i] = record[JO_ISO9660_RECORD_NAME + i];
+        // Files without extension are stored as "NAME."
+        if (i > 0 && entry->name[i - 1] == '.')
+            --i;
+        // A 12 characters name is not terminated
+        if (i < JO_FS_FILENAME_LENGTH)
+            entry->name[i] = '\0';
+    }
+}
+
+/** @brief The next record of a sector of a directory
+ *  @param pos Position of the record in __jo_cd_sector_buffer
+ *  @return The record, JO_NULL at the end of the records of the sector (or a damaged record)
+ */
+static  __jo_force_inline const unsigned char   *jo_fs_record_at(const unsigned int pos)
+{
+    const unsigned char         *record;
+    unsigned int                length;
+
+    // (a record never crosses a sector, and holds a name: a damaged one was read after the buffer)
+    if (pos + JO_ISO9660_RECORD_NAME >= JO_SECTOR_SIZE)
+        return (JO_NULL);
+    record = &__jo_cd_sector_buffer[pos];
+    length = record[JO_ISO9660_RECORD_LENGTH];
+    if (length <= JO_ISO9660_RECORD_NAME || pos + length > JO_SECTOR_SIZE ||
+        (unsigned int)JO_ISO9660_RECORD_NAME + record[JO_ISO9660_RECORD_NAME_LENGTH] > length)
+        return (JO_NULL);
+    return (record);
+}
+
+/** @brief Compare a name of the directory table with a file name
+ *  @param name Name in the table (JO_FS_FILENAME_LENGTH characters: not terminated at this length)
+ *  @param filename File name
+ *  @return true if they are the same
+ */
+static bool                     jo_fs_name_is(const char * const name, const char * const filename)
+{
+    register int                j;
+
+    for (JO_ZERO(j); j < JO_FS_FILENAME_LENGTH && name[j] == filename[j] && name[j]; ++j)
+        ;
+    return (j == JO_FS_FILENAME_LENGTH ? filename[j] == '\0' : name[j] == filename[j]);
+}
+
 /** @brief Load a directory in the current directory table
  *  @param fad First sector of the directory
  *  @param size Directory size in bytes
@@ -762,62 +843,69 @@ static int                      jo_fs_load_directory(const unsigned int fad, con
     unsigned int                pos;
     int                         count;
     const unsigned char         *record;
-    unsigned int                record_length;
-    unsigned int                name_length;
-    jo_fs_dir_entry             *entry;
-    register unsigned int       i;
 
     JO_ZERO(count);
     sectors = (size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE;
     for (JO_ZERO(s); s < sectors; ++s)
     {
+        JO_ZERO(__jo_cd_sector_buffer_dir_fad);
         if (jo_cd_read_sectors(fad + s, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, fad + sectors) < 0)
             return (-1);
-        for (JO_ZERO(pos); pos < JO_SECTOR_SIZE;)
+        for (JO_ZERO(pos); (record = jo_fs_record_at(pos)) != JO_NULL; pos += record[JO_ISO9660_RECORD_LENGTH])
         {
-            record = &__jo_cd_sector_buffer[pos];
-            record_length = record[JO_ISO9660_RECORD_LENGTH];
-            // (a record never crosses a sector: a damaged one was read after the buffer)
-            if (record_length == 0 || pos + record_length > JO_SECTOR_SIZE ||
-                (unsigned int)JO_ISO9660_RECORD_NAME + record[JO_ISO9660_RECORD_NAME_LENGTH] > record_length)
-                break;
             if (count >= JO_FS_MAX_FILES)
                 return (count);
-            entry = &__jo_fs_dir[count];
-            entry->fad = jo_fs_read_le32(&record[JO_ISO9660_RECORD_EXTENT]) + JO_CD_FIRST_FAD;
-            entry->size = jo_fs_read_le32(&record[JO_ISO9660_RECORD_SIZE]);
-            if (entry->fad + (entry->size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE > __jo_fs_data_end_fad)
-                __jo_fs_data_end_fad = entry->fad + (entry->size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE;
-            if (record[JO_ISO9660_RECORD_FLAGS] & JO_ISO9660_FLAG_DIRECTORY)
-                entry->fad |= JO_FS_DIRECTORY_FAD_FLAG;
-            name_length = record[JO_ISO9660_RECORD_NAME_LENGTH];
-            if (name_length == 1 && record[JO_ISO9660_RECORD_NAME] == JO_ISO9660_CURRENT_DIRECTORY)
-            {
-                entry->name[0] = '.';
-                entry->name[1] = '\0';
-            }
-            else if (name_length == 1 && record[JO_ISO9660_RECORD_NAME] == JO_ISO9660_PARENT_DIRECTORY)
-            {
-                entry->name[0] = '.';
-                entry->name[1] = '.';
-                entry->name[2] = '\0';
-            }
-            else
-            {
-                for (JO_ZERO(i); i < name_length && i < JO_FS_FILENAME_LENGTH && record[JO_ISO9660_RECORD_NAME + i] != ';'; ++i)
-                    entry->name[i] = record[JO_ISO9660_RECORD_NAME + i];
-                // Files without extension are stored as "NAME."
-                if (i > 0 && entry->name[i - 1] == '.')
-                    --i;
-                // A 12 characters name is not terminated
-                if (i < JO_FS_FILENAME_LENGTH)
-                    entry->name[i] = '\0';
-            }
+            jo_fs_read_record(record, &__jo_fs_dir[count]);
             ++count;
-            pos += record_length;
         }
     }
     return (count);
+}
+
+/** @brief Find a file in a directory of the disc without loading the directory in the table (the current directory stays)
+ *  @param fad First sector of the directory
+ *  @param size Directory size in bytes
+ *  @param filename File name
+ *  @param entry Output: the file
+ *  @return 1 if found, 0 if not found, -1 if a read failed
+ *  @remarks The sector of the file stays in __jo_cd_sector_buffer: the next file of the directory is found there first,
+ *  without reading the CD
+ */
+static int                      jo_fs_find_in_directory(const unsigned int fad, const unsigned int size, const char * const filename,
+                                                        jo_fs_dir_entry * const entry)
+{
+    unsigned int                sectors;
+    unsigned int                first;
+    unsigned int                k;
+    unsigned int                s;
+    unsigned int                pos;
+    const unsigned char         *record;
+
+    sectors = (size + JO_SECTOR_SIZE - 1) / JO_SECTOR_SIZE;
+    // (the sector already in the buffer first, then the others)
+    first = __jo_cd_sector_buffer_dir_fad >= fad && __jo_cd_sector_buffer_dir_fad < fad + sectors ? __jo_cd_sector_buffer_dir_fad - fad : 0;
+    for (JO_ZERO(k); k < sectors; ++k)
+    {
+        s = first + k < sectors ? first + k : first + k - sectors;
+        if (__jo_cd_sector_buffer_dir_fad != fad + s)
+        {
+            JO_ZERO(__jo_cd_sector_buffer_dir_fad);
+            if (jo_cd_read_sectors(fad + s, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, fad + sectors) < 0)
+                return (-1);
+            __jo_cd_sector_buffer_dir_fad = fad + s;
+            // (all the files of the sector seen, as when the directory is loaded: the read ahead after a file goes on to the
+            // end of the files, see __jo_fs_read_sectors())
+            for (JO_ZERO(pos); (record = jo_fs_record_at(pos)) != JO_NULL; pos += record[JO_ISO9660_RECORD_LENGTH])
+                jo_fs_read_record(record, entry);
+        }
+        for (JO_ZERO(pos); (record = jo_fs_record_at(pos)) != JO_NULL; pos += record[JO_ISO9660_RECORD_LENGTH])
+        {
+            jo_fs_read_record(record, entry);
+            if (jo_fs_name_is(entry->name, filename))
+                return (1);
+        }
+    }
+    return (0);
 }
 
 /** @brief Load the root directory of the disc
@@ -826,6 +914,7 @@ static int                      jo_fs_load_directory(const unsigned int fad, con
 static int                      jo_fs_load_root_directory(void)
 {
     // Primary volume descriptor
+    JO_ZERO(__jo_cd_sector_buffer_dir_fad);
     if (jo_cd_read_sectors(JO_CD_FIRST_FAD + JO_ISO9660_PVD_SECTOR, 1, __jo_cd_sector_buffer, JO_SECTOR_SIZE, 0) < 0)
         return (-1);
     // Standard identifier: "CD001"
@@ -843,19 +932,12 @@ static int                      jo_fs_load_root_directory(void)
 int                             __jo_fs_get_file_id(const char * const filename)
 {
     register int                i;
-    register int                j;
-    const char                  *name;
 
     if (filename == JO_NULL)
         return (-1);
     for (JO_ZERO(i); i < __jo_fs_dir_count; ++i)
-    {
-        name = __jo_fs_dir[i].name;
-        for (JO_ZERO(j); j < JO_FS_FILENAME_LENGTH && name[j] == filename[j] && name[j]; ++j)
-            ;
-        if (j == JO_FS_FILENAME_LENGTH ? filename[j] == '\0' : name[j] == filename[j])
+        if (jo_fs_name_is(__jo_fs_dir[i].name, filename))
             return (i);
-    }
     return (-1);
 }
 
@@ -1130,7 +1212,6 @@ bool                    jo_fs_read_file_async_ptr(const char *const filename, jo
 {
     register int        i;
     int			        fid;
-    int                 nsct;
 
 #ifdef JO_DEBUG
     if (callback == JO_NULL)
@@ -1159,10 +1240,11 @@ bool                    jo_fs_read_file_async_ptr(const char *const filename, jo
             return (false);
         }
         __jo_fs_background_jobs[i].file_length = __jo_fs_get_file_size(__jo_fs_background_jobs[i].handle);
-        nsct = __jo_fs_get_sector_count(__jo_fs_background_jobs[i].handle);
+        // (the file and its null character, as a buffer of the caller: the reads stop at the end of the file, see
+        // __jo_fs_take_sectors(). Whole sectors before: up to 2 KB more for each file, kept with a sound loaded this way)
         if (buf != JO_NULL)
             __jo_fs_background_jobs[i].contents = buf;
-        else if ((__jo_fs_background_jobs[i].contents = jo_malloc(JO_SECTOR_SIZE * nsct + 1)) == JO_NULL)
+        else if ((__jo_fs_background_jobs[i].contents = jo_malloc(__jo_fs_background_jobs[i].file_length + 1)) == JO_NULL)
         {
 #ifdef JO_DEBUG
             jo_core_error("%s: Out of memory", filename);
@@ -1557,29 +1639,20 @@ void                    jo_fs_get_read_stats(unsigned int * const vblanks, unsig
     }
 }
 
+/** @brief Read a whole file of the directory table (see jo_fs_read_file_ptr())
+ *  @param fid File identifier
+ *  @param filename File name (for the errors)
+ *  @param buf Output buffer (JO_NULL: allocated)
+ *  @param len Output: file length
+ *  @return The contents, JO_NULL if failed
+ */
 JO_LOW_WORK_RAM_CODE
-char                    *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len)
+static char             *jo_fs_read_file_id(const int fid, const char *const filename, void *buf, int *len)
 {
-    int			        fid;
     int			        fsize;
     int                 retry;
     char                *stream;
 
-#ifdef JO_DEBUG
-    if (filename == JO_NULL)
-    {
-        jo_core_error("filename is null");
-        return (JO_NULL);
-    }
-#endif
-    fid = __jo_fs_get_file_id(filename);
-    if (fid < 0)
-    {
-#ifdef JO_DEBUG
-        jo_core_error("%s: File not found", filename);
-#endif
-        return (JO_NULL);
-    }
     fsize = __jo_fs_dir[fid].size;
     // Its first sectors read: a compressed file is read decompressed (see jo_fs_open()), the others go on with a read of
     // their next sectors in place
@@ -1663,10 +1736,34 @@ char                    *jo_fs_read_file_ptr(const char *const filename, void *b
     return stream;
 }
 
+JO_LOW_WORK_RAM_CODE
+char                    *jo_fs_read_file_ptr(const char *const filename, void *buf, int *len)
+{
+    int			        fid;
+
+#ifdef JO_DEBUG
+    if (filename == JO_NULL)
+    {
+        jo_core_error("filename is null");
+        return (JO_NULL);
+    }
+#endif
+    fid = __jo_fs_get_file_id(filename);
+    if (fid < 0)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: File not found", filename);
+#endif
+        return (JO_NULL);
+    }
+    return (jo_fs_read_file_id(fid, filename, buf, len));
+}
+
 char*					jo_fs_read_file_in_dir(const char *const filename, const char *const sub_dir, int *len)
 {
     char                *stream;
     int                 fid;
+    int                 found;
 
     // (a directory not found: no read in the current directory, and no move to its parent after it)
     if (sub_dir != JO_NULL)
@@ -1678,6 +1775,29 @@ char*					jo_fs_read_file_in_dir(const char *const filename, const char *const s
             jo_core_error("%s: Directory not found", sub_dir);
 #endif
             return (JO_NULL);
+        }
+        // The file found in the directory, read from the entry after the table: the table of the current directory stays.
+        // (Before: the table of the directory loaded, then the one of its parent again, the drive went 3 times to the
+        // directories and the file, 400 ms for a small file; the next file of the same directory is found in the sector
+        // read, see jo_fs_find_in_directory())
+        if (filename != JO_NULL && __jo_fs_dir_count < JO_FS_MAX_FILES)
+        {
+            found = jo_fs_find_in_directory(JO_FS_ENTRY_FAD(&__jo_fs_dir[fid]), __jo_fs_dir[fid].size, filename,
+                                            &__jo_fs_dir[__jo_fs_dir_count]);
+            if (found == 0)
+            {
+#ifdef JO_DEBUG
+                jo_core_error("%s: File not found", filename);
+#endif
+                return (JO_NULL);
+            }
+            if (found > 0)
+            {
+                ++__jo_fs_dir_count;
+                stream = jo_fs_read_file_id(__jo_fs_dir_count - 1, filename, JO_NULL, len);
+                --__jo_fs_dir_count;
+                return (stream);
+            }
         }
         // (a failed read: still in the current directory, no move to its parent after)
         if (!jo_fs_cd(sub_dir))
