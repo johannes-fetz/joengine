@@ -29,8 +29,267 @@
 #include "internal/vdp1_command_pipeline.h"
 #include "internal/vdp2.h"
 #include "internal/3d.h"
+#include "internal/sprites.h"
 
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
+
+/*
+** Shared by the transparency layer and the render to image: they draw in the part of the frame buffer that is not
+** displayed (its right) in the off screen window (JO_3D_LAYER_WINDOW) and copy it with the level 1 of the SCU DMA when
+** the VDP1 has finished a frame. Only one of them runs at a time.
+*/
+
+/** @brief SCU DMA level that reads the frame buffer (the engine uses the level 0 for the VDP1 command tables) */
+# define READ_LEVEL             (1)
+/** @brief Width of a line of the frame buffer (pixels) */
+# define FB_WIDTH               JO_VDP1_FB_WIDTH
+/** @brief Depth of the polygon that clears the off screen part: behind everything (the far limit of its window) */
+# define CLEAR_DEPTH            (0x7FFF)
+
+/** @brief A transfer of an indirect table of the SCU DMA (a row of the off screen part) */
+typedef struct
+{
+    unsigned int                count;          // Bytes
+    unsigned int                write;          // Write address
+    unsigned int                read;           // Read address (| JO_SCU_DMA_INDIRECT_END: the last transfer)
+}                               dma_transfer;
+
+/** @brief The render to image is running (see jo_3d_render_to_image_init()) */
+static bool                     render_running = false;
+
+static  __jo_force_inline bool  scu_dma_busy(const int level)
+{
+    return ((JO_SCU_DMA_STATUS & JO_SCU_DMA_STATUS_BUSY(level)) != 0);
+}
+
+static void                     scu_dma_start(const int level, const dma_transfer * const table, const unsigned int add,
+                                              const unsigned int mode, const unsigned int enable)
+{
+    JO_SCU_DMA_ENABLE(level) = 0;
+    JO_SCU_DMA_WRITE(level) = JO_SCU_ADDRESS(table);
+    JO_SCU_DMA_ADD(level) = add;
+    JO_SCU_DMA_MODE(level) = mode;
+    JO_SCU_DMA_ENABLE(level) = enable;
+}
+
+/** @brief Arm the level 1: it runs the indirect table when the VDP1 finishes its next frame
+ *  @param table Indirect table (frame buffer to work RAM)
+ */
+static  __jo_force_inline void  arm_sprite_end_read(const dma_transfer * const table)
+{
+    // (the status of the sprite draw end interrupt cleared: masked, the interrupt is never accepted and its status stays set.
+    // The SCU may start the DMA only when the status changes: Ymir never copied the layer again after the first frame, unless
+    // a handler of this interrupt was installed, the profiler. The other bits are kept: a 1 written leaves a bit as it is)
+    JO_SCU_IST = ~(unsigned int)JO_SCU_INT_SPRITE_END;
+    scu_dma_start(READ_LEVEL, table, JO_SCU_DMA_ADD_READ4_WRITE4, JO_SCU_DMA_MODE_INDIRECT_SPRITE_END, JO_SCU_DMA_ENABLE_ONLY);
+}
+
+/** @brief The alignment of an indirect table of the SCU DMA: its size rounded up to a power of 2
+ *  @param table_bytes Size of the table
+ *  @return Alignment (bytes)
+ */
+static unsigned int             dma_table_alignment(const unsigned int table_bytes)
+{
+    unsigned int                align;
+
+    for (align = sizeof(dma_transfer); align < table_bytes; align <<= 1)
+        ;
+    return (align);
+}
+
+/** @brief Allocate in the high work RAM (the SCU DMA does not reach the low work RAM)
+ *  @param size Bytes
+ *  @return The block, JO_NULL if out of high work RAM
+ */
+static void                     *high_work_ram_alloc(const unsigned int size)
+{
+    void                        *block;
+
+    block = jo_malloc(size);
+    if (block != JO_NULL && (JO_SCU_ADDRESS(block) & ~(JO_WORK_RAM_SIZE - 1)) != JO_WORK_RAM_HIGH)
+    {
+        jo_free(block);
+        block = JO_NULL;
+    }
+    return (block);
+}
+
+/** @brief Clear a rectangle of the current window (a polygon of the color 0, behind everything)
+ *  @param left Left from the center of the window (pixels)
+ *  @param top Top from the center of the window
+ *  @param right Right from the center of the window
+ *  @param bottom Bottom from the center of the window
+ */
+static void                     clear_window_rect(const int left, const int top, const int right, const int bottom)
+{
+    jo_pos2D_fixed              corners[4];
+
+    corners[0].x = jo_int2fixed(left); corners[0].y = jo_int2fixed(top);
+    corners[1].x = jo_int2fixed(right); corners[1].y = corners[0].y;
+    corners[2].x = corners[1].x; corners[2].y = jo_int2fixed(bottom);
+    corners[3].x = corners[0].x; corners[3].y = corners[2].y;
+    jo_sprite_draw_color_4p_fixed(corners, JO_COLOR_Transparent, jo_int2fixed(CLEAR_DEPTH), true);
+}
+
+/*
+** The render to image: see jo/render_to_image.h. The rectangle is at the right of the frame buffer (x left to 511, y 0
+** to height - 1), drawn by the off screen window; the level 1 of the SCU DMA copies it into the image (high work RAM)
+** when the VDP1 finishes a frame, armed again at each VBLANK; the VBLANK copies the image into the texture of its
+** sprite (if any). The image is the frame drawn before (the copy is done when the VDP1 has finished it)
+*/
+
+/** @brief No frame (see render_cleared_frame) */
+# define RENDER_NO_FRAME        (0xFFFFFFFF)
+
+static jo_img                   render_image;
+static int                      render_width = 0;
+static int                      render_height = 0;
+static int                      render_sprite = -1;
+static int                      render_vblank_event = -1;
+static void                     *render_block = JO_NULL;
+static dma_transfer             *render_table;
+static bool                     render_in_image = false;
+static unsigned int             render_cleared_frame = RENDER_NO_FRAME;
+static int                      render_saved_window;
+static unsigned short           render_saved_sprite_clipping;
+
+/** @brief The left of the rectangle in the frame buffer: up to its right edge */
+# define RENDER_LEFT            (FB_WIDTH - render_width)
+
+/** @brief VBLANK: the image copied into the texture, the copy of the next frame armed */
+static void                     jo_3d_render_to_image_vblank(void)
+{
+    if (!render_running)
+        return;
+    while (scu_dma_busy(READ_LEVEL))
+        ;
+    if (render_sprite >= 0)
+        __jo_sprite_replace(&render_image, render_sprite, true);
+    arm_sprite_end_read(render_table);
+}
+
+bool                            jo_3d_render_to_image_init(const int width, const int height)
+{
+    const unsigned int          image_bytes = (unsigned int)(width * height) * sizeof(jo_color);
+    const unsigned int          table_bytes = (unsigned int)height * sizeof(dma_transfer);
+    unsigned int                align;
+    int                         y;
+
+    jo_3d_render_to_image_stop();
+    if (jo_3d_transparency_is_running())
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Render to image: stop the transparency first");
+#endif
+        return (false);
+    }
+    // (the frame buffer of the 640 and 704 pixels modes has 8 bits per pixel; interlaced: the VDP1 draws one field of 2)
+    if (__jo_screen.hires || __jo_screen.interlace || width <= 0 || height <= 0 || (width & 1) != 0 ||
+        width > FB_WIDTH - jo_core_get_screen_width() || height > jo_core_get_screen_height())
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Render to image: %dx%d not possible", width, height);
+#endif
+        return (false);
+    }
+    align = dma_table_alignment(table_bytes);
+    if ((render_block = high_work_ram_alloc(image_bytes + align - 1 + align)) == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Render to image: out of high work RAM");
+#endif
+        return (false);
+    }
+    render_width = width;
+    render_height = height;
+    render_image.width = width;
+    render_image.height = height;
+    render_image.data = (jo_color *)render_block;
+    jo_memset(render_image.data, 0, image_bytes);
+    render_table = (dma_transfer *)(((unsigned int)render_block + image_bytes + align - 1) & ~(align - 1));
+    for (JO_ZERO(y); y < height; ++y)
+    {
+        render_table[y].count = width * sizeof(jo_color);
+        render_table[y].write = JO_SCU_ADDRESS(&render_image.data[y * width]);
+        render_table[y].read = JO_SCU_ADDRESS(JO_VDP1_FB + (y * FB_WIDTH + RENDER_LEFT) * sizeof(jo_color));
+    }
+    render_table[height - 1].read |= JO_SCU_DMA_INDIRECT_END;
+    // The VDP1 draws up to the right of the frame buffer; the windows of the screen stay on the screen
+    jo_sprite_set_system_clipping_area(FB_WIDTH, jo_core_get_screen_height());
+    __jo_vdp1_set_off_screen_window(true);
+    render_cleared_frame = RENDER_NO_FRAME;
+    render_vblank_event = jo_core_add_vblank_callback(jo_3d_render_to_image_vblank);
+    arm_sprite_end_read(render_table);
+    render_running = true;
+    return (true);
+}
+
+int                             jo_3d_render_to_image_add_sprite(void)
+{
+    if (!render_running)
+        return (-1);
+    if (render_sprite < 0)
+        render_sprite = jo_sprite_add(&render_image);
+    return (render_sprite);
+}
+
+const jo_img                    *jo_3d_render_to_image_get(void)
+{
+    return (render_running ? &render_image : JO_NULL);
+}
+
+void                            jo_3d_render_to_image_begin(void)
+{
+    const unsigned int          frame = __jo_vdp1_frame_tag();
+
+    if (!render_running || render_in_image)
+    {
+#ifdef JO_DEBUG
+        if (render_in_image)
+            jo_core_error("jo_3d_render_to_image_end() missing");
+#endif
+        return;
+    }
+    render_in_image = true;
+    render_saved_window = __jo_vdp1_current_window;
+    jo_3d_select_window(JO_3D_LAYER_WINDOW);
+    jo_3d_window(RENDER_LEFT, 0, FB_WIDTH - 1, render_height - 1, CLEAR_DEPTH, RENDER_LEFT + render_width / 2, render_height / 2);
+    jo_3d_window_clip(true);
+    render_saved_sprite_clipping = __jo_sprite_attributes.clipping;
+    jo_sprite_enable_clipping(false);
+    if (render_cleared_frame != frame)
+    {
+        render_cleared_frame = frame;
+        clear_window_rect(-render_width / 2, -render_height / 2, render_width - render_width / 2, render_height - render_height / 2);
+    }
+}
+
+void                            jo_3d_render_to_image_end(void)
+{
+    if (!render_in_image)
+        return;
+    render_in_image = false;
+    __jo_sprite_attributes.clipping = render_saved_sprite_clipping;
+    jo_3d_select_window(render_saved_window);
+}
+
+void                            jo_3d_render_to_image_stop(void)
+{
+    if (!render_running)
+        return;
+    jo_3d_render_to_image_end();
+    jo_core_remove_vblank_callback(render_vblank_event);
+    render_vblank_event = -1;
+    JO_SCU_DMA_ENABLE(READ_LEVEL) = 0;
+    while (scu_dma_busy(READ_LEVEL))
+        ;
+    jo_sprite_set_system_clipping_area(jo_core_get_screen_width(), jo_core_get_screen_height());
+    __jo_vdp1_set_off_screen_window(false);
+    jo_free(render_block);
+    render_block = JO_NULL;
+    render_sprite = -1;
+    render_running = false;
+}
 
 /** @brief The layer needs the manual change of the frame buffers (see the end of this file: without it, no layer) */
 #if defined(JO_FRAMERATE_DYNAMIC) || JO_FRAMERATE > 1
@@ -55,14 +314,8 @@
 ** that did not use the layer: the level 2 copies a row of zeros (transparent) into each row of the bitmap, once.
 */
 
-/** @brief SCU DMA level that reads the frame buffer (the engine uses the level 0 for the VDP1 command tables) */
-# define READ_LEVEL             (1)
 /** @brief SCU DMA level that writes the bitmap of the screen of the layer */
 # define WRITE_LEVEL            (2)
-/** @brief Width of a line of the frame buffer (pixels) */
-# define FB_WIDTH               JO_VDP1_FB_WIDTH
-/** @brief Depth of the polygon that clears the layer: behind everything (the far limit of the window of the layer) */
-# define CLEAR_DEPTH            (0x7FFF)
 /** @brief The biggest screen of the layer: the widths of 320 and 352 pixels (the frame buffer of the 640 and 704 pixels
  *  modes has 8 bits per pixel), not interlaced (more lines: the VDP1 draws one field of 2 per frame buffer) */
 # define MAX_SCREEN_WIDTH       (352)
@@ -81,14 +334,6 @@
 # define FIXED_SHIFT            (16)
 /** @brief The left of the layer in the frame buffer: up to its right edge */
 # define LAYER_LEFT             (FB_WIDTH - layer_width)
-
-/** @brief A transfer of an indirect table of the SCU DMA (a row of the layer) */
-typedef struct
-{
-    unsigned int                count;          // Bytes
-    unsigned int                write;          // Write address
-    unsigned int                read;           // Read address (| JO_SCU_DMA_INDIRECT_END: the last transfer)
-}                               dma_transfer;
 
 static bool                     running = false;
 static bool                     in_layer = false;
@@ -143,21 +388,6 @@ static jo_3d_polygon_data       mask_data;
 static int                      mask_lut_sprite = -1;
 static bool                     in_masks = false;
 
-static  __jo_force_inline bool  scu_dma_busy(const int level)
-{
-    return ((JO_SCU_DMA_STATUS & JO_SCU_DMA_STATUS_BUSY(level)) != 0);
-}
-
-static void                     scu_dma_start(const int level, const dma_transfer * const table, const unsigned int add,
-                                              const unsigned int mode, const unsigned int enable)
-{
-    JO_SCU_DMA_ENABLE(level) = 0;
-    JO_SCU_DMA_WRITE(level) = JO_SCU_ADDRESS(table);
-    JO_SCU_DMA_ADD(level) = add;
-    JO_SCU_DMA_MODE(level) = mode;
-    JO_SCU_DMA_ENABLE(level) = enable;
-}
-
 static void                     scu_dma_stop(void)
 {
     JO_SCU_DMA_ENABLE(READ_LEVEL) = 0;
@@ -169,11 +399,7 @@ static void                     scu_dma_stop(void)
 /** @brief Arm the level 1: it copies the layer when the VDP1 finishes its next frame */
 static  __jo_force_inline void  arm_read(void)
 {
-    // (the status of the sprite draw end interrupt cleared: masked, the interrupt is never accepted and its status stays set.
-    // The SCU may start the DMA only when the status changes: Ymir never copied the layer again after the first frame, unless
-    // a handler of this interrupt was installed, the profiler. The other bits are kept: a 1 written leaves a bit as it is)
-    JO_SCU_IST = ~(unsigned int)JO_SCU_INT_SPRITE_END;
-    scu_dma_start(READ_LEVEL, read_table, JO_SCU_DMA_ADD_READ4_WRITE4, JO_SCU_DMA_MODE_INDIRECT_SPRITE_END, JO_SCU_DMA_ENABLE_ONLY);
+    arm_sprite_end_read(read_table);
 }
 
 /** @brief The rows read by the write table: the copy of the layer, or the row of zeros (the bitmap emptied) */
@@ -272,8 +498,7 @@ static bool                     alloc_block(void)
     unsigned char               *tables;
 
     table_bytes = (unsigned int)layer_height * sizeof(dma_transfer);
-    for (align = sizeof(dma_transfer); align < table_bytes; align <<= 1)
-        ;
+    align = dma_table_alignment(table_bytes);
     // (the tables after the copy and the row, at the next multiple of their alignment)
     size = copy_bytes + zero_bytes + align - 1 + 2 * align;
     if (size > block_size)
@@ -281,12 +506,7 @@ static bool                     alloc_block(void)
         if (block != JO_NULL)
             jo_free(block);
         block_size = 0;
-        block = (unsigned char *)jo_malloc(size);
-        if (block != JO_NULL && (JO_SCU_ADDRESS(block) & ~(JO_WORK_RAM_SIZE - 1)) != JO_WORK_RAM_HIGH)
-        {
-            jo_free(block);
-            block = JO_NULL;
-        }
+        block = (unsigned char *)high_work_ram_alloc(size);
         if (block == JO_NULL)
             return (false);
         block_size = size;
@@ -355,6 +575,13 @@ bool                            jo_3d_transparency_init(const int width, const j
     unsigned short              sprites;
     bool                        was_running = running;
 
+    if (render_running)
+    {
+# ifdef JO_DEBUG
+        jo_core_error("Transparency: stop the render to image first");
+# endif
+        return (false);
+    }
     if (running)
         scu_dma_stop();
     running = false;
@@ -472,11 +699,6 @@ void                            jo_3d_transparency_set_blend(const jo_vdp2_blend
 void                            jo_3d_transparency_begin(void)
 {
     const unsigned int          frame = __jo_vdp1_frame_tag();
-    const jo_fixed              left = jo_int2fixed(-layer_center_x);
-    const jo_fixed              top = jo_int2fixed(-layer_center_y);
-    const jo_fixed              right = jo_int2fixed(layer_width - layer_center_x);
-    const jo_fixed              bottom = jo_int2fixed(layer_height - layer_center_y);
-    jo_pos2D_fixed              corners[4];
 
     // (a jo_3d_transparency_end() missing: the layer closed first, else everything after it was drawn in the layer, frame
     // after frame)
@@ -507,11 +729,7 @@ void                            jo_3d_transparency_begin(void)
         // polygon is relative to the center of the window
         cleared_frame = frame;
         frame_used[frame & (FRAME_SLOTS - 1)] = frame + 1;
-        corners[0].x = left; corners[0].y = top;
-        corners[1].x = right; corners[1].y = top;
-        corners[2].x = right; corners[2].y = bottom;
-        corners[3].x = left; corners[3].y = bottom;
-        jo_sprite_draw_color_4p_fixed(corners, JO_COLOR_Transparent, jo_int2fixed(CLEAR_DEPTH), true);
+        clear_window_rect(-layer_center_x, -layer_center_y, layer_width - layer_center_x, layer_height - layer_center_y);
     }
     // The same view at the scale of the layer
     saved_projection_distance = jo_3d_get_projection_distance();

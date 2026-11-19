@@ -53,6 +53,7 @@
  *    free bank of the VRAM (NBG1: its bitmap of the banks A0 and A1 if free), its color calculation, and the levels 1 and
  *    2 of the SCU DMA
  *  - The blend mode (ratio or additive) is the same for all the VDP2 screens (see jo_vdp2_set_blend_mode())
+ *  - Not with the render to image (see jo/render_to_image.h): they use the same part of the frame buffer
  *
  *  Usage:
  *  @code
