@@ -53,7 +53,7 @@
 **              Default: Current directory
 **
 ** load map <layer> <zindex> <filename> [subdir]
-** - layer: Layer value beetween 0 and JO_MAP_MAX_LAYER
+** - layer: Layer value between 0 and JO_MAP_MAX_LAYER
 ** - zindex: Z-Index (signed short)
 ** - filename: Case sensitive filename
 ** - subdir: (Optional) Case sensitive subdir name

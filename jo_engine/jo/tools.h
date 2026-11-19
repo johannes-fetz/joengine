@@ -205,12 +205,12 @@ static  __jo_force_inline void        jo_set_printf_color_index(const unsigned c
  */
 void            jo_set_printf_outline(const bool enabled, const jo_color color);
 
-/** @brief Clear screen (usefull for printf)
+/** @brief Clear screen (useful for printf)
  *  @warning Try to not use it by adding some whitespace at the end of jo_printf
  */
 void            jo_clear_screen(void);
 
-/** @brief Clear single screen line (usefull for printf)
+/** @brief Clear single screen line (useful for printf)
  *  @param y Vertical line index
  *  @warning Try to not use it by adding some whitespace at the end of jo_printf
  */

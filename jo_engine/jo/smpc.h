@@ -94,7 +94,7 @@ typedef enum
     InputRegister4 = 0x20100009,
     InputRegister5 = 0x2010000b,
     InputRegister6 = 0x2010000d,
-    /** @brief Ouput Register for the command. If it supports it, it'll output any return data here */
+    /** @brief Output Register for the command. If it supports it, it'll output any return data here */
     OutputRegister0 = 0x20100021,
     OutputRegister1 = 0x20100023,
     OutputRegister2 = 0x20100025,

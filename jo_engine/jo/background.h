@@ -282,7 +282,7 @@ static  __jo_force_inline void  jo_background_3d_plane_b_draw_flat(const int x, 
 ███████╗██║██║ ╚████║███████╗    ███████║╚██████╗██║  ██║╚██████╔╝███████╗███████╗
 ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
 
-▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUH jo_set_background_8bits_sprite() ▲
+▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUGH jo_set_background_8bits_sprite() ▲
   OTHERWISE IT MAY GLITCH
 */
 

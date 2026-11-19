@@ -814,19 +814,19 @@ In the makefile of the game: JO_COMPILE_WITH_3D_MODULE = 1.
 - `JO_MULT_BY_4096(X)`: Multiply a variable by 4096
 - `JO_MULT_BY_32768(X)`: Multiply a variable by 32768
 - `JO_MULT_BY_65536(X)`: Multiply a variable by 65536
-- `JO_DIV_BY_2(X)`: Devide a variable by 2
-- `JO_DIV_BY_4(X)`: Devide a variable by 4
-- `JO_DIV_BY_8(X)`: Devide a variable by 8
-- `JO_DIV_BY_16(X)`: Devide a variable by 16
-- `JO_DIV_BY_32(X)`: Devide a variable by 32
-- `JO_DIV_BY_64(X)`: Devide a variable by 64
-- `JO_DIV_BY_128(X)`: Devide a variable by 128
-- `JO_DIV_BY_256(X)`: Devide a variable by 256
-- `JO_DIV_BY_512(X)`: Devide a variable by 512
-- `JO_DIV_BY_1024(X)`: Devide a variable by 1024
-- `JO_DIV_BY_32768(X)`: Devide a variable by 32768
-- `JO_DIV_BY_65536(X)`: Devide a variable by 65536
-- `JO_DIV_BY_2147483648(X)`: Devide a variable by 2147483648
+- `JO_DIV_BY_2(X)`: Divide a variable by 2
+- `JO_DIV_BY_4(X)`: Divide a variable by 4
+- `JO_DIV_BY_8(X)`: Divide a variable by 8
+- `JO_DIV_BY_16(X)`: Divide a variable by 16
+- `JO_DIV_BY_32(X)`: Divide a variable by 32
+- `JO_DIV_BY_64(X)`: Divide a variable by 64
+- `JO_DIV_BY_128(X)`: Divide a variable by 128
+- `JO_DIV_BY_256(X)`: Divide a variable by 256
+- `JO_DIV_BY_512(X)`: Divide a variable by 512
+- `JO_DIV_BY_1024(X)`: Divide a variable by 1024
+- `JO_DIV_BY_32768(X)`: Divide a variable by 32768
+- `JO_DIV_BY_65536(X)`: Divide a variable by 65536
+- `JO_DIV_BY_2147483648(X)`: Divide a variable by 2147483648
 - `JO_ZERO(X)`: Set a variable to zero
 - `JO_MOD_POW2(N, M)`: Fast modulo of a power of 2
 - `JO_IS_POW2(N)`: Fast check if N of a power of 2
@@ -917,7 +917,7 @@ In the makefile of the game: JO_COMPILE_WITH_3D_MODULE = 1.
 - `jo_fixed_rsqrt(jo_fixed value) -> jo_fixed`: Fast Reciprocal Square root using fixed number
 - `jo_rsqrt(float value) -> float` (float: emulated in software, slow): Fast Reciprocal Square root using floating number
 - `jo_DEGtoANG(const float deg) -> jo_angle` (float: emulated in software, slow): Convert a degree to jo_angle using floating number
-- `jo_DEGtoANG_int(const int deg) -> jo_angle`: Convert a degree to jo_angle using interger
+- `jo_DEGtoANG_int(const int deg) -> jo_angle`: Convert a degree to jo_angle using integer
 - `jo_fixed_rad2ANGLE(const jo_fixed rad) -> jo_angle`: Convert fixed radian to jo_angle
 - `jo_sin_angle(const jo_angle angle) -> jo_fixed`: Sinus of an angle (table lookup, fast)
 - `jo_cos_angle(const jo_angle angle) -> jo_fixed`: Cosinus of an angle (table lookup, fast)
@@ -953,13 +953,13 @@ In the makefile of the game: JO_COMPILE_WITH_3D_MODULE = 1.
 - `jo_vector_fixed_compute_bezier_point(const jo_fixed t, jo_vector_fixed p0, jo_vector_fixed p1, jo_vector_fixed p2, jo_vector_fixed p3, jo_vector_fixed *result) -> void`: Compute cubic bezier curve point for vectors (using fixed numbers)
 - `jo_vector_fixed_add(const jo_vector_fixed * const a, const jo_vector_fixed * const b, jo_vector_fixed * const result) -> void`: Add 2 vectors (using fixed numbers)
 - `jo_vector_fixed_muls(const jo_vector_fixed * const a, const jo_fixed s, jo_vector_fixed * const result) -> void`: Multiply value to vector (using fixed numbers)
-- `jo_vector_fixed_sub(const jo_vector_fixed * const a, const jo_vector_fixed * const b, jo_vector_fixed * const result) -> void`: Substract 2 vectors (using fixed numbers)
+- `jo_vector_fixed_sub(const jo_vector_fixed * const a, const jo_vector_fixed * const b, jo_vector_fixed * const result) -> void`: Subtract 2 vectors (using fixed numbers)
 - `jo_vector_fixed_dot(const jo_vector_fixed * const a, const jo_vector_fixed * const b) -> jo_fixed`: Dot product of 2 vectors (using fixed numbers)
 - `jo_vector_fixed_cross(const jo_vector_fixed * const a, const jo_vector_fixed * const b, jo_vector_fixed * const result) -> void`: Cross product of 2 vectors (using fixed numbers)
 - `jo_vector_fixed_length(const jo_vector_fixed * const a) -> jo_fixed`: Length of a vector (using fixed numbers)
 - `jo_vector_fixed_normalize(const jo_vector_fixed * const a, jo_vector_fixed * const result) -> void`: Normalize a vector (using fixed numbers)
 - `jo_vector4_fixed_add(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result) -> void`: Add 2 vectors4 (using fixed numbers)
-- `jo_vector4_fixed_sub(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result) -> void`: Substract 2 vectors4 (using fixed numbers)
+- `jo_vector4_fixed_sub(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result) -> void`: Subtract 2 vectors4 (using fixed numbers)
 - `jo_vector4_fixed_cross(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b, jo_vector4_fixed * const result) -> void`: Cross product of 2 vectors4 (using fixed numbers)
 - `jo_vector4_fixed_dot(const jo_vector4_fixed * const a, const jo_vector4_fixed * const b) -> jo_fixed`: Dot product of 2 vectors4 (using fixed numbers)
 - `jo_vector4_swap(jo_vector4_fixed * const a, jo_vector4_fixed * const b) -> void`: Swap 2 vectors4 (using fixed numbers)
@@ -1424,7 +1424,7 @@ In the makefile of the game: JO_COMPILE_WITH_3D_MODULE = 1.
 - `jo_sprite_add_end_codes(const int sprite_id) -> bool`: Write the VDP1 end codes after the last visible pixel of each line of a sprite (RGB sprites)
 - `jo_sprite_free_from(const int sprite_id) -> void`: Free all sprites from the given sprite_id
 - `jo_sprite_free_all(void) -> void`: Free all sprites
-- `jo_sprite_name2id(const char *const filename) -> int` (JO_COMPILE_WITH_SPRITE_HASHTABLE): Retrive the Sprite Id from filename based on the four first character in the filename
+- `jo_sprite_name2id(const char *const filename) -> int` (JO_COMPILE_WITH_SPRITE_HASHTABLE): Retrieve the Sprite Id from filename based on the four first character in the filename
 - `jo_sprite_enable_screen_doors_filter(void) -> void`: Activate screen doors filter for every sprite displayed after this call
 - `jo_sprite_disable_screen_doors_filter(void) -> void`: Disable screen doors filter for every sprite displayed after this call
 - `jo_sprite_enable_half_transparency(void) -> void`: Activate half transparency for every sprite displayed after this call
@@ -1568,8 +1568,8 @@ In the makefile of the game: JO_COMPILE_WITH_TGA_MODULE = 1.
 - `jo_printf_with_color(X, Y, COLOR_INDEX, ...)` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): printf implementation
 - `jo_set_printf_color_index(const unsigned char index) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): Set printf foreground color index
 - `jo_set_printf_outline(const bool enabled, const jo_color color) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): The characters of jo_printf() with an outline (like the text of the arcade games: readable over any image)
-- `jo_clear_screen(void) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): Clear screen (usefull for printf)
-- `jo_clear_screen_line(const int y) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): Clear single screen line (usefull for printf)
+- `jo_clear_screen(void) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): Clear screen (useful for printf)
+- `jo_clear_screen_line(const int y) -> void` (JO_COMPILE_WITH_PRINTF_MODULE, on by default): Clear single screen line (useful for printf)
 - `jo_memcpy(void * const restrict dst, const void * const restrict src, unsigned int size) -> void`: Copies size bytes from the object pointed to by src to the object pointed to by dst
 - `jo_dma_copy_async(const void * const src, void * const dest, const unsigned int size) -> void`: Start a copy with the DMA controller of the current CPU (the function doesn't wait for the end of the copy)
 - `jo_dma_wait(void) -> void`: Wait for the end of the copy started by jo_dma_copy_async() on the current CPU

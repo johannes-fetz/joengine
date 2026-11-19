@@ -146,79 +146,79 @@
  */
 # define JO_MULT_BY_65536(X)			((X) << 16)
 
-/** @brief Devide a variable by 2
+/** @brief Divide a variable by 2
  *  @remarks faster than X / 2
  *  @param X Variable name
  */
 # define JO_DIV_BY_2(X)				((X) >> 1)
 
-/** @brief Devide a variable by 4
+/** @brief Divide a variable by 4
  *  @remarks faster than X / 4
  *  @param X Variable name
  */
 # define JO_DIV_BY_4(X)				((X) >> 2)
 
-/** @brief Devide a variable by 8
+/** @brief Divide a variable by 8
  *  @remarks faster than X / 8
  *  @param X Variable name
  */
 # define JO_DIV_BY_8(X)				((X) >> 3)
 
-/** @brief Devide a variable by 16
+/** @brief Divide a variable by 16
  *  @remarks faster than X / 16
  *  @param X Variable name
  */
 # define JO_DIV_BY_16(X)			((X) >> 4)
 
-/** @brief Devide a variable by 32
+/** @brief Divide a variable by 32
  *  @remarks faster than X / 32
  *  @param X Variable name
  */
 # define JO_DIV_BY_32(X)			((X) >> 5)
 
-/** @brief Devide a variable by 64
+/** @brief Divide a variable by 64
  *  @remarks faster than X / 64
  *  @param X Variable name
  */
 # define JO_DIV_BY_64(X)			((X) >> 6)
 
-/** @brief Devide a variable by 128
+/** @brief Divide a variable by 128
  *  @remarks faster than X / 128
  *  @param X Variable name
  */
 # define JO_DIV_BY_128(X)			((X) >> 7)
 
-/** @brief Devide a variable by 256
+/** @brief Divide a variable by 256
  *  @remarks faster than X / 256
  *  @param X Variable name
  */
 # define JO_DIV_BY_256(X)			((X) >> 8)
 
-/** @brief Devide a variable by 512
+/** @brief Divide a variable by 512
  *  @remarks faster than X / 512
  *  @param X Variable name
  */
 # define JO_DIV_BY_512(X)			((X) >> 9)
 
-/** @brief Devide a variable by 1024
+/** @brief Divide a variable by 1024
  *  @remarks faster than X / 1024
  *  @param X Variable name
  */
 # define JO_DIV_BY_1024(X)			((X) >> 10)
 
-/** @brief Devide a variable by 32768
+/** @brief Divide a variable by 32768
  *  @remarks faster than X / 32768
  *  @param X Variable name
  */
 # define JO_DIV_BY_32768(X)			((X) >> 15)
 
-/** @brief Devide a variable by 65536
+/** @brief Divide a variable by 65536
  *  @remarks faster than X / 65536
  *  @param X Variable name
  */
 # define JO_DIV_BY_65536(X)			((X) >> 16)
 
-/** @brief Devide a variable by 2147483648
+/** @brief Divide a variable by 2147483648
  *  @remarks faster than X / 2147483648
  *  @param X Variable name
  */
@@ -1021,7 +1021,7 @@ static  __jo_force_inline jo_angle     jo_DEGtoANG(const float deg)
     return ((jo_angle)(((long long)jo_float2fixed(deg) * 11930465LL) >> 32));
 }
 
-/** @brief Convert a degree to jo_angle using interger
+/** @brief Convert a degree to jo_angle using integer
  *  @param deg Degree
  *  @return jo_angle
  */
@@ -1556,7 +1556,7 @@ static __jo_force_inline void jo_vector_fixed_muls(const jo_vector_fixed * const
     result->z = jo_fixed_mult(a->z, s);
 }
 
-/** @brief Substract 2 vectors (using fixed numbers)
+/** @brief Subtract 2 vectors (using fixed numbers)
  *  @param a First vector
  *  @param b Second vector
  *  @param result output vector (a - b)
@@ -1621,7 +1621,7 @@ static __jo_force_inline void jo_vector4_fixed_add(const jo_vector4_fixed * cons
     result->w = JO_FIXED_1;
 }
 
-/** @brief Substract 2 vectors4 (using fixed numbers)
+/** @brief Subtract 2 vectors4 (using fixed numbers)
  *  @param a First vector4
  *  @param b Second vector4
  *  @param result output vector4

@@ -241,7 +241,7 @@ static  __jo_force_inline int	jo_set_sprite_anim_frame_rate(const int anim_id, c
 /** @brief Replace an existing animation
  *  @param at Id returned by jo_create_sprite_anim()
  *  @param sprite_id First sprite id returned by jo_sprite_add() or similar functions
- *  @param frame_count Number of frame in the animation (number of continious sprite)
+ *  @param frame_count Number of frame in the animation (number of continuous sprite)
  *  @param frame_rate Framerate (linked to the global framerate)
  *  @return -1 if failed or the "at" param
  */
@@ -249,7 +249,7 @@ int			jo_replace_sprite_anim(const int at, const unsigned short sprite_id, const
 
 /** @brief Create an animation
  *  @param sprite_id First sprite id returned by jo_sprite_add() or similar functions
- *  @param frame_count Number of frame in the animation (number of continious sprite)
+ *  @param frame_count Number of frame in the animation (number of continuous sprite)
  *  @param frame_rate Framerate (linked to the global framerate)
  *  @return -1 if failed or Animation Id (ANIM_ID)
  */

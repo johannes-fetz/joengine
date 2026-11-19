@@ -99,7 +99,7 @@ void	jo_core_run(void);
 
 /** @brief Add a callback during VBLANK interruption
  *  @param callback Function name with no parameters and no return value
- *  @return VBLANK Event Id (usefull for jo_core_remove_vblank_callback())
+ *  @return VBLANK Event Id (useful for jo_core_remove_vblank_callback())
  */
 int     jo_core_add_vblank_callback(const jo_event_callback callback);
 
@@ -111,7 +111,7 @@ void    jo_core_remove_vblank_callback(const int vblank_event_id);
 /** @brief Add a callback in the game loop on main CPU
  *  @param callback Function name with no parameters and no return value
  *  @warning Must be called before jo_core_run()
- *  @return Event Id (usefull for jo_core_remove_callback())
+ *  @return Event Id (useful for jo_core_remove_callback())
  */
 int     jo_core_add_callback(const jo_event_callback callback);
 
@@ -125,7 +125,7 @@ void    jo_core_remove_callback(const int event_id);
 /** @brief Add a callback in the game loop on slave CPU
  *  @param callback Function name with no parameters and no return value
  *  @warning Must be called before jo_core_run()
- *  @return Event Id (usefull for jo_core_remove_slave_callback())
+ *  @return Event Id (useful for jo_core_remove_slave_callback())
  */
 int     jo_core_add_slave_callback(const jo_event_callback callback);
 
@@ -339,7 +339,7 @@ typedef void    (*jo_core_error_handler)(const char *message, const char *functi
 void    jo_core_set_error_handler(const jo_core_error_handler handler);
 
 /** @brief Get last error
- *  @return Formated error
+ *  @return Formatted error
  */
 static  __jo_force_inline char * jo_get_last_error(void)
 {

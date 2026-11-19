@@ -76,7 +76,7 @@ typedef struct
     void                        *contents;
     unsigned int                content_size;
 
-    /* ▲ Fields bellow are optional ▲ */
+    /* ▲ Fields below are optional ▲ */
 
     unsigned short              partition_number;
 

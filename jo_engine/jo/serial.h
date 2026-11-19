@@ -28,7 +28,7 @@
 /** @file backup.h
  *  @author Slinga with help from KnightOfDragon, Reye, Purist, and Antime
  *
- *  @brief Jo Engine serial link (Taisen cable) featurs function prototypes
+ *  @brief Jo Engine serial link (Taisen cable) features function prototypes
  *  @bug Only tested on US and Jap Saturns. Not tested on PAL. No known bugs.
  */
 
