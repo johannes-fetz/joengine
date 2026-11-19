@@ -205,6 +205,28 @@ static  __jo_force_inline unsigned int  jo_video_be16(const unsigned char *p)
     return ((p[0] << 8) | p[1]);
 }
 
+/** @brief Move bytes to a lower address of the buffer: the source and the destination overlap when more is kept than
+ *  dropped (the data read ahead), what jo_memcpy() does not allow. Copied by pieces of the distance between them, which
+ *  never overlap
+ *  @param dst Destination
+ *  @param src Source (after dst)
+ *  @param size Bytes
+ */
+static void                     jo_video_move_down(unsigned char *dst, const unsigned char *src, unsigned int size)
+{
+    unsigned int                step;
+
+    step = (unsigned int)(src - dst);
+    while (size > step)
+    {
+        jo_memcpy(dst, src, step);
+        dst += step;
+        src += step;
+        size -= step;
+    }
+    jo_memcpy(dst, src, size);
+}
+
 /** @brief Get movie data (read the sectors if needed)
  *  @param offset Offset in the file
  *  @param size Data size
@@ -232,8 +254,8 @@ static const unsigned char      *jo_video_file_data(const unsigned int offset, c
         // below and the sectors read from the CD stay 32 bits aligned
         start = (size + (offset & 3) <= m->buffer_size - JO_VIDEO_SECTOR_SIZE) ? offset & ~3 : offset;
         keep = m->window_end > start ? m->window_end - start : 0;
-        if (keep)
-            jo_memcpy(m->buffer, m->buffer + (start - m->window_start), keep);
+        if (keep && start != m->window_start)
+            jo_video_move_down(m->buffer, m->buffer + (start - m->window_start), keep);
         m->window_start = start;
         m->window_end = start + keep;
         if (size > m->buffer_size - JO_VIDEO_SECTOR_SIZE)
@@ -867,7 +889,9 @@ static void                     jo_video_queue_audio_ahead(void)
         length = jo_video_be32(entry + 4);
         // (the data of the file from the next frame: the data before it is not used anymore)
         first = jo_video_be32(m->stab + JO_MULT_BY_16(m->next_sample)) + m->header_size;
-        if (offset < first || offset - first + length + JO_VIDEO_SECTOR_SIZE > m->buffer_size ||
+        // (a length of a damaged file near 4 GB: the sum wrapped around 32 bits)
+        if (offset < first || length > m->buffer_size - JO_VIDEO_SECTOR_SIZE ||
+            offset - first > m->buffer_size - JO_VIDEO_SECTOR_SIZE - length ||
             (data = jo_video_file_data(first, offset - first + length)) == JO_NULL)
             return;
         jo_video_queue_audio(data + (offset - first), length);

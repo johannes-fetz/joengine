@@ -95,10 +95,12 @@ int                                 jo_weapons_load(jo_level * const level)
     strs = jo_level_find_section(level, JO_LEVEL_SECTION_STRS);
     if (strs != JO_NULL)
     {
-        __jo_weapon_strings = (char *)jo_malloc(strs->size);
+        // (a 0 after the copy: the last string of a damaged section without its final 0 was read after the copy)
+        __jo_weapon_strings = (char *)jo_malloc(strs->size + 1);
         if (__jo_weapon_strings != JO_NULL)
         {
             jo_memcpy(__jo_weapon_strings, jo_level_section_data(level, JO_LEVEL_SECTION_STRS), strs->size);
+            __jo_weapon_strings[strs->size] = '\0';
             __jo_weapon_strings_size = strs->size;
         }
     }

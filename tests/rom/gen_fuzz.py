@@ -111,6 +111,12 @@ def jom_known_bugs(skel):
     out["KTEXT.JOM"] = good + chunk("TEXT", be("I", 40) + names * 20) + chunk("TEXT", be("I", 1) + names[:16]) + chunk("END ", b"")
     # The same model with one TEXT chunk (40 names): the bytes after its block are not changed
     out["KTEXT1.JOM"] = good + chunk("TEXT", be("I", 40) + names * 20) + chunk("END ", b"")
+    # A QUAD chunk of 0xFFFFFFFC polygons (2 in the chunk): jo_3d_create_model_in_place() sized its block with this count,
+    # the size wrapped around 32 bits, the model was written after a block of 116 bytes
+    q = [c for c in jom_chunks(good) if c[1] == b"QUAD"][0][0]
+    k = bytearray(good)
+    k[q + 8:q + 12] = be("I", 0xFFFFFFFC)
+    out["KQUAD.JOM"] = bytes(k) + chunk("END ", b"")
     # An animation whose keys are not aligned on 4 bytes (offset + 2): the fixed values of a key read at an odd address
     p = [c for c in jom_chunks(skel) if c[1] == b"ANIM"][0][0]
     k = bytearray(skel)
@@ -234,7 +240,8 @@ def mutate_jom(rng, data, log):
         return mutate_generic(rng, bytes(data), log)
     p, tag, size = rng.choice(chunks)
     name = tag.decode("latin1")
-    if op == 0 and size >= 4:
+    # (the count read in the data: a chunk cut by an earlier mutation of the same file has none)
+    if op == 0 and size >= 4 and p + 12 <= len(data):
         v = rng.choice(U32_VALUES + [struct.unpack(">I", data[p + 8:p + 12])[0] + 1])
         data[p + 8:p + 12] = struct.pack(">I", v & 0xFFFFFFFF)
         log.append("%s count = 0x%X" % (name, v & 0xFFFFFFFF))

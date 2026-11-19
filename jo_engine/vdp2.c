@@ -386,6 +386,17 @@ static  __jo_force_inline void      jo_vdp2_shadow_mark(const unsigned int index
         __jo_vdp2_dirty[index >> 5] |= __jo_bits[index & 31];
 }
 
+/** @brief Mark all the registers changed (the bits after the last register stay clear: jo_vdp2_commit() wrote after the
+ *  registers, values read after the end of __jo_vdp2_shadow) */
+static  __jo_force_inline void      jo_vdp2_mark_all_dirty(void)
+{
+    register unsigned int           i;
+
+    for (JO_ZERO(i); i + 1 < (sizeof(__jo_vdp2_dirty) / sizeof(*__jo_vdp2_dirty)); ++i)
+        __jo_vdp2_dirty[i] = ~0u;
+    __jo_vdp2_dirty[i] = (JO_VDP2_REG_COUNT % 32) == 0 ? ~0u : (1u << (JO_VDP2_REG_COUNT % 32)) - 1u;
+}
+
 /** @brief Set a VDP2 register (applied during the next VBLANK, or with the image of the frame: see
  *  jo_vdp2_frame_register())
  *  @param index Register index (JO_VDP2_REG_INDEX())
@@ -1720,8 +1731,7 @@ void                                __jo_vdp2_init_registers(void)
     JO_ZERO(__jo_vdp2_rotation_map[0]);
     JO_ZERO(__jo_vdp2_rotation_map[1]);
     JO_ZERO(__jo_vdp2_displayed_screens);
-    for (JO_ZERO(i); i < (sizeof(__jo_vdp2_dirty) / sizeof(*__jo_vdp2_dirty)); ++i)
-        __jo_vdp2_dirty[i] = ~0u;
+    jo_vdp2_mark_all_dirty();
     // Color RAM mode 1 (2048 colors, RGB 555), VRAM banks A and B split.
     // Rotation scroll data banks: A0 = character, A1 = coefficient table, B0 = pattern name
     JO_VDP2_SET(JO_VDP2_RAMCTL, JO_VDP2_RAMCTL_CRAM_MODE_1 | JO_VDP2_RAMCTL_SPLIT_BANK_A | JO_VDP2_RAMCTL_SPLIT_BANK_B |
@@ -2592,15 +2602,28 @@ int                             *jo_vdp2_enable_nbg0_line_scroll(void)
 
 void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, int x1, int y1, const jo_color color)
 {
+    jo_color                    *bitmap;
     int                         dx;
     int                         sx;
     int                         dy;
     int                         sy;
     int                         err;
     int                         e2;
+    bool                        inside;
 
     if (!jo_vdp2_nbg1_bitmap_ready())
         return;
+    // The pixels outside the bitmap are skipped (they were written in the other banks of the VRAM, or before the VRAM): a
+    // line all on one side of it is not walked
+    inside = (unsigned int)x0 < JO_VDP2_WIDTH && (unsigned int)x1 < JO_VDP2_WIDTH &&
+             (unsigned int)y0 < JO_VDP2_HEIGHT && (unsigned int)y1 < JO_VDP2_HEIGHT;
+    if (!inside && ((x0 < 0 && x1 < 0) || (y0 < 0 && y1 < 0) || (x0 >= JO_VDP2_WIDTH && x1 >= JO_VDP2_WIDTH) ||
+                    (y0 >= JO_VDP2_HEIGHT && y1 >= JO_VDP2_HEIGHT)))
+    {
+        jo_vdp2_display_nbg1();
+        return;
+    }
+    bitmap = (jo_color *)JO_VDP2_VRAM_A0;
     dx = JO_ABS(x1 - x0);
     sx = x0 < x1 ? 1 : -1;
     dy = JO_ABS(y1 - y0);
@@ -2611,7 +2634,8 @@ void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, in
         err = JO_DIV_BY_2(dx > dy ? dx : -dy);
     for (;;)
     {
-        jo_vdp2_put_pixel_bitmap_nbg1(x0, y0, color);
+        if (inside || ((unsigned int)x0 < JO_VDP2_WIDTH && (unsigned int)y0 < JO_VDP2_HEIGHT))
+            bitmap[x0 + y0 * JO_VDP2_WIDTH] = color;
         if (x0 == x1 && y0 == y1)
             break;
         e2 = err;
@@ -4206,8 +4230,7 @@ void                                    jo_vdp2_restore(void)
         jo_vdp2_set_back_color(back_color, back_color_value);
     // All the registers again from the values of the engine, at the next VBLANK
     sr = __jo_core_disable_interrupts();
-    for (JO_ZERO(i); i < (sizeof(__jo_vdp2_dirty) / sizeof(*__jo_vdp2_dirty)); ++i)
-        __jo_vdp2_dirty[i] = ~0u;
+    jo_vdp2_mark_all_dirty();
     __jo_core_restore_interrupts(sr);
 }
 

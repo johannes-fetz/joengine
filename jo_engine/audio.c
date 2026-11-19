@@ -1344,9 +1344,19 @@ bool                jo_audio_make_resident(jo_sound *sound)
     return (true);
 }
 
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+static bool                         jo_audio_music_has_buffer(void);
+#endif
+
 void                jo_audio_free_resident(void)
 {
-    // (the samples of the music and of a movie keep their place)
+#ifdef JO_COMPILE_WITH_FS_SUPPORT
+    // (the place of a music stopped too: the next one takes it again at the end of the sound RAM; kept, the music played
+    // after the resident sounds of a level was in the middle of the sound RAM, and the next levels had only the room before)
+    if (!jo_audio_music_has_buffer())
+        JO_ZERO(__jo_audio_music_sound_ram);
+#endif
+    // (the samples of a music that plays and of a movie keep their place)
     __jo_audio_resident_start = __jo_audio_music_sound_ram != 0 ? __jo_audio_music_sound_ram : JO_AUDIO_PCM_AREA_END;
 #ifdef JO_COMPILE_WITH_VIDEO_SUPPORT
     if (__jo_audio_movie_sound_ram != 0 && __jo_audio_movie_sound_ram < __jo_audio_resident_start)
@@ -2192,6 +2202,12 @@ static void                         jo_audio_music_fill(const bool urgent)
         __jo_audio_music.cursor = sector * JO_AUDIO_MUSIC_SECTOR_SIZE + to;
         __jo_audio_music.reading_sector = sector + 1;
     }
+}
+
+/** @brief The music has its buffer: it plays (or is paused) */
+static bool                         jo_audio_music_has_buffer(void)
+{
+    return (__jo_audio_music.buffer != JO_NULL);
 }
 
 /** @brief The reads of the music at each frame */

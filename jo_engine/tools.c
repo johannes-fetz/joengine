@@ -74,6 +74,22 @@ static char                 *__jo_format_unsigned(unsigned int value, const unsi
     return (end);
 }
 
+/** @brief A value of 64 bits of the arguments (%lld, %jd...), read in a function of its own: with a long long in
+ *  jo_vsnprintf(), GCC kept its other values on the stack (the conversions were 12 % slower)
+ *  @param args Arguments
+ *  @param is_signed %d or %i
+ *  @param value Output: its low 32 bits
+ *  @return false if the value doesn't fit in 32 bits
+ */
+static __attribute__((noinline, cold)) bool jo_vsnprintf_wide_arg(va_list * const args, const bool is_signed, int * const value)
+{
+    long long               wide;
+
+    wide = va_arg(*args, long long);
+    *value = (int)wide;
+    return (is_signed ? wide == (long long)*value : ((unsigned long long)wide >> 32) == 0);
+}
+
 int                         jo_vsnprintf(char * const str, const unsigned int size, const char * format, va_list args)
 {
     char                    number[12];
@@ -85,17 +101,20 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
     int                     precision;
     int                     zeros;
     int                     value;
-    long long               wide_value;
     bool                    wide;
     bool                    left;
     bool                    zero;
     char                    sign;
     char                    plus;
     char                    c;
+    va_list                 ap;
 
 // (the characters after size - 1 are not written: the count is the length of the string written)
 # define JO_SPRINTF_PUT(C)  do { if (out < limit) *out++ = (C); } while (0)
 
+    // (a copy: its address is given to jo_vsnprintf_wide_arg(), the address of a parameter of type va_list is not a
+    // va_list * on every compiler)
+    va_copy(ap, args);
     out = str;
     limit = size == 0 ? str : str + size - 1;
     for (; *format != '\0'; ++format)
@@ -111,27 +130,33 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
         plus = '\0';
         for (;; ++format)
         {
-            if (*format == '-')
-                left = true;
-            else if (*format == '0')
-                zero = true;
-            else if (*format == '+')
-                plus = '+';
-            else if (*format == ' ')
+            switch (*format)
             {
-                // (a space after a + or a second space: still a flag. It ended the flags, the conversion was written as it
-                // is and its argument not taken: the next conversions read the wrong arguments)
-                if (plus == '\0')
-                    plus = ' ';
+                case '-':
+                    left = true;
+                    continue;
+                case '0':
+                    zero = true;
+                    continue;
+                case '+':
+                    plus = '+';
+                    continue;
+                case ' ':
+                    // (a space after a + or a second space: still a flag. It ended the flags, the conversion was written
+                    // as it is and its argument not taken: the next conversions read the wrong arguments)
+                    if (plus == '\0')
+                        plus = ' ';
+                    continue;
+                default:
+                    break;
             }
-            else
-                break;
+            break;
         }
         // (* : the width and the precision given as arguments, a negative width aligned on the left. They were not read:
         // the next conversions read the wrong arguments, a %s an int as a pointer)
         if (*format == '*')
         {
-            width = va_arg(args, int);
+            width = va_arg(ap, int);
             if (width < 0)
             {
                 left = true;
@@ -148,7 +173,7 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
         {
             if (*++format == '*')
             {
-                if ((precision = va_arg(args, int)) < 0)
+                if ((precision = va_arg(ap, int)) < 0)
                     precision = -1;
                 ++format;
             }
@@ -161,62 +186,75 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
         wide = false;
         for (;; ++format)
         {
-            if (*format == 'j' || (*format == 'l' && format[1] == 'l'))
+            // (a switch: a conversion without modifier is found after 2 or 3 tests, it was 6)
+            switch (*format)
             {
-                wide = true;
-                if (*format == 'l')
-                    ++format;
+                case 'j':
+                    wide = true;
+                    continue;
+                case 'l':
+                    if (format[1] == 'l')
+                    {
+                        wide = true;
+                        ++format;
+                    }
+                    continue;
+                case 'h':
+                case 'z':
+                case 't':
+                    continue;
+                default:
+                    break;
             }
-            else if (*format != 'l' && *format != 'h' && *format != 'z' && *format != 't')
-                break;
+            break;
         }
         sign = '\0';
         c = *format;
         // (read only by the conversions of a number below: GCC warned that it may be used uninitialized)
         JO_ZERO(value);
-        if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X')
+        // (the value of 64 bits of a number read here, the other values in the switch: one test for most conversions)
+        if (wide && (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X') &&
+            !jo_vsnprintf_wide_arg(&ap, c == 'd' || c == 'i', &value))
         {
-            if (wide)
-            {
-                wide_value = va_arg(args, long long);
-                value = (int)wide_value;
-                if ((c == 'd' || c == 'i') ? wide_value != (long long)value : ((unsigned long long)wide_value >> 32) != 0)
-                {
-                    // (more than 32 bits: written as it is)
-                    JO_SPRINTF_PUT('%');
-                    JO_SPRINTF_PUT(c);
-                    continue;
-                }
-            }
-            else
-                value = va_arg(args, int);
+            // (more than 32 bits: written as it is)
+            JO_SPRINTF_PUT('%');
+            JO_SPRINTF_PUT(c);
+            continue;
         }
         switch (c)
         {
             case 'd':
             case 'i':
+                if (!wide)
+                    value = va_arg(ap, int);
                 sign = value < 0 ? '-' : plus;
                 text = __jo_format_unsigned(value < 0 ? 0u - (unsigned int)value : (unsigned int)value, 10, "0123456789", number + sizeof(number));
                 break;
             case 'u':
+                if (!wide)
+                    value = va_arg(ap, int);
                 text = __jo_format_unsigned((unsigned int)value, 10, "0123456789", number + sizeof(number));
                 break;
             case 'x':
+                if (!wide)
+                    value = va_arg(ap, int);
                 text = __jo_format_unsigned((unsigned int)value, 16, "0123456789abcdef", number + sizeof(number));
                 break;
             case 'X':
+                if (!wide)
+                    value = va_arg(ap, int);
                 text = __jo_format_unsigned((unsigned int)value, 16, "0123456789ABCDEF", number + sizeof(number));
                 break;
             case 'p':
-                text = __jo_format_unsigned(va_arg(args, unsigned int), 16, "0123456789ABCDEF", number + sizeof(number));
+                text = __jo_format_unsigned(va_arg(ap, unsigned int), 16, "0123456789ABCDEF", number + sizeof(number));
                 break;
             case 'c':
-                number[0] = (char)va_arg(args, int);
+                number[0] = (char)va_arg(ap, int);
                 text = number;
                 zero = false;
                 break;
             case 's':
-                text = va_arg(args, const char *);
+                text = va_arg(ap, const char *);
                 if (text == JO_NULL)
                     text = "(null)";
                 zero = false;
@@ -234,7 +272,7 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
             case 'g':
             case 'G':
                 // (not supported: written as it is, its argument skipped, the next ones are right)
-                (void)va_arg(args, double);
+                (void)va_arg(ap, double);
                 JO_SPRINTF_PUT('%');
                 JO_SPRINTF_PUT(c);
                 continue;
@@ -249,9 +287,10 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
             length = 1;
         else if (c == 's')
         {
-            length = (int)jo_strlen(text);
-            if (precision >= 0 && length > precision)
-                length = precision;
+            // (no call: the registers of the function are not saved around it. A precision: the characters after it are
+            // not read)
+            for (JO_ZERO(length); length != precision && text[length] != '\0'; ++length)
+                ;
         }
         else
         {
@@ -281,6 +320,7 @@ int                         jo_vsnprintf(char * const str, const unsigned int si
         for (; width > 0; --width)
             JO_SPRINTF_PUT(' ');
     }
+    va_end(ap);
     if (size != 0)
         *out = '\0';
 # undef JO_SPRINTF_PUT

@@ -1025,6 +1025,7 @@ static void                     c_water_errors(void)
     jo_water_config             config;
     jo_water_level              levels[2];
     jo_water                    *w;
+    int                         first;
 
     t_water_config(&config, levels, 100);
     jt_expect_errors(true);
@@ -1032,6 +1033,92 @@ static void                     c_water_errors(void)
     jt_expect_errors(false);
     JT_TRUE(w == JO_NULL);
     jo_water_free(w);
+    // No level: refused (the skirt was made around the level before the array of the levels)
+    t_water_config(&config, levels, 128);
+    config.level_count = 0;
+    jt_expect_errors(true);
+    w = jo_water_create(&config);
+    jt_expect_errors(false);
+    JT_TRUE(w == JO_NULL);
+    jo_water_free(w);
+    // A negative count of waves: no wave (a huge size was copied)
+    first = jo_sprite_count();
+    t_water_config(&config, levels, 128);
+    config.waves = (const jo_water_wave *)levels;
+    config.wave_count = -1;
+    w = jo_water_create(&config);
+    JT_TRUE(w != JO_NULL);
+    if (w != JO_NULL)
+        JT_EQ(jo_water_get_config(w)->wave_count, 0);
+    jo_water_free(w);
+    jo_3d_model_free_textures_from(first);
+}
+
+/** @brief An object under the water with a texture of 16 colors (its table: the first table of a sprite) */
+static jo_water_object          *t_water_lut_object(jo_water * const w, jo_3d_mesh * const mesh, const int k, const int sprite)
+{
+    mesh->data.attributes[k].sort |= JO_3D_USE_TEXTURE;
+    mesh->data.attributes[k].draw_mode = (unsigned short)((mesh->data.attributes[k].draw_mode & ~JO_VDP1_COLOR_MODE_MASK) |
+                                                          JO_VDP1_COLOR_MODE_16_LOOKUP);
+    mesh->data.attributes[k].color = (unsigned short)__jo_sprite_def[sprite].adr;
+    return (jo_water_add_mesh(w, mesh, k, 1, 128, 1000));
+}
+
+/** @brief The tables seen through the water in sprites freed while the water lives: forgotten (the next table was written
+ *  in the VRAM of the sprite added at their place, and the table of a source freed was taken again for a new one) */
+static void                     c_water_sprites_freed(void)
+{
+    jo_water_config             config;
+    jo_water_level              levels[2];
+    jo_color                    pixels[192];
+    const volatile jo_color     *vram;
+    jo_water                    *w;
+    jo_3d_mesh                  *mesh;
+    unsigned int                adr;
+    int                         first;
+    int                         freed;
+    int                         red;
+    int                         bad;
+    int                         k;
+
+    first = jo_sprite_count();
+    t_water_config(&config, levels, 128);
+    w = jo_water_create(&config);
+    mesh = jo_3d_create_mesh(2);
+    JT_TRUE(w != JO_NULL && mesh != JO_NULL);
+    if (w != JO_NULL && mesh != JO_NULL)
+    {
+        freed = jo_sprite_count();
+        // (the first sprites added after it: a source of a table, then the table of the object)
+        for (JO_ZERO(k); k < 64; ++k)
+            pixels[k] = JO_COLOR_Green;
+        jo_sprite_add_rgb(pixels, 8, 8);
+        JT_TRUE(t_water_lut_object(w, mesh, 0, freed) != JO_NULL);
+        jo_sprite_free_from(freed);
+        // A red sprite at their place, then another object (another source) and the first source again
+        for (JO_ZERO(k); k < 192; ++k)
+            pixels[k] = JO_COLOR_Red;
+        red = jo_sprite_add_rgb(pixels, 8, 24);
+        JT_TRUE(red >= 0 && t_water_lut_object(w, mesh, 1, first) != JO_NULL && t_water_lut_object(w, mesh, 0, red) != JO_NULL);
+        JO_ZERO(bad);
+        if (red >= 0)
+        {
+            vram = (const volatile jo_color *)jo_sprite_get_raw_data(red);
+            for (JO_ZERO(k); k < 192; ++k)
+                if (vram[k] != JO_COLOR_Red)
+                    bad |= 1;
+            // (the tables of the objects out of the red sprite)
+            adr = __jo_sprite_def[red].adr;
+            for (JO_ZERO(k); k < 2; ++k)
+                if (mesh->data.attributes[k].color >= adr && mesh->data.attributes[k].color < adr + 192 * 2 / 8)
+                    bad |= 2 << k;
+        }
+        JT_EQ(bad, 0);
+    }
+    jo_water_free(w);
+    if (mesh != JO_NULL)
+        jo_3d_free_mesh(mesh);
+    jo_3d_model_free_textures_from(first);
 }
 #endif
 
@@ -1173,6 +1260,7 @@ void                            t_leaks(void)
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     t_cycles("leaks.water", c_water);
     t_cycles("leaks.water.errors", c_water_errors);
+    t_cycles("leaks.water.sprites_freed", c_water_sprites_freed);
 #endif
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     t_cycles("leaks.3d.glows", c_glows);

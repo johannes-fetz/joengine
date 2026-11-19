@@ -285,7 +285,13 @@ static void __jo_call_event(jo_node *node)
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
 static void jo_slave_callbacks(void)
 {
-    jo_list_foreach(&__slave_callbacks, __jo_call_event);
+    jo_node     *node;
+
+    // (not jo_list_foreach(): the slave CPU would write its cursor in the list, the cache of the master CPU could keep it
+    // and jo_list_remove() follow it to the stack of the slave CPU. No node is freed while the slave CPU runs them, see
+    // jo_core_remove_slave_callback())
+    for (node = __slave_callbacks.first; node != JO_NULL; node = node->next)
+        __jo_call_event(node);
 }
 #endif
 

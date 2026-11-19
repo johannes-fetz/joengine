@@ -147,7 +147,7 @@ bool                    jo_bin_loader_from_stream(jo_img *img, char *stream, con
     register int        size;
     unsigned short      *data;
 
-    // The header and the pixels are 16 bits values (big endian)
+    // The header and the pixels are 16 bits values (little endian, swapped below)
     data = (unsigned short *)stream;
     img->width = jo_swap_endian_ushort(*data);
     img->height = jo_swap_endian_ushort(*(data + 1));

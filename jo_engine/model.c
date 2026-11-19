@@ -498,6 +498,8 @@ jo_3d_model                                 *jo_3d_load_model(const char * const
     model = JO_NULL;
     data = JO_NULL;
     ok = false;
+    // (set below when the header is read: GCC -Os saw it maybe uninitialized)
+    JO_ZERO(size);
     // Header and first chunk: the embedded textures are first (they go to the VRAM, the file data are smaller)
     if (jo_fs_read_next_bytes(&file, (char *)head, sizeof(head)) == sizeof(head))
     {
@@ -1796,6 +1798,37 @@ static bool                                 jo_3d_model_chunk_seen(const unsigne
     return (false);
 }
 
+/** @brief The counts of the polygons and of the textures of a model in one block (see jo_3d_create_model_in_place())
+ *  @param polygons Count of the polygons ("QUAD" chunk), 0 if none
+ *  @param textures Count of the textures ("TEXT" chunk), 0 if none
+ *  @remarks The same counts for the size of the block and for the places in it. Only a count that fits in its chunk: the
+ *  count of the polygons of a damaged file wrapped the size of the block around 32 bits, the model was written after a
+ *  block of a few bytes (jo_3d_create_model() refuses such a chunk)
+ */
+static void                                 jo_3d_model_block_counts(const unsigned char * const data, const unsigned int size,
+                                                                     unsigned int * const polygons, unsigned int * const textures)
+{
+    const unsigned char                     *p;
+    unsigned int                            chunk;
+    unsigned int                            count;
+
+    JO_ZERO(*polygons);
+    JO_ZERO(*textures);
+    for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
+    {
+        chunk = *(const unsigned int *)(p + 4);
+        if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, data + size))
+            break;
+        count = *(const unsigned int *)(p + 8);
+        if (!jo_3d_model_count_fits(p, chunk, count))
+            continue;
+        if (jo_3d_model_is_tag(p, "QUAD"))
+            *polygons = count;
+        else if (jo_3d_model_is_tag(p, "TEXT"))
+            *textures = count;
+    }
+}
+
 static jo_3d_model                          *jo_3d_create_model(const unsigned char * const data, const unsigned int size, void * const file,
                                                                 unsigned char * const storage)
 {
@@ -1841,16 +1874,7 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
     JO_ZERO(storage_polygons);
     JO_ZERO(storage_textures);
     if (storage != JO_NULL)
-        for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
-        {
-            chunk = *(const unsigned int *)(p + 4);
-            if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, data + size))
-                break;
-            if (jo_3d_model_is_tag(p, "QUAD"))
-                storage_polygons = *(const unsigned int *)(p + 8);
-            else if (jo_3d_model_is_tag(p, "TEXT"))
-                storage_textures = *(const unsigned int *)(p + 8);
-        }
+        jo_3d_model_block_counts(data, size, &storage_polygons, &storage_textures);
     model = storage != JO_NULL ? (jo_3d_model *)storage : (jo_3d_model *)jo_malloc(sizeof(*model));
     if (model == JO_NULL)
         return (JO_NULL);
@@ -1938,7 +1962,8 @@ static jo_3d_model                          *jo_3d_create_model(const unsigned c
             for (JO_ZERO(k); model->textures != JO_NULL && k < count; ++k)
             {
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
-                model->textures[k] = jo_3d_model_texture((const char *)(p + 12 + k * 16));
+                // (a damaged name of 16 characters without its end: its file name was read after the entry)
+                model->textures[k] = p[12 + k * 16 + 15] != '\0' ? -1 : jo_3d_model_texture((const char *)(p + 12 + k * 16));
 #else
                 // Only the embedded textures ("TIMG" chunk)
                 model->textures[k] = jo_3d_model_find_texture((const char *)(p + 12 + k * 16));
@@ -2121,30 +2146,17 @@ JO_LOW_WORK_RAM_CODE
 jo_3d_model                                 *jo_3d_create_model_in_place(const unsigned char * const data, const unsigned int size)
 {
     jo_3d_model                             *model;
-    const unsigned char                     *p;
-    unsigned int                            chunk;
     unsigned int                            polygon_count;
     unsigned int                            texture_count;
     unsigned char                           *storage;
 
     // The counts of the chunks first: the model, its mesh, the attributes of its polygons and the ids of its textures in
     // one memory block (a level of 1000 models: 4000 blocks less, each one found after a search among the others)
-    JO_ZERO(polygon_count);
-    JO_ZERO(texture_count);
     // (a wrong file: jo_3d_create_model() says so, before the block is allocated)
     if (data == JO_NULL || size < JO_3D_MODEL_HEADER_SIZE || !jo_3d_model_is_tag(data, "JOM1") ||
         (data[4] << 8 | data[5]) > JO_3D_MODEL_VERSION)
         return (jo_3d_create_model(data, size, (void *)data, JO_NULL));
-    for (p = data + JO_3D_MODEL_HEADER_SIZE; p + 12 <= data + size && !jo_3d_model_is_tag(p, "END "); p += 8 + chunk)
-    {
-        chunk = *(const unsigned int *)(p + 4);
-        if (JO_3D_MODEL_WRONG_CHUNK(chunk, p, data + size))
-            break;
-        if (jo_3d_model_is_tag(p, "QUAD"))
-            polygon_count = *(const unsigned int *)(p + 8);
-        else if (jo_3d_model_is_tag(p, "TEXT"))
-            texture_count = *(const unsigned int *)(p + 8);
-    }
+    jo_3d_model_block_counts(data, size, &polygon_count, &texture_count);
     storage = (unsigned char *)jo_malloc(JO_3D_MODEL_BLOCK_TEXTURES(polygon_count) +
                                          (texture_count > 0 ? texture_count : 1) * sizeof(int));
     if (storage == JO_NULL)

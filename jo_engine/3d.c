@@ -846,6 +846,7 @@ static int                                  __jo_3d_fade_sprite_count = 0;
 
 void                                        (*__jo_3d_glow_sprites_freed)(const int sprite_id) = JO_NULL;
 void                                        (*__jo_3d_transparency_sprites_freed)(const int sprite_id) = JO_NULL;
+void                                        (*__jo_3d_water_sprites_freed)(const int sprite_id) = JO_NULL;
 
 JO_LOW_WORK_RAM_CODE
 void                                        __jo_3d_forget_sprites_from(const int sprite_id)
@@ -894,6 +895,8 @@ void                                        __jo_3d_forget_sprites_from(const in
         __jo_3d_glow_sprites_freed(sprite_id);
     if (__jo_3d_transparency_sprites_freed != JO_NULL)
         __jo_3d_transparency_sprites_freed(sprite_id);
+    if (__jo_3d_water_sprites_freed != JO_NULL)
+        __jo_3d_water_sprites_freed(sprite_id);
 }
 
 void                                        __jo_3d_forget_tint(const jo_3d_polygon_data * const pdata)

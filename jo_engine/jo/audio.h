@@ -349,7 +349,8 @@ unsigned int    jo_audio_get_music_underruns(void);
 bool     jo_audio_make_resident(jo_sound *sound);
 
 /** @brief Forget all the resident sounds (a new level): their room in the sound RAM is free again
- *  @remarks The jo_sound of the resident sounds must not be played any more
+ *  @remarks The jo_sound of the resident sounds must not be played any more. The room of a music stopped (jo_audio_stop_music())
+ *  is free again too: a music that plays keeps its room, and the room after it stays taken
  */
 void     jo_audio_free_resident(void);
 

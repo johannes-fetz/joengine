@@ -119,15 +119,17 @@ void            jo_list_remove(jo_list * const list, const jo_node * const node_
 {
     jo_node     *prev;
     jo_node     *next;
+    jo_node     *cursor;
 
     // Invalid index (jo_list_remove_at()) or empty list (jo_list_remove_last(), etc)
     if (node_to_delete == JO_NULL)
         return ;
     prev = node_to_delete->prev;
     next = node_to_delete->next;
-    // (the node a jo_list_foreach() goes to next: the one after it)
-    if (list->foreach_next == node_to_delete)
-        list->foreach_next = next;
+    // (the node each jo_list_foreach() in progress goes to next: the one after it, see jo_list_foreach())
+    for (cursor = list->foreach_next; cursor != JO_NULL; cursor = cursor->prev)
+        if (cursor->next == node_to_delete)
+            cursor->next = next;
     if (prev != JO_NULL)
     {
         if (next != JO_NULL)
@@ -161,35 +163,38 @@ void            jo_list_remove(jo_list * const list, const jo_node * const node_
 void                jo_list_foreach(jo_list * const list, jo_node_callback callback)
 {
     jo_node         *tmp;
-    jo_node         *saved;
+    jo_node         cursor;
 
-    // (the next node in the list, not in a local variable: a callback that removed the next node made the loop read the
-    // freed node. The one of an enclosing foreach of the same list is kept. A function: the loop was inlined in each
-    // caller)
-    saved = list->foreach_next;
-    for (tmp = list->first; tmp != JO_NULL; tmp = list->foreach_next)
+    // (the next node in a cursor known by the list (list->foreach_next), chained to the cursors of the loops of the same
+    // list around this one (cursor.prev): jo_list_remove() moves all of them. In a local variable only, a callback that
+    // removed the next node made the loop read the freed node; with one cursor, a loop in a callback that removed the next
+    // node of the loop around it. A function: the loop was inlined in each caller)
+    cursor.prev = list->foreach_next;
+    list->foreach_next = &cursor;
+    for (tmp = list->first; tmp != JO_NULL; tmp = cursor.next)
     {
-        list->foreach_next = tmp->next;
+        cursor.next = tmp->next;
         callback(tmp);
     }
-    list->foreach_next = saved;
+    list->foreach_next = cursor.prev;
 }
 
 bool                jo_list_any(jo_list * const list, jo_node_any_callback callback, void *extra)
 {
     jo_node         *tmp;
-    jo_node         *saved;
+    jo_node         cursor;
     bool            found;
 
-    // (the next node kept in the list, see jo_list_foreach())
-    saved = list->foreach_next;
+    // (the next node in a cursor known by the list, see jo_list_foreach())
+    cursor.prev = list->foreach_next;
+    list->foreach_next = &cursor;
     found = false;
-    for (tmp = list->first; tmp != JO_NULL && !found; tmp = list->foreach_next)
+    for (tmp = list->first; tmp != JO_NULL && !found; tmp = cursor.next)
     {
-        list->foreach_next = tmp->next;
+        cursor.next = tmp->next;
         found = callback(tmp, extra);
     }
-    list->foreach_next = saved;
+    list->foreach_next = cursor.prev;
     return (found);
 }
 

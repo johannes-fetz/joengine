@@ -122,6 +122,8 @@ endif
 ifeq (1,${JO_COMPILE_WITH_CONSOLE_SUPPORT})
 	# Console support depends on keyboard support
 	JO_COMPILE_WITH_KEYBOARD_SUPPORT = 1
+	# and on jo_printf() (with JO_MINIMAL = 1 its functions were not linked)
+	JO_COMPILE_WITH_PRINTF_MODULE = 1
 endif
 
 ifeq (1,${JO_COMPILE_WITH_KEYBOARD_SUPPORT})

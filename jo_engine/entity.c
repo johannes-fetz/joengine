@@ -372,10 +372,12 @@ int                                 jo_entities_load(jo_level * const level)
     }
     // What the entities need after the level is freed: the strings, the properties, the links
     strs = jo_level_find_section(level, JO_LEVEL_SECTION_STRS);
-    if (strs != JO_NULL)
+    // (a 0 after the copy: the last string of a damaged section without its final 0 was read after the copy)
+    if (strs != JO_NULL && strs->size != 0 && (__jo_entity_strings = (char *)jo_malloc(strs->size + 1)) != JO_NULL)
     {
-        __jo_entity_strings = (char *)__jo_entity_copy(jo_level_section_data(level, JO_LEVEL_SECTION_STRS), strs->size);
-        __jo_entity_strings_size = __jo_entity_strings != JO_NULL ? strs->size : 0;
+        jo_memcpy(__jo_entity_strings, jo_level_section_data(level, JO_LEVEL_SECTION_STRS), strs->size);
+        __jo_entity_strings[strs->size] = '\0';
+        __jo_entity_strings_size = strs->size;
     }
     pr = JO_LEVEL_RECORDS(level, PROP, prop, &__jo_entity_prop_count);
     __jo_entity_props = (jo_level_prop_record *)__jo_entity_copy(pr, __jo_entity_prop_count * sizeof(*pr));

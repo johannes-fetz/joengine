@@ -510,7 +510,8 @@ static void                 build_waves(jo_water * const w)
 
 void                        jo_water_set_waves(jo_water * const w, const jo_water_wave * const waves, const int count)
 {
-    w->wave_count = JO_MIN(count, JO_WATER_MAX_WAVES);
+    // (a negative count: no wave, it copied a huge size)
+    w->wave_count = JO_MAX(0, JO_MIN(count, JO_WATER_MAX_WAVES));
     jo_memcpy(w->wave_list, waves, (unsigned int)w->wave_count * sizeof(jo_water_wave));
     w->config.waves = w->wave_list;
     w->config.wave_count = w->wave_count;
@@ -1652,10 +1653,18 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
     first_sprite = jo_sprite_count();
     current = w;
     w->config = *config;
-    w->level_count = JO_MIN(config->level_count, JO_WATER_MAX_LEVELS);
+    w->level_count = JO_MAX(0, JO_MIN(config->level_count, JO_WATER_MAX_LEVELS));
     jo_memcpy(w->level_sizes, config->levels, (unsigned int)w->level_count * sizeof(jo_water_level));
     w->config.levels = w->level_sizes;
     w->config.level_count = w->level_count;
+    // (no level: the skirt around the last level and the heights out of the levels read before the array of the levels)
+    if (w->level_count == 0)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("water: no level");
+#endif
+        return (create_failed(w, first_sprite));
+    }
     w->swell = JO_FIXED_1;
     w->grain = -1;
     // The tiles of the foam and of the bottom from their patterns: built in, or from a level file (freed once they are made)
@@ -1686,7 +1695,8 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
         if (!made)
             return (create_failed(w, first_sprite));
     }
-#ifdef JO_COMPILE_WITH_TGA_SUPPORT
+// (a file of the CD: the program built without the file system had a compilation error)
+#if defined(JO_COMPILE_WITH_TGA_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
     if (config->grain)
         w->grain = jo_sprite_add_tga(JO_ROOT_DIR, "GRAIN.TGA", JO_COLOR_Transparent);
 #endif
@@ -1699,10 +1709,9 @@ jo_water                    *jo_water_create(const jo_water_config * const confi
             (k > 0 && (cell % w->level_sizes[k - 1].cell != 0 || w->level_sizes[k - 1].side % cell != 0 ||
                        side < w->level_sizes[k - 1].side + 4 * cell)))
         {
+            // (no message in a release build: it stayed on the screen of the game, and jo_printf() needs the printf module)
 #ifdef JO_DEBUG
             jo_core_error("water: wrong level %d", k);
-#else
-            jo_printf(0, 0, "water: wrong level %d", k);
 #endif
             return (create_failed(w, first_sprite));
         }

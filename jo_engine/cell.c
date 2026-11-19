@@ -1144,6 +1144,7 @@ static void                         __jo_cell_make_chunks(const int cell, const 
     int                             p[3];
     int                             a;
     int                             r;
+    unsigned long long              squares;
 
     __jo_cell_chunks[cell] = JO_NULL;
     __jo_cell_chunk_count[cell] = 0;
@@ -1208,9 +1209,13 @@ static void                         __jo_cell_make_chunks(const int cell, const 
         ch->center.x = jo_int2fixed((lo[0] + hi[0]) / 2);
         ch->center.y = jo_int2fixed((lo[1] + hi[1]) / 2);
         ch->center.z = jo_int2fixed((lo[2] + hi[2]) / 2);
-        // (the half diagonal of the box, 2 more: the points are rounded)
-        r = (int)jo_sqrt((unsigned int)((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) +
-                                        (hi[2] - lo[2]) * (hi[2] - lo[2]))) / 2 + 2;
+        // (the half diagonal of the box, 2 more: the points are rounded. The squares summed on 64 bits: a chunk longer than
+        // 46340 units, or 26754 along the 3 axes, wrapped the sum around 32 bits, its radius was too small and the chunk was
+        // culled in view)
+        squares = (unsigned long long)((unsigned int)(hi[0] - lo[0]) * (unsigned int)(hi[0] - lo[0])) +
+                  (unsigned int)(hi[1] - lo[1]) * (unsigned int)(hi[1] - lo[1]) +
+                  (unsigned int)(hi[2] - lo[2]) * (unsigned int)(hi[2] - lo[2]);
+        r = (int)(squares <= 0xFFFFFFFFull ? jo_sqrt((unsigned int)squares) : 2 * jo_sqrt((unsigned int)(squares >> 2))) / 2 + 2;
         ch->radius = r;
     }
 }

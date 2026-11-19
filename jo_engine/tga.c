@@ -217,8 +217,9 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     __jo_tga_header                         *header;
     int                                     len;
 
-    // (the length of the file read here: 0 for a stream of the caller, its length is not known)
-    JO_ZERO(len);
+    // (the length of the file read here: -1 for a stream of the caller, its length is not known. An empty file is read
+    // as a byte, of length 0: its header was read after its end)
+    len = -1;
 #ifdef JO_COMPILE_WITH_FS_SUPPORT
     if (*stream == JO_NULL)
         *stream = jo_fs_read_file_in_dir(filename, sub_dir, &len);
@@ -230,7 +231,7 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     if (*stream == JO_NULL)
         return (JO_TGA_UNSUPPORTED_FORMAT);
     // (a file shorter than a header: its fields were read after its end)
-    if (len > 0 && (unsigned int)len < sizeof(*header))
+    if (len >= 0 && (unsigned int)len < sizeof(*header))
     {
         if (filename != JO_NULL)
             jo_free(*stream);
@@ -240,7 +241,7 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     img->width = jo_swap_endian_short(header->width);
     img->height = jo_swap_endian_short(header->height);
     *bits = header->image_pixel_size;
-    __jo_tga_end = len > 0 ? (const unsigned char *)*stream + len : JO_NULL;
+    __jo_tga_end = len >= 0 ? (const unsigned char *)*stream + len : JO_NULL;
     // (1 color mapped, 2 true color, 3 gray; 9 to 11: the same compressed (RLE), see jo_tga_rle_unpack())
     // (a file shorter than its header says, or than a header: the pixels were read after its end. Compressed: the pixels
     // stop at the end of the file)
@@ -249,7 +250,7 @@ t_tga_error_code                            __jo_tga_load(jo_raw_img *img, const
     if (!JO_TGA_SUPPORTED_FORMAT(*bits) || (header->image_type & ~JO_TGA_RLE) < 1 || (header->image_type & ~JO_TGA_RLE) > 3 ||
         (*bits == JO_TGA_8_BITS && header->color_map_length != 0 &&
          (JO_DIV_BY_8(header->color_map_entry_depth + 1) < 2 || JO_DIV_BY_8(header->color_map_entry_depth + 1) > 4)) ||
-        (len > 0 && ((unsigned int)len < sizeof(*header) ||
+        (len >= 0 && ((unsigned int)len < sizeof(*header) ||
                      (unsigned long long)len < sizeof(*header) + header->id_length +
                      (*bits == JO_TGA_8_BITS ? (unsigned long long)(unsigned short)jo_swap_endian_short(header->color_map_length) * JO_DIV_BY_8(header->color_map_entry_depth + 1) : 0) +
                      ((header->image_type & JO_TGA_RLE) ? 0 : (unsigned long long)img->width * img->height * JO_DIV_BY_8(*bits)))))

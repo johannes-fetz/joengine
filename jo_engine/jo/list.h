@@ -76,8 +76,9 @@ typedef struct
     jo_node                 *first;
     jo_node                 *last;
     jo_malloc_behaviour     allocation_behaviour;
-    /** @brief The next node of the jo_list_foreach() in progress (moved by jo_list_remove(): a callback can remove any
-     *  node, the next one too) */
+    /** @brief The cursors of the jo_list_foreach() and jo_list_any() in progress, the innermost first (nodes on their
+     *  stacks: next, the node the loop goes to next; prev, the cursor of the loop around it). jo_list_remove() moves them:
+     *  a callback can remove any node, the next one of any of these loops too */
     jo_node                 *foreach_next;
 }                           jo_list;
 

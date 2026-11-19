@@ -30,6 +30,7 @@
 
 #if defined(JO_COMPILE_WITH_3D_SUPPORT) && defined(JO_COMPILE_WITH_DUAL_CPU_SUPPORT)
 
+#include "internal/3d.h"
 #include "internal/water.h"
 
 /*
@@ -547,6 +548,35 @@ static int                  seen_rgb_texture(const jo_water * const w, const int
     return (k);
 }
 
+/** @brief Forget the colors seen through the water in the sprites freed (see __jo_3d_water_sprites_freed): the tables and
+ *  the copies there (the next table was written in the VRAM of the sprite added at their place), and the ones made from a
+ *  table or a texture freed (a new one at its place took the old colors)
+ *  @param sprite_id First sprite freed
+ */
+static void                 water_sprites_freed(const int sprite_id)
+{
+    unsigned int            adr;
+    int                     k;
+    int                     n;
+
+    if (sprite_id < 0 || sprite_id > jo_get_last_sprite_id())
+        return;
+    // (the sprites are in the VRAM in their order: the ones freed from this address)
+    adr = __jo_sprite_def[sprite_id].adr;
+    if (lut_next >= adr)
+        JO_ZERO(lut_free);
+    JO_ZERO(n);
+    for (JO_ZERO(k); k < seen_lut_count; ++k)
+        if (seen_luts[k].lut < adr && (seen_luts[k].bank || seen_luts[k].source < adr))
+            seen_luts[n++] = seen_luts[k];
+    seen_lut_count = n;
+    JO_ZERO(n);
+    for (JO_ZERO(k); k < seen_texture_count; ++k)
+        if (seen_textures[k].copy < sprite_id && seen_textures[k].source < sprite_id)
+            seen_textures[n++] = seen_textures[k];
+    seen_texture_count = n;
+}
+
 /** @brief An attribute seen through the water: its colors mixed with the color of the water, not lit (its gouraud kept)
  *  @param palette_offset Added to its colors of the palette */
 static void                 seen_attribute(const jo_water * const w, jo_3d_polygon_attribute * const a, const int amount, const int palette_offset)
@@ -554,6 +584,7 @@ static void                 seen_attribute(const jo_water * const w, jo_3d_polyg
     unsigned short          lut;
     int                     id;
 
+    __jo_3d_water_sprites_freed = water_sprites_freed;
     a->sort &= (unsigned char)~JO_3D_USE_LIGHT;
     if (!(a->sort & JO_3D_USE_TEXTURE))
     {

@@ -1345,14 +1345,15 @@ static void                 t_fixed_bugs(void)
     }
     // KTEXT.JOM in place: 2 TEXT chunks (40 names, then 1): the block of the model holds 1 texture id, 40 are written after
     // it (KTEXT1.JOM: the same model with the first TEXT chunk only, nothing written after its block). KTEXT.JOM is now
-    // refused (a chunk twice)
-    for (k = 0; k < 2; ++k)
-        if ((data = t_read_fuzz_file(k == 0 ? "KTEXT1.JOM" : "KTEXT.JOM", &len)) != JO_NULL)
+    // refused (a chunk twice). KQUAD.JOM: a count of polygons that wrapped the size of the block, the model was written after
+    // it (refused: the block given back, its size kept in its header)
+    for (k = 0; k < 3; ++k)
+        if ((data = t_read_fuzz_file(k == 0 ? "KTEXT1.JOM" : k == 1 ? "KTEXT.JOM" : "KQUAD.JOM", &len)) != JO_NULL)
         {
             probe = t_heap_probe_fill();
             model = jo_3d_create_model_in_place(data, (unsigned int)len);
             JT_EQ(model != JO_NULL, k == 0);
-            JT_EQ(t_heap_probe_check(probe, model), 0);
+            JT_EQ(t_heap_probe_check(probe, model != JO_NULL ? (const void *)model : k == 2 ? (const void *)probe : JO_NULL), 0);
             if (model != JO_NULL)
                 jo_3d_free_model(model);
             jo_3d_model_free_textures_from(base);

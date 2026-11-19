@@ -103,7 +103,7 @@ typedef struct
 {
     /* The grid */
     const jo_water_level    *levels;        // From the camera (copied)
-    int                     level_count;    // JO_WATER_MAX_LEVELS at most
+    int                     level_count;    // 1 to JO_WATER_MAX_LEVELS
     int                     ahead;          // Center of the levels in front of the camera (units)
     int                     update_cell;    // Levels with bigger quads: updated every 2 frames, bigger than 2 x: every 4 frames
     int                     min_cells_per_wave; // A wave is drawn on the levels with at least this many quads per wavelength

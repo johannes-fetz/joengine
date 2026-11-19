@@ -270,6 +270,84 @@ static void             t_vdp2_bugs(void)
     jo_vdp2_set_window(JO_VDP2_WINDOW_0, 0, 0, JO_TV_WIDTH, JO_TV_HEIGHT);
 }
 
+/** @brief The files of a subdirectory read without loading its table (jo_fs_read_file_in_dir()): the same contents as
+ *  with jo_fs_cd(), the files of its last sector and of its first one in both orders (the last sector read is kept), a
+ *  file not there, and the table of the current directory (the root) kept
+ */
+static void __attribute__((noinline))   t_fs_subdir(void)
+{
+    static const char * const   names[3] = {"W29.WAV", "CAP.JOM", "W29.WAV"};
+    char                        *data;
+    char                        *ref;
+    int                         len;
+    int                         ref_len;
+    unsigned int                bad;
+    int                         k;
+
+    JO_ZERO(bad);
+    for (k = 0; k < 3; ++k)
+    {
+        data = jo_fs_read_file_in_dir(names[k], "FUZZ", &len);
+        jo_fs_cd("FUZZ");
+        ref = jo_fs_read_file(names[k], &ref_len);
+        jo_fs_cd(JO_PARENT_DIR);
+        if (data == JO_NULL || ref == JO_NULL || len != ref_len || jo_memcmp(data, ref, (unsigned int)len) != 0)
+            bad |= 1u << k;
+        if (ref != JO_NULL)
+            jo_free(ref);
+        if (data != JO_NULL)
+            jo_free(data);
+    }
+    jt_expect_errors(true);
+    data = jo_fs_read_file_in_dir("NOPE.BIN", "FUZZ", &len);
+    jt_expect_errors(false);
+    if (data != JO_NULL)
+    {
+        bad |= 0x08;
+        jo_free(data);
+    }
+    if (!jo_fs_file_exists("TEST.TXT") || jo_fs_file_exists("W29.WAV"))
+        bad |= 0x10;
+    JT_EQ(bad, 0);
+}
+
+static char             *t_async_contents;
+static int              t_async_length;
+
+static void             t_async_read(char *contents, int length, int optional_token)
+{
+    (void)optional_token;
+    t_async_contents = contents;
+    t_async_length = length;
+}
+
+/** @brief A file read in the background (jo_fs_read_file_async()): the same contents as jo_fs_read_file(), in a block of
+ *  its size (whole sectors before: 2 KB for a small file) */
+static void __attribute__((noinline))   t_fs_async(void)
+{
+    char                        *ref;
+    int                         ref_len;
+    unsigned int                bad;
+
+    JO_ZERO(bad);
+    t_async_contents = JO_NULL;
+    if (!jo_fs_read_file_async("TEST.TXT", t_async_read, 0))
+        bad |= 1;
+    jo_fs_wait_background_jobs();
+    ref = jo_fs_read_file("TEST.TXT", &ref_len);
+    if (t_async_contents == JO_NULL || ref == JO_NULL || t_async_length != ref_len ||
+        jo_memcmp(t_async_contents, ref, (unsigned int)ref_len + 1) != 0)
+        bad |= 2;
+    // (the size of the block, its header of 8 bytes included, see malloc.c)
+    else if (((const unsigned int *)t_async_contents)[-1] > 8 + (((unsigned int)ref_len + 1 + 3) & ~3u))
+        bad |= 4;
+    if (ref != JO_NULL)
+        jo_free(ref);
+    if (t_async_contents != JO_NULL)
+        jo_free(t_async_contents);
+    JT_EQ(bad, 0);
+}
+
 static void             t_files_bugs(void)
 {
     jo_img              img;
@@ -288,6 +366,8 @@ static void             t_files_bugs(void)
     JT_TRUE(data != JO_NULL);
     if (data != JO_NULL)
         jo_free(data);
+    t_fs_subdir();
+    t_fs_async();
     jt_group("bugs.tga");
     // The image ID after the header is skipped (red, then blue)
     img.data = JO_NULL;
@@ -433,6 +513,25 @@ static void             t_remove_self(jo_node *node)
     }
 }
 
+/** @brief The node after the node of the outer loop of the nested removal test (t_round3_bugs()) */
+static jo_node          *t_removal_target;
+static int              t_removal_outer_calls;
+
+/** @brief Inner loop: remove the next node of the outer loop, then reuse its memory */
+static void             t_remove_outer_next(jo_node *node)
+{
+    if (node == t_removal_target)
+        t_remove_self(node);
+}
+
+/** @brief Outer loop: a loop over the same list in its callback */
+static void             t_remove_nested(jo_node *node)
+{
+    ++t_removal_outer_calls;
+    t_removal_target = node->next;
+    jo_list_foreach(&t_removal_list, t_remove_outer_next);
+}
+
 static void             t_round3_bugs(void)
 {
     unsigned int        vblank;
@@ -451,6 +550,18 @@ static void             t_round3_bugs(void)
     jo_list_foreach(&t_removal_list, t_remove_self);
     JT_EQ(t_removal_calls, 3);
     JT_EQ(t_removal_list.count, 0);
+    // A loop over the same list in a callback, that removes the next node of the loop around it: that loop read the freed
+    // node (1 2 3 4: the outer loop sees 1, the inner one removes 2; then 3, the inner one removes 4)
+    jo_list_add_ptr(&t_removal_list, (void *)1);
+    jo_list_add_ptr(&t_removal_list, (void *)2);
+    jo_list_add_ptr(&t_removal_list, (void *)3);
+    jo_list_add_ptr(&t_removal_list, (void *)4);
+    t_removal_outer_calls = 0;
+    jo_list_foreach(&t_removal_list, t_remove_nested);
+    JT_EQ(t_removal_outer_calls, 2);
+    JT_EQ(t_removal_list.count, 2);
+    JT_TRUE(t_removal_list.foreach_next == JO_NULL);
+    jo_list_clear(&t_removal_list);
     // (the animations of t_sprite_bugs(): the table is full)
     for (a = JO_MAX_SPRITE_ANIM - 1; a >= 0; --a)
         jo_remove_sprite_anim(a);
@@ -1565,6 +1676,93 @@ static void __attribute__((noinline))   t_map_collision_4bits(void)
     jo_sprite_free_from(id);
 }
 
+/** @brief A pixel of the NBG1 bitmap (512 x 256 pixels in the banks A0 and A1) */
+#define T_NBG1(X, Y)            (((volatile unsigned short *)0x25E00000)[(X) + (Y) * 512])
+
+/** @brief The pixels and the lines of NBG1 outside the bitmap: not drawn (before, they were written in the other banks of
+ *  the VRAM, the text of jo_printf() in the bank B1, or before the VRAM) */
+static void __attribute__((noinline))   t_nbg1_clip(void)
+{
+    // (where the pixels outside the bitmap were written: x = -1 at the end of the row before, x = 600 in the row after, a
+    // row after the bitmap in the bank B0)
+    static const short          sentinels[4][2] = {{511, 1}, {100, 6}, {5, 300}, {510, 260}};
+    unsigned short              saved[4];
+    unsigned int                bad;
+    int                         k;
+
+    jt_group("bugs.nbg1_clip");
+    jo_clear_background(JO_COLOR_Black);
+    for (k = 0; k < 4; ++k)
+    {
+        saved[k] = T_NBG1(sentinels[k][0], sentinels[k][1]);
+        T_NBG1(sentinels[k][0], sentinels[k][1]) = 0x1234;
+    }
+    jo_vdp2_put_pixel_bitmap_nbg1(-1, 2, JO_COLOR_Red);
+    jo_vdp2_put_pixel_bitmap_nbg1(5, 300, JO_COLOR_Red);
+    jo_vdp2_draw_bitmap_nbg1_line(-3, 2, 3, 2, JO_COLOR_Red);
+    jo_vdp2_draw_bitmap_nbg1_line(600, 5, 700, 5, JO_COLOR_Red);
+    jo_vdp2_draw_bitmap_nbg1_line(510, 300, 510, 250, JO_COLOR_Red);
+    JO_ZERO(bad);
+    for (k = 0; k < 4; ++k)
+    {
+        if (T_NBG1(sentinels[k][0], sentinels[k][1]) != 0x1234)
+            bad |= 1u << k;
+        T_NBG1(sentinels[k][0], sentinels[k][1]) = saved[k];
+    }
+    // (the part of the lines in the bitmap is drawn)
+    if (T_NBG1(0, 2) != JO_COLOR_Red || T_NBG1(3, 2) != JO_COLOR_Red)
+        bad |= 0x10;
+    if (T_NBG1(510, 250) != JO_COLOR_Red || T_NBG1(510, 255) != JO_COLOR_Red)
+        bad |= 0x20;
+    JT_EQ(bad, 0);
+    jo_clear_background(JO_COLOR_Black);
+}
+
+#if defined(JO_COMPILE_WITH_AUDIO_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
+/** @brief A silent sound of 1 KB made resident
+ *  @return Its offset in the sound RAM, 0: not resident
+ */
+static unsigned int __attribute__((noinline))   t_resident_1k(jo_sound * const sound)
+{
+    jo_memset(sound, 0, sizeof(*sound));
+    if ((sound->data = (char *)jo_malloc(1024)) == JO_NULL)
+        return (0);
+    jo_memset(sound->data, 0, 1024);
+    sound->data_length = 1024;
+    sound->mode = JoSoundMono16Bit;
+    if (!jo_audio_make_resident(sound))
+    {
+        jo_free(sound->data);
+        return (0);
+    }
+    return (sound->resident - 1);
+}
+
+static void __attribute__((noinline))   t_music_room(void)
+{
+    jo_sound            sound;
+    unsigned int        first;
+    unsigned int        second;
+
+    jt_group("bugs.music_room");
+    // The room of the music in the sound RAM given back by jo_audio_free_resident() once the music is stopped: the music
+    // played after the resident sounds of a level stayed before them, the next levels had only the room before it
+    jo_audio_stop_music();
+    jo_audio_free_resident();
+    first = t_resident_1k(&sound);
+    jt_expect_errors(true);
+    jo_audio_play_music("STRM.WAV", false);
+    jt_expect_errors(false);
+    jo_audio_stop_music();
+    jo_audio_free_resident();
+    second = t_resident_1k(&sound);
+    // (at the end of the sound RAM, before the 16 KB of the reverberation of the DSP at most)
+    JT_TRUE(first >= 0x80000 - 16384 - 1024 - 32);
+    JT_EQ(second, first);
+    jo_audio_free_resident();
+}
+#endif
+
 void                    t_bugs(void)
 {
     t_3d_bugs();
@@ -1589,6 +1787,10 @@ void                    t_bugs(void)
     t_round6_b_bugs();
     t_round7_bugs();
     t_map_collision_4bits();
+    t_nbg1_clip();
+#if defined(JO_COMPILE_WITH_AUDIO_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
+    t_music_room();
+#endif
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     t_cell_floor_far();
     t_plane_attribute();

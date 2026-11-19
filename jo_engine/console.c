@@ -295,7 +295,7 @@ void                    jo_console_show_dialog(void)
     JO_ZERO(cursor);
     jo_clear_screen();
     jo_printf_with_color(6, __jo_history_count + 2, JO_COLOR_INDEX_Green, "Jo Engine Console v1.0");
-    jo_printf_with_color(0, __jo_history_count + 4, JO_COLOR_INDEX_White, "Tape \"exit\" to close the console.");
+    jo_printf_with_color(0, __jo_history_count + 4, JO_COLOR_INDEX_White, "Type \"exit\" to close the console.");
     for (JO_ZERO(frame); !exit; ++frame)
     {
         cursor = __jo_console_input_handling(&prompt, cursor, &history_autocomplete_index, &exit);

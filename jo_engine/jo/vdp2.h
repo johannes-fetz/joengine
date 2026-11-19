@@ -366,6 +366,7 @@ static  __jo_force_inline void	jo_vdp2_zoom_nbg0(const float factor)
  *  @param x1 horizontal location of the end of the line
  *  @param y1 vertical location of the end of the line
  *  @param color Color (ex: JO_COLOR_Red)
+ *  @remarks The pixels outside the bitmap (JO_VDP2_WIDTH x JO_VDP2_HEIGHT) are not drawn
  */
 void        jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, int x1, int y1, const jo_color color);
 
@@ -388,9 +389,13 @@ static  __jo_force_inline void	jo_vdp2_draw_bitmap_nbg1_square(const int x, cons
  *  @param x horizontal location
  *  @param y vertical location
  *  @param color Color (ex: JO_COLOR_Red)
+ *  @remarks Nothing is drawn outside the bitmap (JO_VDP2_WIDTH x JO_VDP2_HEIGHT)
  */
 static  __jo_force_inline void	jo_vdp2_put_pixel_bitmap_nbg1(const int x, const int y, const jo_color color)
 {
+    // (a pixel outside the bitmap was written in the other banks of the VRAM (the text of jo_printf()), or before the VRAM)
+    if ((unsigned int)x >= JO_VDP2_WIDTH || (unsigned int)y >= JO_VDP2_HEIGHT)
+        return;
     // (the bitmap at its first use, see __jo_vdp2_reserve_nbg1_bitmap())
     if (!__jo_vdp2_nbg1_bitmap_reserved && !__jo_vdp2_reserve_nbg1_bitmap())
         return;
@@ -545,7 +550,7 @@ void    jo_disable_all_screen_mozaic(void);
 ███████╗██║██║ ╚████║███████╗    ███████║╚██████╗██║  ██║╚██████╔╝███████╗███████╗
 ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
 
-▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUH jo_vdp2_set_nbg1_8bits_image() ▲
+▲ ONLY WORKS IF BACKGROUND IMAGE IS LOADED THROUGH jo_vdp2_set_nbg1_8bits_image() ▲
   OTHERWISE IT MAY GLITCH
 */
 
