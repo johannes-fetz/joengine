@@ -343,7 +343,7 @@ static void                                 jo_3d_model_add_texture(const char *
 }
 
 JO_LOW_WORK_RAM_CODE
-void                                        jo_3d_model_free_textures_from(const int sprite_id)
+void                                        __jo_3d_model_forget_textures_from(const int sprite_id)
 {
     register int                            i;
     register int                            n;
@@ -364,6 +364,12 @@ void                                        jo_3d_model_free_textures_from(const
     // (back in the tables kept in the program when they are enough: the table allocated freed)
     if (__jo_3d_model_texture_capacity != JO_3D_MODEL_KEPT_TEXTURES && n <= JO_3D_MODEL_KEPT_TEXTURES)
         jo_3d_model_texture_tables(JO_3D_MODEL_KEPT_TEXTURES);
+}
+
+JO_LOW_WORK_RAM_CODE
+void                                        jo_3d_model_free_textures_from(const int sprite_id)
+{
+    __jo_3d_model_forget_textures_from(sprite_id);
     __jo_3d_forget_sprites_from(sprite_id);
     jo_sprite_free_from(sprite_id);
 }

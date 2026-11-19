@@ -1719,16 +1719,17 @@ static void __attribute__((noinline))   t_nbg1_clip(void)
 }
 
 #if defined(JO_COMPILE_WITH_AUDIO_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
-/** @brief A silent sound of 1 KB made resident
+/** @brief A silent sound made resident
+ *  @param size Bytes
  *  @return Its offset in the sound RAM, 0: not resident
  */
-static unsigned int __attribute__((noinline))   t_resident_1k(jo_sound * const sound)
+static unsigned int __attribute__((noinline))   t_resident_sound(jo_sound * const sound, const unsigned int size)
 {
     jo_memset(sound, 0, sizeof(*sound));
-    if ((sound->data = (char *)jo_malloc(1024)) == JO_NULL)
+    if ((sound->data = (char *)jo_malloc(size)) == JO_NULL)
         return (0);
-    jo_memset(sound->data, 0, 1024);
-    sound->data_length = 1024;
+    jo_memset(sound->data, 0, size);
+    sound->data_length = size;
     sound->mode = JoSoundMono16Bit;
     if (!jo_audio_make_resident(sound))
     {
@@ -1749,17 +1750,72 @@ static void __attribute__((noinline))   t_music_room(void)
     // played after the resident sounds of a level stayed before them, the next levels had only the room before it
     jo_audio_stop_music();
     jo_audio_free_resident();
-    first = t_resident_1k(&sound);
+    first = t_resident_sound(&sound, 1024);
     jt_expect_errors(true);
     jo_audio_play_music("STRM.WAV", false);
     jt_expect_errors(false);
     jo_audio_stop_music();
     jo_audio_free_resident();
-    second = t_resident_1k(&sound);
+    second = t_resident_sound(&sound, 1024);
     // (at the end of the sound RAM, before the 16 KB of the reverberation of the DSP at most)
     JT_TRUE(first >= 0x80000 - 16384 - 1024 - 32);
     JT_EQ(second, first);
     jo_audio_free_resident();
+}
+
+static void __attribute__((noinline))   t_stereo_cut(void)
+{
+    jo_sound            stereo;
+    jo_sound            resident;
+    unsigned int        lea;
+    int                 k;
+
+    jt_group("bugs.stereo_cut");
+    // A stereo sound bigger than the room of the copied sounds (the resident sounds take the rest of the sound RAM): its
+    // left channel only (its right channel was not copied: the slot played the start of it after the left one)
+    for (k = 0; k < JO_SOUND_MAX_CHANNEL; ++k)
+        jo_audio_stop_channel((unsigned char)k);
+    jo_audio_stop_music();
+    jo_audio_free_resident();
+    // (resident sounds of 4 KB until the room left is 32 to 36 KB)
+    while (t_resident_sound(&resident, 4096) != 0)
+        ;
+    jo_memset(&stereo, 0, sizeof(stereo));
+    // (any memory: 24 KB per channel, silent)
+    stereo.data = (char *)0x06004000;
+    stereo.data_length = 48 * 1024;
+    stereo.mode = JoSoundStereo16Bit;
+    stereo.volume = 0;
+    jo_audio_play_sound_on_channel(&stereo, 0);
+    // (the loop end of the slot of the channel 0: its samples - 1; written by the 68000 when its driver runs)
+    for (k = 0; k < 100000; ++k)
+        if ((lea = JO_SCSP_SLOT(0, JO_SCSP_SLOT_LOOP_END)) == 24 * 1024 / 2 - 1)
+            break;
+    jo_audio_stop_channel(0);
+    jo_audio_free_resident();
+    JT_EQ(lea, 24 * 1024 / 2 - 1);
+}
+#endif
+
+#if defined(JO_COMPILE_WITH_3D_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
+static void __attribute__((noinline))   t_model_textures_freed(void)
+{
+    jo_3d_model         *model;
+    int                 first;
+    int                 loaded;
+
+    jt_group("bugs.model_textures_freed");
+    // The textures of a model freed by jo_sprite_free_from() (jo_sprite_free_all(): the end of a movie): their names
+    // forgotten (the next model with this texture took the sprite added at its id)
+    first = jo_sprite_count();
+    model = jo_3d_load_model("CAP.JOM");
+    JT_TRUE(model != JO_NULL);
+    loaded = jo_3d_model_loaded_texture("GCAP_066972.BIN");
+    if (model != JO_NULL)
+        jo_3d_free_model(model);
+    jo_sprite_free_from(first);
+    JT_TRUE(loaded >= first);
+    JT_EQ(jo_3d_model_loaded_texture("GCAP_066972.BIN"), -1);
 }
 #endif
 
@@ -1790,6 +1846,10 @@ void                    t_bugs(void)
     t_nbg1_clip();
 #if defined(JO_COMPILE_WITH_AUDIO_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
     t_music_room();
+    t_stereo_cut();
+#endif
+#if defined(JO_COMPILE_WITH_3D_SUPPORT) && defined(JO_COMPILE_WITH_FS_SUPPORT)
+    t_model_textures_freed();
 #endif
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     t_cell_floor_far();

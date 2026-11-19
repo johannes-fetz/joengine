@@ -62,6 +62,12 @@ jo_3d_model                                 *__jo_3d_load_model_for_tint(const c
  *  (see jo_3d_set_uniform_gouraud_skipped()) are not shared with the next models any more */
 void                                        __jo_3d_model_forget_lit_luts(void);
 
+/** @brief Sprites freed (Internal usage, see jo_sprite_free_from()): the names of the textures of the models among them
+ *  are forgotten (a model loaded after took the sprite added at the id of its texture)
+ *  @param sprite_id First sprite freed
+ */
+void                                        __jo_3d_model_forget_textures_from(const int sprite_id);
+
 #endif
 
 #endif /* !__JO_INTERNAL_MODEL_H__ */

@@ -488,8 +488,10 @@ void                        jo_sprite_free_from(const int sprite_id)
     // The mipmaps, the tiles and the flags of the textures freed
     __jo_3d_forget_sprites_from(sprite_id);
     __jo_3d_gouraud_pool_freed(sprite_id);
-    // (the copies of the color lookup tables of the models: maybe among the sprites freed)
+    // (the copies of the color lookup tables of the models: maybe among the sprites freed; the textures of the models
+    // freed by jo_sprite_free_from() or jo_sprite_free_all() too)
     __jo_3d_model_forget_lit_luts();
+    __jo_3d_model_forget_textures_from(sprite_id);
     // The last sprite is included
     for (i = sprite_id; i <= __jo_sprite_id; ++i)
     {

@@ -815,7 +815,10 @@ static void                         jo_audio_channel_on(const unsigned int chann
     if (sound->resident == 0 && length > __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START)
     {
         length = __jo_audio_resident_start - JO_AUDIO_PCM_AREA_START;
-        // (a stereo sound cut: its right channel was not copied, the left one only)
+        // (a stereo sound cut: its right channel was not copied, its left one played alone; the start of the right one
+        // was played after it)
+        if (stereo)
+            length = JO_MIN(length, JO_DIV_BY_2(sound->data_length));
         stereo = false;
     }
     // Stereo data: left channel samples, then right channel samples
