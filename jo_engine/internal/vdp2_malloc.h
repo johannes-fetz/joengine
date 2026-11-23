@@ -58,6 +58,18 @@ void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage us
  */
 void                            *__jo_vdp2_malloc_bank(const unsigned int n);
 
+/** @brief jo_vdp2_malloc() in the bank B0 first when the block near is there (the map of a screen in the bank of its cells)
+ *  @param usage The usage of the block
+ *  @param n Size in bytes
+ *  @param near Another block (JO_NULL: jo_vdp2_malloc())
+ *  @return The block, JO_NULL if the memory is full
+ */
+void                            *__jo_vdp2_malloc_near(const jo_vdp2_ram_usage usage, const unsigned int n, const void * const near);
+
+/** @brief The screens displayed by the VDP2 (JO_NBG0_SCREEN...: the bank B0 takes the blocks of the full banks only without
+ *  the rotation screen, see jo_vdp2_malloc()) */
+extern unsigned int             __jo_vdp2_displayed_screens;
+
 #endif /* !__JO_INTERNAL_VDP2_MALLOC_H__ */
 
 /*

@@ -189,6 +189,9 @@ void    jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @param vertical_flip Flip image vertically
  *  @param enabled Display NBG2 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ *  @remarks The image (its width x its height bytes) and its map (8 KB) go in the VRAM bank B1, with the text of
+ *  jo_printf(); in B0 when B1 is full (NBG2 and NBG3 with images of 256 x 256: 64 KB each), the map with the image (a
+ *  screen reads its map and its image in the access slots of their banks)
  */
 void    jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
@@ -198,6 +201,9 @@ void    jo_vdp2_set_nbg2_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @param vertical_flip Flip image vertically
  *  @param enabled Display NBG3 now
  *  @warning Image need to be clockwised rotated (right) because of an optimisation
+ *  @remarks The image (its width x its height bytes) and its map (8 KB) go in the VRAM bank B1, with the text of
+ *  jo_printf(); in B0 when B1 is full (NBG2 and NBG3 with images of 256 x 256: 64 KB each), the map with the image (a
+ *  screen reads its map and its image in the access slots of their banks)
  */
 void    jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool vertical_flip, bool enabled);
 
@@ -286,6 +292,20 @@ void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
  *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void	jo_vdp2_move_nbg1(const int x, const int y);
+
+/** @brief Move NBG2 (scrolling by whole pixels: NBG2 and NBG3 have no fraction and no zoom)
+ *  @param x Horizontal scroll (pixels)
+ *  @param y Vertical scroll (lines)
+ *  @remarks The image of jo_vdp2_set_nbg2_8bits_image() is repeated on the 512 x 512 pixels of the screen, and the screen
+ *  wraps: a tileable image of 256 x 256 scrolls without end (snow, rain, clouds)
+ */
+void    jo_vdp2_move_nbg2(const int x, const int y);
+
+/** @brief Move NBG3 (see jo_vdp2_move_nbg2())
+ *  @param x Horizontal scroll (pixels)
+ *  @param y Vertical scroll (lines)
+ */
+void    jo_vdp2_move_nbg3(const int x, const int y);
 
 /** @brief Scroll NBG1 with a fraction of pixel (fixed point: 8 bits of fraction are used)
  *  @param x Horizontal scroll (pixels of NBG1)
@@ -582,6 +602,21 @@ void                                jo_vdp2_disable_nbg1_line_scroll(void);
  */
 int                                 *jo_vdp2_enable_nbg1_line_scroll_xy(void);
 
+/** @brief Tables of jo_vdp2_next_nbg1_line_scroll_xy(): the one displayed, the ones of the frames waiting for their image
+ *  (the CPUs are up to 3 frames ahead of it), the one being written */
+# define JO_NBG1_SCROLL_XY_FRAME_TABLES  (5)
+
+/** @brief The table of jo_vdp2_enable_nbg1_line_scroll_xy() for the current frame, displayed with its image, like the scroll
+ *  registers set by the frame: a ground scrolled by the table goes with the sprites and the other planes
+ *  @return A table like the one of jo_vdp2_enable_nbg1_line_scroll_xy(), to fill for every line shown; JO_NULL when there is
+ *  no memory
+ *  @remarks Call it once per frame, in a frame callback of jo_core_run(): each call gives the next of
+ *  JO_NBG1_SCROLL_XY_FRAME_TABLES tables (the first call allocates them, 2 KB each), the tables of the frames still waiting
+ *  are not touched. The table of jo_vdp2_enable_nbg1_line_scroll_xy(), written directly, is displayed at once: 1 to 2
+ *  frames before the sprites of the same frame (a ground scrolled through it slid under the sprites and the clouds of NBG2)
+ */
+int                                 *jo_vdp2_next_nbg1_line_scroll_xy(void);
+
 /** @brief Compute NBG1 horizontal line scroll effect using specific offset
  *  @param offset Offset in scroll table returned by jo_vdp2_enable_nbg1_line_scroll()
  */
@@ -760,6 +795,15 @@ void    jo_vdp2_enable_blend(const jo_scroll_screen screens, unsigned char ratio
  *  palette pixel, the MSB of its color in the color RAM (the jo colors have it: clear it in the palette, color & 0x7FFF)
  */
 void    jo_vdp2_blend_rgb_sprites_only(const bool rgb_only);
+
+/** @brief Mix only the sprites of one priority (jo_vdp2_enable_blend(JO_SPRITE_SCREEN, ratio)), in the blend mode of the
+ *  other screens: lights or smoke drawn as palette sprites with a priority register of their own (jo_vdp2_set_sprite_priorities()),
+ *  their pixels choosing their ratio (jo_vdp2_set_sprite_blend_ratios()), over a background that keeps its ratio
+ *  transparencies (the additive sprites set the mode "add" for all the screens, see jo_enable_additive_sprites())
+ *  @param priority The priority of the mixed sprites (1 to 7), 0: all the sprites again
+ *  @remarks Give this priority to no other sprite: the RGB pixels have the priority register 0
+ */
+void    jo_vdp2_blend_sprites_of_priority(const unsigned char priority);
 
 /** @brief The screens are opaque again (see jo_vdp2_enable_blend())
  *  @param screens Screens

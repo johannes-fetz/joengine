@@ -255,11 +255,125 @@ static  __jo_force_inline unsigned char *jo_vdp2_block_start(unsigned char *top,
     }
 }
 
-void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, unsigned int n)
+/** @brief A block in the bank B1 (the maps and the cells of NBG0, NBG2 and NBG3, the tables of the windows and of the line
+ *  color screen, the blocks of the game): after the font of jo_printf(), around its map
+ *  @param usage The usage of the block
+ *  @param n Size in bytes
+ *  @return The block, JO_NULL if the bank is full
+ */
+static void                     *jo_vdp2_malloc_b1(const jo_vdp2_ram_usage usage, const unsigned int n)
 {
     register unsigned int       i;
-    void                        *ptr;
     unsigned char               *start;
+
+    for (JO_ZERO(i); i < B1_SEGMENT_COUNT; ++i)
+    {
+        if (__jo_b1_segments[i].size == 0)
+        {
+            // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
+            // an aligned map belongs to the block: freed with it)
+            start = jo_vdp2_block_start(__jo_b1, usage);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+            if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
+                start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
+#endif
+            if (start + n > (unsigned char *)(JO_VDP2_VRAM + 0x80000))
+                return (JO_NULL);
+            __jo_b1_segments[i].ptr = __jo_b1;
+            __jo_b1_segments[i].size = (unsigned int)(start + n - __jo_b1);
+            __jo_b1_segments[i].data = start;
+            __jo_b1 = start + n;
+            __jo_b1_segments[i].is_free = false;
+            return (start);
+        }
+        start = jo_vdp2_block_start(__jo_b1_segments[i].ptr, usage);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+        // (a free block over the map of jo_printf(): after it, as a new block)
+        if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
+            start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
+#endif
+        if (__jo_b1_segments[i].is_free && start + n <= __jo_b1_segments[i].ptr + __jo_b1_segments[i].size)
+            return (jo_vdp2_reuse(__jo_b1_segments, B1_SEGMENT_COUNT, i, start, start + n));
+    }
+    return (JO_NULL);
+}
+
+/** @brief A block in the bank B0 (the maps of NBG1 and RBG0)
+ *  @param usage The usage of the block
+ *  @param n Size in bytes
+ *  @return The block, JO_NULL if the bank is full
+ */
+static void                     *jo_vdp2_malloc_b0(const jo_vdp2_ram_usage usage, const unsigned int n)
+{
+    register unsigned int       i;
+    unsigned char               *start;
+
+    for (JO_ZERO(i); i < B0_SEGMENT_COUNT; ++i)
+    {
+        if (__jo_b0_segments[i].size == 0)
+        {
+            // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
+            // an aligned map belongs to the block: freed with it)
+            start = jo_vdp2_block_start(__jo_b0, usage);
+            if (start + n > (unsigned char *)JO_VDP2_VRAM_B1)
+                return (JO_NULL);
+            __jo_b0_segments[i].ptr = __jo_b0;
+            __jo_b0_segments[i].size = (unsigned int)(start + n - __jo_b0);
+            __jo_b0_segments[i].data = start;
+            __jo_b0 = start + n;
+            __jo_b0_segments[i].is_free = false;
+            return (start);
+        }
+        start = jo_vdp2_block_start(__jo_b0_segments[i].ptr, usage);
+        if (__jo_b0_segments[i].is_free && start + n <= __jo_b0_segments[i].ptr + __jo_b0_segments[i].size)
+            return (jo_vdp2_reuse(__jo_b0_segments, B0_SEGMENT_COUNT, i, start, start + n));
+    }
+    return (JO_NULL);
+}
+
+/** @brief A block in the banks A0 and A1 (the bitmaps of NBG0 and NBG1, the cells of NBG1 and RBG0, the line scroll tables)
+ *  @param usage The usage of the block
+ *  @param n Size in bytes
+ *  @return The block, JO_NULL if the banks are full
+ */
+static void                     *jo_vdp2_malloc_a0(const jo_vdp2_ram_usage usage, const unsigned int n)
+{
+    register unsigned int       i;
+
+    for (JO_ZERO(i); i < A0_SEGMENT_COUNT; ++i)
+    {
+        if (__jo_a0_segments[i].size == 0)
+        {
+            // (the end of the bank: the cells of the rotation screen stop before its coefficient table (A1), a bitmap
+            // can use A0 and A1)
+            if (__jo_a0 + n > (unsigned char *)(usage == JO_VDP2_RAM_CELL_RBG0 ? JO_VDP2_VRAM_A1 : JO_VDP2_VRAM_B0))
+                return (JO_NULL);
+            __jo_a0_segments[i].ptr = __jo_a0;
+            __jo_a0_segments[i].data = __jo_a0;
+            __jo_a0 += n;
+            __jo_a0_segments[i].size = n;
+            __jo_a0_segments[i].is_free = false;
+            return (__jo_a0_segments[i].ptr);
+        }
+        // (the cells of the rotation screen: the same end as a new block, a freed bitmap of A0 and A1 reused for them went
+        // over its coefficient table. The other blocks are all before B0)
+        if (__jo_a0_segments[i].is_free && __jo_a0_segments[i].size >= n &&
+            (usage != JO_VDP2_RAM_CELL_RBG0 || __jo_a0_segments[i].ptr + n <= (unsigned char *)JO_VDP2_VRAM_A1))
+            return (jo_vdp2_reuse(__jo_a0_segments, A0_SEGMENT_COUNT, i, __jo_a0_segments[i].ptr, __jo_a0_segments[i].ptr + n));
+    }
+    return (JO_NULL);
+}
+
+/** @brief The bank B0 can take the blocks of the other banks when they are full: its maps (NBG1 in cells, RBG0) are small,
+ *  and a bitmap of NBG1 (A0 and A1) leaves it free. Not with the rotation screen (its banks are read by it only) */
+static  __jo_force_inline bool  jo_vdp2_b0_can_help(void)
+{
+    return (!(__jo_vdp2_displayed_screens & JO_RBG0_SCREEN));
+}
+
+void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, unsigned int n)
+{
+    void                        *ptr;
 
     // (a size bigger than the whole VRAM must not wrap the tests of the ends of the banks: start + n)
     if (n > 0x80000 && usage != JO_VDP2_RAM_BACK_COLOR && usage != JO_VDP2_RAM_RTABLE && usage != JO_VDP2_RAM_KTABLE &&
@@ -287,108 +401,33 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
         case JO_VDP2_RAM_CELL_NBG2:
         case JO_VDP2_RAM_CELL_NBG3:
         case JO_VDP2_LINE_COLOR_TABLE:
-            for (JO_ZERO(i); i < B1_SEGMENT_COUNT; ++i)
-            {
-                if (__jo_b1_segments[i].size == 0)
-                {
-                    // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
-                    // an aligned map belongs to the block: freed with it)
-                    start = jo_vdp2_block_start(__jo_b1, usage);
-#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
-                    if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
-                        start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
-#endif
-                    if (start + n > (unsigned char *)(JO_VDP2_VRAM + 0x80000))
-                        break;
-                    __jo_b1_segments[i].ptr = __jo_b1;
-                    __jo_b1_segments[i].size = (unsigned int)(start + n - __jo_b1);
-                    __jo_b1_segments[i].data = start;
-                    __jo_b1 = start + n;
-                    __jo_b1_segments[i].is_free = false;
-                    return (start);
-                }
-                start = jo_vdp2_block_start(__jo_b1_segments[i].ptr, usage);
-#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
-                // (a free block over the map of jo_printf(): after it, as a new block)
-                if (start < JO_VDP2_B1_HOLE_END && start + n > JO_VDP2_B1_HOLE_START)
-                    start = jo_vdp2_block_start(JO_VDP2_B1_HOLE_END, usage);
-#endif
-                if (__jo_b1_segments[i].is_free && start + n <= __jo_b1_segments[i].ptr + __jo_b1_segments[i].size)
-                    return (jo_vdp2_reuse(__jo_b1_segments, B1_SEGMENT_COUNT, i, start, start + n));
-            }
-#ifdef JO_DEBUG
-            if (!__jo_vdp2_quiet)
-                jo_core_error("Out of VDP2 memory");
-#endif
-            return (JO_NULL);
+            // (B1 full, with the 2 layers of 256 colors of NBG2 and NBG3: the rest in B0)
+            if ((ptr = jo_vdp2_malloc_b1(usage, n)) != JO_NULL || (jo_vdp2_b0_can_help() && (ptr = jo_vdp2_malloc_b0(usage, n)) != JO_NULL))
+                return (ptr);
+            break;
         case JO_VDP2_RAM_MAP_NBG1:
         case JO_VDP2_RAM_MAP_RBG0:
-            for (JO_ZERO(i); i < B0_SEGMENT_COUNT; ++i)
-            {
-                if (__jo_b0_segments[i].size == 0)
-                {
-                    // (the end of the bank: the next bank holds other data, see the top of this file; the padding before
-                    // an aligned map belongs to the block: freed with it)
-                    start = jo_vdp2_block_start(__jo_b0, usage);
-                    if (start + n > (unsigned char *)JO_VDP2_VRAM_B1)
-                        break;
-                    __jo_b0_segments[i].ptr = __jo_b0;
-                    __jo_b0_segments[i].size = (unsigned int)(start + n - __jo_b0);
-                    __jo_b0_segments[i].data = start;
-                    __jo_b0 = start + n;
-                    __jo_b0_segments[i].is_free = false;
-                    return (start);
-                }
-                start = jo_vdp2_block_start(__jo_b0_segments[i].ptr, usage);
-                if (__jo_b0_segments[i].is_free && start + n <= __jo_b0_segments[i].ptr + __jo_b0_segments[i].size)
-                    return (jo_vdp2_reuse(__jo_b0_segments, B0_SEGMENT_COUNT, i, start, start + n));
-            }
-#ifdef JO_DEBUG
-            if (!__jo_vdp2_quiet)
-                jo_core_error("Out of VDP2 memory");
-#endif
-            return (JO_NULL);
+            if ((ptr = jo_vdp2_malloc_b0(usage, n)) != JO_NULL)
+                return (ptr);
+            break;
+        case JO_VDP2_RAM_LINE_SCROLL:
+            // (the banks A0 and A1 full with the bitmap of NBG1 in 256 colors (jo_vdp2_set_nbg1_8bits_bitmap()): the table in
+            // B0 or B1, read by the VDP2 in the horizontal blanking from any bank)
+            if ((ptr = jo_vdp2_malloc_a0(usage, n)) != JO_NULL || (jo_vdp2_b0_can_help() && (ptr = jo_vdp2_malloc_b0(usage, n)) != JO_NULL) ||
+                (ptr = jo_vdp2_malloc_b1(usage, n)) != JO_NULL)
+                return (ptr);
+            break;
         case JO_VDP2_RAM_BITMAP_NBG0:
         case JO_VDP2_RAM_BITMAP_NBG1:
-        case JO_VDP2_RAM_LINE_SCROLL:
         case JO_VDP2_RAM_CELL_NBG1:
         case JO_VDP2_RAM_CELL_RBG0:
-            for (JO_ZERO(i); i < A0_SEGMENT_COUNT; ++i)
-            {
-                if (__jo_a0_segments[i].size == 0)
-                {
-                    // (the end of the bank: the cells of the rotation screen stop before its coefficient table (A1), a bitmap
-                    // can use A0 and A1)
-                    if (__jo_a0 + n > (unsigned char *)(usage == JO_VDP2_RAM_CELL_RBG0 ? JO_VDP2_VRAM_A1 : JO_VDP2_VRAM_B0))
-                        break;
-                    __jo_a0_segments[i].ptr = __jo_a0;
-                    __jo_a0_segments[i].data = __jo_a0;
-                    __jo_a0 += n;
-                    __jo_a0_segments[i].size = n;
-                    __jo_a0_segments[i].is_free = false;
-                    return (__jo_a0_segments[i].ptr);
-                }
-                // (the cells of the rotation screen: the same end as a new block, a freed bitmap of A0 and A1 reused for them went
-                // over its coefficient table. The other blocks are all before B0)
-                if (__jo_a0_segments[i].is_free && __jo_a0_segments[i].size >= n &&
-                    (usage != JO_VDP2_RAM_CELL_RBG0 || __jo_a0_segments[i].ptr + n <= (unsigned char *)JO_VDP2_VRAM_A1))
-                    return (jo_vdp2_reuse(__jo_a0_segments, A0_SEGMENT_COUNT, i, __jo_a0_segments[i].ptr, __jo_a0_segments[i].ptr + n));
-            }
-#ifdef JO_DEBUG
-            if (!__jo_vdp2_quiet)
-                jo_core_error("Out of VDP2 memory");
-#endif
-            return (JO_NULL);
+            if ((ptr = jo_vdp2_malloc_a0(usage, n)) != JO_NULL)
+                return (ptr);
+            break;
         case JO_VDP2_RAM_COLOR:
             // The color RAM has JO_PALETTE_MAX palettes of 256 colors
             if ((__jo_current_palette_id + 1) >= JO_PALETTE_MAX)
-            {
-#ifdef JO_DEBUG
-                if (!__jo_vdp2_quiet)
-                    jo_core_error("Out of VDP2 memory");
-#endif
-                return (JO_NULL);
-            }
+                break;
             ++__jo_current_palette_id;
             ptr = __jo_cram;
             __jo_cram += CRAM_PALETTE_SIZE;
@@ -399,6 +438,11 @@ void                            *jo_vdp2_malloc(const jo_vdp2_ram_usage usage, u
 #endif
             return (JO_NULL);
     }
+#ifdef JO_DEBUG
+    if (!__jo_vdp2_quiet)
+        jo_core_error("Out of VDP2 memory");
+#endif
+    return (JO_NULL);
 }
 
 /** @brief A new block at the start of a bank of a pool (see __jo_vdp2_malloc_bank())
@@ -442,6 +486,17 @@ void                            *__jo_vdp2_malloc_bank(const unsigned int n)
     if ((ptr = jo_vdp2_malloc_bank_in(__jo_a0_segments, A0_SEGMENT_COUNT, &__jo_a0, (unsigned char *)JO_VDP2_VRAM_B0, n)) != JO_NULL)
         return (ptr);
     return (jo_vdp2_malloc_bank_in(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0, (unsigned char *)JO_VDP2_VRAM_B1, n));
+}
+
+void                            *__jo_vdp2_malloc_near(const jo_vdp2_ram_usage usage, const unsigned int n, const void * const near)
+{
+    void                        *ptr;
+
+    if (near != JO_NULL && (const unsigned char *)near >= (const unsigned char *)JO_VDP2_VRAM_B0 &&
+        (const unsigned char *)near < (const unsigned char *)JO_VDP2_VRAM_B1 && jo_vdp2_b0_can_help() &&
+        (ptr = jo_vdp2_malloc_b0(usage, n)) != JO_NULL)
+        return (ptr);
+    return (jo_vdp2_malloc(usage, n));
 }
 
 void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage usage, const unsigned int n)

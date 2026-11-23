@@ -71,6 +71,9 @@ bool                                __jo_vdp2_nbg1_bitmap_reserved = false;
 static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
 static int                          *nbg1_scroll_table = JO_NULL;
+/** @brief The tables of jo_vdp2_next_nbg1_line_scroll_xy(), the one of the current frame */
+static int                          *nbg1_frame_tables = JO_NULL;
+static int                          nbg1_frame_table = 0;
 static int                          *nbg1_vertical_cell_scroll_table = JO_NULL;
 //NBG2
 static unsigned short               *nbg2_map = JO_NULL;
@@ -313,14 +316,15 @@ static unsigned short               __jo_vdp2_tvmd;
 ** colors...) and the changes made before jo_core_run() or in a VBLANK callback: at the next VBLANK, as before.
 */
 /** @brief Registers applied with the image of their frame (see jo_vdp2_frame_register()) */
-# define JO_VDP2_FRAME_REGISTERS            (14)
+# define JO_VDP2_FRAME_REGISTERS            (18)
 
 /** @brief Registers of the current frame (bits of jo_vdp2_frame_register()) */
 static unsigned int                 __jo_vdp2_frame_dirty = 0;
 /** @brief The rotation parameters set by the current frame */
 static bool                         __jo_vdp2_frame_rparams = false;
 
-/** @brief The registers applied with the image of their frame: the scroll of NBG0 to NBG3, and the registers of the
+/** @brief The registers applied with the image of their frame: the scroll of NBG0 to NBG3, the addresses of the line
+ *  scroll tables of NBG0 and NBG1 (a table per frame, see jo_vdp2_next_nbg1_line_scroll_xy()), and the registers of the
  *  rotation parameter B set with its matrix (coefficient table, character over the planes)
  *  @param index Register index (JO_VDP2_REG_INDEX())
  *  @return Bit of the register in the state of a frame, -1: applied at the next VBLANK
@@ -340,6 +344,9 @@ static  __jo_force_inline int       jo_vdp2_frame_register(const unsigned int in
         return (12);
     if (index == JO_VDP2_REG_INDEX(JO_VDP2_OVPNRB))
         return (13);
+    // LSTA0U, LSTA0L, LSTA1U, LSTA1L
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U) < 4)
+        return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U)) + 14);
     return (-1);
 }
 
@@ -355,6 +362,8 @@ static  __jo_force_inline unsigned int  jo_vdp2_frame_register_index(const int n
         return (JO_VDP2_REG_INDEX(JO_VDP2_SCXIN1) + (unsigned int)(n - 4));
     if (n < 12)
         return (JO_VDP2_REG_INDEX(JO_VDP2_SCXN2) + (unsigned int)(n - 8));
+    if (n >= 14)
+        return (JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U) + (unsigned int)(n - 14));
     return (n == 12 ? JO_VDP2_REG_INDEX(JO_VDP2_KTCTL) : JO_VDP2_REG_INDEX(JO_VDP2_OVPNRB));
 }
 
@@ -519,7 +528,8 @@ typedef struct
 }                                   jo_vdp2_screen;
 
 static jo_vdp2_screen               __jo_vdp2_screens[JO_VDP2_SCREEN_COUNT];
-static unsigned int                 __jo_vdp2_displayed_screens;
+/** @brief The displayed screens (BGON; see internal/vdp2_malloc.h) */
+unsigned int                        __jo_vdp2_displayed_screens = 0;
 /* The NBG1 registers hold the configuration of the NBG1 bitmap (see jo_vdp2_use_nbg1_bitmap()) */
 static bool                         __jo_vdp2_nbg1_bitmap_registers = false;
 /** @brief The NBG1 bitmap has 256 colors at the resolution of the screen (see jo_vdp2_set_nbg1_8bits_bitmap()) */
@@ -3114,11 +3124,17 @@ void                            jo_vdp2_disable_nbg1_line_scroll(void)
 {
     // The VDP2 must stop reading the table before it is freed (the registers: written now, not at the next VBLANK)
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK << JO_VDP2_SCRCTL_NBG1_SHIFT, 0);
+    if (nbg1_scroll_table != JO_NULL || nbg1_frame_tables != JO_NULL)
+        jo_vdp2_flush_now();
     if (nbg1_scroll_table != JO_NULL)
     {
-        jo_vdp2_flush_now();
         jo_vdp2_free(nbg1_scroll_table);
         nbg1_scroll_table = JO_NULL;
+    }
+    if (nbg1_frame_tables != JO_NULL)
+    {
+        jo_vdp2_free(nbg1_frame_tables);
+        nbg1_frame_tables = JO_NULL;
     }
 }
 
@@ -3149,11 +3165,41 @@ int                             *jo_vdp2_enable_nbg1_line_scroll_xy(void)
     return (nbg1_scroll_table);
 }
 
+int                             *jo_vdp2_next_nbg1_line_scroll_xy(void)
+{
+    int                         *table;
+
+    if (nbg1_scroll_table == JO_NULL)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("Call jo_vdp2_enable_nbg1_line_scroll_xy() first");
+#endif
+        return (JO_NULL);
+    }
+    if (nbg1_frame_tables == JO_NULL)
+    {
+        nbg1_frame_tables = jo_vdp2_malloc(JO_VDP2_RAM_LINE_SCROLL,
+                                           JO_NBG1_SCROLL_XY_FRAME_TABLES * JO_NBG1_SCROLL_XY_TABLE_LINES * 2 * sizeof(int));
+        if (nbg1_frame_tables == JO_NULL)
+            return (JO_NULL);
+        JO_ZERO(nbg1_frame_table);
+    }
+    if (++nbg1_frame_table >= JO_NBG1_SCROLL_XY_FRAME_TABLES)
+        JO_ZERO(nbg1_frame_table);
+    table = nbg1_frame_tables + nbg1_frame_table * JO_NBG1_SCROLL_XY_TABLE_LINES * 2;
+    jo_vdp2_set_line_scroll_table(JO_VDP2_SCREEN_NBG1, table);
+    return (table);
+}
+
 int                             *jo_vdp2_enable_nbg1_line_scroll(void)
 {
-    __jo_switch_to_8bits_mode();
+    // (the 256 colors bitmap of the screen (jo_vdp2_set_nbg1_8bits_bitmap()) fills the banks A0 and A1: kept, the table in
+    // the bank B1. Before, the bitmap was freed and the table put at its start: its first lines showed the table)
+    if (!__jo_vdp2_nbg1_native)
+        __jo_switch_to_8bits_mode();
     if (nbg1_scroll_table == JO_NULL)
-        nbg1_scroll_table = jo_vdp2_malloc(JO_VDP2_RAM_LINE_SCROLL, JO_NBG1_SCROLL_TABLE_SIZE * sizeof(int));
+        nbg1_scroll_table = jo_vdp2_malloc(__jo_vdp2_nbg1_native ? JO_VDP2_RAM_USER : JO_VDP2_RAM_LINE_SCROLL,
+                                           JO_NBG1_SCROLL_TABLE_SIZE * sizeof(int));
     if (nbg1_scroll_table == JO_NULL)
         return (JO_NULL);
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK << JO_VDP2_SCRCTL_NBG1_SHIFT, JO_VDP2_LINE_SCROLL_HORIZONTAL << JO_VDP2_SCRCTL_NBG1_SHIFT);
@@ -3195,6 +3241,26 @@ void                            jo_vdp2_disable_nbg1_vertical_cell_scroll(void)
 }
 
 
+/** @brief The map of a screen in the bank of its cells: in the bank B1 full of the accesses of NBG0 and NBG2, the map of
+ *  NBG3 had no access slot (NBG3 not displayed) while its cells were in B0 (see jo_vdp2_malloc())
+ *  @param map The map of the screen (JO_NULL: none yet)
+ *  @param usage JO_VDP2_RAM_MAP_NBG2 or JO_VDP2_RAM_MAP_NBG3
+ *  @param cell The cells of the screen
+ *  @return The map (moved if it was in another bank), JO_NULL if the memory is full
+ */
+static unsigned short           *jo_vdp2_map_near_cells(unsigned short *map, const jo_vdp2_ram_usage usage, const void * const cell)
+{
+    if (map != JO_NULL && cell != JO_NULL &&
+        jo_vdp2_bank_of(jo_vdp2_vram_offset(map)) != jo_vdp2_bank_of(jo_vdp2_vram_offset(cell)))
+    {
+        jo_vdp2_free(map);
+        map = JO_NULL;
+    }
+    if (map == JO_NULL)
+        map = (unsigned short *)__jo_vdp2_malloc_near(usage, JO_VDP2_MAP_SIZE, cell);
+    return (map);
+}
+
 void			                __jo_set_nbg2_8bits_image(jo_img_8bits *img, bool vertical_flip)
 {
     if (nbg2_cell != JO_NULL)
@@ -3206,8 +3272,9 @@ void			                __jo_set_nbg2_8bits_image(jo_img_8bits *img, bool vertica
     jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG2, JO_VDP2_COLOR_256, 0);
     if (nbg2_map == JO_NULL)
         nbg2_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG2, JO_VDP2_MAP_SIZE);
-    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG2, nbg2_map);
     nbg2_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG2, img->width * img->height);
+    nbg2_map = jo_vdp2_map_near_cells(nbg2_map, JO_VDP2_RAM_MAP_NBG2, nbg2_cell);
+    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG2, nbg2_map);
     if (nbg2_map == JO_NULL || nbg2_cell == JO_NULL)
         return ;
     jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG2, nbg2_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
@@ -3241,8 +3308,9 @@ void			                __jo_set_nbg3_8bits_image(jo_img_8bits *img, bool vertica
     jo_vdp2_set_character_mode(JO_VDP2_SCREEN_NBG3, JO_VDP2_COLOR_256, 0);
     if (nbg3_map == JO_NULL)
         nbg3_map = (unsigned short *)jo_vdp2_malloc(JO_VDP2_RAM_MAP_NBG3, JO_VDP2_MAP_SIZE);
-    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG3, nbg3_map);
     nbg3_cell = (unsigned char *)jo_vdp2_malloc(JO_VDP2_RAM_CELL_NBG3, img->width * img->height);
+    nbg3_map = jo_vdp2_map_near_cells(nbg3_map, JO_VDP2_RAM_MAP_NBG3, nbg3_cell);
+    jo_vdp2_set_map(JO_VDP2_SCREEN_NBG3, nbg3_map);
     if (nbg3_map == JO_NULL || nbg3_cell == JO_NULL)
         return ;
     jo_vdp2_set_cell(JO_VDP2_SCREEN_NBG3, nbg3_cell, JO_VDP2_PATTERN_1WORD | JO_VDP2_PATTERN_12BIT);
@@ -3602,6 +3670,18 @@ void	                        jo_vdp2_move_nbg0(const int x, const int y)
     JO_VDP2_SET(JO_VDP2_SCXDN0, 0);
     JO_VDP2_SET(JO_VDP2_SCYIN0, y & JO_VDP2_SCROLL_INTEGER_MASK);
     JO_VDP2_SET(JO_VDP2_SCYDN0, 0);
+}
+
+void                            jo_vdp2_move_nbg2(const int x, const int y)
+{
+    JO_VDP2_SET(JO_VDP2_SCXN2, x & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYN2, y & JO_VDP2_SCROLL_INTEGER_MASK);
+}
+
+void                            jo_vdp2_move_nbg3(const int x, const int y)
+{
+    JO_VDP2_SET(JO_VDP2_SCXN3, x & JO_VDP2_SCROLL_INTEGER_MASK);
+    JO_VDP2_SET(JO_VDP2_SCYN3, y & JO_VDP2_SCROLL_INTEGER_MASK);
 }
 
 void	                        jo_vdp2_move_nbg1(const int x, const int y)
@@ -4059,6 +4139,14 @@ static unsigned short                   __jo_vdp2_sprite_blend_condition = JO_VD
 void                                    jo_vdp2_blend_rgb_sprites_only(const bool rgb_only)
 {
     __jo_vdp2_sprite_blend_condition = rgb_only ? JO_VDP2_SPCTL_COLOR_CALC_MSB : JO_VDP2_SPCTL_COLOR_CALC_ALL;
+    if (JO_VDP2_GET(JO_VDP2_CCCTL) & JO_SPRITE_SCREEN)
+        JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, __jo_vdp2_sprite_blend_condition);
+}
+
+void                                    jo_vdp2_blend_sprites_of_priority(const unsigned char priority)
+{
+    __jo_vdp2_sprite_blend_condition = priority == 0 ? JO_VDP2_SPCTL_COLOR_CALC_ALL :
+                                       (unsigned short)(JO_VDP2_SPCTL_COLOR_CALC_EQUAL | ((priority & JO_VDP2_PRIORITY_LOW_MASK) << 8));
     if (JO_VDP2_GET(JO_VDP2_CCCTL) & JO_SPRITE_SCREEN)
         JO_VDP2_SET_BITS(JO_VDP2_SPCTL, JO_VDP2_SPCTL_COLOR_CALC_MASK, __jo_vdp2_sprite_blend_condition);
 }
