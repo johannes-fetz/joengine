@@ -30,6 +30,8 @@
 ** The agent: the controls and the movement
 **
 ** - D-pad: forward / backward, turn (the turn speeds up over a few frames: a smooth start like an analog stick)
+** - Analog stick (3D pad in analog mode, mission stick), when plugged in: forward / backward and turn, proportional; in the
+**   aiming mode it moves the crosshair. The D-pad keeps the priority
 ** - L / R: step to the side. L + R held: the aiming mode (the agent stands still, the D-pad moves the crosshair; near the
 **   edges of the screen the view turns)
 ** - C: crouch / stand up (a toggle)
@@ -40,6 +42,10 @@
 */
 
 #include "demo.h"
+
+/** @brief Dead zone of the analog stick (0 to 127) and the full deflection of a control (the D-pad gives it) */
+# define STICK_DEAD_ZONE                (12)
+# define STICK_FULL                     (127)
 
 /** @brief Speed of the turn now (degrees per frame x 256) and the fraction of a degree of the yaw (x 256: at 60 frames
  *  per second a frame turns about one degree, the fraction matters) */
@@ -215,6 +221,8 @@ void                            player_update(void)
     jo_fixed                    dz;
     jo_fixed                    target_amount;
     int                         previous_yaw;
+    int                         stick_x;
+    int                         stick_y;
 
     up = jo_is_pad1_key_pressed(JO_KEY_UP);
     down = jo_is_pad1_key_pressed(JO_KEY_DOWN);
@@ -224,6 +232,8 @@ void                            player_update(void)
     r = jo_is_pad1_key_pressed(JO_KEY_R);
     c = jo_is_pad1_key_pressed(JO_KEY_C);
     b = jo_is_pad1_key_pressed(JO_KEY_B);
+    stick_x = jo_get_input_stick(0, JoAxis1, STICK_DEAD_ZONE);
+    stick_y = jo_get_input_stick(0, JoAxis2, STICK_DEAD_ZONE);
     previous_yaw = yaw;
     // Crouch (a toggle); in a duct (a narrow cell), the agent crawls
     if (c && !c_was_down)
@@ -260,6 +270,10 @@ void                            player_update(void)
             aim_y -= AIM_CURSOR_SPEED / GAME_FPS;
         if (down)
             aim_y += AIM_CURSOR_SPEED / GAME_FPS;
+        if (!left && !right)
+            aim_x += stick_x * (AIM_CURSOR_SPEED / GAME_FPS) / STICK_FULL;
+        if (!up && !down)
+            aim_y += stick_y * (AIM_CURSOR_SPEED / GAME_FPS) / STICK_FULL;
         if (aim_x < -AIM_CURSOR_EDGE_X)
         {
             yaw -= (-AIM_CURSOR_EDGE_X - aim_x) / 2;
@@ -290,13 +304,15 @@ void                            player_update(void)
         if (pitch != 0 && (frame_counter % (GAME_FPS / 30)) == 0)
             pitch -= JO_MAX(1, JO_ABS(pitch) / 6) * (pitch > 0 ? 1 : -1);
         if (up)
-            forward = 1;
+            forward = STICK_FULL;
         else if (down)
-            forward = -1;
+            forward = -STICK_FULL;
+        else
+            forward = -stick_y;
         if (l && !r)
-            side = -1;
+            side = -STICK_FULL;
         else if (r && !l)
-            side = 1;
+            side = STICK_FULL;
         if (left)
             turn = -1;
         else if (right)
@@ -308,6 +324,11 @@ void                            player_update(void)
             turn_speed = JO_MAX(turn_speed - (TURN_SPEED * 256 / GAME_FPS) / 2, 0);
         if (turn != 0)
             yaw_fraction += turn * turn_speed;
+        else if (stick_x != 0)
+        {
+            turn_speed = 0;
+            yaw_fraction += stick_x * (TURN_SPEED * 256 / GAME_FPS) / STICK_FULL;
+        }
         else if (turn_speed > 0)
             yaw_fraction += (turn_delta > 0 ? 1 : -1) * turn_speed;
         yaw += yaw_fraction / 256;
@@ -328,18 +349,19 @@ void                            player_update(void)
     dz = 0;
     if (forward != 0)
     {
-        dx += jo_sin(yaw) * forward * speed / GAME_FPS;
-        dz += jo_cos(yaw) * forward * speed / GAME_FPS;
+        dx += jo_sin(yaw) * speed / GAME_FPS * forward / STICK_FULL;
+        dz += jo_cos(yaw) * speed / GAME_FPS * forward / STICK_FULL;
     }
     if (side != 0)
     {
-        dx += jo_cos(yaw) * side * (crouched ? STRAFE_SPEED * CROUCH_SPEED_PERCENT / 100 : STRAFE_SPEED) / GAME_FPS;
-        dz -= jo_sin(yaw) * side * (crouched ? STRAFE_SPEED * CROUCH_SPEED_PERCENT / 100 : STRAFE_SPEED) / GAME_FPS;
+        speed = crouched ? STRAFE_SPEED * CROUCH_SPEED_PERCENT / 100 : STRAFE_SPEED;
+        dx += jo_cos(yaw) * speed / GAME_FPS * side / STICK_FULL;
+        dz -= jo_sin(yaw) * speed / GAME_FPS * side / STICK_FULL;
     }
     move(dx, dz);
     fall();
     // The bob of the walk
-    target_amount = (forward != 0 || side != 0) ? JO_FIXED_1 : 0;
+    target_amount = JO_MAX(JO_ABS(forward), JO_ABS(side)) * JO_FIXED_1 / STICK_FULL;
     walk_amount += (target_amount - walk_amount) * 8 / GAME_FPS;
     if (walk_amount > JO_FIXED_1 / 20)
         walk_phase = (walk_phase + jo_fixed2int(walk_amount * 270) / GAME_FPS) % 360;
