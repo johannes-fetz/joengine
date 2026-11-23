@@ -52,7 +52,12 @@ guesses about speed are wrong.
 - **Wrong colors on a texture of 16 colors**: its color table overwritten in the VDP1 VRAM (a game that writes gouraud
   tables or colors by itself, see `jo_3d_set_unique_gouraud_tables()`), or its index 15 used (an end code).
 - **A layer of the VDP2 not shown**: its VRAM bank taken by another layer (the remarks of the function in `vdp2.h`),
-  its priority under another layer, or the layer not enabled.
+  no access slot for its map or its cells in the cycle patterns of their banks (registers CYCA0L to CYCB1U of a save
+  state: a layer of 256 colors needs a pattern name read and 2 character reads), its priority under another layer, or
+  the layer not enabled.
+- **A black screen from the start, even the text**: an error of `JO_DEBUG` (`jo_core_error()`) hidden by a fade to black
+  (`jo_effect_fade()`) set before it. Read `__jo_last_error` in a save state: its address in `game.map`, the work RAM of
+  Mednafen stored by words of 16 bits in little endian (swap each pair of bytes).
 - **A sprite cut or squeezed**: its width not a multiple of 8, or a texture bigger than the VDP1 allows.
 - Look at the data before the code: the VDP1 command table of a save state at the place of the glitch tells which
   polygon is drawn, with which texture and where.
