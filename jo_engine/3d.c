@@ -6313,8 +6313,12 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
 {
     jo_3d_environment                       *e;
     const jo_texture_definition             *texture;
-    const jo_color                          *pixels;
+    const unsigned char                     *pixels;
+    unsigned char                           *data;
     jo_img                                  img;
+    jo_img_8bits                            img8;
+    bool                                    palette;
+    int                                     size;
     int                                     k;
     int                                     i;
     int                                     j;
@@ -6323,8 +6327,10 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     int                                     th;
     int                                     id;
 
-    if (mesh == JO_NULL || sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || tiles < 1 ||
-        __jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS)
+    if (mesh == JO_NULL || sprite_id < 0 || sprite_id >= JO_MAX_SPRITE || tiles < 1)
+        return (false);
+    palette = __jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS;
+    if (!palette && __jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS)
         return (false);
     texture = &__jo_sprite_def[sprite_id];
     tw = texture->width / tiles;
@@ -6344,19 +6350,33 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     if (k >= JO_3D_ENVIRONMENT_MESHES)
         return (false);
     e = &__jo_3d_environments[k];
-    // The tiles one under the other (tile (i, j) from the line (j * tiles + i) * th, see jo_3d_environment_tile())
-    pixels = (const jo_color *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
-    img.width = tw;
-    img.height = th * tiles * tiles;
-    img.data = (jo_color *)jo_malloc(tw * th * tiles * tiles * sizeof(jo_color));
-    if (img.data == JO_NULL)
+    // The tiles one under the other (tile (i, j) from the line (j * tiles + i) * th, see jo_3d_environment_tile()); the
+    // picture read in the VRAM (it may still be on its way there: the DMA). 256 colors: a byte per pixel, the colors of the
+    // palette of the sprites (the 8 bits sprites of the 640 pixels modes)
+    jo_dma_wait();
+    size = palette ? 1 : (int)sizeof(jo_color);
+    pixels = (const unsigned char *)(JO_VDP1_VRAM + JO_MULT_BY_8(texture->adr));
+    if ((data = (unsigned char *)jo_malloc(tw * th * tiles * tiles * size)) == JO_NULL)
         return (false);
     for (JO_ZERO(j); j < tiles; ++j)
         for (JO_ZERO(i); i < tiles; ++i)
             for (JO_ZERO(y); y < th; ++y)
-                jo_memcpy(img.data + ((j * tiles + i) * th + y) * tw, pixels + (j * th + y) * texture->width + i * tw, tw * sizeof(jo_color));
-    id = jo_sprite_add(&img);
-    jo_free(img.data);
+                jo_memcpy(data + ((j * tiles + i) * th + y) * tw * size, pixels + ((j * th + y) * texture->width + i * tw) * size, tw * size);
+    if (palette)
+    {
+        img8.width = (unsigned short)tw;
+        img8.height = (unsigned short)(th * tiles * tiles);
+        img8.data = data;
+        id = jo_sprite_add_8bits_image(&img8);
+    }
+    else
+    {
+        img.width = tw;
+        img.height = th * tiles * tiles;
+        img.data = (jo_color *)data;
+        id = jo_sprite_add(&img);
+    }
+    jo_free(data);
     if (id < 0)
         return (false);
     __jo_3d_environment_polygon = jo_3d_draw_environment_polygon;
@@ -6365,13 +6385,15 @@ bool                                        jo_3d_set_mesh_environment(jo_3d_mes
     e->tiles = tiles;
     e->first_sprite = id;
     // (tw is a multiple of 8: the step of the tiles in units of 8 bytes is exact)
-    e->tile_step = (unsigned int)JO_DIV_BY_8(th * JO_MULT_BY_2(tw));
+    e->tile_step = (unsigned int)JO_DIV_BY_8(th * tw * size);
     e->tile_size = ((unsigned int)JO_DIV_BY_8(tw) << 8) | (unsigned int)th;
     jo_3d_count_environments();
     // The normals of the polygons: the tiles
     jo_3d_compute_mesh_normals(mesh);
     return (true);
 }
+
+static unsigned short                        jo_3d_kept_draw_mode(const jo_3d_polygon_attribute * const attribute, const bool textured);
 
 bool                                        jo_3d_set_mesh_polygon_environment(jo_3d_mesh * const mesh, const unsigned int index)
 {
@@ -6381,12 +6403,21 @@ bool                                        jo_3d_set_mesh_polygon_environment(j
     k = mesh != JO_NULL ? jo_3d_environment_of(&mesh->data) : -1;
     if (k < 0 || index >= mesh->data.polygon_count)
         return (false);
-    // Textured by a tile (an RGB texture: the gouraud table of the polygon tints it)
     a = &mesh->data.attributes[index];
     a->texture_id = (unsigned short)__jo_3d_environments[k].sprite;
     JO_ADD_FLAG(a->sort, JO_3D_USE_TEXTURE);
     a->direction = JO_VDP1_DIRECTION_COMMAND(JO_VDP1_SPRITE_NO_FLIP);
-    a->draw_mode = (a->draw_mode & ~JO_VDP1_COLOR_MODE_MASK) | JO_VDP1_COLOR_MODE_RGB;
+    if (__jo_sprite_pic[a->texture_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_256_COLORS)
+    {
+        // Textured by a tile of 256 colors: the colors of the palette of the sprites, as they are (no gouraud, no light)
+        a->color = (unsigned short)__jo_sprite_attributes.color_table_index;
+        a->draw_mode = (unsigned short)((JO_VDP1_COLOR_MODE_256_BANK | JO_VDP1_NO_GOURAUD | JO_VDP1_END_CODE_DISABLE) |
+                                        JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP) | jo_3d_kept_draw_mode(a, true));
+        a->sort = (a->sort & ~JO_3D_USE_LIGHT) | JO_3D_USE_PALETTE;
+    }
+    else
+        // Textured by a tile (an RGB texture: the gouraud table of the polygon tints it)
+        a->draw_mode = (a->draw_mode & ~JO_VDP1_COLOR_MODE_MASK) | JO_VDP1_COLOR_MODE_RGB;
     return (true);
 }
 

@@ -776,6 +776,23 @@ static  __jo_force_inline jo_color      *jo_sprite_get_lut(const int sprite_id)
     return (__jo_sprite_lut[sprite_id] == 0 ? (jo_color *)0 : (jo_color *)(JO_VDP1_VRAM + JO_MULT_BY_8(__jo_sprite_lut[sprite_id])));
 }
 
+/** @brief Draw a 16 colors texture with another color lookup table (until it is set back): a palette swap (the same
+ *  pixels in other colors: a second player, an enemy of another rank) or the shape of a texture as a shadow (a table of
+ *  the shadow color), without a copy of its pixels in the VRAM
+ *  @param sprite_id Sprite Id of a 16 colors texture
+ *  @param lut A table in the VRAM: the table of another 16 colors texture (jo_sprite_get_lut()), JO_NULL for none
+ *  @remarks Set the table of the texture back after the draws (jo_sprite_get_lut() before the change): the draws use the
+ *  table they find when they are called
+ */
+static  __jo_force_inline void          jo_sprite_set_lut(const int sprite_id, const jo_color * const lut)
+{
+#ifdef JO_DEBUG
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return ;
+#endif
+    __jo_sprite_lut[sprite_id] = (lut == (const jo_color *)0 ? 0 : (unsigned short)JO_DIV_BY_8((unsigned int)lut - JO_VDP1_VRAM));
+}
+
 /*
 ███████╗████████╗ █████╗ ████████╗██╗███████╗████████╗██╗ ██████╗███████╗
 ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔════╝╚══██╔══╝██║██╔════╝██╔════╝

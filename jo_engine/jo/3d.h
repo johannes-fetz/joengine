@@ -2077,7 +2077,8 @@ void                                jo_3d_prepare_tint(const jo_3d_mesh * const 
  *  (i = 0) or to the right (i = tiles - 1), up (j = 0) or down (j = tiles - 1): a sphere seen from the front (a "matcap").
  *  The reflection moves on the object when the camera or the object turns
  *  @param mesh Mesh (the normals of its polygons are computed)
- *  @param sprite_id The picture (RGB, its width / tiles a multiple of 8 pixels)
+ *  @param sprite_id The picture (RGB, or 256 colors: the palette of the sprites, the 640 pixels modes where the VDP1 draws
+ *  8 bits a pixel; its width / tiles a multiple of 8 pixels)
  *  @param tiles Tiles on a side (4 to 8: more tiles, a smoother reflection on round objects)
  *  @return false if the picture can't be cut, or too many meshes have a reflection (8)
  *  @remarks The polygons of the mesh are drawn by the C loop of the master CPU (the matrix of the object: not the bones of
@@ -2086,7 +2087,8 @@ void                                jo_3d_prepare_tint(const jo_3d_mesh * const 
 bool                                jo_3d_set_mesh_environment(jo_3d_mesh * const mesh, const int sprite_id, const int tiles);
 
 /** @brief A polygon shows the environment map of its mesh (see jo_3d_set_mesh_environment()): its gouraud table tints the
- *  reflection (16: the picture as it is)
+ *  reflection (16: the picture as it is); a picture of 256 colors: its colors as they are, in the palette of the sprites
+ *  set now (jo_sprite_set_palette()), not lit
  *  @param mesh Mesh
  *  @param index Polygon
  *  @return false if the mesh has no environment map
