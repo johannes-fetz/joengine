@@ -71,6 +71,8 @@
 /** @brief IREG0: continue the peripheral data transfer (bit 7 inverted at each request of the next batch: the SMPC waits
  *  for its change; 0x80 written each time asked for the second batch only, a multitap stopped there) */
 # define JO_SMPC_INTBACK_CONTINUE       (0x80)
+/** @brief IREG0: stop the peripheral data transfer */
+# define JO_SMPC_INTBACK_BREAK          (0x40)
 /** @brief IREG1: get the peripheral data (15 bytes mode for both ports, OREG return) */
 # define JO_SMPC_INTBACK_PERIPHERALS    (0x08)
 /** @brief IREG1: no peripheral data */
@@ -628,6 +630,13 @@ void                                    __jo_smpc_command(const jo_smpc_command 
         if (!__jo_smpc_intback_busy)
             break;
         __jo_core_restore_interrupts(sr);
+    }
+    // An INTBACK of the program before (the Boot ROM, the menu of an optical drive emulator) that waits for the request of
+    // its next batch: stopped (break), else the SMPC may ignore the command
+    if (jo_smpc_read_byte(StatusRegister) & JO_SMPC_STATUS_MORE_DATA)
+    {
+        jo_smpc_write_byte(InputRegister0, JO_SMPC_INTBACK_BREAK);
+        jo_smpc_wait();
     }
     jo_smpc_begin_command();
     jo_smpc_end_command(command);

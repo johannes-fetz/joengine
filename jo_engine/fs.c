@@ -188,6 +188,9 @@
 
 /** @brief Command timeout (loop count) */
 # define JO_CD_TIMEOUT                      (0x400000)
+/** @brief The initialization of the CD block and the reading of the root directory, tried this many times (a pause of
+ *  JO_CD_TIMEOUT reads of a register between them, about a second) */
+# define JO_FS_INIT_ATTEMPTS                (4)
 
 /** @brief A directory: this bit of jo_fs_dir_entry.fad (the frame addresses are under 2^24: 20 bytes an entry, not 24,
  *  1 KB of RAM less) */
@@ -225,6 +228,8 @@ typedef struct
 static unsigned int             __jo_cd_play_next_fad = 0; // Next sector expected from the current read
 static unsigned int             __jo_cd_play_end_fad = 0; // End of the current read (exclusive)
 static bool                     __jo_cd_initialized = false;
+/** @brief The root directory read (see jo_fs_try_init()) */
+static bool                     __jo_fs_ready = false;
 static unsigned char            __jo_cd_sector_buffer[JO_SECTOR_SIZE] __attribute__((aligned(4)));
 /** @brief The directory sector in __jo_cd_sector_buffer (0: none, see jo_fs_find_in_directory()) */
 static unsigned int             __jo_cd_sector_buffer_dir_fad = 0;
@@ -925,6 +930,22 @@ static int                      jo_fs_load_root_directory(void)
     return (jo_fs_load_directory(__jo_fs_dir_fad, __jo_fs_dir_size));
 }
 
+/** @brief Initialize the CD block and read the root directory once (see jo_fs_init())
+ *  @return true if the files of the disc are known */
+static bool                     jo_fs_try_init(void)
+{
+    __jo_cd_initialized = false;
+    if (jo_cd_init() == 0 && (__jo_fs_dir_count = jo_fs_load_root_directory()) > 2)
+    {
+        __jo_fs_ready = true;
+        return (true);
+    }
+    jo_cd_stop_read();
+    if (__jo_fs_dir_count < 0)
+        JO_ZERO(__jo_fs_dir_count);
+    return (false);
+}
+
 /*
 ** Internal file API
 */
@@ -935,6 +956,9 @@ int                             __jo_fs_get_file_id(const char * const filename)
 
     if (filename == JO_NULL)
         return (-1);
+    // (the CD not read by jo_fs_init(): tried again at each file, the game does not stay without its files)
+    if (!__jo_fs_ready)
+        jo_fs_try_init();
     for (JO_ZERO(i); i < __jo_fs_dir_count; ++i)
         if (jo_fs_name_is(__jo_fs_dir[i].name, filename))
             return (i);
@@ -1139,6 +1163,7 @@ static int                      __jo_fs_read_buffer_size = JO_SECTOR_SIZE;
 int								jo_fs_init()
 {
     register int                i;
+    int                         attempt;
 
 #ifdef JO_DEBUG
     if (!JO_IS_ARRAY_INSIDE_USER_RAM_AREA(__jo_fs_dir) ||
@@ -1153,17 +1178,20 @@ int								jo_fs_init()
         __jo_fs_background_jobs[i].active = false;
     for (JO_ZERO(i); i < JO_OPEN_MAX; ++i)
         __jo_fs_handles[i].used = false;
-    __jo_cd_initialized = false;
-    if (jo_cd_init() < 0 || (__jo_fs_dir_count = jo_fs_load_root_directory()) <= 2)
+    // (tried again: just after the boot, the drive can be busy, a command rejected or the first sector late; on a
+    // console with an optical drive emulator, a game sometimes stayed on a black screen, no file read)
+    for (JO_ZERO(attempt); attempt < JO_FS_INIT_ATTEMPTS; ++attempt)
     {
-        if (__jo_fs_dir_count < 0)
-            JO_ZERO(__jo_fs_dir_count);
-#ifdef JO_DEBUG
-        jo_core_error("Fail to read the CD");
-#endif
-        return (0);
+        if (attempt > 0)
+            for (JO_ZERO(i); i < JO_CD_TIMEOUT; ++i)
+                (void)JO_CD_HIRQ;
+        if (jo_fs_try_init())
+            return (1);
     }
-    return (1);
+#ifdef JO_DEBUG
+    jo_core_error("Fail to read the CD");
+#endif
+    return (0);
 }
 
 void                    jo_fs_do_background_jobs(void)
