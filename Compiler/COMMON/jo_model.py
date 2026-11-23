@@ -30,13 +30,18 @@ Options:
                         polygon) against a z-buffer (a polygon drawn over a nearer one: a wall over the edge of a roof),
                         and the holes (the back of a face seen: the edge of a roof without thickness, a face turned the
                         wrong way). Fails (exit code 1) over 0.2 % of the model in a view. Needs numpy
+    --check-twist FILE.JOM  the quads twisted more than MAX_TWIST (0.15, see quad_twist(): holes, the VDP1 draws a
+                        twisted quad as a bow tie). Fails (exit code 1) if there is one. The converter cuts them in 2
+                        triangles (with a warning)
 
 What the converter does for the Saturn:
     - the faces become quads (VDP1 polygons). The VDP1 maps the whole texture on a quad (no texture coordinates): the
       corner with the top left of the texture (OBJ vt: u small, v big) becomes A, the texture is drawn from A-B to D-C.
       A triangle is a quad (A, B, C, C) with its shortest edge in A-B (the VDP1
       draws a quad line by line from A-D to B-C: a thin triangle costs about the square of its length otherwise),
-      a face of 5 points or more is cut in quads
+      a face of 5 points or more is cut in quads. A twisted quad (see --check-twist) is cut in 2 triangles along its
+      shorter diagonal, with a warning: a row of points more in the model is better (the texture is squashed in each
+      triangle)
     - the axes: OBJ (Y up, right handed, Blender) -> Saturn (Y down, left handed): a rotation of 180 degrees around X
       (x, -y, -z) and the vertex order is reversed (the front faces of the OBJ are counterclockwise, the front faces of
       the engine are clockwise on the screen): the model is not mirrored. The points and the normals are 16.16 fixed
@@ -856,6 +861,7 @@ def convert(obj_path, out_path=None, scale=1.0, saturn_axes=False, keep_triangle
             triangles += 1
         for c, n in to_quads(corners, corner_normals, points, keep_triangles, uv):
             quads.append((c, n, material, group))
+    quads = split_twisted(quads, points, warnings)
     if len(quads) > 65535 or len(points) > 65535:
         raise ModelError('too many points or polygons (65535 at most)')
     if remove_unused:
@@ -1174,6 +1180,75 @@ def morph_points(path, morph, frame):
     return [tuple(v * (1 << shift) for v in values[k * 3:k * 3 + 3]) for k in range(points)]
 
 
+# The most a quad can be twisted (see quad_twist()): measured (Mednafen, 2026-11-20), a quad of a hull twisted 0.41 seen in
+# close-up had a hole a third of its size; computed for the VDP1 all around a quad: at 0.14 the holes are at most 5 % of
+# the quad seen from the front, and grow quickly beyond
+MAX_TWIST = 0.15
+# A triangle of 3 corners of a quad without area: less than 1 / TWIST_FLAT_TRIANGLE of the largest one
+TWIST_FLAT_TRIANGLE = 20
+
+
+def quad_twist(corners):
+    """How twisted a quad is: the distance of its corner farthest from
+    the plane of the 3 others, over the length of its longest diagonal (0: flat, a triangle too). The VDP1 draws a quad
+    in lines from its edge A-D to its edge B-C: twisted, it is a bow tie on the screen from some angles and a part of it
+    is not drawn (a hole in the model). Over MAX_TWIST: a row of points more where it is twisted"""
+    p = [tuple(float(v) for v in c) for c in corners]
+    v = [sub(q, p[0]) for q in p]
+    det = abs(sum(a * b for a, b in zip(v[1], cross(v[2], v[3]))))
+    if det < 1e-12:
+        return 0.0
+    # (the planes of 3 corners: not the ones of a triangle without area, 2 corners almost the same: a quad that is a
+    # triangle is flat, its corners a unit apart made its plane anything)
+    areas = [length(cross(sub(o[1], o[0]), sub(o[2], o[0]))) for o in ([p[(k + j) % 4] for j in (1, 2, 3)] for k in range(4))]
+    largest = max(areas)
+    diagonal = max(length(sub(p[2], p[0])), length(sub(p[3], p[1])))
+    if largest < 1e-12 or diagonal < 1e-12:
+        return 0.0
+    return det / min(a for a in areas if a >= largest / TWIST_FLAT_TRIANGLE) / diagonal
+
+
+def split_twisted(quads, points, warnings):
+    """The quads (corners, normals, material, group) with each twisted one (see quad_twist(): a hole from some angles) cut
+    along its shorter diagonal into 2 triangles (their 2 same corners last, the winding kept), and a warning: the texture is
+    squashed in each triangle, a row of points more in the model is better"""
+    out = []
+    for k, (c, n, material, group) in enumerate(quads):
+        t = quad_twist([points[i] for i in c])
+        if t <= MAX_TWIST:
+            out.append((c, n, material, group))
+            continue
+        warnings.append('polygon %d (material %s) twisted %.2f (at most %.2f): cut in 2 triangles (a texture squashed in each '
+                        'one): a row of points more in the model is better' % (k, material, t, MAX_TWIST))
+        p = [points[i] for i in c]
+        first = 0 if length(sub(p[2], p[0])) <= length(sub(p[3], p[1])) else 1
+        for start in (first, first + 2):
+            order = [(start + j) & 3 for j in (0, 1, 2, 2)]
+            out.append(([c[j] for j in order], None if n is None else [n[j] for j in order], material, group))
+    return out
+
+
+def twisted_quads(points, quads, limit=MAX_TWIST):
+    """The quads (4 indexes of points each) twisted more than limit: [(index, twist)]"""
+    out = []
+    for i, q in enumerate(quads):
+        t = quad_twist([points[k] for k in q])
+        if t > limit:
+            out.append((i, t))
+    return out
+
+
+def check_twist(path, limit=MAX_TWIST, quiet=False):
+    """The quads of a JOM file twisted more than limit (see quad_twist()): printed; true if there is none"""
+    m = read_jom(path)
+    bad = twisted_quads(m['points'], [p[3:7] for p in m.get('polygons', [])], limit)
+    if not quiet:
+        for i, t in bad:
+            print('%s: polygon %d twisted %.2f (at most %.2f): a row of points more in the model' % (path, i, t, limit))
+        print('%s: %d polygons twisted' % (path, len(bad)))
+    return not bad
+
+
 def triangle_pixels(np, x, y, xx, yy, w, h, margin=0.0):
     """The pixels of a triangle on the screen (corners x, y: 3 values each; xx, yy: the centers of the pixels): their
     indexes (y * w + x)"""
@@ -1490,6 +1565,8 @@ def main(argv):
             return 0
         elif a == '--check-sort':
             return 1 if check_sort(args.pop(0)) else 0
+        elif a == '--check-twist':
+            return 0 if check_twist(args.pop(0)) else 1
         elif a in ('-h', '--help'):
             print(__doc__)
             return 0

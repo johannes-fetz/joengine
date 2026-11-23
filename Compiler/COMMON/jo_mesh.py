@@ -301,12 +301,18 @@ def gour(c):
 
 
 def write(mesh, embed=True, embedded_names=(), in_place=False):
-    """The JOM file of a mesh. embed: the textures are embedded (TIMG chunk), except the ones in embedded_names
+    """The JOM file of a mesh (ValueError: a quad twisted more than jo_model.MAX_TWIST). embed: the textures are embedded (TIMG chunk), except the ones in embedded_names
     (already embedded in another model: shared by name). in_place: a model created in place
     (jo_3d_create_model_in_place()): the chunks used only while the model is created (the embedded textures, the names
     of the textures, the gouraud colors) last, the game can read the next model over them; a file loaded by
     jo_3d_load_model() has its embedded textures first"""
     check_winding(mesh)
+    # (a twisted quad is a hole from some angles: the generator adds a row of points there, see jo_model.quad_twist())
+    twisted = jo_model.twisted_quads([saturn(p) for p in mesh.points], [q[0] for q in mesh.quads])
+    if twisted:
+        raise ValueError('%d quads twisted more than %.2f (the first: %d, material %s, %.2f): a row of points more in the '
+                         'model there' % (len(twisted), jo_model.MAX_TWIST, twisted[0][0], mesh.quads[twisted[0][0]][1].name,
+                                          twisted[0][1]))
     mats = []
     for _, m, _, _ in mesh.quads:
         if m not in mats:
