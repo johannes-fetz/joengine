@@ -41,6 +41,8 @@
 #include "internal/core.h"
 
 #define JO_BLOCK_FREE           (~0)
+/** @brief The searches of jo_malloc_with_behaviour(): the slow memories, then the high work RAM */
+#define JO_MALLOC_PASSES        (2)
 
 typedef struct
 {
@@ -254,9 +256,45 @@ const void                      *__jo_memory_check(unsigned int * const previous
 
 #endif
 
+/** @brief jo_malloc() takes the slower memories first (see jo_malloc_set_slow_memory_first()) */
+static bool             __jo_malloc_slow_memory_first = false;
+
+void                    jo_malloc_set_slow_memory_first(const bool enabled)
+{
+    __jo_malloc_slow_memory_first = enabled;
+}
+
+/** @brief A zone searched in a pass of jo_malloc_with_behaviour(): all the zones in one pass, or the slow memories in the
+ *  first pass and the high work RAM in the second one */
+static  __jo_force_inline bool  jo_malloc_zone_in_pass(const int zone, const int pass)
+{
+    if (!__jo_malloc_slow_memory_first)
+        return (pass == 0);
+    return (JO_IS_PTR_IN_HIGH_WORK_RAM(memory_zones[zone].begin) == (pass != 0));
+}
+
+static jo_memory_block  *jo_malloc_in_zone(const int zone, const unsigned int n, const jo_malloc_behaviour behaviour)
+{
+    jo_memory_block     *block;
+
+    // Try to reuse a freed block first
+    if (behaviour != JO_FAST_ALLOCATION &&
+        (block = jo_malloc_find_free_block(zone, n, behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) != JO_NULL)
+        return (block);
+    // New block at the end of the used area
+    if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
+        return (block);
+    // The zone is full: any freed block is fine
+    if ((block = jo_malloc_find_free_block(zone, n, false)) != JO_NULL)
+        return (block);
+    // The last freed blocks may have been given back to the zone by jo_malloc_find_free_block()
+    return (jo_malloc_new_block(zone, n));
+}
+
 void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_behaviour behaviour)
 {
     register int        zone;
+    int                 pass;
     jo_memory_block     *block;
 
 #ifdef JO_DEBUG
@@ -274,23 +312,12 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
     n += sizeof(*block);
     while (JO_MOD_POW2(n, 4))
         ++n;
-    for (JO_ZERO(zone); zone < __jo_memory_zone_index; ++zone)
-    {
-        // Try to reuse a freed block first
-        if (behaviour != JO_FAST_ALLOCATION &&
-            (block = jo_malloc_find_free_block(zone, n, behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) != JO_NULL)
-            break;
-        // New block at the end of the used area
-        if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
-            break;
-        // The zone is full: any freed block is fine
-        if ((block = jo_malloc_find_free_block(zone, n, false)) != JO_NULL)
-            break;
-        // The last freed blocks may have been given back to the zone by jo_malloc_find_free_block()
-        if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
-            break;
-    }
-    if (zone >= __jo_memory_zone_index)
+    block = JO_NULL;
+    for (JO_ZERO(pass); pass < JO_MALLOC_PASSES && block == JO_NULL; ++pass)
+        for (JO_ZERO(zone); zone < __jo_memory_zone_index && block == JO_NULL; ++zone)
+            if (jo_malloc_zone_in_pass(zone, pass))
+                block = jo_malloc_in_zone(zone, n, behaviour);
+    if (block == JO_NULL)
         return (JO_NULL);
 #if defined(JO_DEBUG) && defined(JO_CORE_WATCHDOG)
     {

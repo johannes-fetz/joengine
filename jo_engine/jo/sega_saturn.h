@@ -869,6 +869,14 @@ static  __jo_force_inline void      jo_cpu_cache_purge(void)
 
 */
 
+/** @brief The bits of an address that tell its memory (the cache-through mirror 0x2... gives the same memory) */
+# define JO_MEMORY_AREA_MASK                        (0x0FF00000)
+
+/** @brief Check if the pointer is in the high work RAM, the fastest memory of the CPUs (cached or not)
+ *  @param PTR Pointer
+ */
+# define JO_IS_PTR_IN_HIGH_WORK_RAM(PTR)            ((((unsigned int)(PTR)) & JO_MEMORY_AREA_MASK) == JO_WORK_RAM_HIGH)
+
 /** @brief Check if the pointer is inside user area WORK RAM
  *  @param PTR Pointer
  */

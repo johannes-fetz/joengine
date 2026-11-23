@@ -1468,12 +1468,6 @@ void                                        jo_3d_model_draw_pose(const jo_3d_mo
         __jo_3d_draw_parts(jo_3d_model_skin(model, pose, model->morph_draw[0]), m.parts, m.part_count);
 }
 
-/** @brief An address in the high work RAM (cached or not) */
-static  __jo_force_inline bool              jo_3d_model_is_fast_memory(const void * const p)
-{
-    return (((unsigned int)p & 0x0FF00000) == 0x06000000);
-}
-
 bool                                        jo_3d_model_use_fast_memory(jo_3d_model * const model)
 {
     jo_3d_polygon_data                      *pdata;
@@ -1489,7 +1483,7 @@ bool                                        jo_3d_model_use_fast_memory(jo_3d_mo
     pdata = &model->mesh->data;
     // (already in the high work RAM: nothing to do. Only the data of a file loaded by jo_3d_load_model(): the other models
     // own their arrays, the ones of jo_3d_create_model_in_place() belong to the caller)
-    if (model->fast_block != JO_NULL || (jo_3d_model_is_fast_memory(pdata->points) && jo_3d_model_is_fast_memory(pdata->polygons)))
+    if (model->fast_block != JO_NULL || (JO_IS_PTR_IN_HIGH_WORK_RAM(pdata->points) && JO_IS_PTR_IN_HIGH_WORK_RAM(pdata->polygons)))
         return (true);
     if (model->file == JO_NULL || model->single_block || model->file_not_owned)
         return (false);
@@ -1504,7 +1498,7 @@ bool                                        jo_3d_model_use_fast_memory(jo_3d_mo
         return (false);
     attributes = (jo_3d_polygon_attribute *)jo_malloc(pdata->polygon_count * sizeof(jo_3d_polygon_attribute));
     // (not in the high work RAM: the slower memory is kept as it is)
-    if (!jo_3d_model_is_fast_memory(block) || attributes == JO_NULL || !jo_3d_model_is_fast_memory(attributes))
+    if (!JO_IS_PTR_IN_HIGH_WORK_RAM(block) || attributes == JO_NULL || !JO_IS_PTR_IN_HIGH_WORK_RAM(attributes))
     {
         if (attributes != JO_NULL)
             jo_free(attributes);

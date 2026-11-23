@@ -107,6 +107,13 @@ void	        jo_free(const void * const p);
  */
 void            jo_reduce_memory_fragmentation(void);
 
+/** @brief The next allocations take the slower memories first (the low work RAM, the RAM cartridge given by
+ *  jo_add_memory_zone()), then the high work RAM when they are full
+ *  @param enabled true for the data the CPUs read seldom (sounds copied in the sound RAM, files kept to be decompressed
+ *  later), false again after them (the default: the zones in their order, the high work RAM first)
+ */
+void            jo_malloc_set_slow_memory_first(const bool enabled);
+
 /** @brief Register a memory segment for jo_malloc() usage
  *  @param ptr Pointer to the beginning of the memory segment
  *  @param size_in_bytes Size of the memory segment in bytes
