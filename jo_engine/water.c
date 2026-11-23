@@ -141,6 +141,8 @@ typedef struct
     int                     kz;
     int                     w;              // Phase per frame
     jo_fixed                amplitude;      // Height x the swell
+    jo_fixed                slope_x;        // Its slope between 2 points SAMPLE_STEP around, x the cosine of its phase: the
+    jo_fixed                slope_z;        // amplitude x sin(kx x SAMPLE_STEP) / SAMPLE_STEP (see jo_water_sample())
     int                     last_level;     // The last level that draws it
     jo_fixed                table[256];     // Amplitude x sine
 }                           wave_data;
@@ -270,6 +272,8 @@ struct                      s_jo_water
     jo_fixed                sun_hz;
     int                     spot_distance;
     jo_fixed                spot_inv_radius;
+    // (1 << 24) / the shallow depth rounded up, 0 to divide (see vertex_color(): the same as the division up to 255)
+    unsigned int            shallow_scale;
     int                     spot_x;
     int                     spot_z;
     // The foam texture: the tiles of the pattern (the quads A-D along x, then along z: turned), the color lookup tables
@@ -502,6 +506,8 @@ static void                 build_waves(jo_water * const w)
         d->kz = jo_cos_angle(direction) / JO_MAX(1, s->length);
         d->w = 65536 / JO_MAX(1, s->period);
         d->amplitude = jo_fixed_mult(s->height, w->swell);
+        d->slope_x = jo_fixed_mult(d->amplitude, jo_sin_angle((jo_angle)(d->kx * SAMPLE_STEP))) / SAMPLE_STEP;
+        d->slope_z = jo_fixed_mult(d->amplitude, jo_sin_angle((jo_angle)(d->kz * SAMPLE_STEP))) / SAMPLE_STEP;
         d->last_level = last_level_for(w, s->length);
         for (JO_ZERO(k); k < 256; ++k)
             d->table[k] = jo_fixed_mult(d->amplitude, sines[k]);
@@ -974,9 +980,35 @@ int                         jo_water_foam_at(const jo_water * const w, const int
     return (foam_of(foam_cell_at(w->foam_grid, x, z), w->frame, foam_region(x, z)));
 }
 
-void                        jo_water_foam(jo_water * const w, const int x, const int z, const int radius, const int life)
+/** @brief Stamp the foam on a cell (the foam already there that lives longer: kept) */
+static  __jo_force_inline void  stamp_foam(jo_water * const w, const int cx, const int cz, const int l)
 {
     foam_cell               *c;
+    int                     region;
+    int                     left;
+    int                     px;
+    int                     pz;
+
+    px = cx << FOAM_CELL_SHIFT;
+    pz = cz << FOAM_CELL_SHIFT;
+    c = foam_cell_at(w->foam_grid, px, pz);
+    region = foam_region(px, pz);
+    if (c->life != 0 && c->region == region)
+    {
+        left = c->life * 4 - (unsigned short)(w->frame - c->time);
+        if (left > l * 4)
+            return;
+    }
+    c->time = (unsigned short)w->frame;
+    c->life = (unsigned char)l;
+    c->region = (unsigned char)region;
+}
+
+void                        jo_water_foam(jo_water * const w, const int x, const int z, const int radius, const int life)
+{
+    unsigned int            inverse;
+    int                     longest;
+    int                     divisor;
     int                     r;
     int                     cx;
     int                     cz;
@@ -984,38 +1016,40 @@ void                        jo_water_foam(jo_water * const w, const int x, const
     int                     j;
     int                     d2;
     int                     l;
-    int                     left;
-    int                     px;
-    int                     pz;
 
     r = JO_MAX(radius, 1 << FOAM_CELL_SHIFT) >> FOAM_CELL_SHIFT;
     cx = x >> FOAM_CELL_SHIFT;
     cz = z >> FOAM_CELL_SHIFT;
     w->foam_live = true;
     w->foam_frame = w->frame;
-    for (j = -r; j <= r; ++j)
-        for (i = -r; i <= r; ++i)
+    if (life <= 0)
+        return;
+    // (the edge lives half as long, a soft edge as it fades: life - life x d2 / (2 r^2 + 1) at the distance d2. The division
+    // by a product with the inverse of 2 r^2 + 1, rounded up: exact while life x d2 x (2 r^2 + 1) < 2^32, up to 32 cells.
+    // Longer than 2047 frames, the foam is 255 everywhere: the same as 2047)
+    longest = JO_MIN(life, 2047);
+    divisor = 2 * r * r + 1;
+    inverse = r <= 32 ? 0xFFFFFFFFu / (unsigned int)divisor + 1 : 0;
+    // (a quarter of the disc: the foam of a distance computed once for the 4 cells at this distance)
+    for (JO_ZERO(j); j <= r; ++j)
+        for (JO_ZERO(i); i <= r; ++i)
         {
             d2 = i * i + j * j;
             if (d2 > r * r)
-                continue;
-            // (the edge lives half as long: a soft edge as it fades)
-            l = JO_MIN(255, (life - (life * d2) / (2 * r * r + 1)) >> 2);
+                break;
+            l = JO_MIN(255, (longest - (inverse != 0 ? (int)(((unsigned long long)(unsigned int)(longest * d2) * inverse) >> 32) :
+                                                       longest * d2 / divisor)) >> 2);
             if (l <= 0)
-                continue;
-            px = (cx + i) << FOAM_CELL_SHIFT;
-            pz = (cz + j) << FOAM_CELL_SHIFT;
-            c = foam_cell_at(w->foam_grid, px, pz);
-            // (the foam already there that lives longer: kept)
-            if (c->life != 0 && c->region == foam_region(px, pz))
+                break;
+            stamp_foam(w, cx + i, cz + j, l);
+            if (i != 0)
+                stamp_foam(w, cx - i, cz + j, l);
+            if (j != 0)
             {
-                left = c->life * 4 - (unsigned short)(w->frame - c->time);
-                if (left > l * 4)
-                    continue;
+                stamp_foam(w, cx + i, cz - j, l);
+                if (i != 0)
+                    stamp_foam(w, cx - i, cz - j, l);
             }
-            c->time = (unsigned short)w->frame;
-            c->life = (unsigned char)l;
-            c->region = (unsigned char)foam_region(px, pz);
         }
 }
 
@@ -1090,10 +1124,40 @@ jo_fixed                    jo_water_height(const jo_water * const w, const int 
 
 void                        jo_water_sample(const jo_water * const w, const int x, const int z, jo_water_point * const point)
 {
-    point->height = jo_water_height(w, x, z);
-    // (the slopes from 4 heights around the point: the waves, the splashes and the fronts)
-    point->slope_x = (jo_water_height(w, x + SAMPLE_STEP, z) - jo_water_height(w, x - SAMPLE_STEP, z)) / (2 * SAMPLE_STEP);
-    point->slope_z = (jo_water_height(w, x, z + SAMPLE_STEP) - jo_water_height(w, x, z - SAMPLE_STEP)) / (2 * SAMPLE_STEP);
+    const wave_data         *d;
+    jo_fixed                height;
+    jo_fixed                slope_x;
+    jo_fixed                slope_z;
+    jo_fixed                s;
+    jo_fixed                c;
+    int                     i;
+
+    // The waves: the height and the slopes at once. The slope between 2 points SAMPLE_STEP around (sin(a + b) - sin(a - b)
+    // = 2 cos(a) sin(b)): the cosine of the phase x a factor of the wave (see build_waves()), a sine and a cosine per wave
+    // instead of 5 sines
+    JO_ZERO(height);
+    JO_ZERO(slope_x);
+    JO_ZERO(slope_z);
+    for (JO_ZERO(i); i < w->wave_count; ++i)
+    {
+        d = &w->waves[i];
+        jo_sincos_angle((jo_angle)(x * d->kx + z * d->kz + w->frame * d->w), &s, &c);
+        height += jo_fixed_mult(d->amplitude, s);
+        slope_x += jo_fixed_mult(d->slope_x, c);
+        slope_z += jo_fixed_mult(d->slope_z, c);
+    }
+    // The splashes and the wave fronts: the slopes from 4 heights around the point
+    if (w->live_splash_count > 0 || w->live_front_count > 0)
+    {
+        height += splash_height(w, x, z) + front_height(w, x, z);
+        slope_x += (splash_height(w, x + SAMPLE_STEP, z) + front_height(w, x + SAMPLE_STEP, z) - splash_height(w, x - SAMPLE_STEP, z) -
+                    front_height(w, x - SAMPLE_STEP, z)) / (2 * SAMPLE_STEP);
+        slope_z += (splash_height(w, x, z + SAMPLE_STEP) + front_height(w, x, z + SAMPLE_STEP) - splash_height(w, x, z - SAMPLE_STEP) -
+                    front_height(w, x, z - SAMPLE_STEP)) / (2 * SAMPLE_STEP);
+    }
+    point->height = height;
+    point->slope_x = slope_x;
+    point->slope_z = slope_z;
 }
 
 /*
@@ -2217,7 +2281,8 @@ static jo_color             vertex_color(const jo_water * const w, const int x, 
     // The shallow water: lighter (the sand under it), the waves break on the shore (bands of foam that come in)
     if (depth < c->shallow_depth)
     {
-        shallow = (c->shallow_depth - depth) * 256 / c->shallow_depth;
+        shallow = w->shallow_scale != 0 ? (int)(((unsigned int)(c->shallow_depth - depth) * w->shallow_scale) >> 16) :
+                                          (c->shallow_depth - depth) * 256 / c->shallow_depth;
         r += (c->shore.r * shallow) >> 8;
         g += (c->shore.g * shallow) >> 8;
         b += (c->shore.b * shallow) >> 8;
@@ -2696,6 +2761,8 @@ void                        jo_water_update(jo_water * const w, const int frame,
     w->forward_z = jo_cos_angle(heading);
     w->spot_x = x + jo_fixed2int(w->sun_hx * w->spot_distance);
     w->spot_z = z + jo_fixed2int(w->sun_hz * w->spot_distance);
+    w->shallow_scale = w->config.shallow_depth > 0 && w->config.shallow_depth <= 255 ?
+                       (0x1000000u + (unsigned int)w->config.shallow_depth - 1) / (unsigned int)w->config.shallow_depth : 0;
     place_levels(w);
     find_live_events(w);
     // Heights: the first rows on the slave CPU, the others on the master CPU; then the edges on the next levels
