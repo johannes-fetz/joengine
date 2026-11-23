@@ -327,6 +327,20 @@ int                             jo_get_input_axis_centered(const int port, const
     return ((int)jo_get_input_axis(port, axis) - 128);
 }
 
+int                             jo_get_input_stick(const int port, const jo_input_axis axis, const int dead_zone)
+{
+    int                         v;
+    int                         d;
+
+    v = jo_get_input_axis_centered(port, axis);
+    d = JO_MAX(0, JO_MIN(dead_zone, 120));
+    if (v > d)
+        return ((v - d) * 127 / (127 - d));
+    if (v < -d)
+        return (JO_MAX(-127, (v + d) * 127 / (127 - d)));
+    return (0);
+}
+
 /*
 ** END OF FILE
 */

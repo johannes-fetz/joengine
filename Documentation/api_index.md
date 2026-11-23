@@ -619,6 +619,7 @@ In the makefile of the game: JO_COMPILE_WITH_3D_MODULE = 1.
 - `jo_get_player_input_port(const int player) -> int`: The port (the index of jo_inputs) of the gamepad of a player: the devices of the port 1 are 0 to 5 (a multitap), those of the port 2 are 6 to 11; 2 gamepads without multitap: 0 and 6
 - `jo_get_input_axis(const int port, const jo_input_axis axis) -> unsigned char`: Get analog axis value
 - `jo_get_input_axis_centered(const int port, const jo_input_axis axis) -> int`: Get a centered analog axis (a stick or a wheel): 0 in the middle
+- `jo_get_input_stick(const int port, const jo_input_axis axis, const int dead_zone) -> int`: A stick or a wheel with a dead zone: 0 near the middle (a stick at rest is rarely at 128 exactly), then the whole range from the edge of the dead zone
 - `jo_is_input_key_pressed(const int port, const jo_gamepad_keys key) -> bool`: Check if the key is pressed for the given port
 - `jo_get_input_direction_pressed(const int port) -> jo_8_directions`: Get the direction pressed for the given port
 - `jo_get_raw_input_key_pressed(const int port) -> unsigned short`: Get raw input data for the given port

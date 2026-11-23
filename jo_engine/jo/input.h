@@ -177,6 +177,15 @@ unsigned char                   jo_get_input_axis(const int port, const jo_input
  */
 int                             jo_get_input_axis_centered(const int port, const jo_input_axis axis);
 
+/** @brief A stick or a wheel with a dead zone: 0 near the middle (a stick at rest is rarely at 128 exactly), then the
+ *  whole range from the edge of the dead zone
+ *  @param port Gamepad port
+ *  @param axis Analog axis (see jo_get_input_axis_centered())
+ *  @param dead_zone Half width of the dead zone (0 to 120, 12 for the 3D pad)
+ *  @return -127 (left, up) to 127 (right, down), 0 in the dead zone or without such an axis
+ */
+int                             jo_get_input_stick(const int port, const jo_input_axis axis, const int dead_zone);
+
 /** @brief Check if the key is pressed for the given port
  *  @param port Gamepad port
  *  @param key Key value
