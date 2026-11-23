@@ -294,12 +294,8 @@ else
 	endif
 endif
 
-ifeq (${JO_COMPILE_WITH_RAM_CARD_MODULE},)
+ifeq (1,${JO_COMPILE_WITH_RAM_CARD_MODULE})
 	CCFLAGS += -DJO_COMPILE_WITH_RAM_CARD_SUPPORT
-else
-	ifeq (1,${JO_COMPILE_WITH_RAM_CARD_MODULE})
-		CCFLAGS += -DJO_COMPILE_WITH_RAM_CARD_SUPPORT
-	endif
 endif
 
 # (JO_COMPILE_WITH_LOW_WORK_RAM_CODE = 1: the functions marked JO_LOW_WORK_RAM_CODE (loading, creation, menus: read rarely)
