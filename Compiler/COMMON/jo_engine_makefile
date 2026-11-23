@@ -47,15 +47,15 @@ endif
 
 # JO_CD_SECTOR_SIZE: the size of the sectors of the data track of the CD image (in the makefile of the game, before the
 # include, or "make JO_CD_SECTOR_SIZE=2352")
-#   2048 (default): game.iso, the data of each sector only (MODE1/2048 in game.cue), and the audio files: what the
-#                   emulators and most drive emulators read
-#   2352: game.bin, a single image of the whole CD: the raw sectors of the data track (sync, header, data, EDC and
-#         ECC: MODE1/2352) then the audio tracks (raw CD audio), and game.cue describes it. What the burning tools
-#         and all the emulators read. game.iso is converted by JoEngineIsoToBin (source:
+#   2048: game.iso, the data of each sector only (MODE1/2048 in game.cue), and the audio files: what the emulators and
+#         most drive emulators read (not the SAROO: its cue sheets must point to BINARY files)
+#   2352 (default): game.bin, a single image of the whole CD: the raw sectors of the data track (sync, header, data,
+#         EDC and ECC: MODE1/2352) then the audio tracks (raw CD audio), and game.cue describes it. What the burning
+#         tools, all the emulators and the SAROO read. game.iso is converted by JoEngineIsoToBin (source:
 #         Compiler/COMMON/JoEngineIsoToBin.c): mkisofs can't write these sectors (its -sectype writes 2048 or 2056
 #         bytes). The audio files must be WAV (44100 Hz, 16 bits, stereo), not MP3
 ifeq (${JO_CD_SECTOR_SIZE},)
-	JO_CD_SECTOR_SIZE = 2048
+	JO_CD_SECTOR_SIZE = 2352
 endif
 ifneq (${JO_CD_SECTOR_SIZE},2048)
 ifneq (${JO_CD_SECTOR_SIZE},2352)
