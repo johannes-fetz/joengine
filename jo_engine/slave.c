@@ -71,9 +71,18 @@
 # define JO_SLAVE_WAKE_UP_VALUE             (0xffff)
 /** @brief Maximum wait loop count for the slave CPU startup */
 # define JO_SLAVE_START_TIMEOUT             (0x100000)
+/** @brief Starts of the slave CPU tried (on a real console the command of the SMPC was sometimes lost or late at the
+ *  boot: the slave CPU started after the master CPU stopped waiting for it, both CPUs ran the jobs and the game froze) */
+# define JO_SLAVE_START_ATTEMPTS            (3)
+/** @brief The master CPU stopped waiting for the slave CPU: deciding (1), the slave CPU is not used (2), see
+ *  jo_core_slave_init() */
+# define JO_SLAVE_GIVE_UP_DECIDING          (1)
+# define JO_SLAVE_GIVE_UP_DONE              (2)
 /** @brief Size of the job queue (power of 2) */
 # define JO_SLAVE_QUEUE_SIZE                (8)
 # define JO_SLAVE_RUNNING                   (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_running))
+/** @brief The start of the slave CPU given up (written by the master CPU only, see JO_SLAVE_GIVE_UP_DECIDING) */
+# define JO_SLAVE_GIVE_UP                   (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_give_up))
 /** @brief Jobs added by the master CPU (written by the master CPU only) */
 # define JO_SLAVE_QUEUE_HEAD                (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_slave_queue_head))
 /** @brief Jobs done by the slave CPU (written by the slave CPU only) */
@@ -100,6 +109,9 @@ typedef struct
 
 jo_list                             __slave_callbacks;
 static volatile unsigned int        __jo_slave_running;
+static volatile unsigned int        __jo_slave_give_up;
+/** @brief The slave CPU runs the jobs (master CPU only: decided once in jo_core_slave_init(), never changed after) */
+static bool                         __jo_slave_started = false;
 static jo_slave_job                 __jo_slave_queue[JO_SLAVE_QUEUE_SIZE];
 static volatile unsigned int        __jo_slave_queue_head;
 static volatile unsigned int        __jo_slave_queue_tail;
@@ -281,8 +293,17 @@ static void                         jo_slave_main(void)
 #ifdef JO_CORE_EXCEPTION_SCREEN
     // (after its vector table is set: its CPU exceptions are shown by the master CPU)
     __jo_core_init_slave_exceptions();
+#ifdef JO_CORE_WATCHDOG
+    __jo_core_watchdog_install(true);
+#endif
 #endif
     JO_SLAVE_RUNNING = 1;
+    // Started after the master CPU stopped waiting: it does the jobs itself, this CPU never takes one
+    while (JO_SLAVE_GIVE_UP == JO_SLAVE_GIVE_UP_DECIDING)
+        ;
+    if (JO_SLAVE_GIVE_UP == JO_SLAVE_GIVE_UP_DONE)
+        for (;;)
+            __jo_core_pause();
     for (;;)
     {
         tail = JO_SLAVE_QUEUE_TAIL;
@@ -332,6 +353,7 @@ static void                         jo_slave_main(void)
 void                                jo_core_slave_init(void)
 {
     register unsigned int           timeout;
+    int                             attempt;
 
     jo_list_init(&__slave_callbacks);
     JO_SLAVE_RUNNING = 0;
@@ -346,19 +368,30 @@ void                                jo_core_slave_init(void)
     JO_SLAVE_USER_ADDED = 0;
     JO_ZERO(__jo_slave_last_idle_ticks);
     JO_ZERO(__jo_slave_idle_time);
-    __jo_smpc_command(DisableSlaveCPU);
-    // Boot ROM: slave entry point and stack
-    JO_SLAVE_ENTRY_POINT = (unsigned int)jo_slave_main;
-    JO_SLAVE_STACK_POINTER = JO_WORK_RAM_SLAVE_STACK_TOP;
-    __jo_smpc_command(EnableSlaveCPU);
-    // Wait until the slave CPU is ready
-    for (JO_ZERO(timeout); !JO_SLAVE_RUNNING && timeout < JO_SLAVE_START_TIMEOUT; ++timeout)
-        ;
+    JO_SLAVE_GIVE_UP = 0;
+    __jo_slave_started = false;
+    for (attempt = 0; attempt < JO_SLAVE_START_ATTEMPTS && !JO_SLAVE_RUNNING; ++attempt)
+    {
+        __jo_smpc_command(DisableSlaveCPU);
+        // Boot ROM: slave entry point and stack
+        JO_SLAVE_ENTRY_POINT = (unsigned int)jo_slave_main;
+        JO_SLAVE_STACK_POINTER = JO_WORK_RAM_SLAVE_STACK_TOP;
+        __jo_smpc_command(EnableSlaveCPU);
+        // Wait until the slave CPU is ready
+        for (JO_ZERO(timeout); !JO_SLAVE_RUNNING && timeout < JO_SLAVE_START_TIMEOUT; ++timeout)
+            ;
+    }
+    // The decision is final: a slave CPU that starts now (the command late) sees it before its first job, see jo_slave_main()
+    JO_SLAVE_GIVE_UP = JO_SLAVE_GIVE_UP_DECIDING;
+    __jo_slave_started = JO_SLAVE_RUNNING != 0;
+    if (!__jo_slave_started)
+        __jo_smpc_command(DisableSlaveCPU);
+    JO_SLAVE_GIVE_UP = __jo_slave_started ? 0 : JO_SLAVE_GIVE_UP_DONE;
 }
 
 bool                                __jo_core_is_slave_running(void)
 {
-    return (JO_SLAVE_RUNNING != 0);
+    return (__jo_slave_started);
 }
 
 void                                __jo_core_add_slave_job(const jo_slave_job_function function, void *argument)
@@ -366,7 +399,7 @@ void                                __jo_core_add_slave_job(const jo_slave_job_f
     unsigned int                    head;
 
     // The slave CPU didn't start: the job is done now by the master CPU
-    if (!JO_SLAVE_RUNNING)
+    if (!__jo_slave_started)
     {
         function(argument);
         return;

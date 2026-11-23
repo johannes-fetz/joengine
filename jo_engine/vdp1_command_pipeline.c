@@ -1520,6 +1520,9 @@ void                                    __jo_vdp1_end_frame(void)
         __jo_vdp1_frame = frame;
         return;
     }
+    // (counted like the frames of the slave CPU: jo_vdp1_send_frame() counts it done, the waits above compare them; the
+    // waits never ended without the slave CPU, at the first change of the screen mode)
+    ++__jo_vdp1_frames_sent;
 #endif
     jo_vdp1_send_frame(frame);
     // The SCU DMA reads the buffer of the frame

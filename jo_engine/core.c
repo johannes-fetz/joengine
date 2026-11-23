@@ -226,6 +226,13 @@ __asm__(
 #ifdef JO_CORE_EXCEPTION_SCREEN
 /** @brief The handlers of the CPU exceptions of the master CPU (see __jo_core_exception_screen()) */
 static void                                 jo_core_init_exceptions(void);
+#ifdef JO_CORE_WATCHDOG
+/** @brief No frame ended for this time: the program is stuck (a long loading without a frame must be shorter) */
+# ifndef JO_CORE_WATCHDOG_SECONDS
+#  define JO_CORE_WATCHDOG_SECONDS          (15)
+# endif
+static void                                 jo_core_watchdog_screen(const void * const corrupt, const unsigned int * const previous) __attribute__((noreturn, noinline, cold));
+#endif
 #endif
 
 /** @brief Start the NULL pointer trap of the master CPU */
@@ -381,24 +388,29 @@ void                                        __jo_core_set_interrupt_handler(cons
     *(volatile unsigned int *)(jo_core_get_vbr() + JO_MULT_BY_4(vector)) = (unsigned int)handler;
 }
 
-/** @brief SCU interrupt mask (1: masked) */
-static unsigned int                         jo_core_scu_mask = JO_SCU_INT_ALL;
+/*
+** The SCU interrupt mask (1: masked) is the copy of the BIOS (JO_BIOS_SCU_IMS): the code that enables an interrupt through
+** the BIOS (SYS_CHGSCUIM) changes it too. A mask of the engine of its own masked it again at the next VBLANK: the backup
+** library of an optical drive emulator (its code in the cartridge) then waited forever for its interrupt (the game froze at
+** the start, at the reading of its save, or when it saved)
+*/
 
 void                                        __jo_core_enable_scu_interrupts(const unsigned int mask)
 {
     unsigned int                            sr;
+    unsigned int                            ims;
 
     sr = __jo_core_disable_interrupts();
-    jo_core_scu_mask = (jo_core_scu_mask & ~mask) & JO_SCU_INT_ALL;
+    ims = (JO_BIOS_SCU_IMS & ~mask) & JO_SCU_INT_ALL;
     // The BIOS copy first: an interrupt handled by the BIOS writes it to the SCU when it returns
-    JO_BIOS_SCU_IMS = jo_core_scu_mask;
-    JO_SCU_IMS = jo_core_scu_mask;
+    JO_BIOS_SCU_IMS = ims;
+    JO_SCU_IMS = ims;
     __jo_core_restore_interrupts(sr);
 }
 
 void                                        __jo_core_restore_scu_mask(void)
 {
-    JO_SCU_IMS = jo_core_scu_mask;
+    JO_SCU_IMS = JO_BIOS_SCU_IMS;
 }
 
 /** @brief VBLANK-IN interrupt handler
@@ -416,6 +428,10 @@ static void __attribute__((interrupt_handler)) jo_core_vblank_in_handler(void)
     // A CPU exception of the slave CPU stopped it: its error screen (the master CPU can be waiting for one of its jobs)
     if (*(volatile unsigned int *)JO_CACHE_THROUGH(&__jo_core_slave_exception.vector) != 0)
         __jo_core_show_exception((const volatile __jo_core_exception_registers *)JO_CACHE_THROUGH(&__jo_core_slave_exception));
+#endif
+#if defined(JO_CORE_EXCEPTION_SCREEN) && defined(JO_CORE_WATCHDOG)
+    if (__jo_core_vblank_count - __jo_core_last_synch_vblank > JO_CORE_WATCHDOG_SECONDS * 60)
+        jo_core_watchdog_screen(JO_NULL, JO_NULL);
 #endif
     // Reading the quotient waits for the end of a division in progress
     quotient = JO_SH2_DVDNTL;
@@ -485,6 +501,14 @@ static void                                 jo_core_init_system(void)
 void                                        __jo_core_synch(void)
 {
     unsigned int                            target;
+#if defined(JO_CORE_EXCEPTION_SCREEN) && defined(JO_CORE_WATCHDOG)
+    unsigned int                            previous[4];
+    const void                              *corrupt;
+
+    // The memory checked at each frame: the frame where a buffer was written past its end
+    if ((corrupt = __jo_memory_check(previous)) != JO_NULL)
+        jo_core_watchdog_screen(corrupt, previous);
+#endif
 
     // (the VDP2 scroll and rotation parameters of the frame: with the number of the frame, before it changes)
     __jo_vdp2_end_frame();
@@ -550,11 +574,17 @@ static void         jo_core_init_vdp(const jo_color back_color)
     __jo_init_vdp2(back_color);
 }
 
-bool                                        jo_core_set_screen_resolution(const int width, const int height)
+bool                                        jo_core_set_screen_resolution(const int width, const int asked_height)
 {
     bool                                    pal;
+    int                                     height;
 
     pal = (JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_PAL) != 0;
+    // The 256 and 512 lines of PAL on a 60 Hz console (a PAL program on a NTSC console or emulator): 240 and 480 lines, the
+    // closest ones (the mode stayed unchanged: the menus in 640 x 448 kept for the 3D of a game)
+    height = asked_height;
+    if (!pal && (height == 256 || height == 512))
+        height = height == 256 ? 240 : 480;
     if ((width != 320 && width != 352 && width != 640 && width != 704) ||
         (height != 224 && height != 240 && height != 448 && height != 480 && (!pal || (height != 256 && height != 512))))
         return (false);
@@ -636,6 +666,11 @@ void			    jo_core_init(const jo_color back_color)
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
     jo_3d_init();
 #endif
+#if JO_TV_HEIGHT == 256 || JO_TV_HEIGHT == 512
+    // (a PAL program on a 60 Hz console: 240 or 480 lines, see jo_core_set_screen_resolution())
+    if ((JO_VDP2_TVSTAT & JO_VDP2_TVSTAT_PAL) == 0)
+        jo_core_set_screen_resolution(JO_TV_WIDTH, JO_TV_HEIGHT);
+#endif
 #ifdef JO_COMPILE_WITH_STORYBOARD_SUPPORT
     jo_init_storyboards();
 #endif
@@ -662,6 +697,9 @@ void			    jo_core_init(const jo_color back_color)
 #endif
     jo_sprite_init();
     jo_time_init(JO_TIME_CKS_32_MODE);
+#if defined(JO_CORE_EXCEPTION_SCREEN) && defined(JO_CORE_WATCHDOG)
+    __jo_core_watchdog_install(false);
+#endif
 #ifdef JO_COMPILE_WITH_PROFILER_SUPPORT
     __jo_profile_init();
 #endif
@@ -1166,6 +1204,179 @@ void __attribute__((used, externally_visible, noreturn, noinline, cold))
         __jo_vdp2_vblank();
     }
 }
+
+#ifdef JO_CORE_WATCHDOG
+
+/*
+** WATCHDOG (-DJO_CORE_WATCHDOG with JO_DEBUG, a diagnostic of a program that hangs on a real console): the output compare
+** A interrupt of the free running timer of each CPU (level 15: also in the sections that mask the other interrupts)
+** saves the PC, PR and SR of the interrupted code about 50 times per second. When no frame ended for
+** JO_CORE_WATCHDOG_SECONDS, the VBLANK interrupt shows them: the loop where each CPU waits (see game.map)
+*/
+
+/** @brief The vector and the interval (ticks of the free running timer, clock / 32: about 20 ms) */
+# define JO_CORE_WATCHDOG_VECTOR            (0x66)
+
+/** @brief The samples kept per CPU (power of 2) */
+# define JO_CORE_WATCHDOG_SAMPLES           (8)
+
+/** @brief The last samples of a CPU (offsets used by the handlers: 80 bytes) */
+typedef struct
+{
+    unsigned int                            count;
+    struct
+    {
+        unsigned int                        pc;
+        unsigned int                        pr;
+    }                                       sample[JO_CORE_WATCHDOG_SAMPLES];
+    unsigned int                            padding[3];
+}                                           jo_core_watchdog_samples;
+
+/** @brief The samples of the master CPU and of the slave CPU (written through the cache-through address) */
+jo_core_watchdog_samples                    __jo_core_watchdog_samples[2] __attribute__((used, externally_visible, aligned(16)));
+
+/** @brief The handler of a CPU: saves the PC and the PR of the interrupted code in the next sample, sets the next compare
+ *  match. The stack: R2, R1, R0, PC, SR */
+# define JO_CORE_WATCHDOG_HANDLER(NAME, INDEX) \
+__asm__( \
+"    .text\n" \
+"    .align 2\n" \
+"    .global _" #NAME "\n" \
+"_" #NAME ":\n" \
+"    mov.l r0, @-r15\n" \
+"    mov.l r1, @-r15\n" \
+"    mov.l r2, @-r15\n" \
+"    mov.l 1f, r1\n" \
+"    mov.l @r1, r0\n"                /* count */ \
+"    add #1, r0\n" \
+"    mov.l r0, @r1\n" \
+"    and #7, r0\n" \
+"    shll2 r0\n" \
+"    shll r0\n" \
+"    add #4, r0\n" \
+"    add r1, r0\n"                   /* the sample */ \
+"    mov.l @(12, r15), r2\n"         /* PC */ \
+"    mov.l r2, @r0\n" \
+"    sts pr, r2\n" \
+"    mov.l r2, @(4, r0)\n" \
+"    mov.l 4f, r1\n"                 /* FRT registers (TIER) */ \
+"    mov.b @(2, r1), r0\n" \
+"    extu.b r0, r2\n" \
+"    shll8 r2\n" \
+"    mov.b @(3, r1), r0\n" \
+"    extu.b r0, r0\n" \
+"    or r0, r2\n" \
+"    mov.l 2f, r0\n" \
+"    add r0, r2\n" \
+"    swap.b r2, r0\n" \
+"    mov.b r0, @(4, r1)\n"           /* OCRAH */ \
+"    mov r2, r0\n" \
+"    mov.b r0, @(5, r1)\n"           /* OCRAL */ \
+"    mov.b @(1, r1), r0\n"           /* FTCSR: clear OCFA */ \
+"    and #0xF7, r0\n" \
+"    mov.b r0, @(1, r1)\n" \
+"    mov.l @r15+, r2\n" \
+"    mov.l @r15+, r1\n" \
+"    mov.l @r15+, r0\n" \
+"    rte\n" \
+"    nop\n" \
+"    .align 2\n" \
+"1:  .long ___jo_core_watchdog_samples + " #INDEX " * 80 + 0x20000000\n" \
+"2:  .long 0x4000\n" \
+"4:  .long 0xFFFFFE10\n" \
+);
+
+JO_CORE_WATCHDOG_HANDLER(__jo_core_watchdog_master_handler, 0)
+JO_CORE_WATCHDOG_HANDLER(__jo_core_watchdog_slave_handler, 1)
+extern void                                 __jo_core_watchdog_master_handler(void);
+extern void                                 __jo_core_watchdog_slave_handler(void);
+
+void                                        __jo_core_watchdog_install(const bool slave)
+{
+    unsigned int                            frc;
+
+    JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT;
+    JO_SH2_VCRC = (JO_SH2_VCRC & 0xFF00) | JO_CORE_WATCHDOG_VECTOR;
+    JO_SH2_IPRB = (JO_SH2_IPRB & 0xF0FF) | 0x0F00;
+    __jo_core_set_interrupt_handler(JO_CORE_WATCHDOG_VECTOR, slave ? __jo_core_watchdog_slave_handler : __jo_core_watchdog_master_handler);
+    JO_SH2_FRT_TOCR = JO_SH2_FRT_TOCR_OCRA;
+    frc = jo_time_get_frc() + 48;
+    JO_SH2_FRT_OCRAH = (unsigned char)(frc >> 8);
+    JO_SH2_FRT_OCRAL = (unsigned char)frc;
+    JO_SH2_FRT_FTCSR = JO_SH2_FRT_FTCSR & ~JO_SH2_FRT_FTCSR_OCFA;
+    JO_SH2_FRT_TIER = JO_SH2_FRT_TIER_NO_INTERRUPT | JO_SH2_FRT_TIER_OCIAE;
+    // (the slave CPU runs with its interrupts masked: level 14 lets the watchdog through)
+    if (slave)
+        __jo_core_set_sr(0x000000E0);
+}
+
+/** @brief Show the samples of a CPU, the oldest first
+ *  @param samples The samples (a copy)
+ *  @param y Line of the first one
+ */
+static void                                 jo_core_watchdog_show(const jo_core_watchdog_samples *samples, const int y)
+{
+    int                                     i;
+    int                                     n;
+
+    n = (int)JO_MIN(samples->count, (unsigned int)JO_CORE_WATCHDOG_SAMPLES);
+    for (i = 0; i < n; ++i)
+    {
+        const unsigned int                  k = (samples->count - (unsigned int)n + (unsigned int)i + 1) & (JO_CORE_WATCHDOG_SAMPLES - 1);
+
+        jo_printf(i & 1 ? 20 : 0, y + i / 2, "%08X %08X", samples->sample[k].pc, samples->sample[k].pr);
+    }
+}
+
+/** @brief The screen of the watchdog: the last samples of the CPUs (PC and PR), then the program stops (polls the VBLANK) */
+static void                                 jo_core_watchdog_screen(const void * const corrupt, const unsigned int * const previous)
+{
+    jo_core_watchdog_samples                copy[2];
+    const unsigned int                      *header;
+
+    __jo_core_set_sr(JO_SH2_SR_INTERRUPT_MASK);
+    // (the samples of the moment: the slave CPU keeps running)
+    jo_memcpy(copy, (const void *)JO_CACHE_THROUGH(__jo_core_watchdog_samples), sizeof(copy));
+    JO_SH2_CHCR0 = 0;
+    jo_core_error_background(JO_COLOR_Blue);
+    jo_clear_screen();
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    jo_printf(0, 1, "   >>> Jo Engine watchdog <<<");
+    if (corrupt == JO_NULL)
+        jo_printf_with_color(0, 3, JO_COLOR_INDEX_Red, "No frame for %d seconds", JO_CORE_WATCHDOG_SECONDS);
+    else
+    {
+        // (the header of the broken block: zone (16 bits), size, caller; the block before it, its buffer written too far)
+        header = (const unsigned int *)((unsigned int)corrupt & ~3u);
+        jo_printf_with_color(0, 2, JO_COLOR_INDEX_Red, "Memory broken at %08X:", (unsigned int)corrupt);
+        jo_printf_with_color(0, 3, JO_COLOR_INDEX_Red, "%08X %08X %08X", header[0], header[1], header[2]);
+        jo_printf_with_color(0, 4, JO_COLOR_INDEX_Red, "Before: %08X size %X by %08X", previous[0], previous[1], previous[2]);
+    }
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    jo_printf(0, 5, "Master CPU (%d samples), PC PR:", copy[0].count);
+    jo_core_watchdog_show(&copy[0], 6);
+    jo_printf(0, 11, "Slave CPU (%d samples), PC PR:", copy[1].count);
+    jo_core_watchdog_show(&copy[1], 12);
+    jo_printf(0, 17, "VBLANK %d, last frame %d", __jo_core_vblank_count, __jo_core_last_synch_vblank);
+    if (corrupt != JO_NULL)
+        jo_printf(0, 19, "(the block before: %s)", previous[3] == 0xFFFF ? "free" : "in use");
+    jo_printf(0, 18, "Find PC and PR in game.map");
+    jo_printf(0, 25, "Program stopped: reset the console");
+    jo_core_error_show_usage(22);
+    jo_set_printf_color_index(JO_COLOR_INDEX_White);
+    __jo_vdp2_set_priority(JO_SPRITE_SCREEN, 0);
+    __jo_vdp2_set_tv_display(true);
+    for (;;)
+    {
+        while (JO_VDP2_TVSTAT & JO_CORE_TVSTAT_VBLANK)
+            ;
+        while (!(JO_VDP2_TVSTAT & JO_CORE_TVSTAT_VBLANK))
+            ;
+        __jo_vdp2_vblank();
+    }
+}
+
+#endif // JO_CORE_WATCHDOG
 
 #endif // JO_CORE_EXCEPTION_SCREEN
 

@@ -46,6 +46,10 @@ typedef struct
 {
     short           zone;
     unsigned int    size;
+#if defined(JO_DEBUG) && defined(JO_CORE_WATCHDOG)
+    // (diagnostic: the code that asked for the block, see __jo_memory_check())
+    unsigned int    caller;
+#endif
 }                   jo_memory_block;
 
 static int __jo_memory_zone_index = 0;
@@ -194,6 +198,50 @@ static jo_memory_block  *jo_malloc_new_block(const int zone, const unsigned int 
     return (block);
 }
 
+/** @brief Check the header of a block: a size that stays in the zone, its zone or free (a buffer written past its end
+ *  breaks the header of the next block)
+ *  @param block Block
+ *  @param zone Index of the zone
+ *  @return true if the header is valid
+ */
+static  __jo_force_inline bool  jo_malloc_valid_block(const jo_memory_block * const block, const int zone)
+{
+    return (block->size >= sizeof(*block) && JO_MOD_POW2(block->size, 4) == 0 &&
+            block->size <= (unsigned int)(memory_zones[zone].high - (const unsigned char *)block) &&
+            (block->zone == JO_BLOCK_FREE || block->zone == zone));
+}
+
+#if defined(JO_DEBUG) && defined(JO_CORE_WATCHDOG)
+
+const void                      *__jo_memory_check(unsigned int * const previous)
+{
+    register int                zone;
+    const jo_memory_block       *block;
+    const jo_memory_block       *last;
+
+    for (JO_ZERO(zone); zone < __jo_memory_zone_index; ++zone)
+    {
+        last = JO_NULL;
+        block = (const jo_memory_block *)memory_zones[zone].begin;
+        while ((const unsigned char *)block < memory_zones[zone].high)
+        {
+            if (!jo_malloc_valid_block(block, zone))
+            {
+                previous[0] = (unsigned int)last;
+                previous[1] = last != JO_NULL ? last->size : 0;
+                previous[2] = last != JO_NULL ? last->caller : 0;
+                previous[3] = last != JO_NULL ? (unsigned int)(unsigned short)last->zone : 0;
+                return (block);
+            }
+            last = block;
+            block = (const jo_memory_block *)(((const unsigned char *)block) + block->size);
+        }
+    }
+    return (JO_NULL);
+}
+
+#endif
+
 #ifdef JO_DEBUG
 
 /** @brief Check if the memory is used from the slave CPU or from an interrupt (a VBLANK callback): the blocks of the zones
@@ -231,18 +279,27 @@ void	                *jo_malloc_with_behaviour(unsigned int n, const jo_malloc_b
         // Try to reuse a freed block first
         if (behaviour != JO_FAST_ALLOCATION &&
             (block = jo_malloc_find_free_block(zone, n, behaviour == JO_MALLOC_TRY_REUSE_SAME_BLOCK_SIZE)) != JO_NULL)
-            return (block + 1);
+            break;
         // New block at the end of the used area
         if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
-            return (block + 1);
+            break;
         // The zone is full: any freed block is fine
         if ((block = jo_malloc_find_free_block(zone, n, false)) != JO_NULL)
-            return (block + 1);
+            break;
         // The last freed blocks may have been given back to the zone by jo_malloc_find_free_block()
         if ((block = jo_malloc_new_block(zone, n)) != JO_NULL)
-            return (block + 1);
+            break;
     }
-    return (JO_NULL);
+    if (zone >= __jo_memory_zone_index)
+        return (JO_NULL);
+#if defined(JO_DEBUG) && defined(JO_CORE_WATCHDOG)
+    {
+        const void              *caller = __builtin_return_address(0);
+
+        block->caller = (unsigned int)caller;
+    }
+#endif
+    return (block + 1);
 }
 
 void                            jo_reduce_memory_fragmentation(void)
@@ -324,17 +381,12 @@ int                     jo_memory_usage_percent(void)
         block = (jo_memory_block *)memory_zones[zone].begin;
         while ((unsigned char *)block < memory_zones[zone].high)
         {
+            // A broken header: the blocks after it are not counted (shown by the error screens: they read it, a crash there
+            // hid the error)
+            if (!jo_malloc_valid_block(block, zone))
+                break;
             if (block->zone == JO_BLOCK_FREE)
-            {
-#ifdef JO_DEBUG
-                if (block->size == 0 || JO_MOD_POW2(block->size, 4) != 0)
-                {
-                    jo_core_error("Memory corrupt: Block size is null");
-                    break;
-                }
-#endif
                 mem_free += block->size;
-            }
             block = (jo_memory_block *)(((unsigned char *)block) + block->size);
         }
     }

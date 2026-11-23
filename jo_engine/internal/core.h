@@ -86,6 +86,21 @@ void    __jo_core_show_exception(const volatile __jo_core_exception_registers *r
 void    __jo_core_init_slave_exceptions(void);
 #endif
 
+#ifdef JO_CORE_WATCHDOG
+/** @brief Start the watchdog of a CPU (Internal usage, -DJO_CORE_WATCHDOG with JO_DEBUG, a diagnostic): the PC of the CPU
+ *  sampled about 50 times per second, the error screen shows them when no frame ended for JO_CORE_WATCHDOG_SECONDS
+ *  @param slave The CPU (true: the slave CPU, its interrupts at level 14 at most)
+ *  @warning On the CPU itself
+ */
+void    __jo_core_watchdog_install(const bool slave);
+
+/** @brief Check the headers of the blocks of the memory zones (Internal usage, JO_CORE_WATCHDOG: at each frame)
+ *  @param previous The block before the broken one: address, size, the code that asked for it, zone (-1: free)
+ *  @return The first broken header, JO_NULL if none
+ */
+const void  *__jo_memory_check(unsigned int * const previous);
+#endif
+
 #endif /* !JO_CORE_EXCEPTION_SCREEN */
 
 #endif /* !JO_DEBUG */
