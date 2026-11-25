@@ -429,6 +429,50 @@ int                         jo_sprite_add_image_4bits_lut(const jo_img * const i
 }
 
 JO_LOW_WORK_RAM_CODE
+int                         jo_sprite_add_4bits_image(const jo_img_4bits * const img)
+{
+#ifdef JO_DEBUG
+    if (img == JO_NULL || img->data == JO_NULL)
+    {
+        jo_core_error("img is null");
+        return (-1);
+    }
+    if (JO_MOD_POW2(img->width, 8) != 0)
+    {
+        jo_core_error("The width of a 16 colors sprite (%d) is not a multiple of 8", (int)img->width);
+        return (-1);
+    }
+#endif
+    if (JO_MOD_POW2(img->width, 8) != 0)
+        return (-1);
+    return (__internal_jo_sprite_add(img->data, img->width, img->height, JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS));
+}
+
+int                         jo_sprite_replace_4bits_image(const jo_img_4bits * const img, const int sprite_id)
+{
+    jo_raw_img              raw;
+
+#ifdef JO_DEBUG
+    if (img == JO_NULL)
+    {
+        jo_core_error("img is null");
+        return (sprite_id);
+    }
+    if (sprite_id < 0 || __JO_SPRITE_IS_MISSING(sprite_id))
+        return (sprite_id);
+    if (__jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
+    {
+        jo_core_error("Sprite %d is not a 16 colors sprite", sprite_id);
+        return (sprite_id);
+    }
+#endif
+    raw.width = img->width;
+    raw.height = img->height;
+    raw.data = img->data;
+    return (__jo_sprite_replace((const jo_img *)&raw, sprite_id, false));
+}
+
+JO_LOW_WORK_RAM_CODE
 int				            jo_sprite_add_8bits_image(const jo_img_8bits * const img)
 {
 #ifdef JO_DEBUG

@@ -46,7 +46,7 @@
 /** @brief Create a new palette with 255 entries maximum
  *  @param output The new palette: output->data[k] is the color of the pixels of index k + 1 (the index 0 is transparent;
  *  the TGA files: their index + 1)
- *  @details See also jo_sprite_set_palette_id()
+ *  @details See also jo_sprite_set_palette()
  */
 void                jo_create_palette(jo_palette * const output);
 
@@ -95,7 +95,7 @@ static  __jo_force_inline void    jo_palette_to_cram(unsigned short * restrict d
  *  @param output The new palette
  *  @param data Data source
  *  @param size Data size
- *  @details See also jo_sprite_set_palette_id()
+ *  @details See also jo_sprite_set_palette()
  */
 static  __jo_force_inline void        jo_create_palette_from(jo_palette * const output, unsigned short *data, unsigned int size)
 {
@@ -103,6 +103,37 @@ static  __jo_force_inline void        jo_create_palette_from(jo_palette * const 
     // (the color RAM full: written at the address 0)
     if (output->data != JO_NULL)
         jo_palette_to_cram(data, output->data, size);
+}
+
+/** @brief Write the colors of a sub-palette of 16 colors of a palette, for the 16 colors sprites in color bank mode
+ *  (jo_sprite_add_4bits_image(), jo_sprite_set_palette_4bits())
+ *  @param palette Palette (jo_create_palette())
+ *  @param subpalette_id Sub-palette (0 to JO_PALETTE_SUBPALETTES - 1)
+ *  @param colors JO_PALETTE_SUBPALETTE_COLORS colors: the color k of the pixels k (the color 0 is not used: the pixels 0 are
+ *  transparent)
+ *  @remarks The color k of the sub-palette s is palette->data[16 x s + k - 1] (palette->data[k] is the color of the index
+ *  k + 1). Written at once in the color RAM: the sprites drawn with it change their colors at the next frame (a palette
+ *  animation: the water, the fire, a flash)
+ */
+static  __jo_force_inline void        jo_palette_set_subpalette(const jo_palette * const palette, const int subpalette_id,
+                                                                const jo_color * const colors)
+{
+    int                               k;
+
+#ifdef JO_DEBUG
+    if (palette == JO_NULL || colors == JO_NULL)
+    {
+        jo_core_error("palette or colors is null");
+        return ;
+    }
+    if (__JO_INDEX_IS_WRONG(subpalette_id, JO_PALETTE_SUBPALETTES, "sub-palette id"))
+        return ;
+#endif
+    // (the color RAM full: no palette)
+    if (palette->data == JO_NULL)
+        return ;
+    for (k = 1; k < JO_PALETTE_SUBPALETTE_COLORS; ++k)
+        palette->data[JO_MULT_BY_16(subpalette_id) + k - 1] = colors[k];
 }
 
 /** @brief Set palette index color

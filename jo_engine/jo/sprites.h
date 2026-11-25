@@ -157,12 +157,36 @@ int     jo_sprite_add_4bits_lut(const unsigned char * const pixels, const unsign
  */
 int     jo_sprite_add_image_4bits_lut(const jo_img * const img);
 
+/** @brief Add a 16 colors sprite in color bank mode: 4 bits per pixel, its colors are a sub-palette of 16 colors of the
+ *  color RAM chosen when it is drawn (jo_sprite_set_palette_4bits()): the same pixels in other colors (a second player,
+ *  the enemies of another rank, a flash when hit) and the colors animated by writing the color RAM, without a copy of the
+ *  pixels nor a table in the VRAM
+ *  @param img Image: 2 pixels per byte (the left pixel in the high bits), the width a multiple of 8
+ *  @return Sprite Id, -1 if failed (the width not a multiple of 8, the VRAM full)
+ *  @remarks The pixel 0 is transparent, the pixels 1 to 15 have the colors 1 to 15 of the sub-palette (the end codes of
+ *  the VDP1 are disabled: the pixel 15 is a color). The pixels are palette codes for the VDP2: the VDP1 doesn't compute
+ *  their colors (no gouraud shading, no half transparency of the VDP1: drawn as they are; the shadow and the screen doors
+ *  work). The colors: jo_palette_set_subpalette(). In 3D, a polygon textured by it (jo_3d_set_mesh_polygon_texture()) takes
+ *  the sub-palette chosen when it is textured, see also jo_3d_set_mesh_polygon_texture_bank(). A 16 colors sprite with a
+ *  table (jo_sprite_add_4bits_lut()) is drawn in color bank mode when its table is removed (jo_sprite_set_lut() with
+ *  JO_NULL)
+ */
+int     jo_sprite_add_4bits_image(const jo_img_4bits * const img);
+
 /** @brief Replace a sprite
  *  @param img Pointer to a image struct
  *  @param sprite_id Sprite ID to replace
  *  @return sprite_id
  */
 int     jo_sprite_replace(const jo_img * const img, const int sprite_id);
+
+/** @brief Replace the pixels of a 16 colors sprite (jo_sprite_add_4bits_image() or jo_sprite_add_4bits_lut(): its table
+ *  is kept)
+ *  @param img Image of the same size: 2 pixels per byte (the left pixel in the high bits)
+ *  @param sprite_id Sprite Id
+ *  @return sprite_id
+ */
+int     jo_sprite_replace_4bits_image(const jo_img_4bits * const img, const int sprite_id);
 
 /** @brief Write the VDP1 end codes after the last visible pixel of each line of a sprite (RGB sprites)
  *  @param sprite_id Sprite Id
@@ -480,6 +504,36 @@ static  __jo_force_inline void	jo_sprite_set_additive_palette(int palette_id)
 #endif
     // (bits 14 and 13: the priority register 3 of the sprites, see JO_VDP2_ADDITIVE_SPRITE_BANK in jo/vdp2.h)
     __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id) | 0x6000;
+}
+
+/** @brief Choose the sub-palette of 16 colors of every 16 colors sprite in color bank mode (jo_sprite_add_4bits_image())
+ *  displayed after this call
+ *  @param palette_id Palette id from jo_create_palette()
+ *  @param subpalette_id Sub-palette (0 to JO_PALETTE_SUBPALETTES - 1): the colors 16 x subpalette_id to
+ *  16 x subpalette_id + 15 of the palette, written by jo_palette_set_subpalette()
+ *  @remarks The palette of the 8 bits sprites drawn after this call too (the same register: jo_sprite_set_palette() before
+ *  them)
+ */
+static  __jo_force_inline void	jo_sprite_set_palette_4bits(const int palette_id, const int subpalette_id)
+{
+#ifdef JO_DEBUG
+    if (__JO_INDEX_IS_WRONG(palette_id, JO_PALETTE_MAX, "palette id") ||
+        __JO_INDEX_IS_WRONG(subpalette_id, JO_PALETTE_SUBPALETTES, "sub-palette id"))
+        return;
+#endif
+    __jo_sprite_attributes.color_table_index = JO_MULT_BY_256(palette_id) + JO_MULT_BY_16(subpalette_id);
+}
+
+/** @brief Choose the color code of every palette sprite (16 colors in color bank mode, 256 colors) displayed after this
+ *  call, with the bits above the color that the sprite type of the VDP2 reads: their priority register
+ *  (jo_vdp2_set_sprite_priorities(): bits 14 and 13 in the sprite type 3), their blend ratio
+ *  @param code jo_palette_color(palette, JO_MULT_BY_16(subpalette_id)) for a 16 colors sprite, jo_palette_color(palette, 0)
+ *  for a 256 colors sprite, plus those bits
+ *  @remarks jo_sprite_set_palette_4bits() and jo_sprite_set_palette() without the bits
+ */
+static  __jo_force_inline void	jo_sprite_set_palette_code(const unsigned short code)
+{
+    __jo_sprite_attributes.color_table_index = code;
 }
 
 /** @brief Draw a sprite of the current sprite attributes without rotation (internal usage: see jo_sprite_draw3D())

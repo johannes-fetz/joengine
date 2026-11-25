@@ -253,8 +253,18 @@ typedef struct
     unsigned char   *data;
 }					jo_img_8bits;
 
+/** @brief 4 bits image struct: 16 colors, 2 pixels per byte (the left pixel in the high bits), the pixel 0 transparent
+ *  (see jo_sprite_add_4bits_image())
+ */
+typedef struct
+{
+    unsigned short	width;
+    unsigned short	height;
+    unsigned char   *data;
+}					jo_img_4bits;
+
 /** @brief Raw image struct
- *  @remarks Accessed as jo_img or jo_img_8bits (may alias)
+ *  @remarks Accessed as jo_img, jo_img_8bits or jo_img_4bits (may alias)
  */
 typedef struct __jo_may_alias
 {

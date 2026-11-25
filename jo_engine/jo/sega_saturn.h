@@ -155,6 +155,12 @@
  *  @warning MC Hammer: don't touch this
  */
 # define JO_PALETTE_MAX             (8)
+/** @brief Colors of a sub-palette: a palette is JO_PALETTE_SUBPALETTES sub-palettes of 16 colors, for the 16 colors
+ *  sprites in color bank mode (jo_sprite_add_4bits_image(), jo_sprite_set_palette_4bits(), jo_palette_set_subpalette())
+ */
+# define JO_PALETTE_SUBPALETTE_COLORS (16)
+/** @brief Sub-palettes of a palette */
+# define JO_PALETTE_SUBPALETTES     (16)
 /** @brief VDP2 VRAM Bank size (128 kilobytes) */
 # define JO_VDP2_BANK_SIZE          (0x20000)
 

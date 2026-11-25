@@ -7972,6 +7972,9 @@ static bool                                 jo_3d_make_texture_mipmaps(const int
     if (__jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS &&
         __jo_sprite_pic[sprite_id].color_mode != JO_VDP1_TEXTURE_SIZE_SHIFT_32K_COLORS)
         return (false);
+    // (16 colors without a table: their colors are chosen when they are drawn, no mean of the colors for the copies)
+    if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS && __jo_sprite_lut[sprite_id] == 0)
+        return (false);
     // (the entry given back by jo_3d_update_texture_flags() when no copy is made)
     if ((mip = jo_3d_mipmaps_for_write(sprite_id)) == JO_NULL)
         return (false);
@@ -9158,6 +9161,15 @@ void                        jo_3d_set_mesh_polygon_texture(jo_3d_mesh * const me
         // (without the end codes, as the sprites: the color 255 is a color of the palette, see below)
         mesh->data.attributes[index].color = (unsigned short)__jo_sprite_attributes.color_table_index;
         mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_256_BANK | JO_VDP1_NO_GOURAUD | JO_VDP1_END_CODE_DISABLE) |
+                                                 JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
+        JO_ADD_FLAG(mesh->data.attributes[index].sort, JO_3D_USE_PALETTE);
+    }
+    else if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS && __jo_sprite_lut[sprite_id] == 0)
+    {
+        // 16 colors without a table (jo_sprite_add_4bits_image()): the sub-palette of the sprites, as they are (no gouraud,
+        // no light), as the 256 colors textures take the palette of the sprites
+        mesh->data.attributes[index].color = (unsigned short)__jo_sprite_attributes.color_table_index;
+        mesh->data.attributes[index].draw_mode = (JO_VDP1_COLOR_MODE_16_BANK | JO_VDP1_NO_GOURAUD | JO_VDP1_END_CODE_DISABLE) |
                                                  JO_VDP1_DIRECTION_DRAW_MODE(JO_VDP1_SPRITE_NO_FLIP);
         JO_ADD_FLAG(mesh->data.attributes[index].sort, JO_3D_USE_PALETTE);
     }

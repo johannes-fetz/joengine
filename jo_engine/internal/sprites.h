@@ -78,6 +78,17 @@ static  __jo_force_inline void   __jo_sprite_attributes_of_state(jo_vdp1_sprite_
         attr->draw_mode |= JO_VDP1_COLOR_MODE_RGB;
         JO_ZERO(attr->color);
     }
+    else if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS && __jo_sprite_lut[sprite_id] == 0 &&
+             state->mask_lut == 0)
+    {
+        // 16 colors without a table: color bank mode, a sub-palette of the color RAM (jo_sprite_set_palette_4bits()). The
+        // VDP1 computes the colors of the RGB pixels only: no gouraud shading, no half luminance, no half transparency
+        // (the shadow and the screen doors don't change the colors of the sprite)
+        attr->draw_mode |= JO_VDP1_COLOR_MODE_16_BANK;
+        if ((attr->draw_mode & JO_VDP1_COLOR_CALC_MASK) > JO_VDP1_COLOR_CALC_SHADOW)
+            attr->draw_mode &= ~JO_VDP1_COLOR_CALC_MASK;
+        attr->color = state->color_table_index;
+    }
     else if (__jo_sprite_pic[sprite_id].color_mode == JO_VDP1_TEXTURE_SIZE_SHIFT_16_COLORS)
     {
         // 16 colors and their RGB colors in a lookup table: drawn like an RGB texture (gouraud, half transparency)
@@ -92,7 +103,7 @@ static  __jo_force_inline void   __jo_sprite_attributes_of_state(jo_vdp1_sprite_
     }
     // (a table given by jo_sprite_set_gouraud_table(), else the last one of jo_set_gouraud_shading_colors(), else (none in
     // this frame) the neutral table of the 3D light)
-    if (state->effect & 4)
+    if (attr->draw_mode & JO_VDP1_COLOR_CALC_GOURAUD)
         attr->gouraud_table = state->gouraud_shading_index != 0 ? (unsigned short)state->gouraud_shading_index :
                               __jo_gouraud_shading_runtime_index >= 0 ?
                               (unsigned short)(JO_DIV_BY_8(JO_SPRITE_GOURAUD_OFFSET) + __jo_gouraud_shading_set * JO_SPRITE_GOURAUD_TABLES +
