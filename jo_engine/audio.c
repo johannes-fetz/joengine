@@ -1725,6 +1725,9 @@ static struct
     unsigned int                    underruns;
     volatile bool                   ended;
     unsigned char                   volume;
+    bool                            starting;       // Read without stopping the game, then played (jo_audio_music_start())
+    unsigned int                    file_size;
+    const char                      *filename;
 }                                   __jo_audio_music = { .volume = JO_DEFAULT_AUDIO_VOLUME };
 
 static unsigned int                 __jo_audio_music_sector[JO_AUDIO_MUSIC_SECTOR_SIZE / 4];
@@ -2137,6 +2140,9 @@ static void                         jo_audio_music_fill(const bool urgent)
     JO_ZERO(timeout);
     for (;;)
     {
+        // (the start of the file read before its header: not played again from the start of its samples yet)
+        if (__jo_audio_music.starting && __jo_audio_music.cursor >= __jo_audio_music.data_end)
+            return;
         if (__jo_audio_music.cursor >= __jo_audio_music.data_end)
         {
             if (!__jo_audio_music.loop)
@@ -2213,11 +2219,80 @@ static bool                         jo_audio_music_has_buffer(void)
     return (__jo_audio_music.buffer != JO_NULL);
 }
 
+static bool                         jo_audio_music_header(const unsigned char * const header, const unsigned int size);
+
+/** @brief The header of the file at the start of the buffer: the place of its samples
+ *  @return false if it can't be played (the music is stopped)
+ */
+static bool                         jo_audio_music_read_header(void)
+{
+    JO_ZERO(__jo_audio_music.data_start);
+    JO_ZERO(__jo_audio_music.data_end);
+    if (!jo_audio_music_header(__jo_audio_music.buffer, JO_MIN(__jo_audio_music.in, JO_AUDIO_MUSIC_SECTOR_SIZE)))
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: not a PCM or IMA ADPCM WAV file", __jo_audio_music.filename);
+#endif
+        return (false);
+    }
+    if (__jo_audio_music.data_end > __jo_audio_music.file_size)
+        __jo_audio_music.data_end = __jo_audio_music.file_size -
+                                    (__jo_audio_music.file_size - __jo_audio_music.data_start) % __jo_audio_music.block_align;
+    // (a file cut before its first whole block of samples: nothing to play, its reads were started again at each frame)
+    if (__jo_audio_music.data_end <= __jo_audio_music.data_start)
+    {
+#ifdef JO_DEBUG
+        jo_core_error("%s: no samples", __jo_audio_music.filename);
+#endif
+        return (false);
+    }
+    // (the buffer holds the file from its start: the samples from data_start; what was read after them is dropped)
+    __jo_audio_music.out = __jo_audio_music.data_start;
+    if (__jo_audio_music.cursor > __jo_audio_music.data_end)
+    {
+        __jo_audio_music.in -= __jo_audio_music.cursor - __jo_audio_music.data_end;
+        __jo_audio_music.cursor = __jo_audio_music.data_end;
+    }
+    return (true);
+}
+
+/** @brief The start of the music, a little at each frame (the game goes on while the drive seeks and reads): the header
+ *  of the file, then the buffer half full, then the samples of the start decoded and the music played */
+static void                         jo_audio_music_start(void)
+{
+    jo_audio_music_fill(false);
+    if (__jo_audio_music.data_start == 0)
+    {
+        if (__jo_audio_music.in < JO_AUDIO_MUSIC_SECTOR_SIZE && __jo_audio_music.in < __jo_audio_music.file_size)
+            return;
+        if (!jo_audio_music_read_header())
+        {
+            jo_audio_stop_music();
+            return;
+        }
+    }
+    if (__jo_audio_music.paused ||
+        (__jo_audio_music.in - __jo_audio_music.out < JO_AUDIO_MUSIC_BUFFER_SIZE / 2 &&
+         __jo_audio_music.cursor < __jo_audio_music.data_end))
+        return;
+    __jo_audio_music.starting = false;
+    // (twice the samples played per frame, by 8: the decoding catches up a late start in a few frames)
+    __jo_audio_music.frame_samples = __jo_audio_music.rate / jo_core_get_refresh_rate();
+    __jo_audio_music.quota = (2 * __jo_audio_music.frame_samples + 8) & ~7U;
+    jo_audio_ima_tables();
+    JO_ZERO(__jo_audio_music.played_blocks);
+    jo_audio_music_decode(JO_AUDIO_MUSIC_AHEAD, JO_AUDIO_MUSIC_NO_QUOTA);
+    jo_audio_music_key_on();
+    __jo_audio_music.playing = true;
+}
+
 /** @brief The reads of the music at each frame */
 static void                         jo_audio_music_update(void)
 {
     if (__jo_audio_music.ended)
         jo_audio_stop_music();
+    else if (__jo_audio_music.starting)
+        jo_audio_music_start();
     else if (__jo_audio_music.playing && !__jo_audio_music.end_of_data)
         jo_audio_music_fill(false);
 }
@@ -2297,8 +2372,6 @@ bool                                jo_audio_play_music(const char * const filen
 {
     void                            *handle;
     int                             file_id;
-    int                             len;
-    unsigned int                    size;
 
 #ifdef JO_DEBUG
     if (filename == JO_NULL)
@@ -2316,22 +2389,9 @@ bool                                jo_audio_play_music(const char * const filen
         return (false);
     }
     __jo_audio_music.fad = __jo_fs_get_fad(handle);
-    size = (unsigned int)__jo_fs_get_file_size(handle);
-    JO_ZERO(__jo_audio_music.data_start);
-    JO_ZERO(__jo_audio_music.data_end);
-    len = __jo_fs_read_sectors(handle, 1, __jo_audio_music_sector, JO_AUDIO_MUSIC_SECTOR_SIZE);
+    __jo_audio_music.file_size = (unsigned int)__jo_fs_get_file_size(handle);
     __jo_fs_close(handle);
-    if (len <= 0 || !jo_audio_music_header((unsigned char *)__jo_audio_music_sector, (unsigned int)len))
-    {
-#ifdef JO_DEBUG
-        jo_core_error("%s: not a PCM or IMA ADPCM WAV file", filename);
-#endif
-        return (false);
-    }
-    if (__jo_audio_music.data_end > size)
-        __jo_audio_music.data_end = size - (size - __jo_audio_music.data_start) % __jo_audio_music.block_align;
-    // (a file cut before its first whole block of samples: nothing to play, its reads were started again at each frame)
-    if (__jo_audio_music.data_end <= __jo_audio_music.data_start)
+    if (__jo_audio_music.file_size == 0)
     {
 #ifdef JO_DEBUG
         jo_core_error("%s: no samples", filename);
@@ -2343,11 +2403,17 @@ bool                                jo_audio_play_music(const char * const filen
         return (false);
     if ((__jo_audio_music.buffer = (unsigned char *)jo_malloc(JO_AUDIO_MUSIC_BUFFER_SIZE)) == JO_NULL)
         return (false);
+    __jo_audio_music.filename = filename;
     __jo_audio_music.loop = loop;
     __jo_audio_music.paused = false;
     __jo_audio_music.ended = false;
     __jo_audio_music.end_of_data = false;
-    __jo_audio_music.cursor = __jo_audio_music.data_start;
+    __jo_audio_music.playing = false;
+    // (the file read from its start: its header first, see jo_audio_music_start())
+    __jo_audio_music.starting = true;
+    JO_ZERO(__jo_audio_music.data_start);
+    __jo_audio_music.data_end = __jo_audio_music.file_size;
+    JO_ZERO(__jo_audio_music.cursor);
     __jo_audio_music.reading_sector = 0xFFFFFFFF;
     JO_ZERO(__jo_audio_music.in);
     JO_ZERO(__jo_audio_music.out);
@@ -2356,18 +2422,10 @@ bool                                jo_audio_play_music(const char * const filen
     JO_ZERO(__jo_audio_music.underruns);
     JO_ZERO(__jo_audio_music.staged);
     JO_ZERO(__jo_audio_music.ima_left);
-    // (twice the samples played per frame, by 8: the decoding catches up a late start in a few frames)
-    __jo_audio_music.frame_samples = __jo_audio_music.rate / jo_core_get_refresh_rate();
-    __jo_audio_music.quota = (2 * __jo_audio_music.frame_samples + 8) & ~7U;
-    jo_audio_ima_tables();
-    jo_audio_music_fill(true);
-    JO_ZERO(__jo_audio_music.played_blocks);
-    jo_audio_music_decode(JO_AUDIO_MUSIC_AHEAD, JO_AUDIO_MUSIC_NO_QUOTA);
-    jo_audio_music_key_on();
-    __jo_audio_music.playing = true;
     __jo_fs_stream_service = jo_audio_music_service;
     __jo_core_music_update = jo_audio_music_update;
     __jo_core_music_vblank = jo_audio_music_vblank;
+    jo_audio_music_fill(false);
     return (true);
 }
 
@@ -2378,6 +2436,7 @@ void                                jo_audio_stop_music(void)
     __jo_fs_stream_service = JO_NULL;
     if (__jo_audio_music.buffer == JO_NULL)
         return;
+    __jo_audio_music.starting = false;
     __jo_audio_music.playing = false;
     jo_audio_music_key_off();
     __jo_fs_stream_stop();
@@ -2387,6 +2446,12 @@ void                                jo_audio_stop_music(void)
 
 void                                jo_audio_pause_music(void)
 {
+    // (paused before it starts: it waits, its file read)
+    if (__jo_audio_music.starting)
+    {
+        __jo_audio_music.paused = true;
+        return;
+    }
     if (!__jo_audio_music.playing || __jo_audio_music.paused || __jo_audio_music.ended)
         return;
     __jo_audio_music.paused = true;
@@ -2401,6 +2466,11 @@ void                                jo_audio_resume_music(void)
     unsigned int                    c;
     short                           *copy;
 
+    if (__jo_audio_music.starting)
+    {
+        __jo_audio_music.paused = false;
+        return;
+    }
     if (!__jo_audio_music.playing || !__jo_audio_music.paused)
         return;
     start = __jo_audio_music.played_blocks * JO_AUDIO_MUSIC_BLOCK_SAMPLES;
@@ -2434,12 +2504,12 @@ void                                jo_audio_resume_music(void)
 
 bool                                jo_audio_is_music_playing(void)
 {
-    return (__jo_audio_music.playing && !__jo_audio_music.ended);
+    return ((__jo_audio_music.playing || __jo_audio_music.starting) && !__jo_audio_music.ended);
 }
 
 bool                                jo_audio_is_music_paused(void)
 {
-    return (__jo_audio_music.playing && __jo_audio_music.paused);
+    return ((__jo_audio_music.playing || __jo_audio_music.starting) && __jo_audio_music.paused);
 }
 
 void                                jo_audio_set_music_volume(const unsigned char volume)

@@ -305,7 +305,10 @@ bool     jo_audio_load_wav(const char * const filename, jo_sound *sound);
  *  @remarks ffmpeg -i MUSIC.MP3 -acodec adpcm_ima_wav -ar 32000 MUSIC.WAV
  *  @remarks ffmpeg -i MUSIC.MP3 -acodec pcm_s16le -ar 22050 MUSIC.WAV
  *  @remarks Not with the CD audio tracks (jo_audio_play_cd_track()): both use the drive
- *  @return true if succeed otherwise false
+ *  @remarks The call doesn't wait for the drive: the game goes on while it seeks the file and reads its start, the music
+ *  plays a few frames later (jo_audio_is_music_playing() is true meanwhile). A file that can't be played stops it then
+ *  (JO_DEBUG: an error)
+ *  @return true if the file is found (and the memory of the music reserved), otherwise false
  */
 bool     jo_audio_play_music(const char * const filename, const bool loop);
 
