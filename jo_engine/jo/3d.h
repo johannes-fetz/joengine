@@ -921,6 +921,17 @@ unsigned short                      jo_3d_set_mesh_gouraud(jo_3d_mesh * const me
  */
 void                                jo_3d_set_mesh_polygon_color_ex(jo_3d_mesh * const mesh, const jo_color color, const unsigned int index, bool wireframe);
 
+/** @brief Draw one polygon of a mesh on its front face only (its corners clockwise on the screen), or on both faces
+ *  @param mesh Address to a jo_3d_mesh allocated struct
+ *  @param single true: its front face only; false: both faces (the default of jo_3d_create_mesh())
+ *  @param index polygon index on the mesh
+ *  @remarks Two polygons back to back, each on its front face, give a thin part two colors (the light of each side)
+ */
+static  __jo_force_inline void      jo_3d_set_mesh_polygon_single_plane(jo_3d_mesh * const mesh, const bool single, const unsigned int index)
+{
+    mesh->data.attributes[index].plane = single ? JO_3D_SINGLE_PLANE : JO_3D_DUAL_PLANE;
+}
+
 /** @brief Set the color on one polygon on the mesh
  *  @param mesh Address to a jo_3d_mesh allocated struct
  *  @param color Color
