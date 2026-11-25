@@ -1,0 +1,39 @@
+# Jo Engine
+
+> Jo Engine is an open source 2D and 3D game engine and SDK for the Sega Saturn, written in C under MIT license by Johannes Fetz and developed for 15 years. It drives the Saturn hardware directly (2 SH-2 CPUs, SCU, VDP1, VDP2, sound, CD-ROM, controllers) behind a simple C API, and the games run on emulators and on the real console.
+
+Key facts:
+- Language: C, built with a GCC SH-2 toolchain on Windows, Linux and macOS.
+- The engine has its own 3D pipeline and hardware drivers, with no dependency on the original Sega libraries.
+- 3D models and levels use the engine's binary formats `.JOM` and `.JOL`, converted from OBJ with the Python tools of `Compiler/COMMON/`.
+- The SH-2 has no FPU: use `jo_fixed` (16.16 fixed point) and the engine's math functions, never `float` or `double`.
+- Before writing a function, look for it in the API index: the engine probably has it.
+- Used for the Saturn ports of X-Men (arcade, 1992), Resident Evil 2 and Celeste, and for homebrew games.
+
+## Docs
+
+- [Rules for coding assistants](https://github.com/johannes-fetz/joengine/blob/master/AGENTS.md): How to use the engine, the performance rules of the Saturn, 3D without glitches, build and check
+- [API index](https://github.com/johannes-fetz/joengine/blob/master/Documentation/api_index.md): One line per function, macro and type of the engine
+- [API reference](https://www.jo-engine.org/doxygen/): Doxygen documentation generated from the headers
+- [FAQ](https://github.com/johannes-fetz/joengine/blob/master/FAQ.TXT): Memory, resolution, frame rate, CD audio, burning, porting from SGL
+- [Performance](https://github.com/johannes-fetz/joengine/blob/master/Documentation/performance.md): Making a game fast on the Saturn
+- [3D model format](https://github.com/johannes-fetz/joengine/blob/master/Documentation/model_format.md): The `.JOM` format and its converter
+- [Level format](https://github.com/johannes-fetz/joengine/blob/master/Documentation/level_format.md): The `.JOL` format
+- [Water](https://github.com/johannes-fetz/joengine/blob/master/Documentation/water.md): The water surfaces of the engine
+
+## Source code and samples
+
+- [Repository](https://github.com/johannes-fetz/joengine): Engine, tools, samples and tests
+- [Engine headers](https://github.com/johannes-fetz/joengine/tree/master/jo_engine/jo): The public API, documented in each header
+- [Samples](https://github.com/johannes-fetz/joengine/tree/master/Samples): More than 50 small programs, one per feature (sprites, VDP2 backgrounds, 3D, water, audio, video, input devices...)
+- [Latest release](https://github.com/johannes-fetz/joengine/releases/latest): Ready to use download
+
+## Community
+
+- [GitHub discussions](https://github.com/johannes-fetz/joengine/discussions): Questions and help
+- [Issues](https://github.com/johannes-fetz/joengine/issues): Bug reports and feature requests
+- [SegaXtreme Saturn Dev forum](https://segaxtreme.net/forums/saturn-dev.34/): Saturn homebrew development forum
+
+## Optional
+
+- [Website](https://www.jo-engine.org/): Games made with the engine, community tools, press

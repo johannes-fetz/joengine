@@ -28,7 +28,9 @@ guesses about speed are wrong.
    - **the master waits for the VBLANK most of the frame**: there is time left; the frame rate is set by `JO_FRAMERATE`.
 5. **Count before optimizing**: polygons per frame by category (scenery, characters, effects), sprites, the late frames
    (`jo_core_get_late_frame_count()`). Optimize the biggest one.
-6. **Check in Mednafen** (timings close to the console). A real console also pays for the VDP1 pixels walked out of the
+6. **A loading too long**: `jo_fs_get_read_stats()` and `jo_core_get_vblank_count()` around it; reading the CD is
+   usually most of it: compress the files (`performance.md`, the loadings).
+7. **Check in Mednafen** (timings close to the console). A real console also pays for the VDP1 pixels walked out of the
    screen: keep a margin.
 
 ## The game crashes or shows an error
@@ -41,6 +43,8 @@ guesses about speed are wrong.
   often.
 - **"Too many sprites"**: `JO_MAX_SPRITE` in the makefile (each texture, each set of gouraud tables of a model is a
   sprite).
+- **"Sprite n not added (last one: m)"**: a sprite id used after `jo_sprite_free_from()` freed it (an id kept from the
+  previous level or menu), or a pack that failed to load: take the ids again after each loading.
 - **A crash later after a loading**: a buffer written past its end, a stack too small on the slave CPU (big local
   arrays in a job), data written in the low work RAM used by the engine (see `JO_LOW_WORK_RAM_FREE`).
 - **A freeze**: an infinite wait (a CD read that never ends, a loop on a flag written by the other CPU read through the
@@ -59,8 +63,20 @@ guesses about speed are wrong.
   (`jo_effect_fade()`) set before it. Read `__jo_last_error` in a save state: its address in `game.map`, the work RAM of
   Mednafen stored by words of 16 bits in little endian (swap each pair of bytes).
 - **A sprite cut or squeezed**: its width not a multiple of 8, or a texture bigger than the VDP1 allows.
+- **A level seen half loaded before its opening**: a call that displays its layer when it sets it (`performance.md`,
+  the VDP2), or the last image of the VDP1 still shown a frame or two after the screens are hidden: keep the loading
+  screen black for a few frames, show the layers when everything is loaded.
+- **A mixed effect flat or opaque**: the extended color calculation over a palette layer (`performance.md`, the VDP2).
 - Look at the data before the code: the VDP1 command table of a save state at the place of the glitch tells which
   polygon is drawn, with which texture and where.
+
+## Check what the player sees and hears
+
+- **Film the emulator** to check an animation frame by frame (a fall, a bounce, a swirl, a flash):
+  `mednafen -qtrecord out.mov -qtrecord.vcodec png game.cue`, then `ffmpeg -i out.mov frames/f_%04d.png` (60 or 50
+  images per second: check the region).
+- **Record the sound**: `mednafen -soundrecord out.wav game.cue`, then find each sound in it by correlation with its WAV:
+  when it starts, how loud, cut or not by another one, the delay of a streamed music.
 
 ## Before shipping a change
 

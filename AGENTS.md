@@ -51,6 +51,8 @@ engine. For Claude Code, the skill `.claude/skills/jo-engine` has the details.
 - **Products of fixed point numbers**: `jo_fixed_mult()`, or `(long long)a * b` (one instruction): a 32 bits product
   overflows quickly.
 - **No allocation in the frame loop**: allocate when a level is loaded, free when it is left.
+- **Loadings**: reading the CD is most of their time: compress the data files with `jo_lz.py -f` (read decompressed by
+  `jo_fs_read_file()` and `jo_fs_open()`), measure with `jo_fs_get_read_stats()`.
 - **The 2 CPUs**: give the slave CPU about half of the work of a frame (`jo_core_exec_on_slave()`). Its stack is small:
   no big local arrays in its jobs.
 - **One mesh per object** in 3D: `jo_3d_mesh_draw()` or a `.JOM` model, not quads drawn one by one with `jo_3d_draw()`

@@ -47,6 +47,8 @@ most of the hardware; use it, and follow its rules.
   big surfaces (screen doors instead).
 - **The VDP2 draws the backgrounds for free**: scrolling planes, bitmaps, the 3D planes of `background.h`, a sky. Never a
   full screen background made of sprites.
+- **A loading reads the CD**: compress the data files (`jo_lz.py -f`: `jo_fs_read_file()` and `jo_fs_open()` read them
+  decompressed); measure with `jo_fs_get_read_stats()` and `jo_core_get_vblank_count()`.
 - **A frame rate the game holds everywhere**: `JO_FRAMERATE` in the makefile (1 = 60 images per second NTSC, 2 = 30, 3 =
   20). Check with `jo_core_get_fps()` and `jo_core_get_late_frame_count()`.
 
@@ -60,16 +62,18 @@ Details and the costs: `references/performance.md`.
 | Trigonometry | `jo_sin_angle()`, `jo_cos_angle()`, `jo_sincos_angle()`, `jo_atan2_angle()` (tables); degrees: `jo_sin()`, `jo_cos()` |
 | Roots, vectors | `jo_sqrt()`, `jo_fixed_sqrt()`, `jo_vector_fixed_length()`, `jo_vector_fixed_normalize()`, `jo_vector_fixed_dot()`, `jo_vector_fixed_cross()` |
 | Small helpers | `JO_MIN()`, `JO_MAX()`, `JO_CLAMP()`, `JO_ABS()`, `jo_lerp()`, `jo_random()`, `jo_random_seeded()` |
-| Memory | `jo_malloc()`, `jo_free()`, `jo_memcpy()`, `jo_memset()`, `jo_dma_copy()`, `jo_dma_copy_async()` |
+| Memory | `jo_malloc()`, `jo_free()`, `jo_memcpy()`, `jo_memset()`, `jo_dma_copy()`, `jo_dma_copy_async()`, `jo_malloc_set_slow_memory_first()` (a buffer kept for later, in the slow RAM) |
 | Lists | `jo_list_init()`, `jo_list_add()`, `jo_list_remove()`, `jo_list_foreach()` |
-| Loop, errors | `jo_core_init()`, `jo_core_add_callback()`, `jo_core_run()`, `jo_core_error()` (with `JO_DEBUG`) |
+| Loop, errors | `jo_core_init()`, `jo_core_add_callback()`, `jo_core_run()`, `jo_core_error()` (with `JO_DEBUG`), `jo_core_get_vblank_count()` (a time without a timer) |
 | Input | `jo_is_pad1_key_pressed()`, `jo_is_pad1_key_down()`, `input.h` for the other ports and devices |
 | 2D | `jo_sprite_add_tga()`, `jo_sprite_draw3D()`, `jo_sprite_draw3D_and_rotate()`, `jo_hitbox_detection()`, `map.h`, `sprite_animator.h`, `physics.h` (a platform game, in `jo_fixed`) |
-| Backgrounds | `vdp2.h`, `background.h`, `palette.h`, `tga.h` |
+| Colors of sprites | `jo_sprite_set_lut()` (a palette swap: the same pixels in other colors), `jo_sprite_add_4bits_image()` and `jo_sprite_set_palette_4bits()` (16 colors sprites in sub-palettes of the color RAM), `jo_sprite_set_palette_code()` |
+| Backgrounds | `vdp2.h`, `background.h`, `palette.h`, `tga.h`; `jo_effect_tint()` (the light of a place), `jo_vdp2_blend_sprites_of_priority()` (sprites mixed by the VDP2) |
 | 3D | `jo_3d_load_model()`, `jo_3d_model_draw()`, `jo_3d_camera_*()`, `jo_3d_push_matrix()`, `jo_3d_translate_matrix_fixed()`, `jo_3d_rotate_matrix()`, `jo_3d_set_depth_bias()` |
 | Levels, entities | `level.h`, `cell.h` (rooms and portals), `entity.h`, `water.h`, `light.h` |
-| Files | `jo_fs_read_file()` (reads the files compressed by `jo_lz.py`), `jo_fs_open()` for streaming |
-| Sound | `jo_audio_load_pcm()`, `jo_audio_play_sound()`, `jo_audio_play_cd_track()` |
+| Files | `jo_fs_read_file()` (reads the files compressed by `jo_lz.py`), `jo_fs_open()` for streaming, `jo_fs_get_read_stats()` (the time of a loading) |
+| Sound | `jo_audio_load_wav()`, `jo_audio_load_pcm()`, `jo_audio_play_sound()`, `jo_audio_play_sound_on_channel()`, `jo_audio_set_channel_sample_rate()` (pitch), `jo_audio_play_music()` (a WAV streamed, PCM or IMA ADPCM), `jo_audio_set_music_volume()`, `jo_audio_play_cd_track()` |
+| A 3D view in a texture | `render_to_image.h` (`jo_3d_render_to_image_init()`) |
 | Save | `backup.h` |
 | Profiling | `JO_COMPILE_WITH_PROFILER_MODULE = 1`, `jo_profile_begin()`, `jo_profile_end()`, `jo_profile_print()` |
 
@@ -83,8 +87,8 @@ Details: `references/3d.md`.
 
 ## References
 
-- `references/performance.md`: the costs of the CPUs, of the memories, of the VDP1 and of the VDP2, and how to share the
-  work between the 2 CPUs.
+- `references/performance.md`: the costs of the CPUs, of the memories, of the loadings, of the VDP1 and of the VDP2, and
+  how to share the work between the 2 CPUs.
 - `references/3d.md`: models, textures, sorts, levels of detail, terrains, transparency, checks.
 - `references/assets.md`: the tools of the engine (models, levels, images, sounds, compression) and the CD.
 - `references/porting.md`: porting a game from another platform (C, C++, a PC engine) to the Jo Engine.

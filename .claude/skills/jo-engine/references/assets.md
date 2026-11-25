@@ -42,12 +42,22 @@ a generated file by hand, never write a file format of the engine by hand: the t
   `jo_audio_load_pcm()`; `jo_audio_play_sound()`. Keep the short ones resident in the sound RAM
   (`jo_audio_make_resident()`).
 - Music: the audio tracks of the CD (`jo_audio_play_cd_track()`: the WAV files of the folder of `JO_CD_AUDIO_DIR`,
-  written in the CUE sheet by the build), or a WAV streamed from the CD (`jo_audio_play_music()`).
+  written in the CUE sheet by the build), or a WAV streamed from the CD (`jo_audio_play_music()`, PCM or IMA ADPCM, its
+  volume `jo_audio_set_music_volume()`). It starts about 0.3 s after the call (the drive seeks the file): a jingle with
+  drums doesn't line up with sounds of the game started at the same frame.
+- Volume: a step of the volume (0 to 127) is 0.75 dB; 8 steps less is about half the amplitude (-6 dB).
+- Variants of one sample (a pitch for each size of explosion, an engine that speeds up): another sample rate, when it is
+  loaded or while it plays (`jo_audio_set_channel_sample_rate()`), instead of another file. A long sound (an alarm, an
+  engine) on a channel of its own (`jo_audio_play_sound_on_channel()`), the short ones can't cut it.
 
 ## Compression and the CD
 
-- `python3 Compiler/COMMON/jo_lz.py -f IN OUT`: a compressed file of the CD; `jo_fs_read_file()` reads it decompressed
-  (fewer sectors to read: faster loading). `jo_lz.compress()` for the data kept compressed in RAM.
+- `python3 Compiler/COMMON/jo_lz.py -f IN OUT`: a compressed file of the CD; `jo_fs_read_file()` and `jo_fs_open()` read
+  it decompressed (fewer sectors to read: a loading about as much faster as the file is smaller, see
+  `performance.md`). Compress every data file read at a loading, as the last step of the build of the assets
+  (`jo_lz.compress_file()`; skip the files already compressed, the magic `JOLZ` first). Not the sounds (PCM doesn't
+  compress), not a file read by `jo_fs_read_file_async()` (read as it is on the CD). `jo_lz.compress()` for the data
+  kept compressed in RAM.
 - The files of the CD: the folder `cd/` of the game, 8.3 names in capitals. `cd.sort` next to the makefile orders the
   files on the disc (the files read one after the other side by side: no seek).
 - Read big files once at loading; for streaming, `jo_fs_open()` and the background reads of `fs.h`.
