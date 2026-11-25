@@ -788,6 +788,8 @@ static  __jo_force_inline void      jo_cpu_cache_purge(void)
 # define JO_SCSP_BASE_SAMPLING_RATE         (44100)
 /** @brief Total level register value (attenuation) from a volume
  *  @param VOLUME 0 (silent) to 127 (max)
+ *  @remarks The register counts steps of 0.375 dB: a step of VOLUME is 0.75 dB, 8 steps less about half the amplitude
+ *  (-6 dB)
  */
 # define JO_SCSP_TOTAL_LEVEL(VOLUME)        (((127 - ((VOLUME) & 127)) << 1) & 0xFF)
 

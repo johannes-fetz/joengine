@@ -166,7 +166,12 @@ static unsigned int                 __jo_effect_seed = 0x2545f491;
 static int                          __jo_flash_color[3];
 static int                          __jo_flash_frames = 0;
 static int                          __jo_flash_age = 0;
+static int                          __jo_flash_unit = 0;    // __JO_EFFECT_UNIT / frames: no division at each frame
 static volatile short               __jo_flash_value[3];
+/** @brief The lasting tint of some screens (see jo_effect_tint()) and their color offset (the flash and the fade added) */
+static int                          __jo_tint[3];
+static jo_scroll_screen             __jo_tint_screens = 0;
+static volatile short               __jo_tint_value[3];
 static volatile bool                __jo_flash_dirty = false;
 static bool                         __jo_flash_on = false;
 static int                          __jo_flash_event = -1;
@@ -175,6 +180,11 @@ static int                          __jo_fade = 0;
 static int                          __jo_fade_target = 0;
 static int                          __jo_fade_step = 0;
 static void                         __jo_effect_update_offset(void);
+#define __JO_EFFECT_UNIT_SHIFT              (16)
+#define __JO_EFFECT_UNIT                    (1 << __JO_EFFECT_UNIT_SHIFT)
+#define __JO_EFFECT_OFFSET_MAX              (255)
+// 255 * 257 = 65535: an offset of 0 to 255 to a fraction of __JO_EFFECT_UNIT
+#define __JO_EFFECT_OFFSET_TO_UNIT          (257)
 // Shake
 static int                          __jo_shake_amount = 0;
 static int                          __jo_shake_frames = 0;
@@ -205,16 +215,17 @@ static void                         __jo_effect_flash_vblank(void)
     if (!__jo_flash_dirty)
         return;
     __jo_flash_dirty = false;
-    if (__jo_flash_value[0] == 0 && __jo_flash_value[1] == 0 && __jo_flash_value[2] == 0)
+    if (__jo_flash_value[0] == 0 && __jo_flash_value[1] == 0 && __jo_flash_value[2] == 0 &&
+        (__jo_tint_screens == 0 || (__jo_tint_value[0] == 0 && __jo_tint_value[1] == 0 && __jo_tint_value[2] == 0)))
     {
         jo_disable_screen_color_filter(JO_ALL_SCROLL_SCREEN);
         __jo_flash_on = false;
+        return;
     }
-    else
-    {
-        jo_set_screen_color_filter_a(JO_ALL_SCROLL_SCREEN, __jo_flash_value[0], __jo_flash_value[1], __jo_flash_value[2]);
-        __jo_flash_on = true;
-    }
+    jo_set_screen_color_filter_a(JO_ALL_SCROLL_SCREEN, __jo_flash_value[0], __jo_flash_value[1], __jo_flash_value[2]);
+    if (__jo_tint_screens != 0)
+        jo_set_screen_color_filter_b(__jo_tint_screens, __jo_tint_value[0], __jo_tint_value[1], __jo_tint_value[2]);
+    __jo_flash_on = true;
 }
 
 void                                jo_effects_clear(void)
@@ -235,20 +246,42 @@ void                                jo_effects_clear(void)
     }
 }
 
+/** @brief What is left of the flash, a fraction of __JO_EFFECT_UNIT */
+static int                          __jo_flash_left(void)
+{
+    return (__jo_flash_frames > 0 ? (__jo_flash_frames - __jo_flash_age) * __jo_flash_unit : 0);
+}
+
 /** @brief Color offset of the flash and of the fade (written during the next VBLANK) */
 static void                         __jo_effect_update_offset(void)
 {
     int                             k;
     int                             flash;
+    int                             left;
+    int                             light;
 
+    left = __jo_flash_left();
+    light = (__JO_EFFECT_OFFSET_MAX - __jo_fade) * __JO_EFFECT_OFFSET_TO_UNIT;
     for (k = 0; k < 3; ++k)
     {
-        flash = __jo_flash_frames > 0 ? __jo_flash_color[k] * (__jo_flash_frames - __jo_flash_age) / __jo_flash_frames : 0;
-        __jo_flash_value[k] = (short)JO_MAX(flash - __jo_fade, -255);
+        flash = (__jo_flash_color[k] * left) >> __JO_EFFECT_UNIT_SHIFT;
+        __jo_flash_value[k] = (short)JO_MAX(flash - __jo_fade, -__JO_EFFECT_OFFSET_MAX);
+        // (the tint goes with the light: gone in the black of a fade)
+        __jo_tint_value[k] = (short)JO_CLAMP(((__jo_tint[k] * light) >> __JO_EFFECT_UNIT_SHIFT) + flash - __jo_fade,
+                                             -__JO_EFFECT_OFFSET_MAX, __JO_EFFECT_OFFSET_MAX);
     }
     __jo_flash_dirty = true;
     if (__jo_flash_event < 0)
         __jo_flash_event = jo_core_add_vblank_callback(__jo_effect_flash_vblank);
+}
+
+void                                jo_effect_tint(const jo_scroll_screen screens, const int r, const int g, const int b)
+{
+    __jo_tint_screens = screens;
+    __jo_tint[0] = JO_CLAMP(r, -__JO_EFFECT_OFFSET_MAX, __JO_EFFECT_OFFSET_MAX);
+    __jo_tint[1] = JO_CLAMP(g, -__JO_EFFECT_OFFSET_MAX, __JO_EFFECT_OFFSET_MAX);
+    __jo_tint[2] = JO_CLAMP(b, -__JO_EFFECT_OFFSET_MAX, __JO_EFFECT_OFFSET_MAX);
+    __jo_effect_update_offset();
 }
 
 void                                jo_effect_fade(const int darkness, const int frames)
@@ -273,14 +306,14 @@ void                                jo_effect_flash(const int r, const int g, co
     int                             left;
 
     // A brighter flash than what is left of the current one replaces it
-    left = __jo_flash_frames > 0 ? (__jo_flash_color[0] + __jo_flash_color[1] + __jo_flash_color[2]) *
-           (__jo_flash_frames - __jo_flash_age) / __jo_flash_frames : 0;
+    left = ((__jo_flash_color[0] + __jo_flash_color[1] + __jo_flash_color[2]) * __jo_flash_left()) >> __JO_EFFECT_UNIT_SHIFT;
     if (frames <= 0 || r + g + b < left)
         return;
     __jo_flash_color[0] = JO_MIN(r, 255);
     __jo_flash_color[1] = JO_MIN(g, 255);
     __jo_flash_color[2] = JO_MIN(b, 255);
     __jo_flash_frames = frames;
+    __jo_flash_unit = __JO_EFFECT_UNIT / frames;
     __jo_flash_age = 0;
     // (its first frame at the next VBLANK, the whole color: jo_effects_update() computed it after a frame, a flash of 1
     // frame was not seen)

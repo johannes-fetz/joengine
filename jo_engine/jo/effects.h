@@ -151,6 +151,16 @@ void                                jo_effect_flash(const int r, const int g, co
  */
 void                                jo_effect_fade(const int darkness, const int frames);
 
+/** @brief A lasting tint of some screens: the light of a place (the orange of a dusk, the blue of the snow, the dark of a
+ *  night), with the flash and the fade over it (the color offset B of the VDP2 for these screens, A for the others)
+ *  @param screens The screens tinted (the scene: not the text of a HUD), 0: none
+ *  @param r Red (-255 to 255: added to the colors)
+ *  @param g Green
+ *  @param b Blue
+ *  @remarks The tint fades with the screen (jo_effect_fade()): a black screen stays black
+ */
+void                                jo_effect_tint(const jo_scroll_screen screens, const int r, const int g, const int b);
+
 /** @brief Check if the fade is not finished (see jo_effect_fade()) */
 bool                                jo_effect_is_fading(void);
 
