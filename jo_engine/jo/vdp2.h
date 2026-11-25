@@ -75,6 +75,12 @@ void            jo_set_default_background_color(const jo_color background_color)
  */
 void            jo_set_background_line_colors(const jo_color * const colors);
 
+/** @brief Set the color of the border (the area of the TV outside the display area)
+ *  @param enabled true: the border takes the background color, false: black border (default)
+ *  @remarks Can be called at any time, the change is applied at the next VBLANK
+ */
+void            jo_vdp2_set_border_uses_background_color(const bool enabled);
+
 /*
 ███╗   ██╗██████╗  ██████╗ ██████╗     ██╗██████╗     ███████╗ ██████╗ ███╗   ██╗████████╗
 ████╗  ██║██╔══██╗██╔════╝ ╚════██╗   ██╔╝╚════██╗    ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝
@@ -215,6 +221,7 @@ void    jo_vdp2_set_nbg3_8bits_image(jo_img_8bits *img, int palette_id, bool ver
  *  @remarks Its memory is the memory of the 32768 colors bitmap: jo_vdp2_set_nbg1_16bits_bitmap() (and the images drawn in
  *  32768 colors: jo_vdp2_set_nbg1_image()...) set the 32768 colors bitmap again. A change of the screen mode changes its
  *  size: draw it again
+ *  @remarks NBG1 is displayed by the call: to fill it behind a loading screen, hide it again (jo_set_displayed_screens())
  *  @warning The last 2 pixels of the bitmap hold the color of the back screen
  */
 bool    jo_vdp2_set_nbg1_8bits_bitmap(const int palette_id);
@@ -769,7 +776,9 @@ typedef enum
     JO_VDP2_BLEND_ADD = 1,
     /** @brief Option of JO_VDP2_BLEND_RATIO and JO_VDP2_BLEND_ADD (example: JO_VDP2_BLEND_RATIO | JO_VDP2_BLEND_EXTENDED):
      *  when the screen under is also mixed, the 2 screens under the top screen are mixed together (3 screens are seen
-     *  through each other). Not in the 640 and 704 pixels modes */
+     *  through each other). Not in the 640 and 704 pixels modes. In the color RAM modes 1 and 2, a third image in palette
+     *  colors is not mixed (the ratios 4:0:0 of the VDP2 manual): the 2 screens above it are mixed without it, an effect
+     *  between them looks flat and opaque (don't draw it where it covers the other mixed screen) */
     JO_VDP2_BLEND_EXTENDED = 2
 }                                   jo_vdp2_blend_mode;
 

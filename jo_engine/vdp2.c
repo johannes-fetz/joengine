@@ -303,6 +303,8 @@ applied atomically between two frames.
 static unsigned short               __jo_vdp2_shadow[JO_VDP2_REG_COUNT];
 static volatile unsigned int        __jo_vdp2_dirty[(JO_VDP2_REG_COUNT + 31) / 32];
 static unsigned short               __jo_vdp2_tvmd;
+/** @brief The border (outside the display area) takes the back screen color instead of black */
+static bool                         __jo_vdp2_border_back_color = false;
 
 /*
 ** The VDP2 with the image of the VDP1 (see __jo_vdp2_end_frame()): the VDP2 applies a register at the VBLANK after it
@@ -1176,7 +1178,9 @@ static int                          __jo_vdp2_screen_palette = 0;
 
 static void                         jo_vdp2_set_tv_mode(void)
 {
-    __jo_vdp2_tvmd = JO_VDP2_TVMD_BORDER_BACK_COLOR | (JO_VDP2_TV_VRESO << JO_VDP2_TVMD_VRESO_SHIFT) | JO_VDP2_TV_HRESO;
+    __jo_vdp2_tvmd = (JO_VDP2_TV_VRESO << JO_VDP2_TVMD_VRESO_SHIFT) | JO_VDP2_TV_HRESO;
+    if (__jo_vdp2_border_back_color)
+        __jo_vdp2_tvmd |= JO_VDP2_TVMD_BORDER_BACK_COLOR;
     if (__jo_screen.interlace)
         __jo_vdp2_tvmd |= JO_VDP2_TVMD_DOUBLE_DENSITY;
     else if (__jo_screen.single_interlace)
@@ -1777,7 +1781,7 @@ void                                __jo_vdp2_init_registers(void)
     __jo_vdp2_screens[JO_VDP2_SCREEN_RBG0].color = JO_VDP2_COLOR_256;
     jo_vdp2_update_character_registers(JO_VDP2_SCREEN_RBG0);
     jo_vdp2_update_cycle_patterns();
-    // TV mode (display off). BDCLMD: border uses the back screen color
+    // TV mode (display off)
     jo_vdp2_set_tv_mode();
     JO_VDP2_SET(JO_VDP2_TVMD, __jo_vdp2_tvmd);
     jo_vdp2_flush_now();
@@ -2073,6 +2077,16 @@ void                                jo_set_default_background_color(const jo_col
         back_color = jo_vdp2_malloc_autosize(JO_VDP2_RAM_BACK_COLOR);
     back_color_value = background_color;
     jo_vdp2_set_back_color(back_color, background_color);
+}
+
+void                                jo_vdp2_set_border_uses_background_color(const bool enabled)
+{
+    __jo_vdp2_border_back_color = enabled;
+    if (enabled)
+        __jo_vdp2_tvmd |= JO_VDP2_TVMD_BORDER_BACK_COLOR;
+    else
+        __jo_vdp2_tvmd &= ~JO_VDP2_TVMD_BORDER_BACK_COLOR;
+    JO_VDP2_SET(JO_VDP2_TVMD, __jo_vdp2_tvmd | (JO_VDP2_GET(JO_VDP2_TVMD) & JO_VDP2_TVMD_DISPLAY));
 }
 
 /** @brief Back screen color tables (one color per line), the table displayed changes at each call */
