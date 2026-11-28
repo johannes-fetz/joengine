@@ -81,6 +81,20 @@ static  __jo_force_inline jo_color  jo_palette_color(const jo_palette * const pa
     return ((jo_color)(palette->id * 256 + index));
 }
 
+/** @brief Change colors of a palette with the image of the frame: in a callback of jo_core_run(), the colors are written
+ *  in the color RAM at the VBLANK where the VDP1 displays the sprites of this frame (1 or 2 frames later), at once out of
+ *  jo_core_run()
+ *  @param palette Palette (jo_create_palette())
+ *  @param index Index of the first color (1 to 255: palette->data[index - 1])
+ *  @param colors Colors
+ *  @param count Colors count
+ *  @remarks For the palette animations (water, fire, flashes, fades of a palette): the sprites and the scroll screens change
+ *  their colors in the same field. palette->data[k] = color writes at once (before the image of the frame)
+ *  @remarks Until then palette->data and jo_get_palette_register() give the old colors
+ */
+void                jo_palette_set_colors(const jo_palette * const palette, const int index, const jo_color * const colors,
+                                          const int count);
+
 /** @brief Copies the image palette data to CRAM
  *  @param data Data source
  *  @param cram_addr Color RAM address
@@ -112,14 +126,12 @@ static  __jo_force_inline void        jo_create_palette_from(jo_palette * const 
  *  @param colors JO_PALETTE_SUBPALETTE_COLORS colors: the color k of the pixels k (the color 0 is not used: the pixels 0 are
  *  transparent)
  *  @remarks The color k of the sub-palette s is palette->data[16 x s + k - 1] (palette->data[k] is the color of the index
- *  k + 1). Written at once in the color RAM: the sprites drawn with it change their colors at the next frame (a palette
- *  animation: the water, the fire, a flash)
+ *  k + 1). Written with the image of the frame (see jo_palette_set_colors()): a palette animation (the water, the fire, a
+ *  flash) changes with the sprites of the frame
  */
 static  __jo_force_inline void        jo_palette_set_subpalette(const jo_palette * const palette, const int subpalette_id,
                                                                 const jo_color * const colors)
 {
-    int                               k;
-
 #ifdef JO_DEBUG
     if (palette == JO_NULL || colors == JO_NULL)
     {
@@ -129,11 +141,7 @@ static  __jo_force_inline void        jo_palette_set_subpalette(const jo_palette
     if (__JO_INDEX_IS_WRONG(subpalette_id, JO_PALETTE_SUBPALETTES, "sub-palette id"))
         return ;
 #endif
-    // (the color RAM full: no palette)
-    if (palette->data == JO_NULL)
-        return ;
-    for (k = 1; k < JO_PALETTE_SUBPALETTE_COLORS; ++k)
-        palette->data[JO_MULT_BY_16(subpalette_id) + k - 1] = colors[k];
+    jo_palette_set_colors(palette, JO_MULT_BY_16(subpalette_id) + 1, colors + 1, JO_PALETTE_SUBPALETTE_COLORS - 1);
 }
 
 /** @brief Set palette index color

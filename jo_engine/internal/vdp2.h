@@ -60,8 +60,9 @@ void    __jo_vdp2_nbg1_bitmap_fill(const int x, const int y, int width, int heig
 void    __jo_vdp2_nbg1_bitmap_blit(const jo_img * const img, const int src_x, const int src_y, int width, int height, const int x, const int y);
 
 /** @brief End of a frame of the game (Internal usage, called by __jo_core_synch() before __jo_vdp1_end_frame()): the
- *  scroll registers and the rotation parameters set by the frame are kept with its number (__jo_vdp1_frame_tag()) and
- *  applied at the VBLANK where the VDP1 displays its image (see __jo_vdp1_displayed_frame_changed())
+ *  registers set by the frame (scroll, zoom, color offsets, screens displayed with their VRAM cycles, windows) and the
+ *  rotation parameters are kept with its number (__jo_vdp1_frame_tag()) and applied at the VBLANK where the VDP1 displays
+ *  its image (see __jo_vdp1_displayed_frame_changed())
  */
 void            __jo_vdp2_end_frame(void);
 
@@ -101,6 +102,21 @@ void            *__jo_vdp2_set_rgb_bitmap(const jo_scroll_screen screen, const u
  *  @param bitmap The bitmap (JO_NULL: nothing)
  */
 void            __jo_vdp2_free_rgb_bitmap(const jo_scroll_screen screen, void * const bitmap);
+
+/** @brief An address in the NBG1 bitmap kept by a module (mode 7, software renderer): the same place in the bitmap drawn
+ *  (Internal usage, see jo_vdp2_enable_nbg1_double_buffer())
+ *  @param p Address (in a bitmap of the double buffer, or elsewhere)
+ *  @return The address in the hidden bitmap, p if it is not in a bitmap of the double buffer
+ */
+void            *__jo_vdp2_nbg1_draw_address(void * const p);
+
+/** @brief Write colors in the color RAM (Internal usage, see jo_palette_set_colors()): in a frame of jo_core_run(), at the
+ *  VBLANK where the VDP1 displays its image, else at once
+ *  @param index First color in the color RAM (0 to 2047)
+ *  @param colors Colors
+ *  @param count Colors count
+ */
+void            __jo_vdp2_set_colors(const unsigned int index, const jo_color * const colors, const int count);
 
 #endif /* !__JO_INTERNAL_VDP2_H__ */
 

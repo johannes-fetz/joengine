@@ -64,8 +64,11 @@ guesses about speed are wrong.
   Mednafen stored by words of 16 bits in little endian (swap each pair of bytes).
 - **A sprite cut or squeezed**: its width not a multiple of 8, or a texture bigger than the VDP1 allows.
 - **A level seen half loaded before its opening**: a call that displays its layer when it sets it (`performance.md`,
-  the VDP2), or the last image of the VDP1 still shown a frame or two after the screens are hidden: keep the loading
-  screen black for a few frames, show the layers when everything is loaded.
+  the VDP2), or a screen loaded in the frame that hides it (its VRAM is written at once, the screen hidden with the image
+  of the frame): hide it in an earlier frame, show the layers when everything is loaded.
+- **A flash, a text, a color or a screen a frame or two before the sprites**: changed out of a frame of `jo_core_run()`
+  (before it or in a VBLANK callback: at the next VBLANK), or written directly (`palette->data[k]`, the VRAM): see
+  `performance.md` (in step with the sprites).
 - **A mixed effect flat or opaque**: the extended color calculation over a palette layer (`performance.md`, the VDP2).
 - Look at the data before the code: the VDP1 command table of a save state at the place of the glitch tells which
   polygon is drawn, with which texture and where.

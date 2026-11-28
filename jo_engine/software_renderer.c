@@ -47,6 +47,7 @@
 #include "jo/vdp2_malloc.h"
 #include "jo/software_renderer.h"
 #include "internal/sprites.h"
+#include "internal/vdp2.h"
 
 /*
  ██████╗ ██████╗ ██████╗ ███████╗
@@ -58,7 +59,6 @@
 */
 
 extern jo_picture_definition                __jo_sprite_pic[JO_MAX_SPRITE];
-extern jo_color                             *nbg1_bitmap;
 
 /** @brief Forget the textures copied in RAM (see jo_sr_get_texture()): at each flush, the sprites can change (their
  *  blocks are kept for the next frame)
@@ -187,12 +187,12 @@ jo_software_renderer_gfx                    *jo_software_renderer_create_ex(unsi
         case JO_NBG1_SCREEN:
             jo_vdp2_set_nbg1_image(&img, 0, 0);
             // (JO_NULL: the bitmap can't be allocated, see __jo_vdp2_reserve_nbg1_bitmap())
-            if (nbg1_bitmap == JO_NULL)
+            if (__jo_vdp2_nbg1_bitmap == JO_NULL)
             {
                 jo_software_renderer_free(gfx);
                 return (JO_NULL);
             }
-            gfx->vram = nbg1_bitmap;
+            gfx->vram = __jo_vdp2_nbg1_bitmap;
             gfx->vram_size.width = JO_VDP2_WIDTH;
             gfx->vram_size.height = JO_VDP2_HEIGHT;
             // (in the bitmap: a renderer of 704 pixels or 480 lines wrote after the buffer and after the bitmap)
@@ -252,6 +252,8 @@ void                                        jo_software_renderer_flush(jo_softwa
     }
 #endif
     jo_sr_forget_textures(gfx, false);
+    // (the hidden bitmap of the double buffer of NBG1, see jo_vdp2_enable_nbg1_double_buffer())
+    gfx->vram = __jo_vdp2_nbg1_draw_address(gfx->vram);
     if (gfx->depth_buffer == JO_NULL)
     {
         jo_dma_copy(gfx->color_buffer, gfx->vram, gfx->color_buffer_size);

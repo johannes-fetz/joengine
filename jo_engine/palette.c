@@ -45,6 +45,8 @@
 #include "jo/sprites.h"
 #include "jo/palette.h"
 #include "jo/vdp2_malloc.h"
+#include "jo/vdp2.h"
+#include "internal/vdp2.h"
 
 extern int          __jo_current_palette_id;
 
@@ -77,6 +79,26 @@ void        jo_set_palette_register(const unsigned short palette_index, const jo
     }
 #endif
     *(((jo_color *)(JO_VDP2_CRAM)) + palette_index) = color;
+}
+
+void        jo_palette_set_colors(const jo_palette * const palette, const int index, const jo_color * const colors, const int count)
+{
+#ifdef JO_DEBUG
+    if (palette == JO_NULL || colors == JO_NULL)
+    {
+        jo_core_error("palette or colors is null");
+        return ;
+    }
+    if (index < 1 || count < 0 || index + count > JO_PALETTE_MAX_COLORS + 1)
+    {
+        jo_core_error("Wrong color index %d (count %d)", index, count);
+        return ;
+    }
+#endif
+    // (the color RAM full: no palette)
+    if (palette->data == JO_NULL)
+        return ;
+    __jo_vdp2_set_colors((unsigned int)(palette->data - (jo_color *)JO_VDP2_CRAM) + (unsigned int)index - 1, colors, count);
 }
 
 jo_color    jo_get_palette_register(const unsigned short palette_index)

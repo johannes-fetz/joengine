@@ -139,8 +139,9 @@ int                                 jo_effects_draw(void);
  *  @param g Green
  *  @param b Blue
  *  @param frames Frames of the game until it is gone
- *  @remarks The registers are written during the VBLANK (no line of the screen with half of the flash). A brighter flash
- *           than the current one replaces it
+ *  @remarks In a frame of jo_core_run(): shown with the image of the frame, the sprites that start the flash are in the same
+ *           field (out of it: at the next VBLANK). The registers change during the VBLANK (no line of the screen with half
+ *           of the flash). A brighter flash than the current one replaces it
  */
 void                                jo_effect_flash(const int r, const int g, const int b, const int frames);
 
@@ -148,6 +149,8 @@ void                                jo_effect_flash(const int r, const int g, co
  *  @param darkness 0 (no fade) to 255 (black)
  *  @param frames Frames of the game to reach it (see jo_effects_update()), 0: now
  *  @remarks A change of level: fade to black, load, fade back. jo_effects_clear() doesn't change the fade
+ *  @remarks In a frame of jo_core_run(), the black comes with the image of the frame: a level loaded in the same frame is
+ *           loaded while the image before stays on the screen. Fade to black in a frame, load in a next one
  */
 void                                jo_effect_fade(const int darkness, const int frames);
 

@@ -58,6 +58,12 @@ void                            *__jo_vdp2_malloc_try(const jo_vdp2_ram_usage us
  */
 void                            *__jo_vdp2_malloc_bank(const unsigned int n);
 
+/** @brief The banks B0 and B1 whole (the second bitmap of NBG1, see jo_vdp2_enable_nbg1_double_buffer()). Without error
+ *  message
+ *  @return B0 (free B0 and B1 with jo_vdp2_free()), JO_NULL if a block is in B0 or B1 (the font of jo_printf())
+ */
+void                            *__jo_vdp2_malloc_b_banks(void);
+
 /** @brief jo_vdp2_malloc() in the bank B0 first when the block near is there (the map of a screen in the bank of its cells)
  *  @param usage The usage of the block
  *  @param n Size in bytes

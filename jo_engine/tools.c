@@ -356,7 +356,11 @@ int                         jo_sprintf(char * const str, const char * const form
 
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
 
+/** @brief Cells cleared by jo_clear_screen_line(): a line of the widest screen (352 pixels) */
+# define JO_PRINTF_LINE_CELLS       (44)
+
 void            __jo_vdp2_print(const int x, const int y, const char * str);
+void            __jo_vdp2_clear_text(const int x, const int y, const int count);
 
 void            jo_print(int x, int y, char * str)
 {
@@ -372,7 +376,7 @@ void            jo_print(int x, int y, char * str)
 
 void                    jo_clear_screen_line(const int y)
 {
-    __jo_vdp2_print(0, y, "                                            ");
+    __jo_vdp2_clear_text(0, y, JO_PRINTF_LINE_CELLS);
 }
 
 void                    jo_clear_screen(void)

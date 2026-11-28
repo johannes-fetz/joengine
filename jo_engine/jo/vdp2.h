@@ -59,6 +59,10 @@ extern char		        __jo_sprintf_buf[JO_PRINTF_BUF_SIZE];
 
 /** @brief Set displayed screens
  *  @param scroll_screen_flags Scroll screens (You can pass multiple value using pipe(|). Example: JO_NBG1_SCREEN|JO_NBG2_SCREEN)
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame, with the VRAM
+ *  cycle patterns (a screen hidden or shown with the sprites of its frame); before jo_core_run() or in a VBLANK callback:
+ *  at the next VBLANK. The functions that show their screen when they set it (jo_vdp2_set_nbg1_8bits_bitmap()...) too.
+ *  What is written in the VRAM of a screen (its image, its map) is at once: load a screen hidden by an earlier frame
  */
 void            jo_set_displayed_screens(const jo_scroll_screen scroll_screen_flags);
 
@@ -268,6 +272,17 @@ void	jo_vdp2_set_nbg1_image(const jo_img * const img, short left, short top);
 /** @brief The NBG1 bitmap is in the VRAM (Internal usage, see __jo_vdp2_reserve_nbg1_bitmap()) */
 extern bool __jo_vdp2_nbg1_bitmap_reserved;
 
+/** @brief The NBG1 bitmap drawn (Internal usage: the hidden one with jo_vdp2_enable_nbg1_double_buffer()) */
+extern jo_color *__jo_vdp2_nbg1_bitmap;
+
+/** @brief The bitmap of jo_vdp2_swap_nbg1_bitmap() is not displayed yet (Internal usage) */
+extern volatile bool __jo_vdp2_nbg1_swapping;
+
+/** @brief Wait until the bitmap of jo_vdp2_swap_nbg1_bitmap() is displayed, before a drawing in NBG1 (Internal usage)
+ *  @return false if it can't be waited: in the frame of the swap, or in an interrupt handler
+ */
+bool    __jo_vdp2_wait_nbg1_swap(void);
+
 /** @brief Allocate and display the NBG1 bitmap at its first use (Internal usage)
  *  @return false if it can't be at the start of the bank A0 (the bank is used by other screens: line scroll tables, cells
  *  of NBG1 or RBG0). The drawing functions of the bitmap call it
@@ -281,6 +296,42 @@ bool    __jo_vdp2_reserve_nbg1_bitmap(void);
  *  @param color Clear color
  */
 void    jo_vdp2_clear_bitmap_nbg1(const jo_color color);
+
+/** @brief Double buffer of the NBG1 bitmap: the drawing functions of NBG1 draw in a hidden bitmap, displayed by
+ *  jo_vdp2_swap_nbg1_bitmap() with the sprites of the same frame (a new background without tearing, in the same field
+ *  as the sprites)
+ *  @return false if the second bitmap can't be allocated: the banks B0 and B1 (256 KB) must be free
+ *  @remarks The 2 bitmaps take the whole VRAM of the VDP2: no jo_printf() (JO_COMPILE_WITH_PRINTF_MODULE = 0 in the
+ *  makefile), no other scroll screen, no table of line scroll or of line colors
+ *  @remarks All the drawing functions of NBG1 (16 and 8 bits, images, maps, mode 7, software renderer) draw in the hidden
+ *  bitmap. It is transparent at the start, then it holds the image displayed before the last swap: draw it again whole,
+ *  or what changed in the 2 last images
+ */
+bool    jo_vdp2_enable_nbg1_double_buffer(void);
+
+/** @brief Display the hidden NBG1 bitmap (see jo_vdp2_enable_nbg1_double_buffer()), the next drawings are in the other one
+ *  @remarks In a callback of jo_core_run(): displayed with the sprites of this frame (1 or 2 frames later, the VDP1 draws
+ *  them). A drawing in NBG1 in a next frame waits until then (see jo_vdp2_nbg1_swap_pending()). Out of jo_core_run(): at
+ *  the next VBLANK
+ *  @warning No drawing in NBG1 after the swap in the same frame: it would be in the bitmap still displayed
+ */
+void    jo_vdp2_swap_nbg1_bitmap(void);
+
+/** @brief The bitmap of the last jo_vdp2_swap_nbg1_bitmap() is not displayed yet
+ *  @return true: a drawing in NBG1 would wait for it
+ */
+bool    jo_vdp2_nbg1_swap_pending(void);
+
+/** @brief The VBLANK when the bitmap of the last jo_vdp2_swap_nbg1_bitmap() was displayed
+ *  @return Value of jo_core_get_vblank_count() at that VBLANK (check jo_vdp2_nbg1_swap_pending() first)
+ *  @remarks Useful to count the time a new screen of the game was really shown
+ */
+unsigned int    jo_vdp2_get_nbg1_swap_vblank(void);
+
+/** @brief One NBG1 bitmap again (see jo_vdp2_enable_nbg1_double_buffer()): the banks B0 and B1 are free
+ *  @remarks The image displayed stays
+ */
+void    jo_vdp2_disable_nbg1_double_buffer(void);
 
 /*
 ███╗   ███╗ ██████╗ ██╗   ██╗███████╗       ██╗       ███████╗ ██████╗  ██████╗ ███╗   ███╗
@@ -323,6 +374,8 @@ void    jo_vdp2_move_nbg1_fixed(const jo_fixed x, const jo_fixed y);
 /** @brief Zoom NBG1 width and height independently
  *  @param width_factor Width zoom factor
  *  @param height_factor Height zoom factor
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void	jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor);
 
@@ -330,6 +383,8 @@ void	jo_vdp2_zoom_nbg1f(const float width_factor, const float height_factor);
  *  @param width_factor Coordinate increment (horizontal): JO_FIXED_1 normal, JO_FIXED_1 / 2 twice bigger (8 bits of
  *  fraction are used)
  *  @param height_factor Coordinate increment (vertical)
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_zoom_nbg1_fixed(const jo_fixed width_factor, const jo_fixed height_factor);
 
@@ -352,6 +407,8 @@ void	jo_vdp2_move_nbg0(const int x, const int y);
 /** @brief Zoom NBG0 width and height independently
  *  @param width_factor Width zoom factor
  *  @param height_factor Height zoom factor
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void	jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor);
 
@@ -359,6 +416,8 @@ void	jo_vdp2_zoom_nbg0f(const float width_factor, const float height_factor);
  *  @param width_factor Coordinate increment (horizontal): JO_FIXED_1 normal, JO_FIXED_1 / 2 twice bigger (8 bits of
  *  fraction are used)
  *  @param height_factor Coordinate increment (vertical)
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_zoom_nbg0_fixed(const jo_fixed width_factor, const jo_fixed height_factor);
 
@@ -426,7 +485,9 @@ static  __jo_force_inline void	jo_vdp2_put_pixel_bitmap_nbg1(const int x, const 
     // (the bitmap at its first use, see __jo_vdp2_reserve_nbg1_bitmap())
     if (!__jo_vdp2_nbg1_bitmap_reserved && !__jo_vdp2_reserve_nbg1_bitmap())
         return;
-    *(((unsigned short *)JO_VDP2_VRAM_A0) + x + y * JO_VDP2_WIDTH) = color;
+    if (__jo_vdp2_nbg1_swapping)
+        __jo_vdp2_wait_nbg1_swap();
+    __jo_vdp2_nbg1_bitmap[x + y * JO_VDP2_WIDTH] = color;
 }
 
 /** @brief Put pixel in NBG1 using composite color
@@ -728,8 +789,14 @@ typedef enum
  *  @param width Width (pixels)
  *  @param height Height (lines)
  *  @remarks Then choose its screens with jo_vdp2_enable_window(). The glows (jo/glow.h) use the 2 windows
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_set_window(const int window, int x, int y, int width, int height);
+
+/** @brief Line window tables of a window (see jo_vdp2_set_window_lines()): the one displayed, the ones of the frames
+ *  waiting for their image (the CPUs are up to 3 frames ahead of it), the one being written */
+# define JO_VDP2_LINE_WINDOW_TABLES         (5)
 
 /** @brief Set a window of any shape: its left and right pixels on each line
  *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
@@ -737,7 +804,10 @@ void    jo_vdp2_set_window(const int window, int x, int y, int width, int height
  *  @param count Line count (up to 512)
  *  @param left Left pixel of each line (count values)
  *  @param right Right pixel of each line, included (count values; smaller than left: nothing on the line)
- *  @return true if succeed, false if the VDP2 memory is full (2 KB per window)
+ *  @return true if succeed, false if the VDP2 memory is full (JO_VDP2_LINE_WINDOW_TABLES tables of 2 KB per window: one
+ *  per frame, the ones of the frames waiting for their image are kept; one table when the memory is short)
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 bool    jo_vdp2_set_window_lines(const int window, const int top, const int count, const short * const left, const short * const right);
 
@@ -747,6 +817,8 @@ bool    jo_vdp2_set_window_lines(const int window, const int top, const int coun
  *  @param y Vertical position of the center (lines)
  *  @param radius Radius (pixels)
  *  @return true if succeed, false if the VDP2 memory is full
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 bool    jo_vdp2_set_window_circle(const int window, const int x, const int y, const int radius);
 
@@ -755,11 +827,15 @@ bool    jo_vdp2_set_window_circle(const int window, const int x, const int y, co
  *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
  *  @param area JO_VDP2_WINDOW_SHOW_INSIDE or JO_VDP2_WINDOW_SHOW_OUTSIDE
  *  @remarks A screen with the 2 windows is hidden where one of the 2 windows hides it
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_enable_window(const jo_scroll_screen screens, const int window, const jo_vdp2_window_area area);
 
 /** @brief The screens are shown on all the screen again (see jo_vdp2_enable_window())
  *  @param screens Screens
+ *  @remarks Called by a callback of jo_core_run(): applied when the VDP1 displays the image of the frame (in step with
+ *  the sprites and the 3D of the frame); before jo_core_run() or in a VBLANK callback: at the next VBLANK
  */
 void    jo_vdp2_disable_window(const jo_scroll_screen screens);
 

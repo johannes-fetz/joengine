@@ -488,6 +488,24 @@ void                            *__jo_vdp2_malloc_bank(const unsigned int n)
     return (jo_vdp2_malloc_bank_in(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0, (unsigned char *)JO_VDP2_VRAM_B1, n));
 }
 
+void                            *__jo_vdp2_malloc_b_banks(void)
+{
+    void                        *b0;
+    void                        *b1;
+
+    if (__jo_b0 != (unsigned char *)JO_VDP2_VRAM_B0 || __jo_b1 != (unsigned char *)JO_VDP2_VRAM_B1)
+        return (JO_NULL);
+    b0 = jo_vdp2_malloc_bank_in(__jo_b0_segments, B0_SEGMENT_COUNT, &__jo_b0, (unsigned char *)JO_VDP2_VRAM_B1, JO_VDP2_BANK_SIZE);
+    b1 = jo_vdp2_malloc_bank_in(__jo_b1_segments, B1_SEGMENT_COUNT, &__jo_b1, (unsigned char *)(JO_VDP2_VRAM + 0x80000), JO_VDP2_BANK_SIZE);
+    if (b0 == JO_NULL || b1 == JO_NULL)
+    {
+        jo_vdp2_free(b1);
+        jo_vdp2_free(b0);
+        return (JO_NULL);
+    }
+    return (b0);
+}
+
 void                            *__jo_vdp2_malloc_near(const jo_vdp2_ram_usage usage, const unsigned int n, const void * const near)
 {
     void                        *ptr;

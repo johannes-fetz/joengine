@@ -66,8 +66,18 @@ static unsigned char                *nbg0_cell = JO_NULL;
 #endif
 static int                          *nbg0_scroll_table = JO_NULL;
 //NBG1
-jo_color                            *nbg1_bitmap = JO_NULL;
+jo_color                            *__jo_vdp2_nbg1_bitmap = JO_NULL;
 bool                                __jo_vdp2_nbg1_bitmap_reserved = false;
+/** @brief Double buffer of the NBG1 bitmap (see jo_vdp2_enable_nbg1_double_buffer()): its 2 bitmaps (A0 and A1, B0 and
+ *  B1) and the one displayed (__jo_vdp2_nbg1_bitmap: the one drawn) */
+static jo_color                     *nbg1_pages[2] = {JO_NULL, JO_NULL};
+static unsigned int                 nbg1_shown_page = 0;
+/** @brief The swap of jo_vdp2_swap_nbg1_bitmap() waiting for its image: the frame (__jo_vdp1_frame_tag()), or the next
+ *  VBLANK (out of the frames of jo_core_run()) */
+volatile bool                       __jo_vdp2_nbg1_swapping = false;
+static unsigned int                 nbg1_swap_tag = 0;
+static bool                         nbg1_swap_in_frame = false;
+static volatile unsigned int        nbg1_swap_vblank = 0;
 static unsigned short               *nbg1_map = JO_NULL;
 static unsigned char                *nbg1_cell = JO_NULL;
 static int                          *nbg1_scroll_table = JO_NULL;
@@ -312,25 +322,106 @@ static bool                         __jo_vdp2_border_back_color = false;
 ** VDP1 at a VBLANK, drawn and displayed in the field after): a VDP2 plane or scroll moved by a frame was displayed 1 to 2
 ** frames before the sprites and polygons of the same frame (a band of sky under the polygons of the horizon when the
 ** camera turns, the sprites ahead of a scrolling background), and two frames ending in the same field (1.2 and 0.5
-** fields) showed the VDP2 of only one of them (the VDP2 at 30 frames per second, the VDP1 at 60). The scroll registers
-** and the rotation parameters set by the frame callbacks of jo_core_run() are kept with the number of the frame and
-** applied at the VBLANK where the VDP1 displays its image, as the glows do. The other registers (modes, priorities,
-** colors...) and the changes made before jo_core_run() or in a VBLANK callback: at the next VBLANK, as before.
+** fields) showed the VDP2 of only one of them (the VDP2 at 30 frames per second, the VDP1 at 60). The scroll registers,
+** the color offsets (the flashes and the fades of the sprites with their image), the screens displayed with their VRAM
+** cycle patterns (a screen hidden or shown with the sprites of its frame), the windows (with a line window table per
+** frame) and the rotation parameters set by the frame callbacks of jo_core_run(), and the colors of
+** jo_palette_set_colors(), are kept with the number of the frame and applied at the VBLANK where the VDP1 displays its
+** image, as the glows do. The other registers (modes, priorities, ...) and the changes made before jo_core_run() or in
+** a VBLANK callback: at the next VBLANK, as before. A register the VDP2 must stop using before a table is freed:
+** written at once (see jo_vdp2_now_begin()).
 */
-/** @brief Registers applied with the image of their frame (see jo_vdp2_frame_register()) */
-# define JO_VDP2_FRAME_REGISTERS            (18)
+/** @brief Bits of the frame state (see jo_vdp2_frame_register()): one per register up to the color offsets, then groups
+ *  of registers applied together: the screens displayed (BGON), the zoom reductions and the line scroll modes (ZMCTL,
+ *  SCRCTL), the VRAM banks and their cycle patterns (RAMCTL, CYCA0L to CYCB1U: computed with the screens displayed and
+ *  their zoom), the windows (WPSX0 to LWTA1L) and the zoom of NBG0 and NBG1 */
+# define JO_VDP2_FRAME_FIRST_GROUP          (26)
+# define JO_VDP2_FRAME_BGON                 (26)
+# define JO_VDP2_FRAME_CONTROL              (27)
+# define JO_VDP2_FRAME_CYCLES               (28)
+# define JO_VDP2_FRAME_WINDOWS              (29)
+# define JO_VDP2_FRAME_ZOOM_NBG0            (30)
+# define JO_VDP2_FRAME_ZOOM_NBG1            (31)
+# define JO_VDP2_FRAME_GROUPS               (6)
+# define JO_VDP2_FRAME_CONTROL_REGISTERS    (2)
+# define JO_VDP2_FRAME_CYCLE_REGISTERS      (9)
+# define JO_VDP2_FRAME_WINDOW_REGISTERS     (16)
+# define JO_VDP2_FRAME_ZOOM_REGISTERS       (4)
+/** @brief Registers applied with the image of their frame (the values kept for each frame) */
+# define JO_VDP2_FRAME_REGISTERS            (JO_VDP2_FRAME_FIRST_GROUP + 1 + JO_VDP2_FRAME_CONTROL_REGISTERS + \
+                                             JO_VDP2_FRAME_CYCLE_REGISTERS + JO_VDP2_FRAME_WINDOW_REGISTERS + \
+                                             2 * JO_VDP2_FRAME_ZOOM_REGISTERS)
+/** @brief The register count of each group, where its values are kept in a frame state */
+static const unsigned char          __jo_vdp2_frame_group_count[JO_VDP2_FRAME_GROUPS] =
+{
+    1, JO_VDP2_FRAME_CONTROL_REGISTERS, JO_VDP2_FRAME_CYCLE_REGISTERS, JO_VDP2_FRAME_WINDOW_REGISTERS,
+    JO_VDP2_FRAME_ZOOM_REGISTERS, JO_VDP2_FRAME_ZOOM_REGISTERS
+};
+static const unsigned char          __jo_vdp2_frame_group_slot[JO_VDP2_FRAME_GROUPS] =
+{
+    JO_VDP2_FRAME_FIRST_GROUP,
+    JO_VDP2_FRAME_FIRST_GROUP + 1,
+    JO_VDP2_FRAME_FIRST_GROUP + 1 + JO_VDP2_FRAME_CONTROL_REGISTERS,
+    JO_VDP2_FRAME_FIRST_GROUP + 1 + JO_VDP2_FRAME_CONTROL_REGISTERS + JO_VDP2_FRAME_CYCLE_REGISTERS,
+    JO_VDP2_FRAME_FIRST_GROUP + 1 + JO_VDP2_FRAME_CONTROL_REGISTERS + JO_VDP2_FRAME_CYCLE_REGISTERS + JO_VDP2_FRAME_WINDOW_REGISTERS,
+    JO_VDP2_FRAME_FIRST_GROUP + 1 + JO_VDP2_FRAME_CONTROL_REGISTERS + JO_VDP2_FRAME_CYCLE_REGISTERS + JO_VDP2_FRAME_WINDOW_REGISTERS +
+    JO_VDP2_FRAME_ZOOM_REGISTERS
+};
 
 /** @brief Registers of the current frame (bits of jo_vdp2_frame_register()) */
 static unsigned int                 __jo_vdp2_frame_dirty = 0;
 /** @brief The rotation parameters set by the current frame */
 static bool                         __jo_vdp2_frame_rparams = false;
+/** @brief The registers are applied at the next VBLANK even in a frame (see jo_fade_screens(): it waits for the VBLANK) */
+static bool                         __jo_vdp2_at_next_vblank = false;
+/** @brief The registers are written at once (see jo_vdp2_now_begin()), the bits of the frame state they belong to */
+static bool                         __jo_vdp2_now = false;
+static unsigned int                 __jo_vdp2_now_bits = 0;
+
+/** @brief Colors of the color RAM applied with the image of their frame (see jo_palette_set_colors()): a ring, allocated
+ *  at the first use */
+# define JO_VDP2_FRAME_COLORS               (1024)
+typedef struct
+{
+    unsigned short                  index;          // Color in the color RAM
+    jo_color                        color;
+}                                   jo_vdp2_frame_color;
+static jo_vdp2_frame_color          *__jo_vdp2_frame_colors = JO_NULL;
+/** @brief The next color written (the main program), the next one applied (the VBLANK): counters, the ring wraps */
+static unsigned int                 __jo_vdp2_colors_head = 0;
+static unsigned int                 __jo_vdp2_colors_tail = 0;
+/** @brief Colors written by the current frame */
+static bool                         __jo_vdp2_frame_cram = false;
+
+/** @brief The text of jo_printf() (the map of NBG0) written with the image of its frame (see __jo_vdp2_print()): the next
+ *  cell written in the ring (a counter, the ring wraps), text written by the current frame */
+static unsigned int                 __jo_vdp2_cells_head = 0;
+static bool                         __jo_vdp2_frame_text = false;
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+/** @brief The ring of the cells of the text, allocated at the first use. A cell: its offset in the map and its value; a
+ *  run of a cell (jo_clear_screen_line()): its first offset with JO_VDP2_FRAME_CELL_RUN and its value, then a cell with
+ *  its count */
+# define JO_VDP2_FRAME_CELLS                (2048)
+# define JO_VDP2_FRAME_CELL_RUN             (0x8000)
+typedef struct
+{
+    unsigned short                  offset;         // Cell in the map
+    unsigned short                  value;          // Pattern name
+}                                   jo_vdp2_frame_cell;
+static jo_vdp2_frame_cell           *__jo_vdp2_frame_cells = JO_NULL;
+/** @brief The next cell applied (the VBLANK) */
+static unsigned int                 __jo_vdp2_cells_tail = 0;
+static void                         jo_vdp2_apply_text(const unsigned int end);
+#endif
 
 /** @brief The registers applied with the image of their frame: the scroll of NBG0 to NBG3, the addresses of the line
- *  scroll tables of NBG0 and NBG1 (a table per frame, see jo_vdp2_next_nbg1_line_scroll_xy()), and the registers of the
- *  rotation parameter B set with its matrix (coefficient table, character over the planes)
+ *  scroll tables of NBG0 and NBG1 (a table per frame, see jo_vdp2_next_nbg1_line_scroll_xy()), the registers of the
+ *  rotation parameter B set with its matrix (coefficient table, character over the planes), the color offsets (see
+ *  jo_set_screen_color_filter_a()), the screens displayed (BGON) with the VRAM banks and cycle patterns, the zoom of
+ *  NBG0 and NBG1 with its reductions, the line scroll modes, and the windows (a line window table per frame, see
+ *  jo_vdp2_set_window_lines())
  *  @param index Register index (JO_VDP2_REG_INDEX())
  *  @return Bit of the register in the state of a frame, -1: applied at the next VBLANK
- *  @remarks Not the zoom: its reduction bits (ZMCTL) and the VRAM cycles go with it, at the next VBLANK
  */
 static  __jo_force_inline int       jo_vdp2_frame_register(const unsigned int index)
 {
@@ -349,24 +440,73 @@ static  __jo_force_inline int       jo_vdp2_frame_register(const unsigned int in
     // LSTA0U, LSTA0L, LSTA1U, LSTA1L
     if (index - JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U) < 4)
         return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U)) + 14);
+    // CLOFEN, CLOFSL, COAR, COAG, COAB, COBR, COBG, COBB
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_CLOFEN) < 8)
+        return ((int)(index - JO_VDP2_REG_INDEX(JO_VDP2_CLOFEN)) + 18);
+    if (index == JO_VDP2_REG_INDEX(JO_VDP2_BGON))
+        return (JO_VDP2_FRAME_BGON);
+    // ZMCTL, SCRCTL
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_ZMCTL) < JO_VDP2_FRAME_CONTROL_REGISTERS)
+        return (JO_VDP2_FRAME_CONTROL);
+    // RAMCTL, CYCA0L to CYCB1U
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_RAMCTL) < JO_VDP2_FRAME_CYCLE_REGISTERS)
+        return (JO_VDP2_FRAME_CYCLES);
+    // WPSX0 to LWTA1L
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_WPSX0) < JO_VDP2_FRAME_WINDOW_REGISTERS)
+        return (JO_VDP2_FRAME_WINDOWS);
+    // ZMXIN0, ZMXDN0, ZMYIN0, ZMYDN0
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_ZMXIN0) < JO_VDP2_FRAME_ZOOM_REGISTERS)
+        return (JO_VDP2_FRAME_ZOOM_NBG0);
+    if (index - JO_VDP2_REG_INDEX(JO_VDP2_ZMXIN1) < JO_VDP2_FRAME_ZOOM_REGISTERS)
+        return (JO_VDP2_FRAME_ZOOM_NBG1);
     return (-1);
 }
 
-/** @brief Register index of a bit of jo_vdp2_frame_register()
- *  @param n Bit (0 to JO_VDP2_FRAME_REGISTERS - 1)
+/** @brief First register of a bit of jo_vdp2_frame_register()
+ *  @param n Bit (0 to 31)
  *  @return Register index (JO_VDP2_REG_INDEX())
  */
 static  __jo_force_inline unsigned int  jo_vdp2_frame_register_index(const int n)
 {
+    switch (n)
+    {
+        case JO_VDP2_FRAME_BGON: return (JO_VDP2_REG_INDEX(JO_VDP2_BGON));
+        case JO_VDP2_FRAME_CONTROL: return (JO_VDP2_REG_INDEX(JO_VDP2_ZMCTL));
+        case JO_VDP2_FRAME_CYCLES: return (JO_VDP2_REG_INDEX(JO_VDP2_RAMCTL));
+        case JO_VDP2_FRAME_WINDOWS: return (JO_VDP2_REG_INDEX(JO_VDP2_WPSX0));
+        case JO_VDP2_FRAME_ZOOM_NBG0: return (JO_VDP2_REG_INDEX(JO_VDP2_ZMXIN0));
+        case JO_VDP2_FRAME_ZOOM_NBG1: return (JO_VDP2_REG_INDEX(JO_VDP2_ZMXIN1));
+        default: break;
+    }
     if (n < 4)
         return (JO_VDP2_REG_INDEX(JO_VDP2_SCXIN0) + (unsigned int)n);
     if (n < 8)
         return (JO_VDP2_REG_INDEX(JO_VDP2_SCXIN1) + (unsigned int)(n - 4));
     if (n < 12)
         return (JO_VDP2_REG_INDEX(JO_VDP2_SCXN2) + (unsigned int)(n - 8));
+    if (n >= 18)
+        return (JO_VDP2_REG_INDEX(JO_VDP2_CLOFEN) + (unsigned int)(n - 18));
     if (n >= 14)
         return (JO_VDP2_REG_INDEX(JO_VDP2_LSTA0U) + (unsigned int)(n - 14));
     return (n == 12 ? JO_VDP2_REG_INDEX(JO_VDP2_KTCTL) : JO_VDP2_REG_INDEX(JO_VDP2_OVPNRB));
+}
+
+/** @brief Registers of a bit of jo_vdp2_frame_register() (from jo_vdp2_frame_register_index())
+ *  @param n Bit (0 to 31)
+ *  @return Register count
+ */
+static  __jo_force_inline int       jo_vdp2_frame_register_count(const int n)
+{
+    return (n < JO_VDP2_FRAME_FIRST_GROUP ? 1 : __jo_vdp2_frame_group_count[n - JO_VDP2_FRAME_FIRST_GROUP]);
+}
+
+/** @brief Where the registers of a bit of jo_vdp2_frame_register() are kept in a frame state
+ *  @param n Bit (0 to 31)
+ *  @return First value (index in jo_vdp2_frame_state.registers)
+ */
+static  __jo_force_inline int       jo_vdp2_frame_register_slot(const int n)
+{
+    return (n < JO_VDP2_FRAME_FIRST_GROUP ? n : __jo_vdp2_frame_group_slot[n - JO_VDP2_FRAME_FIRST_GROUP]);
 }
 
 /** @brief A change made by the frame callbacks of jo_core_run(): applied with the image of the frame
@@ -387,7 +527,9 @@ static  __jo_force_inline void      jo_vdp2_shadow_mark(const unsigned int index
     int                             n;
 
     n = jo_vdp2_frame_register(index);
-    if (n >= 0 && jo_vdp2_in_frame(sr))
+    if (n >= 0 && __jo_vdp2_now)
+        __jo_vdp2_now_bits |= __jo_bits[n];
+    if (n >= 0 && !__jo_vdp2_now && !__jo_vdp2_at_next_vblank && jo_vdp2_in_frame(sr))
     {
         __jo_vdp2_frame_dirty |= __jo_bits[n];
         // (a value set before the frame and not applied yet: replaced by the one of the frame)
@@ -555,6 +697,14 @@ static unsigned int                 __jo_vdp2_rotation_island_map = 0;
 static  __jo_force_inline unsigned int  jo_vdp2_vram_offset(const void *addr)
 {
     return (((unsigned int)addr) & JO_VDP2_VRAM_OFFSET_MASK);
+}
+
+/** @brief The NBG1 bitmap displayed (see jo_vdp2_enable_nbg1_double_buffer())
+ *  @return The bitmap drawn without double buffer
+ */
+static  __jo_force_inline jo_color  *jo_vdp2_nbg1_shown_bitmap(void)
+{
+    return (nbg1_pages[1] != JO_NULL ? nbg1_pages[nbg1_shown_page] : __jo_vdp2_nbg1_bitmap);
 }
 
 /** @brief Get the size of a page
@@ -847,9 +997,12 @@ static void                         jo_vdp2_update_cycle_patterns(void)
             banks_of_bitmap = (((s->bitmap_size & JO_VDP2_BITMAP_WIDTH_1024) ? 1024 : 512) * ((s->bitmap_size & JO_VDP2_BITMAP_HEIGHT_512) ? 512 : 256) *
                               bitmap_bpp4[s->color > 4 ? 4 : s->color]) / 2;
             banks_of_bitmap = (banks_of_bitmap + JO_VDP2_BANK_SIZE - 1) / JO_VDP2_BANK_SIZE;
+            // (the double buffer of NBG1: the banks of its 2 bitmaps, the one displayed changes in a VBLANK without them)
+            if (n == JO_VDP2_SCREEN_NBG1 && nbg1_pages[1] != JO_NULL)
+                banks_of_bitmap = 4;
             for (JO_ZERO(i); i < banks_of_bitmap; ++i)
             {
-                bank = jo_vdp2_bank_of(s->bitmap_addr + (i << 17));
+                bank = jo_vdp2_bank_of((s->bitmap_addr + (i << 17)) & JO_VDP2_VRAM_OFFSET_MASK);
                 if (jo_vdp2_is_bank_used_by_rotation(bank))
                     continue;
                 for (first = used[bank]; first < 4 && first < used[bank] + count; ++first)
@@ -1291,6 +1444,8 @@ typedef struct
     unsigned int                    tag;            // Frame (see __jo_vdp1_frame_tag())
     unsigned int                    dirty;          // Registers (bits of jo_vdp2_frame_register())
     bool                            rparams;        // The rotation parameters
+    unsigned int                    colors_end;     // Colors (jo_palette_set_colors()) until this counter
+    unsigned int                    cells_end;      // Text (jo_printf()) until this counter
     unsigned short                  registers[JO_VDP2_FRAME_REGISTERS];
     jo_vdp2_rotation_parameter      rparam[2];
 }                                   jo_vdp2_frame_state;
@@ -1333,14 +1488,47 @@ static void                         jo_vdp2_rparams_forget(void)
     __jo_core_restore_interrupts(sr);
 }
 
+/** @brief The registers set until jo_vdp2_now_end() are written at once, also in a frame (the VDP2 must stop reading a
+ *  table before it is freed)
+ *  @return The state to give to jo_vdp2_now_end()
+ */
+static bool                         jo_vdp2_now_begin(void)
+{
+    bool                            was;
+
+    was = __jo_vdp2_now;
+    __jo_vdp2_now = true;
+    return (was);
+}
+
+/** @brief Write the registers set since jo_vdp2_now_begin(); the frames waiting for their image forget them (they would
+ *  apply their old values again: a table freed read again)
+ *  @param was The value returned by jo_vdp2_now_begin()
+ */
+static void                         jo_vdp2_now_end(const bool was)
+{
+    unsigned int                    sr;
+    int                             i;
+
+    sr = __jo_core_disable_interrupts();
+    __jo_vdp2_now = was;
+    __jo_vdp2_frame_dirty &= ~__jo_vdp2_now_bits;
+    for (JO_ZERO(i); i < JO_VDP2_FRAME_STATES; ++i)
+        __jo_vdp2_frame_states[i].dirty &= ~__jo_vdp2_now_bits;
+    JO_ZERO(__jo_vdp2_now_bits);
+    jo_vdp2_commit();
+    __jo_core_restore_interrupts(sr);
+}
+
 void                                __jo_vdp2_end_frame(void)
 {
     jo_vdp2_frame_state             *state;
     unsigned int                    sr;
     unsigned int                    bits;
     int                             n;
+    int                             i;
 
-    if (!__jo_vdp2_frame_dirty && !__jo_vdp2_frame_rparams)
+    if (!__jo_vdp2_frame_dirty && !__jo_vdp2_frame_rparams && !__jo_vdp2_frame_cram && !__jo_vdp2_frame_text)
         return;
     sr = __jo_core_disable_interrupts();
     if (__jo_vdp2_frame_count < JO_VDP2_FRAME_STATES)
@@ -1359,15 +1547,35 @@ void                                __jo_vdp2_end_frame(void)
     state->dirty |= __jo_vdp2_frame_dirty;
     for (JO_ZERO(n), bits = __jo_vdp2_frame_dirty; bits; ++n, bits >>= 1)
         if (bits & 1)
-            state->registers[n] = __jo_vdp2_shadow[jo_vdp2_frame_register_index(n)];
+            for (JO_ZERO(i); i < jo_vdp2_frame_register_count(n); ++i)
+                state->registers[jo_vdp2_frame_register_slot(n) + i] = __jo_vdp2_shadow[jo_vdp2_frame_register_index(n) + i];
     if (__jo_vdp2_frame_rparams)
     {
         state->rparams = true;
         jo_memcpy(state->rparam, __jo_vdp2_rparams, sizeof(state->rparam));
     }
+    state->colors_end = __jo_vdp2_colors_head;
+    state->cells_end = __jo_vdp2_cells_head;
     JO_ZERO(__jo_vdp2_frame_dirty);
     __jo_vdp2_frame_rparams = false;
+    __jo_vdp2_frame_cram = false;
+    __jo_vdp2_frame_text = false;
     __jo_core_restore_interrupts(sr);
+}
+
+/** @brief Write the colors waiting for their image (see __jo_vdp2_frame_colors)
+ *  @param end Until this counter (the colors already written before it: nothing)
+ *  @remarks Called during VBLANK-IN, or with the interrupts masked
+ */
+static void                         jo_vdp2_apply_colors(const unsigned int end)
+{
+    const jo_vdp2_frame_color       *entry;
+
+    for (; (int)(end - __jo_vdp2_colors_tail) > 0; ++__jo_vdp2_colors_tail)
+    {
+        entry = &__jo_vdp2_frame_colors[__jo_vdp2_colors_tail & (JO_VDP2_FRAME_COLORS - 1)];
+        ((volatile jo_color *)JO_VDP2_CRAM)[entry->index] = entry->color;
+    }
 }
 
 /** @brief Apply the states of the frames displayed from this field (see __jo_vdp2_end_frame())
@@ -1379,6 +1587,7 @@ static void                         jo_vdp2_frame_vblank(void)
     unsigned int                    tag;
     unsigned int                    bits;
     int                             n;
+    int                             i;
 
     if (__jo_vdp2_frame_count == 0 || !__jo_vdp1_displayed_frame_changed(&tag))
         return;
@@ -1390,13 +1599,63 @@ static void                         jo_vdp2_frame_vblank(void)
             break;
         for (JO_ZERO(n), bits = state->dirty; bits; ++n, bits >>= 1)
             if (bits & 1)
-                ((volatile unsigned short *)JO_VDP2_REG)[jo_vdp2_frame_register_index(n)] = state->registers[n];
+                for (JO_ZERO(i); i < jo_vdp2_frame_register_count(n); ++i)
+                    ((volatile unsigned short *)JO_VDP2_REG)[jo_vdp2_frame_register_index(n) + i] =
+                        state->registers[jo_vdp2_frame_register_slot(n) + i];
         if (state->rparams && rbg0_rtable != JO_NULL)
             jo_memcpy((void *)(JO_VDP2_VRAM + __jo_vdp2_rparams_offset), state->rparam, 2 * JO_VDP2_RPARAM_SIZE);
+        jo_vdp2_apply_colors(state->colors_end);
+#ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
+        jo_vdp2_apply_text(state->cells_end);
+#endif
         __jo_vdp2_frame_applied = state->tag;
         __jo_vdp2_frame_first = (__jo_vdp2_frame_first + 1) & (JO_VDP2_FRAME_STATES - 1);
         --__jo_vdp2_frame_count;
     }
+}
+
+void                                __jo_vdp2_set_colors(const unsigned int index, const jo_color * const colors, const int count)
+{
+#ifdef JO_DEBUG
+    static bool                     reported = false;
+#endif
+    jo_vdp2_frame_color             *entry;
+    unsigned int                    sr;
+    int                             i;
+
+    if (__jo_vdp2_frame_colors == JO_NULL && __jo_core_frame_open)
+        __jo_vdp2_frame_colors = (jo_vdp2_frame_color *)jo_malloc(JO_VDP2_FRAME_COLORS * sizeof(*__jo_vdp2_frame_colors));
+    sr = __jo_core_disable_interrupts();
+    if (!jo_vdp2_in_frame(sr) || __jo_vdp2_frame_colors == JO_NULL ||
+        __jo_vdp2_colors_head - __jo_vdp2_colors_tail + (unsigned int)count > JO_VDP2_FRAME_COLORS)
+    {
+#ifdef JO_DEBUG
+        if (!reported && __jo_vdp2_frame_colors != JO_NULL && jo_vdp2_in_frame(sr))
+        {
+            reported = true;
+            __jo_core_restore_interrupts(sr);
+            jo_core_error("jo_palette_set_colors(): more than %d colors wait for their image", JO_VDP2_FRAME_COLORS);
+            sr = __jo_core_disable_interrupts();
+        }
+#endif
+        // Out of a frame (or the ring full): at once, after the colors still waiting (they would cover the new ones with
+        // their image)
+        if (__jo_vdp2_frame_colors != JO_NULL)
+            jo_vdp2_apply_colors(__jo_vdp2_colors_head);
+        for (JO_ZERO(i); i < count; ++i)
+            ((volatile jo_color *)JO_VDP2_CRAM)[index + i] = colors[i];
+        __jo_core_restore_interrupts(sr);
+        return;
+    }
+    for (JO_ZERO(i); i < count; ++i)
+    {
+        entry = &__jo_vdp2_frame_colors[(__jo_vdp2_colors_head + i) & (JO_VDP2_FRAME_COLORS - 1)];
+        entry->index = (unsigned short)(index + i);
+        entry->color = colors[i];
+    }
+    __jo_vdp2_colors_head += count;
+    __jo_vdp2_frame_cram = true;
+    __jo_core_restore_interrupts(sr);
 }
 
 unsigned int                        __jo_vdp2_applied_frame_tag(void)
@@ -1701,6 +1960,32 @@ void                                __jo_vdp2_set_external_latch(const bool enab
         JO_VDP2_SET_BITS(JO_VDP2_EXTEN, JO_VDP2_EXTEN_EXLTEN, enabled ? JO_VDP2_EXTEN_EXLTEN : 0);
 }
 
+/** @brief Display the NBG1 bitmap of jo_vdp2_swap_nbg1_bitmap() with the image of its frame
+ *  @remarks Called during VBLANK-IN, after the VDP1 (see __jo_vdp1_displayed_frame_changed())
+ */
+static void                         jo_vdp2_nbg1_swap_vblank(void)
+{
+    jo_vdp2_screen                  *s;
+    unsigned int                    tag;
+    unsigned int                    index;
+    unsigned int                    shift;
+
+    if (!__jo_vdp2_nbg1_swapping)
+        return;
+    if (nbg1_swap_in_frame && (!__jo_vdp1_displayed_frame_changed(&tag) || (int)(tag - nbg1_swap_tag) < 0))
+        return;
+    nbg1_shown_page ^= 1;
+    s = &__jo_vdp2_screens[JO_VDP2_SCREEN_NBG1];
+    s->bitmap_addr = jo_vdp2_vram_offset(nbg1_pages[nbg1_shown_page]);
+    index = JO_VDP2_REG_INDEX(JO_VDP2_MPOFN);
+    shift = JO_MULT_BY_4(JO_VDP2_SCREEN_NBG1);
+    __jo_vdp2_shadow[index] = (__jo_vdp2_shadow[index] & ~(JO_VDP2_MAP_OFFSET_MASK << shift)) |
+                              (((s->bitmap_addr / JO_VDP2_BANK_SIZE) & JO_VDP2_MAP_OFFSET_MASK) << shift);
+    ((volatile unsigned short *)JO_VDP2_REG)[index] = __jo_vdp2_shadow[index];
+    nbg1_swap_vblank = jo_core_get_vblank_count();
+    __jo_vdp2_nbg1_swapping = false;
+}
+
 void                                __jo_vdp2_vblank(void)
 {
     if (__jo_vdp2_hidden_fields > 0 && --__jo_vdp2_hidden_fields == 0)
@@ -1708,6 +1993,7 @@ void                                __jo_vdp2_vblank(void)
     jo_vdp2_commit();
     jo_vdp2_rotation_vblank();
     jo_vdp2_frame_vblank();
+    jo_vdp2_nbg1_swap_vblank();
 }
 
 /*
@@ -2048,24 +2334,130 @@ static void                         jo_vdp2_init_printf_font(void)
     jo_vdp2_set_map(JO_VDP2_SCREEN_NBG0, (void *)(JO_VDP2_VRAM + JO_VDP2_PRINTF_MAP_OFFSET));
 }
 
+/** @brief Cells of the map of the text (64 x 64) */
+# define JO_VDP2_PRINTF_MAP_CELLS       (64 * 64)
+
+/** @brief Write the cells of the text waiting for their image (see __jo_vdp2_frame_cells)
+ *  @param end Until this counter (the cells already written before it: nothing)
+ *  @remarks Called during VBLANK-IN, or with the interrupts masked
+ */
+static void                         jo_vdp2_apply_text(const unsigned int end)
+{
+    const jo_vdp2_frame_cell        *cell;
+    volatile unsigned short         *map;
+    unsigned short                  value;
+    int                             count;
+
+    while ((int)(end - __jo_vdp2_cells_tail) > 0)
+    {
+        cell = &__jo_vdp2_frame_cells[__jo_vdp2_cells_tail++ & (JO_VDP2_FRAME_CELLS - 1)];
+        if (!(cell->offset & JO_VDP2_FRAME_CELL_RUN))
+        {
+            JO_VDP2_PRINTF_MAP[cell->offset] = cell->value;
+            continue;
+        }
+        map = JO_VDP2_PRINTF_MAP + (cell->offset & ~JO_VDP2_FRAME_CELL_RUN);
+        value = cell->value;
+        count = __jo_vdp2_frame_cells[__jo_vdp2_cells_tail++ & (JO_VDP2_FRAME_CELLS - 1)].offset;
+        for (; count > 0; --count)
+            *map++ = value;
+    }
+}
+
+/** @brief Room for cells of text with the image of the frame
+ *  @param count Cells (entries of the ring)
+ *  @param sr Status register of the caller (before its interrupts were masked)
+ *  @return true: in the ring; false: written at once (out of a frame, the ring full), after the cells still waiting (they
+ *  would cover the new ones with their image)
+ */
+static bool                         jo_vdp2_text_room(const unsigned int count, const unsigned int sr)
+{
+    if (__jo_vdp2_frame_cells != JO_NULL && !__jo_vdp2_now && jo_vdp2_in_frame(sr) &&
+        __jo_vdp2_cells_head - __jo_vdp2_cells_tail + count <= JO_VDP2_FRAME_CELLS)
+        return (true);
+    if (__jo_vdp2_frame_cells != JO_NULL)
+        jo_vdp2_apply_text(__jo_vdp2_cells_head);
+    return (false);
+}
+
+/** @brief The ring of the text allocated at the first text of a frame (see __jo_vdp2_frame_cells) */
+static  __jo_force_inline void      jo_vdp2_text_ring(void)
+{
+    if (__jo_vdp2_frame_cells == JO_NULL && __jo_core_frame_open)
+        __jo_vdp2_frame_cells = (jo_vdp2_frame_cell *)jo_malloc(JO_VDP2_FRAME_CELLS * sizeof(*__jo_vdp2_frame_cells));
+}
+
 /** @brief Print a string on NBG0 (Internal usage)
  *  @param x Horizontal position (cells)
  *  @param y Vertical position (cells)
  *  @param str String
- *  @remarks The text continues on the next line at the end of the line
+ *  @remarks The text continues on the next line at the end of the line. In a frame of jo_core_run(): written with the
+ *  image of the frame (see __jo_vdp2_frame_cells)
  */
 void                                __jo_vdp2_print(const int x, const int y, const char * str)
 {
-    volatile unsigned short         *map;
-    volatile unsigned short         *end;
+    jo_vdp2_frame_cell              *cell;
+    unsigned int                    offset;
+    unsigned int                    length;
+    unsigned int                    sr;
+    unsigned int                    i;
 
-    map = JO_VDP2_PRINTF_MAP + JO_MULT_BY_64(y & 63) + (x & 63);
-    end = JO_VDP2_PRINTF_MAP + 64 * 64;
-    while (*str && map < end)
+    offset = JO_MULT_BY_64(y & 63) + (x & 63);
+    for (JO_ZERO(length); str[length] && offset + length < JO_VDP2_PRINTF_MAP_CELLS; ++length)
+        ;
+    jo_vdp2_text_ring();
+    sr = __jo_core_disable_interrupts();
+    if (!jo_vdp2_text_room(length, sr))
     {
-        *map++ = __jo_vdp2_printf_palette | (JO_VDP2_PRINTF_CHARACTER_BASE + (unsigned char)*str);
-        ++str;
+        for (JO_ZERO(i); i < length; ++i)
+            JO_VDP2_PRINTF_MAP[offset + i] = __jo_vdp2_printf_palette | (JO_VDP2_PRINTF_CHARACTER_BASE + (unsigned char)str[i]);
+        __jo_core_restore_interrupts(sr);
+        return;
     }
+    for (JO_ZERO(i); i < length; ++i)
+    {
+        cell = &__jo_vdp2_frame_cells[(__jo_vdp2_cells_head + i) & (JO_VDP2_FRAME_CELLS - 1)];
+        cell->offset = (unsigned short)(offset + i);
+        cell->value = __jo_vdp2_printf_palette | (JO_VDP2_PRINTF_CHARACTER_BASE + (unsigned char)str[i]);
+    }
+    __jo_vdp2_cells_head += length;
+    __jo_vdp2_frame_text = true;
+    __jo_core_restore_interrupts(sr);
+}
+
+/** @brief Clear cells of the text of NBG0 (Internal usage, see jo_clear_screen_line())
+ *  @param x Horizontal position (cells)
+ *  @param y Vertical position (cells)
+ *  @param count Cells
+ *  @remarks In a frame of jo_core_run(): with the image of the frame, one run in the ring (see __jo_vdp2_frame_cells)
+ */
+void                                __jo_vdp2_clear_text(const int x, const int y, const int count)
+{
+    jo_vdp2_frame_cell              *cell;
+    unsigned short                  value;
+    unsigned int                    offset;
+    unsigned int                    length;
+    unsigned int                    sr;
+    unsigned int                    i;
+
+    offset = JO_MULT_BY_64(y & 63) + (x & 63);
+    length = (unsigned int)JO_CLAMP(count, 0, (int)(JO_VDP2_PRINTF_MAP_CELLS - offset));
+    value = __jo_vdp2_printf_palette | (JO_VDP2_PRINTF_CHARACTER_BASE + ' ');
+    jo_vdp2_text_ring();
+    sr = __jo_core_disable_interrupts();
+    if (!jo_vdp2_text_room(2, sr))
+    {
+        for (JO_ZERO(i); i < length; ++i)
+            JO_VDP2_PRINTF_MAP[offset + i] = value;
+        __jo_core_restore_interrupts(sr);
+        return;
+    }
+    cell = &__jo_vdp2_frame_cells[__jo_vdp2_cells_head++ & (JO_VDP2_FRAME_CELLS - 1)];
+    cell->offset = (unsigned short)(offset | JO_VDP2_FRAME_CELL_RUN);
+    cell->value = value;
+    __jo_vdp2_frame_cells[__jo_vdp2_cells_head++ & (JO_VDP2_FRAME_CELLS - 1)].offset = (unsigned short)length;
+    __jo_vdp2_frame_text = true;
+    __jo_core_restore_interrupts(sr);
 }
 
 #endif // JO_COMPILE_WITH_PRINTF_SUPPORT
@@ -2142,9 +2534,13 @@ void                            __jo_init_vdp2(const jo_color background_color)
 #endif
     //NBG1: its bitmap at its first use (see __jo_vdp2_reserve_nbg1_bitmap()), or now as before
     __jo_vdp2_nbg1_bitmap_reserved = false;
+    nbg1_pages[0] = JO_NULL;
+    nbg1_pages[1] = JO_NULL;
+    nbg1_shown_page = 0;
+    __jo_vdp2_nbg1_swapping = false;
 #ifdef JO_COMPATIBILITY_NBG1_BITMAP_AT_INIT
-    nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
-    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, nbg1_bitmap);
+    __jo_vdp2_nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*__jo_vdp2_nbg1_bitmap));
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, __jo_vdp2_nbg1_bitmap);
     JO_ADD_FLAG(screen_flags, JO_NBG1_SCREEN);
     __jo_vdp2_nbg1_bitmap_reserved = true;
 #endif
@@ -2207,10 +2603,11 @@ static  __jo_force_inline void  __jo_switch_to_bitmap_mode(void)
 
 static  __jo_force_inline void  __jo_switch_to_8bits_mode(void)
 {
-    if (nbg1_bitmap != JO_NULL)
+    if (__jo_vdp2_nbg1_bitmap != JO_NULL)
     {
-        jo_vdp2_free(nbg1_bitmap);
-        nbg1_bitmap = JO_NULL;
+        jo_vdp2_disable_nbg1_double_buffer();
+        jo_vdp2_free(__jo_vdp2_nbg1_bitmap);
+        __jo_vdp2_nbg1_bitmap = JO_NULL;
         // Reserved again (at the start of the bank A0, cleared) before the next drawing in it
         __jo_vdp2_nbg1_bitmap_reserved = false;
     }
@@ -2500,12 +2897,14 @@ void                            jo_vdp2_enable_rbg0(void)
 
 void                            jo_vdp2_disable_rbg0(void)
 {
+    bool                        was;
+
+    // (the VDP2 reads the tables until the registers are written: now, not at the next VBLANK nor with the image)
+    was = jo_vdp2_now_begin();
     JO_REMOVE_FLAG(screen_flags, JO_RBG0_SCREEN);
     jo_vdp2_set_displayed_screens(screen_flags);
     JO_VDP2_SET(JO_VDP2_RPMD, JO_VDP2_ROTATION_PARAMETER_A);
-
-    // (the VDP2 reads the tables until the registers are written: now, not at the next VBLANK)
-    jo_vdp2_flush_now();
+    jo_vdp2_now_end(was);
     // (the parameters waiting are not copied into the table freed)
     jo_vdp2_rparams_forget();
     if (rbg0_ktable != JO_NULL)
@@ -2579,11 +2978,14 @@ void			                jo_vdp2_set_nbg0_8bits_image(jo_img_8bits *img, int palet
 
 void                            jo_vdp2_disable_nbg0_line_scroll(void)
 {
+    bool                        was;
+
     // The VDP2 must stop reading the table before it is freed (the registers: written now, not at the next VBLANK)
+    was = jo_vdp2_now_begin();
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK, 0);
+    jo_vdp2_now_end(was);
     if (nbg0_scroll_table != JO_NULL)
     {
-        jo_vdp2_flush_now();
         jo_vdp2_free(nbg0_scroll_table);
         nbg0_scroll_table = JO_NULL;
     }
@@ -2647,7 +3049,7 @@ void                            jo_vdp2_draw_bitmap_nbg1_line(int x0, int y0, in
         jo_vdp2_display_nbg1();
         return;
     }
-    bitmap = (jo_color *)JO_VDP2_VRAM_A0;
+    bitmap = __jo_vdp2_nbg1_bitmap;
     dx = JO_ABS(x1 - x0);
     sx = x0 < x1 ? 1 : -1;
     dy = JO_ABS(y1 - y0);
@@ -2686,13 +3088,13 @@ void                            jo_vdp2_clear_bitmap_nbg1(const jo_color color)
     // The whole bitmap (JO_VDP2_WIDTH x JO_VDP2_HEIGHT pixels) is filled by the DMA controller (2 pixels per transfer), but
     // its last pixel: the back screen color is there (see JO_VDP2_RAM_BACK_COLOR)
     back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
-    jo_dma_fill32((void *)JO_VDP2_VRAM_A0, ((unsigned int)color << 16) | color, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(color));
+    jo_dma_fill32(__jo_vdp2_nbg1_bitmap, ((unsigned int)color << 16) | color, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(color));
     *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
     jo_vdp2_display_nbg1();
 }
 
 
-/** @brief Configure NBG1 as the 32768 colors bitmap (nbg1_bitmap)
+/** @brief Configure NBG1 as the 32768 colors bitmap (__jo_vdp2_nbg1_bitmap)
  *  @remarks Nothing is done if the registers already hold this configuration
  *           (the cycle patterns are computed again by every function that changes the screens)
  */
@@ -2702,9 +3104,9 @@ static void                     jo_vdp2_use_nbg1_bitmap(void)
 
     s = &__jo_vdp2_screens[JO_VDP2_SCREEN_NBG1];
     if (__jo_vdp2_nbg1_bitmap_registers && s->bitmap && s->color == JO_VDP2_COLOR_32768 &&
-        s->bitmap_size == JO_VDP2_SIZE && s->bitmap_addr == jo_vdp2_vram_offset(nbg1_bitmap))
+        s->bitmap_size == JO_VDP2_SIZE && s->bitmap_addr == jo_vdp2_vram_offset(jo_vdp2_nbg1_shown_bitmap()))
         return;
-    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, nbg1_bitmap);
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, jo_vdp2_nbg1_shown_bitmap());
     if (__jo_vdp2_nbg1_native)
     {
         __jo_vdp2_nbg1_native = false;
@@ -2740,7 +3142,7 @@ static void                     jo_vdp2_use_nbg1_native_bitmap(void)
 
     s = &__jo_vdp2_screens[JO_VDP2_SCREEN_NBG1];
     __jo_vdp2_nbg1_native = true;
-    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_256, JO_VDP2_NATIVE_BITMAP_SIZE, nbg1_bitmap);
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_256, JO_VDP2_NATIVE_BITMAP_SIZE, jo_vdp2_nbg1_shown_bitmap());
     jo_vdp2_set_zoom(JO_VDP2_SCREEN_NBG1, s->zoom_x, s->zoom_y);
 }
 
@@ -2765,8 +3167,10 @@ void                            jo_vdp2_clear_bitmap_nbg1_8bits(const unsigned c
 
     if (!__jo_vdp2_nbg1_native)
         return;
+    if (__jo_vdp2_nbg1_swapping)
+        __jo_vdp2_wait_nbg1_swap();
     back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
-    jo_dma_fill32((void *)JO_VDP2_VRAM_A0, index * 0x01010101u, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color));
+    jo_dma_fill32(__jo_vdp2_nbg1_bitmap, index * 0x01010101u, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color));
     *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
 }
 
@@ -2775,7 +3179,9 @@ void                            jo_vdp2_put_pixel_bitmap_nbg1_8bits(const int x,
     if (!__jo_vdp2_nbg1_native || (unsigned int)x >= (unsigned int)jo_vdp2_get_nbg1_8bits_bitmap_width() ||
         (unsigned int)y >= (unsigned int)jo_vdp2_get_nbg1_8bits_bitmap_height())
         return;
-    ((volatile unsigned char *)JO_VDP2_VRAM_A0)[y * jo_vdp2_get_nbg1_8bits_bitmap_width() + x] = index;
+    if (__jo_vdp2_nbg1_swapping)
+        __jo_vdp2_wait_nbg1_swap();
+    ((volatile unsigned char *)__jo_vdp2_nbg1_bitmap)[y * jo_vdp2_get_nbg1_8bits_bitmap_width() + x] = index;
 }
 
 void                            jo_vdp2_draw_bitmap_nbg1_8bits_image(const jo_img_8bits * const img, const int x, const int y)
@@ -2790,12 +3196,14 @@ void                            jo_vdp2_draw_bitmap_nbg1_8bits_image(const jo_im
 
     if (!__jo_vdp2_nbg1_native || x < 0 || y < 0)
         return;
+    if (__jo_vdp2_nbg1_swapping)
+        __jo_vdp2_wait_nbg1_swap();
     width = jo_vdp2_get_nbg1_8bits_bitmap_width();
     w = JO_MIN(img->width, width - x);
     h = JO_MIN(img->height, jo_vdp2_get_nbg1_8bits_bitmap_height() - y);
     for (JO_ZERO(j); j < h; ++j)
     {
-        dst = (volatile unsigned char *)JO_VDP2_VRAM_A0 + (y + j) * width + x;
+        dst = (volatile unsigned char *)__jo_vdp2_nbg1_bitmap + (y + j) * width + x;
         src = img->data + j * img->width;
         for (JO_ZERO(i); i < w; ++i)
             dst[i] = src[i];
@@ -2821,18 +3229,18 @@ bool                            __jo_vdp2_reserve_nbg1_bitmap(void)
     }
     // At the start of the bank A0 (as when jo_core_init() allocated it: the drawing functions write there).
     // Checked before the allocation: it is also used by the error screen, so it must not raise an error itself
-    if (!__jo_vdp2_a0_start_is_free(JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap)))
+    if (!__jo_vdp2_a0_start_is_free(JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*__jo_vdp2_nbg1_bitmap)))
         return (false);
-    nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
-    if (nbg1_bitmap == JO_NULL)
+    __jo_vdp2_nbg1_bitmap = jo_vdp2_malloc(JO_VDP2_RAM_BITMAP_NBG1, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*__jo_vdp2_nbg1_bitmap));
+    if (__jo_vdp2_nbg1_bitmap == JO_NULL)
         return (false);
     __jo_vdp2_nbg1_bitmap_reserved = true;
     // Transparent, as the VRAM at the start (the bank may have held the cells of a screen freed since), but the back screen
     // color in the last pixel
     back = *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2);
-    jo_dma_fill32((void *)JO_VDP2_VRAM_A0, 0, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*nbg1_bitmap));
+    jo_dma_fill32((void *)JO_VDP2_VRAM_A0, 0, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(*__jo_vdp2_nbg1_bitmap));
     *(volatile unsigned short *)(JO_VDP2_VRAM_A1 + JO_VDP2_BANK_SIZE - 2) = back;
-    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, nbg1_bitmap);
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, JO_VDP2_COLOR_32768, JO_VDP2_SIZE, __jo_vdp2_nbg1_bitmap);
     JO_ADD_FLAG(screen_flags, JO_NBG1_SCREEN);
     jo_vdp2_set_displayed_screens(screen_flags);
     return (true);
@@ -2844,11 +3252,136 @@ bool                            __jo_vdp2_reserve_nbg1_bitmap(void)
 static bool                     jo_vdp2_nbg1_bitmap_ready(void)
 {
     if (__jo_vdp2_reserve_nbg1_bitmap())
+    {
+        if (__jo_vdp2_nbg1_swapping)
+            __jo_vdp2_wait_nbg1_swap();
         return (true);
+    }
 #ifdef JO_DEBUG
     jo_core_error("NBG1 bitmap: VDP2 bank A0 is used");
 #endif
     return (false);
+}
+
+bool                            jo_vdp2_enable_nbg1_double_buffer(void)
+{
+    jo_color                    *page;
+
+    if (nbg1_pages[1] != JO_NULL)
+        return (true);
+    if (!jo_vdp2_nbg1_bitmap_ready() || (page = (jo_color *)__jo_vdp2_malloc_b_banks()) == JO_NULL)
+        return (false);
+    jo_dma_fill32(page, 0, JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color));
+    nbg1_pages[0] = __jo_vdp2_nbg1_bitmap;
+    nbg1_pages[1] = page;
+    nbg1_shown_page = 0;
+    __jo_vdp2_nbg1_bitmap = page;
+    jo_vdp2_update_cycle_patterns();
+    return (true);
+}
+
+void                            jo_vdp2_disable_nbg1_double_buffer(void)
+{
+    jo_vdp2_screen              *s;
+    volatile unsigned int       *dst;
+    const volatile unsigned int *src;
+    jo_color                    *page;
+    unsigned int                i;
+
+    if (nbg1_pages[1] == JO_NULL)
+        return;
+    __jo_vdp2_wait_nbg1_swap();
+    __jo_vdp2_nbg1_swapping = false;
+    // The image displayed stays: in A0 and A1 (but the last pixel, the back screen color, see JO_VDP2_RAM_BACK_COLOR)
+    if (nbg1_shown_page == 1)
+    {
+        dst = (volatile unsigned int *)nbg1_pages[0];
+        src = (const volatile unsigned int *)nbg1_pages[1];
+        for (JO_ZERO(i); i < (JO_VDP2_WIDTH * JO_VDP2_HEIGHT) / 2 - 1; ++i)
+            dst[i] = src[i];
+        ((volatile jo_color *)dst)[JO_VDP2_WIDTH * JO_VDP2_HEIGHT - 2] = ((const volatile jo_color *)src)[JO_VDP2_WIDTH * JO_VDP2_HEIGHT - 2];
+    }
+    page = nbg1_pages[1];
+    __jo_vdp2_nbg1_bitmap = nbg1_pages[0];
+    nbg1_pages[0] = JO_NULL;
+    nbg1_pages[1] = JO_NULL;
+    nbg1_shown_page = 0;
+    s = &__jo_vdp2_screens[JO_VDP2_SCREEN_NBG1];
+    jo_vdp2_set_bitmap(JO_VDP2_SCREEN_NBG1, s->color, s->bitmap_size, __jo_vdp2_nbg1_bitmap);
+    jo_vdp2_free(page);
+    jo_vdp2_free((unsigned char *)page + JO_VDP2_BANK_SIZE);
+}
+
+void                            jo_vdp2_swap_nbg1_bitmap(void)
+{
+    unsigned int                sr;
+
+    if (nbg1_pages[1] == JO_NULL || !__jo_vdp2_wait_nbg1_swap())
+        return;
+    sr = __jo_core_disable_interrupts();
+    nbg1_swap_in_frame = jo_vdp2_in_frame(sr);
+    nbg1_swap_tag = __jo_vdp1_frame_tag();
+    // The next drawings: in the bitmap displayed until the swap
+    __jo_vdp2_nbg1_bitmap = nbg1_pages[nbg1_shown_page];
+    __jo_vdp2_nbg1_swapping = true;
+    __jo_core_restore_interrupts(sr);
+}
+
+bool                            jo_vdp2_nbg1_swap_pending(void)
+{
+    return (__jo_vdp2_nbg1_swapping);
+}
+
+unsigned int                    jo_vdp2_get_nbg1_swap_vblank(void)
+{
+    return (nbg1_swap_vblank);
+}
+
+bool                            __jo_vdp2_wait_nbg1_swap(void)
+{
+#ifdef JO_DEBUG
+    static bool                 reported = false;
+#endif
+    unsigned int                sr;
+
+    if (!__jo_vdp2_nbg1_swapping)
+        return (true);
+    sr = __jo_core_disable_interrupts();
+    __jo_core_restore_interrupts(sr);
+    // In the frame of the swap (its image is not given to the VDP1 yet) or in an interrupt handler: it would never end
+    if ((nbg1_swap_in_frame && jo_vdp2_in_frame(sr) && nbg1_swap_tag == __jo_vdp1_frame_tag()) ||
+        (sr & JO_SH2_SR_INTERRUPT_MASK) != 0)
+    {
+#ifdef JO_DEBUG
+        if (!reported)
+        {
+            reported = true;
+            jo_core_error("NBG1 drawn after jo_vdp2_swap_nbg1_bitmap() in the same frame");
+        }
+#endif
+        return (false);
+    }
+    while (__jo_vdp2_nbg1_swapping)
+        ;
+    return (true);
+}
+
+void                            *__jo_vdp2_nbg1_draw_address(void * const p)
+{
+    unsigned int                offset;
+
+    if (nbg1_pages[1] == JO_NULL)
+        return (p);
+    offset = (unsigned int)p - (unsigned int)nbg1_pages[0];
+    if (offset >= JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color))
+    {
+        offset = (unsigned int)p - (unsigned int)nbg1_pages[1];
+        if (offset >= JO_VDP2_WIDTH * JO_VDP2_HEIGHT * sizeof(jo_color))
+            return (p);
+    }
+    if (__jo_vdp2_nbg1_swapping)
+        __jo_vdp2_wait_nbg1_swap();
+    return ((unsigned char *)__jo_vdp2_nbg1_bitmap + offset);
 }
 
 void                            *__jo_vdp2_set_rgb_bitmap(const jo_scroll_screen screen, const unsigned int rows)
@@ -2858,16 +3391,16 @@ void                            *__jo_vdp2_set_rgb_bitmap(const jo_scroll_screen
 
     if (screen == JO_NBG1_SCREEN)
     {
-        // NBG1 shows an image (its cells): it is used
-        if (nbg1_cell != JO_NULL || nbg1_map != JO_NULL)
+        // NBG1 shows an image (its cells), or the double buffer of its bitmap: it is used
+        if (nbg1_cell != JO_NULL || nbg1_map != JO_NULL || nbg1_pages[1] != JO_NULL)
             return (JO_NULL);
         // Its bitmap (A0 and A1) if the start of A0 is free
         if (__jo_vdp2_reserve_nbg1_bitmap())
         {
             jo_vdp2_use_nbg1_bitmap();
-            jo_dma_fill32(nbg1_bitmap, 0, rows * JO_VDP2_WIDTH * sizeof(jo_color));
+            jo_dma_fill32(__jo_vdp2_nbg1_bitmap, 0, rows * JO_VDP2_WIDTH * sizeof(jo_color));
             jo_vdp2_display_nbg1();
-            return (nbg1_bitmap);
+            return (__jo_vdp2_nbg1_bitmap);
         }
         n = JO_VDP2_SCREEN_NBG1;
     }
@@ -2902,7 +3435,7 @@ void                            __jo_vdp2_free_rgb_bitmap(const jo_scroll_screen
     if (bitmap == JO_NULL)
         return;
     // The bitmap of NBG1 stays (the drawing functions of NBG1 use it)
-    if (screen == JO_NBG1_SCREEN && bitmap == (void *)nbg1_bitmap)
+    if (screen == JO_NBG1_SCREEN && bitmap == (void *)__jo_vdp2_nbg1_bitmap)
         return;
     jo_vdp2_free(bitmap);
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
@@ -2936,7 +3469,7 @@ static jo_color                 *jo_vdp2_get_nbg1_bitmap(void)
         return (JO_NULL);
     jo_vdp2_use_nbg1_bitmap();
     jo_vdp2_display_nbg1();
-    return (nbg1_bitmap);
+    return (__jo_vdp2_nbg1_bitmap);
 }
 
 /** @brief Copy a line in the NBG1 bitmap (the line wraps around the right border)
@@ -3099,10 +3632,10 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, short lef
             img_ptr += img->width * y;
             JO_ZERO(top);
         }
-        vram_ptr = nbg1_bitmap + (JO_VDP2_WIDTH * top);
+        vram_ptr = __jo_vdp2_nbg1_bitmap + (JO_VDP2_WIDTH * top);
     }
     else
-        vram_ptr = nbg1_bitmap;
+        vram_ptr = __jo_vdp2_nbg1_bitmap;
     // Last image row + 1 (clipped to the bottom of the bitmap)
     height = JO_MIN(img->height, y + JO_VDP2_HEIGHT - top);
     for (; y < height; ++y)
@@ -3136,10 +3669,12 @@ void			                jo_vdp2_set_nbg1_image(const jo_img *const img, short lef
 
 void                            jo_vdp2_disable_nbg1_line_scroll(void)
 {
+    bool                        was;
+
     // The VDP2 must stop reading the table before it is freed (the registers: written now, not at the next VBLANK)
+    was = jo_vdp2_now_begin();
     JO_VDP2_SET_BITS(JO_VDP2_SCRCTL, JO_VDP2_SCRCTL_NBG0_MASK << JO_VDP2_SCRCTL_NBG1_SHIFT, 0);
-    if (nbg1_scroll_table != JO_NULL || nbg1_frame_tables != JO_NULL)
-        jo_vdp2_flush_now();
+    jo_vdp2_now_end(was);
     if (nbg1_scroll_table != JO_NULL)
     {
         jo_vdp2_free(nbg1_scroll_table);
@@ -3243,14 +3778,16 @@ int                             *jo_vdp2_enable_nbg1_vertical_cell_scroll(void)
 void                            jo_vdp2_disable_nbg1_vertical_cell_scroll(void)
 {
     void                        *table;
+    bool                        was;
 
     if (nbg1_vertical_cell_scroll_table == JO_NULL)
         return;
     // (the effect and its slot are removed, written now: the VDP2 stops reading the table before it is freed)
     table = nbg1_vertical_cell_scroll_table;
     nbg1_vertical_cell_scroll_table = JO_NULL;
+    was = jo_vdp2_now_begin();
     jo_vdp2_update_cycle_patterns();
-    jo_vdp2_flush_now();
+    jo_vdp2_now_end(was);
     jo_vdp2_free(table);
 }
 
@@ -3846,7 +4383,10 @@ void                            jo_fade_screens(const jo_scroll_screen screens, 
     {
         // (0 frames: to at once)
         level = frames <= 0 ? to : (short)(from + (to - from) * k / frames);
+        // (in a frame of jo_core_run() too: the frame doesn't end during the wait)
+        __jo_vdp2_at_next_vblank = true;
         jo_set_screen_color_filter_a(screens, level, level, level);
+        __jo_vdp2_at_next_vblank = false;
         vblank = jo_core_get_vblank_count();
         while (jo_core_get_vblank_count() == vblank)
             ;
@@ -3894,7 +4434,47 @@ void                            jo_fade_screens(const jo_scroll_screen screens, 
 /** @brief Lines of a line window table (the most lines of a screen) */
 # define JO_VDP2_LINE_WINDOW_LINES          (512)
 
+/** @brief The line window tables of each window (JO_VDP2_LINE_WINDOW_TABLES, or 1 when the VDP2 memory was short), the
+ *  one of the last frame and its number (__jo_vdp1_frame_tag()) */
 static unsigned short                   *__jo_vdp2_line_window[2] = {JO_NULL, JO_NULL};
+static int                              __jo_vdp2_line_window_count[2] = {0, 0};
+static int                              __jo_vdp2_line_window_current[2] = {0, 0};
+static unsigned int                     __jo_vdp2_line_window_tag[2] = {0, 0};
+
+/** @brief The line window table of the frame: a table per frame (the window goes with its image, the tables of the frames
+ *  waiting are kept), the same one for every call of a frame
+ *  @param window JO_VDP2_WINDOW_0 or JO_VDP2_WINDOW_1
+ *  @return The table (JO_VDP2_LINE_WINDOW_LINES x 2 coordinates), JO_NULL when the VDP2 memory is full
+ */
+static unsigned short                   *jo_vdp2_line_window_table(const int window)
+{
+    unsigned int                        tag;
+
+    if (__jo_vdp2_line_window[window] == JO_NULL)
+    {
+        __jo_vdp2_line_window_count[window] = JO_VDP2_LINE_WINDOW_TABLES;
+        __jo_vdp2_line_window[window] = (unsigned short *)__jo_vdp2_malloc_try(JO_VDP2_LINE_COLOR_TABLE,
+                                                                              JO_VDP2_LINE_WINDOW_TABLES * JO_VDP2_LINE_WINDOW_LINES * 4);
+        // (the VDP2 memory short: one table, written while it may be displayed)
+        if (__jo_vdp2_line_window[window] == JO_NULL)
+        {
+            __jo_vdp2_line_window_count[window] = 1;
+            __jo_vdp2_line_window[window] = (unsigned short *)jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_VDP2_LINE_WINDOW_LINES * 4);
+        }
+        if (__jo_vdp2_line_window[window] == JO_NULL)
+            return (JO_NULL);
+        JO_ZERO(__jo_vdp2_line_window_current[window]);
+        __jo_vdp2_line_window_tag[window] = __jo_vdp1_frame_tag();
+    }
+    tag = __jo_vdp1_frame_tag();
+    if (tag != __jo_vdp2_line_window_tag[window])
+    {
+        __jo_vdp2_line_window_tag[window] = tag;
+        if (++__jo_vdp2_line_window_current[window] >= __jo_vdp2_line_window_count[window])
+            JO_ZERO(__jo_vdp2_line_window_current[window]);
+    }
+    return (__jo_vdp2_line_window[window] + __jo_vdp2_line_window_current[window] * JO_VDP2_LINE_WINDOW_LINES * 2);
+}
 
 /** @brief A horizontal coordinate of a window: in the normal resolutions (320 and 352 pixels), the bit 0 is not used */
 static  __jo_force_inline unsigned short jo_vdp2_window_x(const int x)
@@ -3974,8 +4554,7 @@ bool                                    jo_vdp2_set_window_lines(const int windo
 
     if (window != JO_VDP2_WINDOW_0 && window != JO_VDP2_WINDOW_1)
         return (false);
-    if ((table = __jo_vdp2_line_window[window]) == JO_NULL &&
-        (table = __jo_vdp2_line_window[window] = (unsigned short *)jo_vdp2_malloc(JO_VDP2_LINE_COLOR_TABLE, JO_VDP2_LINE_WINDOW_LINES * 4)) == JO_NULL)
+    if ((table = jo_vdp2_line_window_table(window)) == JO_NULL)
         return (false);
     for (JO_ZERO(line); line < JO_VDP2_LINE_WINDOW_LINES; ++line)
     {

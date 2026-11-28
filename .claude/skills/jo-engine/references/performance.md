@@ -137,6 +137,14 @@ Other rules:
 - Some calls display their layer when they set it (`jo_vdp2_set_nbg1_8bits_bitmap()`; `jo_vdp2_set_nbg2_8bits_image()`
   and `jo_vdp2_set_nbg3_8bits_image()` with `enabled` true): to load behind a loading screen, set the layers hidden
   (`enabled` false, `jo_set_displayed_screens()` after the bitmap) and show them when everything is ready.
+- **In step with the sprites**: in a frame callback of `jo_core_run()`, what the VDP2 shows changes with the image of
+  the VDP1 of the frame (the CPUs are up to 3 frames ahead of it): the scroll and the zoom, the screens displayed
+  (`jo_set_displayed_screens()`) with their VRAM cycles, the windows (a line window table per frame), the color offsets
+  (`jo_effect_flash()`, `jo_effect_fade()`, `jo_effect_tint()`), the colors of `jo_palette_set_colors()` and the text of
+  `jo_printf()`. No frames to count in a game: fade to black and hide the screens in the same frame, open a window with
+  the first frame of a level. What is written in the VRAM (an image, a map, a bitmap) and `palette->data[k]` are at
+  once: load a screen hidden by an earlier frame, animate the palettes with `jo_palette_set_colors()`. Before
+  `jo_core_run()` and in a VBLANK callback: at the next VBLANK.
 
 ## Frame rate
 

@@ -175,6 +175,8 @@ void jo_print(int x, int y, char * str);
  *  @param X Horizontal position from top left screen corner
  *  @param Y Vertical position from top left screen corner
  *  @param ... Arguments
+ *  @remarks Called by a callback of jo_core_run(): the text is shown when the VDP1 displays the image of the frame (in
+ *  step with the sprites, the screens and the fades of the frame); before jo_core_run() or in a VBLANK callback: at once
  */
 # define jo_printf(X, Y, ...)		do {jo_snprintf(__jo_sprintf_buf, JO_PRINTF_BUF_SIZE, __VA_ARGS__); jo_print(X, Y, __jo_sprintf_buf); } while(0)
 
@@ -206,6 +208,7 @@ static  __jo_force_inline void        jo_set_printf_color_index(const unsigned c
 void            jo_set_printf_outline(const bool enabled, const jo_color color);
 
 /** @brief Clear screen (useful for printf)
+ *  @remarks With the image of the frame, as jo_printf()
  *  @warning Try to not use it by adding some whitespace at the end of jo_printf
  */
 void            jo_clear_screen(void);

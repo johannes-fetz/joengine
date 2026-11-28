@@ -129,6 +129,8 @@ static  __jo_force_inline jo_color  jo_color_mix(const jo_color a, const jo_colo
  *  @param r Red offset value (signed 9 bits)
  *  @param g Green offset value (signed 9 bits)
  *  @param b Blue offset value (signed 9 bits)
+ *  @remarks In a callback of jo_core_run(): applied with the image of the frame (a flash or a fade of the sprites changes
+ *  with them), as jo_set_screen_color_filter_b() and jo_disable_screen_color_filter()
  */
 void    jo_set_screen_color_filter_a(const jo_scroll_screen screens, const short r, const short g, const short b);
 

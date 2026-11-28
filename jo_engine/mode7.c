@@ -42,6 +42,7 @@
 #include "jo/colors.h"
 #include "jo/vdp2.h"
 #include "jo/mode7.h"
+#include "internal/vdp2.h"
 
 /** @brief Size of the line buffer (maximum output width) */
 # define JO_MODE7_LINE_BUFFER_SIZE     (1024)
@@ -192,7 +193,8 @@ void                jo_do_mode7_floor(const jo_img * const tile, const int cam_x
     const int       tile_width = tile->width;
     const unsigned int tile_mask_y = params->__cache.tile_mask_y;
 
-    dst = params->__cache.output;
+    // (the hidden bitmap of the double buffer of NBG1, see jo_vdp2_enable_nbg1_double_buffer())
+    dst = __jo_vdp2_nbg1_draw_address(params->__cache.output);
     for (output_y = params->__cache.output_y_start; output_y < params->__cache.output_height; ++output_y)
     {
         // The copy of this buffer (2 lines before) is finished: jo_dma_copy_async() waits for the previous copy
