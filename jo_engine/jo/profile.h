@@ -69,7 +69,7 @@ typedef enum
     JO_PROFILE_VDP1_COPY,
     /** @brief Wait for the VDP1 before the copy (previous table not displayed yet, or still drawn) */
     JO_PROFILE_VDP1_WAIT,
-    /** @brief Master CPU waiting for the VBLANK at the end of the frame (JO_FRAMERATE) */
+    /** @brief Master CPU waiting for the VBLANK at the end of the frame (jo_core_get_framerate()) */
     JO_PROFILE_VSYNC,
     /** @brief VDP1: from the display of a new command table to the end of its drawing */
     JO_PROFILE_VDP1_DRAW,

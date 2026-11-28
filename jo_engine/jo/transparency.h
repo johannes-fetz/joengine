@@ -48,7 +48,8 @@
  *  - Resolution: the layer is 160 pixels wide (steps of 2 pixels on its edges in 320 x 240) or up to 192 (the whole width
  *    free in the frame buffer beside a screen of 320 pixels: steps of 1.7 pixels), see jo_3d_transparency_init(). Screens
  *    of 320 or 352 pixels, 224 to 256 lines (not the high resolution, not interlaced)
- *  - Needs the manual change of the frame buffers: JO_FRAMERATE > 1 or JO_FRAMERATE_DYNAMIC in the makefile. Uses a
+ *  - Needs the manual change of the frame buffers: a frame rate of 2 or more (JO_FRAMERATE > 1 in the makefile, or
+ *    jo_core_set_framerate(2) while the program runs) or JO_FRAMERATE_DYNAMIC in the makefile. Uses a
  *    VDP2 screen (NBG1 or NBG0: see jo_3d_transparency_init()) with a 32768 colors bitmap at the start of a
  *    free bank of the VRAM (NBG1: its bitmap of the banks A0 and A1 if free), its color calculation, and the levels 1 and
  *    2 of the SCU DMA
@@ -88,7 +89,7 @@
  *  map: the layer is refused). NBG0 with the text of jo_printf(): the text is hidden while the layer runs, given back
  *  (empty) by jo_3d_transparency_stop(). Its bitmap takes a free bank of the VRAM (A0, A1 or B0; 120 KB in 320 x 240 at
  *  the width 160)
- *  @return false if it can't run (an error in JO_DEBUG): automatic change of the frame buffers (JO_FRAMERATE 1), a
+ *  @return false if it can't run (an error in JO_DEBUG): automatic change of the frame buffers (a frame rate of 1), a
  *  resolution that is not compatible (640 or 704 pixels: the frame buffer has 8 bits per pixel; interlaced, more than 256
  *  lines), screen not available (it shows an image, or no free bank of the VRAM), out of high work RAM (one block: the
  *  copy of the layer and the tables of the SCU DMA, 41 KB at 160 x 120, 59 KB at 192 x 144; given back by

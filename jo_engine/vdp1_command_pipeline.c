@@ -97,7 +97,8 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
 /** @brief FBCR: manual frame buffer change mode (FCM) and change at the next VBLANK (FCT) */
 # define JO_VDP1_FBCR_MANUAL                (0x0002)
 # define JO_VDP1_FBCR_MANUAL_CHANGE         (0x0003)
-/** @brief The frame buffers change only when the VDP1 finished drawing a new frame (JO_FRAMERATE > 1, or the dynamic
+/** @brief The frame buffers change only when the VDP1 finished drawing a new frame (a frame rate of 2 or more, see
+ *  jo_core_set_framerate(), JO_FRAMERATE at the start; or the dynamic
  *  frame rate JO_FRAMERATE_DYNAMIC): in the 1-cycle mode, they change at each VBLANK and the VDP1 must draw a frame in
  *  1/60 s (the end of a frame that takes longer is not drawn: on the real hardware and on the accurate emulators, the last
  *  commands like the HUD disappear). The frame buffer is cleared by a polygon at the start of each command table */
@@ -107,16 +108,17 @@ typedef unsigned int                        __attribute__((may_alias)) jo_vdp1_w
  *  taken as they come */
 # define JO_VDP1_PACED                      (0)
 #else
-# define JO_VDP1_MANUAL_CHANGE              (JO_FRAMERATE > 1 && !JO_VDP1_INTERLACE)
-/** @brief The pace of the images (manual change, JO_FRAMERATE > 1): the table of a frame is sent in the last field of
- *  the frame at the earliest (see __jo_vdp1_end_frame(): the master CPU waits for the end of its frame anyway), and the
- *  VDP1 takes it at the VBLANK that starts the next frame: each image stays JO_FRAMERATE fields, the VDP1 has the whole
+# define JO_VDP1_MANUAL_CHANGE              (JO_SHARED(__jo_core_framerate) > 1 && !JO_VDP1_INTERLACE)
+/** @brief The pace of the images (manual change, a frame rate of 2 or more): the table of a frame is sent in the last
+ *  field of the frame at the earliest (see __jo_vdp1_end_frame(): the master CPU waits for the end of its frame anyway),
+ *  and the VDP1 takes it at the VBLANK that starts the next frame: each image stays jo_core_get_framerate() fields, the
+ *  VDP1 has the whole
  *  frame to draw it, the slave CPU never waits to copy the next one. Before: a table sent before the second VBLANK of
  *  its frame (the CPUs under 16.7 ms) was taken at that VBLANK, the next one sent after it (17 ms) at the VBLANK after:
  *  the image before stayed 3 fields, the one after 1 field (a stutter at each crossing of 16.7 ms: 37 in a 1200 frames
- *  run of the first person shooter with the VDP1 at 9 ms, 0 after). Each image stays JO_FRAMERATE fields at least (see
+ *  run of the first person shooter with the VDP1 at 9 ms, 0 after). Each image stays jo_core_get_framerate() fields at least (see
  *  __jo_vdp1_vblank()): a table that missed its VBLANK (the CPUs, the sort and the copy over a frame, or the VDP1 over
- *  a frame) is taken at the first VBLANK after (one image of 3 fields), and the images go on from there, JO_FRAMERATE
+ *  a frame) is taken at the first VBLANK after (one image of 3 fields), and the images go on from there, jo_core_get_framerate()
  *  fields apart. Before: the next table, ready at the VBLANK that starts its frame with the VDP1 done in a field, was
  *  taken at that VBLANK (one image of 1 field): with the CPUs near 33 ms and the VDP1 near 16.7 ms the images went 3, 1,
  *  3, 1 fields (a judder: 92 images of 1 field in 10 s of the ocean demo, 0 after) */
@@ -345,6 +347,8 @@ static volatile unsigned int            __jo_vdp1_next_shown_field;
 ** (JO_SHARED) */
 static volatile unsigned int            __jo_vdp1_erase_lines;
 static bool                             __jo_vdp1_erase_measure = false;
+/** @brief The VBLANK erase was measured for the screen mode (see __jo_vdp1_set_framerate_mode()) */
+static bool                             __jo_vdp1_erase_measured = false;
 static unsigned int                     __jo_vdp1_erase_measure_field;
 static volatile unsigned int            __jo_vdp1_pending_clear;
 static volatile short                   __jo_vdp1_pending_clear_top;
@@ -394,6 +398,7 @@ static void                             __jo_vdp1_set_registers(void)
     JO_VDP1_EWRR = JO_VDP1_HIRES ? JO_VDP1_ERASE_AREA(16, JO_VDP1_LINES) : JO_VDP1_ERASE_AREA(8, JO_VDP1_LINES);
     // The VBLANK erase is measured again for this mode (the lines of the VBLANK, the width)
     JO_SHARED(__jo_vdp1_erase_lines) = 0;
+    __jo_vdp1_erase_measured = false;
     __jo_vdp1_erase_measure = JO_VDP1_MANUAL_CHANGE;
     __jo_vdp1_erase_measure_field = JO_SHARED(__jo_vdp1_vblank_fields);
 }
@@ -444,6 +449,7 @@ static void                             jo_vdp1_measure_vblank_erase(void)
     unsigned int                        field;
 
     __jo_vdp1_erase_measure = false;
+    __jo_vdp1_erase_measured = true;
     JO_SHARED(__jo_vdp1_erase_lines) = 0;
     // (the V counter is latched by the light gun, not by the reads of EXTEN: the clear polygon only)
     if (!JO_VDP1_MANUAL_CHANGE || (JO_VDP2_EXTEN & JO_VDP2_EXTEN_EXLTEN) != 0)
@@ -1484,11 +1490,9 @@ void                                    __jo_vdp1_end_frame(void)
     // The pace of the images (see JO_VDP1_PACED): the table is sent in the last field of the frame at the earliest, the
     // VDP1 takes it at the VBLANK that starts the next frame (the master CPU waits for that VBLANK anyway)
     // (at 60 frames per second there is no field to wait for)
-#if JO_FRAMERATE > 1
-    if (JO_VDP1_MANUAL_CHANGE && JO_VDP1_PACED)
-        while (JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_frame_field) < (unsigned int)(JO_FRAMERATE - 1))
+    if (JO_VDP1_PACED && JO_VDP1_MANUAL_CHANGE)
+        while (JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_frame_field) < __jo_core_framerate - 1)
             ;
-#endif
 #ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
     if (__jo_core_is_slave_running())
     {
@@ -1530,6 +1534,34 @@ void                                    __jo_vdp1_end_frame(void)
         ;
     JO_ZERO(frame->count);
     JO_ZERO(frame->window_change_count);
+}
+
+void                                    __jo_vdp1_set_framerate_mode(void)
+{
+    unsigned int                        field;
+    unsigned int                        sr;
+
+    // The frames sent are in the VRAM (the slave CPU copies them), given to the VDP1 (at a VBLANK) and drawn
+#ifdef JO_COMPILE_WITH_DUAL_CPU_SUPPORT
+    while (__jo_vdp1_frames_sent != JO_SHARED(__jo_vdp1_frames_done))
+        ;
+#endif
+    while (JO_SHARED(__jo_vdp1_pending_table) || jo_vdp1_dma_busy())
+        ;
+    field = JO_SHARED(__jo_vdp1_vblank_fields);
+    while ((JO_VDP1_EDSR & JO_VDP1_EDSR_CURRENT_END) == 0 && JO_SHARED(__jo_vdp1_vblank_fields) - field < 4)
+        ;
+    sr = __jo_core_disable_interrupts();
+    // 1 cycle: the VDP1 draws the last table again at each field; manual change: the image shown stays until the next
+    // table is drawn (the next change of the frame buffers starts its drawing)
+    JO_VDP1_FBCR = JO_VDP1_INTERLACE ? JO_VDP1_FBCR_DOUBLE_INTERLACE : (JO_VDP1_MANUAL_CHANGE ? JO_VDP1_FBCR_MANUAL : 0);
+    __jo_vdp1_drawing = false;
+    if (JO_VDP1_MANUAL_CHANGE && !__jo_vdp1_erase_measured)
+    {
+        __jo_vdp1_erase_measure = true;
+        __jo_vdp1_erase_measure_field = JO_SHARED(__jo_vdp1_vblank_fields);
+    }
+    __jo_core_restore_interrupts(sr);
 }
 
 void                                    jo_vdp1_redraw_last_frame(void)
@@ -1634,10 +1666,10 @@ void                                    __jo_vdp1_vblank(void)
         return;
     if (JO_VDP1_MANUAL_CHANGE)
     {
-#if JO_VDP1_PACED && JO_FRAMERATE > 1
-        // The pace of the images (see JO_VDP1_PACED): the image shown stays JO_FRAMERATE fields at least
+#if JO_VDP1_PACED
+        // The pace of the images (see JO_VDP1_PACED): the image shown stays jo_core_get_framerate() fields at least
         if (__jo_vdp1_drawing &&
-            JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_flip_field) < (unsigned int)JO_FRAMERATE)
+            JO_SHARED(__jo_vdp1_vblank_fields) - JO_SHARED(__jo_vdp1_flip_field) < __jo_core_framerate)
             return;
 #endif
         // Manual change: the new table is drawn when the VDP1 finished the current one (else the next VBLANK)

@@ -3434,9 +3434,13 @@ void                            __jo_vdp2_free_rgb_bitmap(const jo_scroll_screen
 {
     if (bitmap == JO_NULL)
         return;
-    // The bitmap of NBG1 stays (the drawing functions of NBG1 use it)
+    // The bitmap of NBG1 stays (the drawing functions of NBG1 use it), transparent: else it shows the last image of the
+    // transparency layer at the scale 1 (a small copy of it in a corner of the screen)
     if (screen == JO_NBG1_SCREEN && bitmap == (void *)__jo_vdp2_nbg1_bitmap)
+    {
+        jo_vdp2_clear_bitmap_nbg1(0);
         return;
+    }
     jo_vdp2_free(bitmap);
 #ifdef JO_COMPILE_WITH_PRINTF_SUPPORT
     if (screen == JO_NBG0_SCREEN)

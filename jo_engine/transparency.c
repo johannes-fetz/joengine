@@ -291,8 +291,8 @@ void                            jo_3d_render_to_image_stop(void)
     render_running = false;
 }
 
-/** @brief The layer needs the manual change of the frame buffers (see the end of this file: without it, no layer) */
-#if defined(JO_FRAMERATE_DYNAMIC) || JO_FRAMERATE > 1
+/** @brief The layer needs the manual change of the frame buffers: a frame rate of 2 or more (see jo_core_set_framerate(),
+ *  checked by jo_3d_transparency_init()) or JO_FRAMERATE_DYNAMIC */
 
 /*
 ** The transparency layer: see jo/transparency.h.
@@ -582,6 +582,17 @@ bool                            jo_3d_transparency_init(const int width, const j
 # endif
         return (false);
     }
+#ifndef JO_FRAMERATE_DYNAMIC
+    // The automatic change of the frame buffers (a frame rate of 1): they change at each VBLANK, the frame drawn by the
+    // VDP1 can't be copied before its change
+    if (jo_core_get_framerate() < 2)
+    {
+# ifdef JO_DEBUG
+        jo_core_error("Transparency: needs a frame rate of 2 or more (JO_FRAMERATE, jo_core_set_framerate())");
+# endif
+        return (false);
+    }
+#endif
     if (running)
         scu_dma_stop();
     running = false;
@@ -911,83 +922,6 @@ jo_fixed                        jo_3d_transparency_get_scale(void)
     return (layer_scale << (FIXED_SHIFT - SCALE_SHIFT));
 }
 
-#else
-
-/*
-** The automatic change of the frame buffers (JO_FRAMERATE 1): the frame buffers change at each VBLANK, the frame drawn
-** by the VDP1 can't be copied before its change. No layer
-*/
-
-bool                            jo_3d_transparency_init(const int width, const jo_scroll_screen screen)
-{
-    JO_UNUSED_ARG(width);
-    JO_UNUSED_ARG(screen);
-# ifdef JO_DEBUG
-    jo_core_error("Transparency: needs JO_FRAMERATE > 1");
-# endif
-    return (false);
-}
-
-void                            jo_3d_transparency_stop(void)
-{
-}
-
-void                            jo_3d_transparency_set_blend(const jo_vdp2_blend_mode mode, const unsigned char ratio)
-{
-    JO_UNUSED_ARG(mode);
-    JO_UNUSED_ARG(ratio);
-}
-
-void                            jo_3d_transparency_begin(void)
-{
-}
-
-void                            jo_3d_transparency_end(void)
-{
-}
-
-void                            jo_3d_transparency_set_clip(const jo_3d_rect * const rect)
-{
-    JO_UNUSED_ARG(rect);
-}
-
-void                            jo_3d_transparency_mask(jo_3d_mesh * const mesh)
-{
-    JO_UNUSED_ARG(mesh);
-}
-
-void                            jo_3d_transparency_mask_begin(void)
-{
-}
-
-void                            jo_3d_transparency_mask_end(void)
-{
-}
-
-bool                            jo_3d_transparency_is_used(void)
-{
-    return (false);
-}
-
-bool                            jo_3d_transparency_is_running(void)
-{
-    return (false);
-}
-
-void                            jo_3d_transparency_get_size(int * const width, int * const height)
-{
-    if (width != JO_NULL)
-        *width = 0;
-    if (height != JO_NULL)
-        *height = 0;
-}
-
-jo_fixed                        jo_3d_transparency_get_scale(void)
-{
-    return (JO_FIXED_1);
-}
-
-#endif /* !JO_FRAMERATE */
 
 #endif /* !JO_COMPILE_WITH_3D_SUPPORT */
 

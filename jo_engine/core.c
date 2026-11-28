@@ -53,6 +53,7 @@
 #include "jo/storyboard.h"
 #include "jo/keyboard.h"
 #include "jo/3d.h"
+#include "jo/transparency.h"
 #include "jo/profile.h"
 #include "internal/smpc.h"
 #include "internal/core.h"
@@ -127,6 +128,8 @@ char                                        __jo_last_error[JO_PRINTF_BUF_SIZE];
 /** @brief Number of VBLANK since startup */
 volatile unsigned int                       __jo_core_vblank_count = 0;
 static unsigned int                         __jo_core_last_synch_vblank = 0;
+/** @brief VBLANKs per frame (see jo_core_set_framerate()): JO_FRAMERATE at the start */
+unsigned int                                __jo_core_framerate = JO_FRAMERATE;
 volatile bool                               __jo_core_frame_open = false;
 int                                         __jo_core_fps = 0;
 unsigned int                                __jo_core_late_frames = 0;
@@ -142,6 +145,7 @@ __jo_screen_mode                            __jo_screen =
     JO_TV_WIDTH > 352, JO_TV_HEIGHT > 256, JO_TV_WIDTH == 352 || JO_TV_WIDTH == 704, false
 };
 void                                        __jo_vdp1_set_screen_mode(void);
+void                                        __jo_vdp1_set_framerate_mode(void);
 void                                        __jo_vdp2_set_screen_mode(void);
 void                                        __jo_vdp2_update_tv_mode(void);
 #ifdef JO_COMPILE_WITH_3D_SUPPORT
@@ -517,9 +521,9 @@ void                                        __jo_core_synch(void)
     jo_profile_count(JO_PROFILE_POLYGONS, jo_3d_get_displayed_polygon_count());
     __jo_3d_end_frame();
 #endif
-    // Real frame rate = (60 / JO_FRAMERATE)
+    // Real frame rate = (60 / jo_core_get_framerate())
     jo_profile_begin(JO_PROFILE_VSYNC);
-    target = __jo_core_last_synch_vblank + (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE);
+    target = __jo_core_last_synch_vblank + __jo_core_framerate;
     while ((int)(__jo_core_vblank_count - target) < 0 || __jo_core_vblank_count == __jo_core_last_synch_vblank)
     {
 #ifdef JO_CORE_SYNCH_SLEEP
@@ -533,13 +537,13 @@ void                                        __jo_core_synch(void)
     }
     jo_profile_end(JO_PROFILE_VSYNC);
     jo_profile_count(JO_PROFILE_VBLANKS, 100 * (__jo_core_vblank_count - __jo_core_last_synch_vblank));
-    // The frames really shown (see jo_core_get_fps()): a frame is late when it took more VBLANK than JO_FRAMERATE (not
+    // The frames really shown (see jo_core_get_fps()): a frame is late when it took more VBLANK than jo_core_get_framerate() (not
     // the first one: the time of the loading before it)
     if (__jo_core_fps_vblank == 0)
         __jo_core_fps_vblank = __jo_core_vblank_count;
     else
     {
-        if (__jo_core_vblank_count - __jo_core_last_synch_vblank > (JO_FRAMERATE < 1 ? 1 : JO_FRAMERATE))
+        if (__jo_core_vblank_count - __jo_core_last_synch_vblank > __jo_core_framerate)
             ++__jo_core_late_frames;
         ++__jo_core_fps_frames;
         // (every 2 seconds: 120 VBLANK in NTSC, 100 in PAL. Rounded)
@@ -604,6 +608,43 @@ bool                                        jo_core_set_screen_resolution(const 
     __jo_3d_set_screen_mode();
 #endif
     return (true);
+}
+
+bool                                        jo_core_set_framerate(const int framerate)
+{
+#ifdef JO_FRAMERATE_DYNAMIC
+    JO_UNUSED_ARG(framerate);
+# ifdef JO_DEBUG
+    jo_core_error("jo_core_set_framerate(): not with JO_FRAMERATE_DYNAMIC");
+# endif
+    return (false);
+#else
+    if (framerate < 1 || framerate > JO_CORE_MAX_FRAMERATE)
+    {
+# ifdef JO_DEBUG
+        jo_core_error("jo_core_set_framerate(): %d VBLANK per frame (1 to %d)", framerate, JO_CORE_MAX_FRAMERATE);
+# endif
+        return (false);
+    }
+# ifdef JO_COMPILE_WITH_3D_SUPPORT
+    // (the layer needs the manual change of the frame buffers)
+    if (framerate == 1 && jo_3d_transparency_is_running())
+    {
+#  ifdef JO_DEBUG
+        jo_core_error("jo_core_set_framerate(1): stop the transparency layer first");
+#  endif
+        return (false);
+    }
+# endif
+    if ((unsigned int)framerate == __jo_core_framerate)
+        return (true);
+    __jo_core_framerate = (unsigned int)framerate;
+    // The mode of the frame buffers of the VDP1 (1 cycle at 1, manual change from 2): it waits for the frames sent
+    __jo_vdp1_set_framerate_mode();
+    // (the wait is not a late frame)
+    __jo_core_last_synch_vblank = __jo_core_vblank_count;
+    return (true);
+#endif
 }
 
 void                    jo_core_set_screen_single_interlace(const bool enabled)

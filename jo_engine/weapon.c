@@ -63,14 +63,15 @@ static unsigned int                 __jo_weapon_last_vblank = 0;
 static bool                         __jo_weapon_started = false;
 
 /*
-** The times of the definitions are in frames of the game (JO_FRAMERATE VBLANK each); the timers count VBLANKs: when a
+** The times of the definitions are in frames of the game at JO_FRAMERATE VBLANK each (the frame rate of the makefile:
+** the same times when jo_core_set_framerate() changes it); the timers count VBLANKs: when a
 ** frame takes longer (the frame rate goes down) they go down by the VBLANKs it took. An automatic weapon keeps its rate
 ** of fire (the time left over goes to the next shot), the reload its length (the shots and the sounds no longer stutter)
 */
 /** @brief A time of a definition (frames of the game) in VBLANKs */
 # define JO_WEAPON_VBLANKS(FRAMES)          ((FRAMES) * JO_FRAMERATE)
 /** @brief The longest time counted between 2 updates (a pause, a loading): VBLANKs */
-# define JO_WEAPON_MAX_STEP                 (4 * JO_FRAMERATE)
+# define JO_WEAPON_MAX_STEP                 (4 * JO_CORE_MAX_FRAMERATE)
 
 static const char                   *__jo_weapon_string(const unsigned int offset)
 {
@@ -242,9 +243,9 @@ unsigned int                        jo_weapons_update(const bool fire_held, cons
 
     if (__jo_weapon_count == 0)
         return (0);
-    // The VBLANKs since the last update (a frame of the game: JO_FRAMERATE, more when the frame rate goes down)
+    // The VBLANKs since the last update (a frame of the game: jo_core_get_framerate(), more when the frame rate goes down)
     now = jo_core_get_vblank_count();
-    step = __jo_weapon_started ? (int)(now - __jo_weapon_last_vblank) : JO_FRAMERATE;
+    step = __jo_weapon_started ? (int)(now - __jo_weapon_last_vblank) : jo_core_get_framerate();
     step = JO_MAX(1, JO_MIN(step, JO_WEAPON_MAX_STEP));
     __jo_weapon_last_vblank = now;
     __jo_weapon_started = true;

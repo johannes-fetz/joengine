@@ -293,7 +293,7 @@ extern unsigned short       __jo_vdp1_display_level;
 
 /** @brief Draw the last frame again (from a VBLANK callback while the main loop doesn't run: a loading). A texture of
  *  this frame changed by the callback is seen (the sand of an hourglass)
- *  @remarks The manual change of the frame buffers (JO_FRAMERATE > 1) draws a frame only once: the frame buffers change
+ *  @remarks The manual change of the frame buffers (a frame rate of 2 or more) draws a frame only once: the frame buffers change
  *  at the end of this VBLANK if the VDP1 finished the frame. Don't call it while the main loop sends frames
  */
 void                        jo_vdp1_redraw_last_frame(void);
@@ -348,12 +348,12 @@ extern bool                 __jo_vdp1_frame_clear;
 /** @brief Clear the frame buffer at the start of each frame (the default), or not
  *  @param enabled false: the frame buffer is not cleared, what the frame does not draw keeps the pixels of the frame
  *  drawn 2 frames before (the frame buffers alternate)
- *  @remarks With JO_FRAMERATE > 1 or JO_FRAMERATE_DYNAMIC (the frame buffers change when the VDP1 finished a frame)
+ *  @remarks With a frame rate of 2 or more (see jo_core_set_framerate()) or JO_FRAMERATE_DYNAMIC (the frame buffers change when the VDP1 finished a frame)
  *  the frame buffer is erased by the VDP1 during the VBLANK of the change (as many lines as the VBLANK allows, measured at
  *  the start: with Mednafen, 197 of 224 lines in NTSC, 114 of 240) and the lines left are cleared by a polygon of the transparent
  *  color (the whole screen: about 4 ms of VDP1 time; when the VBLANK erase can't be used, with a light gun)
  *  A program that covers the whole screen at each frame (the rooms of a first person game) does not need it. The last pixel of a line between 2 polygons is the one
- *  of the older frame instead of the background. With JO_FRAMERATE 1 the VDP1 erases the frame buffer itself
+ *  of the older frame instead of the background. With a frame rate of 1 the VDP1 erases the frame buffer itself
  *  @remarks From the next frame
  */
 static  __jo_force_inline void jo_3d_set_frame_clear(const bool enabled)

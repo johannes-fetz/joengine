@@ -393,8 +393,36 @@ extern int                          __jo_core_fps;
 /** @brief Count of late frames (Internal usage, see jo_core_get_late_frame_count()) */
 extern unsigned int                 __jo_core_late_frames;
 
+/** @brief The highest frame rate value of jo_core_set_framerate() (VBLANKs per frame: 10 images per second in NTSC) */
+# define JO_CORE_MAX_FRAMERATE              (6)
+
+/** @brief Change the frame rate while the program runs (60 images per second in some scenes, 30 in others)
+ *  @param framerate VBLANKs per frame (1: 60 images per second in NTSC, 50 in PAL; 2: 30, 25; up to JO_CORE_MAX_FRAMERATE)
+ *  @return false if it can't change: JO_FRAMERATE_DYNAMIC in the makefile, 1 with the transparency layer running (see
+ *  jo/transparency.h)
+ *  @remarks JO_FRAMERATE of the makefile is the frame rate at the start. As JO_FRAMERATE: at 1 the VDP1 changes and erases
+ *  its frame buffers by itself at each VBLANK (a whole field to draw an image); from 2 the frame buffers change when the
+ *  VDP1 finished an image (it has the whole frame to draw it, the transparency layer works), each image shown 2 fields
+ *  @remarks At once, in a frame too: it waits until the VDP1 drew the frames already sent (up to 2 fields). The first
+ *  change to 2 or more after a change of the resolution (or since the start at 1) measures the VBLANK erase of the VDP1:
+ *  a field of the screen shows a black image. Change it in a scene change (a fade, a loading)
+ *  @remarks The times of the game counted in frames go twice as fast at 1 as at 2: count them in VBLANKs
+ *  (jo_core_get_vblank_count()), or multiply them by jo_core_get_framerate()
+ */
+bool                                jo_core_set_framerate(const int framerate);
+
+/** @brief The frame rate (see jo_core_set_framerate())
+ *  @return VBLANKs per frame (1: 60 images per second in NTSC), JO_FRAMERATE at the start
+ */
+static  __jo_force_inline int       jo_core_get_framerate(void)
+{
+    extern unsigned int             __jo_core_framerate;
+
+    return ((int)__jo_core_framerate);
+}
+
 /** @brief Get the frames per second really shown, measured over the last 2 seconds
- *  @return Frames per second (60 / JO_FRAMERATE in NTSC when no frame is late), 0 during the first 2 seconds
+ *  @return Frames per second (60 / jo_core_get_framerate() in NTSC when no frame is late), 0 during the first 2 seconds
  *  @remarks jo_printf(0, 27, "%d FPS  ", jo_core_get_fps());
  */
 static  __jo_force_inline int       jo_core_get_fps(void)
@@ -403,7 +431,7 @@ static  __jo_force_inline int       jo_core_get_fps(void)
 }
 
 /** @brief Get the count of the late frames since startup
- *  @return Frames that took more VBLANK than JO_FRAMERATE (the game missed the end of a frame: it slows down)
+ *  @return Frames that took more VBLANK than jo_core_get_framerate() (the game missed the end of a frame: it slows down)
  *  @remarks The first frame is not counted (the loading before it)
  *  @remarks As the images of the VDP1: a frame of 1.2 field followed by a frame of 0.5 field is not late (the table of
  *  the second frame waits for its VBLANK: each image stays one field, 60 images per second). Measured: the count is the

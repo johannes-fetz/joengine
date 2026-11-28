@@ -140,8 +140,11 @@ void    __jo_core_add_slave_job(const jo_slave_job_function function, void *argu
 
 #endif /* !JO_COMPILE_WITH_DUAL_CPU_SUPPORT */
 
+/** @brief VBLANKs per frame (Internal usage, see jo_core_set_framerate()); read by the slave CPU with JO_SHARED() */
+extern unsigned int                 __jo_core_framerate;
+
 /** @brief Wait for the end of the current frame (Internal usage)
- *  @remarks Send the VDP1 commands and wait for JO_FRAMERATE VBLANK
+ *  @remarks Send the VDP1 commands and wait for jo_core_get_framerate() VBLANK
  */
 void                                __jo_core_synch(void);
 

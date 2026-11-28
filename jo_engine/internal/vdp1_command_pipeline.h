@@ -52,7 +52,7 @@ void                        __jo_vdp1_init(void);
 /** @brief Sort the commands of the frame and copy them into the VDP1 VRAM (internal usage) */
 void                        __jo_vdp1_end_frame(void);
 /** @brief A frame of the game starts (internal usage, the master CPU after the VBLANK it waited for): the table of the
- *  frame is sent in its last field at the earliest (JO_FRAMERATE > 1, see __jo_vdp1_end_frame()) */
+ *  frame is sent in its last field at the earliest (a frame rate of 2 or more, see __jo_vdp1_end_frame()) */
 void                        __jo_vdp1_frame_start(void);
 
 /** @brief Display the last complete command table (internal usage, called during VBLANK-IN, as early as possible: the
